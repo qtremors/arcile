@@ -222,6 +222,15 @@ fun ArcileAppShell(
                                 launchSingleTop = true
                             }
                         },
+                        onOpenFile = onOpenFile,
+                        onCategoryClick = { categoryName ->
+                            val path = getCategoryPath(categoryName, viewModel.storageRootPath)
+                            viewModel.navigateToSpecificFolder(path)
+                            navController.navigate("explorer") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
                         onSettingsClick = {
                             navController.navigate("settings")
                         }
@@ -294,5 +303,17 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
         Button(onClick = onRequestPermission) {
             Text("Grant Permission")
         }
+    }
+}
+
+private fun getCategoryPath(categoryName: String, root: String): String {
+    return when (categoryName) {
+        "Images" -> java.io.File(root, Environment.DIRECTORY_PICTURES).absolutePath
+        "Videos" -> java.io.File(root, Environment.DIRECTORY_MOVIES).absolutePath
+        "Audio" -> java.io.File(root, Environment.DIRECTORY_MUSIC).absolutePath
+        "Docs" -> java.io.File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath
+        "Archives" -> java.io.File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath
+        "APKs" -> java.io.File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath
+        else -> root
     }
 }

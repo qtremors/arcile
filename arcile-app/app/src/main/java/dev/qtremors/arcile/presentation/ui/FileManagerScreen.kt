@@ -108,9 +108,11 @@ fun FileManagerScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                         items(state.files, key = { it.absolutePath }) { file ->
                             FileItemRow(
                                 file = file,
+                                formattedDate = formatter.format(Date(file.lastModified)),
                                 isSelected = state.selectedFiles.contains(file.absolutePath),
                                 onClick = {
                                     if (state.selectedFiles.isNotEmpty()) {
@@ -197,11 +199,11 @@ fun FileManagerScreen(
 @Composable
 fun FileItemRow(
     file: FileModel,
+    formattedDate: String,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
     ListItem(
         modifier = Modifier
@@ -221,7 +223,7 @@ fun FileItemRow(
         headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(formatter.format(Date(file.lastModified)))
+                Text(formattedDate)
                 if (!file.isDirectory) {
                     Text(formatFileSize(file.size))
                 }

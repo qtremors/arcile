@@ -20,25 +20,25 @@ import androidx.core.view.WindowCompat
 // Basic color schemes if dynamic is not available or overriden by a specific seed color.
 // We will use the system's dynamic color generation if available and selected.
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
+    primary = Color(0xFFD0BCFF),
+    secondary = Color(0xFFCCC2DC),
+    tertiary = Color(0xFFEFB8C8),
     background = Color(0xFF1C1B1F),
     surface = Color(0xFF1C1B1F)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
+    primary = Color(0xFF6650a4),
+    secondary = Color(0xFF625b71),
+    tertiary = Color(0xFF7D5260),
     background = Color(0xFFFFFBFE),
     surface = Color(0xFFFFFBFE)
 )
 
 private val OledColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80,
+    primary = Color(0xFFD0BCFF),
+    secondary = Color(0xFFCCC2DC),
+    tertiary = Color(0xFFEFB8C8),
     background = Color.Black,
     surface = Color.Black,
     surfaceVariant = Color(0xFF121212),

@@ -12,6 +12,18 @@
 
 ---
 
+## [0.1.5] - 2026-03-04
+### Features & Fixes
+- Added click handlers to Home screen Category icons to open their respective media folders.
+- Recent files list on Home screen are now clickable, opening the file directly instead of just selecting it.
+- Prevented potential crashes / logic bugs with sibling folder navigation in `navigateToFolder`.
+- Optimized performance by hoisting `SimpleDateFormat` to prevent per-row instantiation during scroll.
+- Fixed a resource linking error ensuring `Theme.Material3.DayNight.NoActionBar` is correctly targeted.
+- Code cleanup: Fixed irregular indentations in `ArcileTopBar.kt`.
+- Verified and marked off several issues (`formatFileSize` crashes, settings back navigation, storage parsing logic) that were already effectively solved by existing app logic implementations.
+
+---
+
 ## [0.1.4] - 2026-03-04
 
 ### Added
