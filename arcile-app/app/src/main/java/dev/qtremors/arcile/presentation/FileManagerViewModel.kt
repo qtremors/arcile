@@ -186,6 +186,25 @@ class FileManagerViewModel(
         }
     }
 
+    fun renameFile(path: String, newName: String) {
+        // validate name
+        val invalidChars = listOf('/', '\\', '\u0000')
+        if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
+            _state.update { it.copy(error = "Invalid name: must not be blank or contain /, \\, or ..") }
+            return
+        }
+
+        viewModelScope.launch {
+            val result = repository.renameFile(path, newName)
+            result.onSuccess {
+                clearSelection()
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Failed to rename file") }
+            }
+        }
+    }
+
     fun clearError() {
          _state.update { it.copy(error = null) }
     }

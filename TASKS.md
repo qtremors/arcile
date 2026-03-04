@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.1.3
+> **Version:** 0.1.4
 > **Last Updated:** 2026-03-04
 
 ---
@@ -14,16 +14,16 @@
   - A name like `../../etc/hosts` constructs a path outside the current directory.
 - [x] [Bug] `deleteSelectedFiles()` silently swallows per-file deletion errors (`FileManagerViewModel.kt:161-171`)
   - Failed deletions are ignored; user sees no error feedback.
-- [ ] [Bug] Permission state uses `remember` — not reactive to lifecycle (`MainActivity.kt:64`)
-  - `hasPermission` never auto-updates when returning from system settings on Android 11+.
-- [ ] [Feature] No file-open capability exists anywhere
-  - The app can browse, create, select, and delete — but cannot open files. Tapping a file does nothing.
+- [x] [Bug] Permission state uses `remember` — not reactive to lifecycle (`MainActivity.kt:64`)
+  - ~~`hasPermission` never auto-updates when returning from system settings on Android 11+.~~ Fixed with hoisted `mutableStateOf` updated in `onResume`.
+- [x] [Feature] No file-open capability exists anywhere
+  - ~~The app can browse, create, select, and delete — but cannot open files. Tapping a file does nothing.~~ Files now open via `Intent.ACTION_VIEW` with `FileProvider`.
 - [x] [Bug] Delete has no confirmation dialog (`FileManagerScreen.kt:58`)
   - "Delete Selected" immediately deletes (including recursive directory deletion) with zero user confirmation.
 - [ ] [Bug] `navigateToFolder` history logic has false positives for sibling navigation (`FileManagerViewModel.kt:71-91`)
   - String-prefix path comparison misidentifies siblings as parents, corrupting the history stack.
-- [ ] [Security] `isMinifyEnabled = false` in release build (`app/build.gradle.kts:26`)
-  - Release APKs are unobfuscated and unshrunk — easy reverse engineering and bloated size.
+- [x] [Security] `isMinifyEnabled = false` in release build (`app/build.gradle.kts:26`)
+  - ~~Release APKs are unobfuscated and unshrunk — easy reverse engineering and bloated size.~~ Enabled `isMinifyEnabled` and `isShrinkResources`.
 
 ### Medium Priority
 
@@ -31,8 +31,8 @@
   - Search icon visible on every screen but `onSearchClick` is always a no-op.
 - [ ] [Feature] Sort is completely unimplemented
   - Sort icon visible but `onSortClick` is always a no-op.
-- [ ] [Feature] No rename UI despite backend support (`FileRepository.kt:15`, `LocalFileRepository.kt:70-89`)
-  - `renameFile()` is implemented but never called from ViewModel or exposed in any UI.
+- [x] [Feature] No rename UI despite backend support (`FileRepository.kt:15`, `LocalFileRepository.kt:70-89`)
+  - ~~`renameFile()` is implemented but never called from ViewModel or exposed in any UI.~~ Added rename dialog, ViewModel function, and rename icon in selection bar.
 - [ ] [Feature] Category shortcuts all route to generic file browser (`HomeScreen.kt:167-248`)
   - "Images", "Audio", "DCIM", "Downloads" etc. all call `onOpenFileBrowser()` to storage root instead of their specific folder.
 - [ ] [Feature] Recent files click opens generic file browser instead of the file (`HomeScreen.kt:95-96`)
@@ -74,10 +74,10 @@
   - 1000 files = 1000 instances. Hoist to parent composable or use `CompositionLocal`.
 - [ ] [Performance] `java.util.Stack` adds unnecessary synchronization overhead (`FileManagerViewModel.kt:35`)
   - Replace with `ArrayDeque`.
-- [ ] [Performance] Navigation dependency hardcoded outside version catalog (`app/build.gradle.kts:52`)
-  - `"androidx.navigation:navigation-compose:2.8.5"` should be in `libs.versions.toml`.
-- [ ] [Performance] Lifecycle version mismatches in version catalog (`gradle/libs.versions.toml`)
-  - `lifecycleViewmodelCompose = "2.8.2"` vs `lifecycleRuntimeKtx = "2.10.0"` — align versions.
+- [x] [Performance] Navigation dependency hardcoded outside version catalog (`app/build.gradle.kts:52`)
+  - ~~`"androidx.navigation:navigation-compose:2.8.5"` should be in `libs.versions.toml`.~~ Moved to version catalog.
+- [x] [Performance] Lifecycle version mismatches in version catalog (`gradle/libs.versions.toml`)
+  - ~~`lifecycleViewmodelCompose = "2.8.2"` vs `lifecycleRuntimeKtx = "2.10.0"` — align versions.~~ Aligned to `2.10.0`.
 - [ ] [Refactor] `StorageInfo` co-located with `FileRepository` interface (`FileRepository.kt:6-9`)
   - Move to its own file in the domain package for consistency.
 - [ ] [Refactor] Top-level composables in `MainActivity.kt` (`MainActivity.kt:126-255`)
@@ -85,14 +85,14 @@
 - [x] [Cleanup] Empty file: `ThemePreferences.kt` (`presentation/ui/components/ThemePreferences.kt`)
   - 0 bytes — dead placeholder. ~~Implement or delete.~~ Deleted.
 - [x] [Cleanup] Unused import: `kotlinx.coroutines.flow.Flow` (`FileRepository.kt:4`)
-- [ ] [Cleanup] Unused import: `kotlinx.coroutines.launch` (`MainActivity.kt:36`)
+- [x] [Cleanup] Unused import: `kotlinx.coroutines.launch` (`MainActivity.kt:36`)
 - [ ] [Cleanup] Inconsistent indentation in `ArcileTopBar.kt` (lines 68-126)
 - [ ] [Cleanup] `build_log.txt` and `nav_build_log.txt` committed to repo
   - Build logs reference old package `com.qtremors.filemanager`. Add to `.gitignore` and remove.
-- [ ] [Cleanup] `local.properties` committed to repo
-  - Machine-specific SDK paths. Add to `.gitignore` and untrack.
-- [ ] [Cleanup] Deprecated `Icons.Default.InsertDriveFile` (`FileManagerScreen.kt:156`)
-  - Replace with `Icons.AutoMirrored.Filled.InsertDriveFile`.
+- [x] [Cleanup] `local.properties` committed to repo
+  - ~~Machine-specific SDK paths. Add to `.gitignore` and untrack.~~ Already in `.gitignore` and not tracked.
+- [x] [Cleanup] Deprecated `Icons.Default.InsertDriveFile` (`FileManagerScreen.kt:156`)
+  - ~~Replace with `Icons.AutoMirrored.Filled.InsertDriveFile`.~~ Replaced.
 - [x] [Cleanup] `Color.kt` uses default Android Studio template colors
   - ~~Replace with intentional brand colors or remove.~~ Removed template colors.
 - [x] [Cleanup] `res/values/colors.xml` contains unused template colors
@@ -100,8 +100,8 @@
 - [x] [Config] `rootProject.name = "File Manager"` doesn't match "Arcile" (`settings.gradle.kts:25`)
 - [x] [Config] `themes.xml` uses legacy `android:Theme.Material.Light.NoActionBar` (`res/values/themes.xml:4`)
   - ~~Should use `Theme.Material3.Light.NoActionBar` to avoid launch theme flash.~~ Fixed.
-- [ ] [Config] Missing explicit `kotlinOptions { jvmTarget = "11" }` (`app/build.gradle.kts`)
-- [ ] [Config] `android:allowBackup="true"` with only template backup rules (`AndroidManifest.xml:11`)
+- [x] [Config] Missing explicit `kotlinOptions { jvmTarget = "11" }` (`app/build.gradle.kts`)
+- [x] [Config] `android:allowBackup="true"` with only template backup rules (`AndroidManifest.xml:11`)
 - [ ] [Docs] No test infrastructure — only template tests exist
   - Add unit tests for `FileManagerViewModel`, `LocalFileRepository`, and UI tests.
 

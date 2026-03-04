@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,14 +32,17 @@ fun FileManagerScreen(
     storageRootPath: String,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
+    onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onDeleteSelected: () -> Unit,
+    onRenameFile: (String, String) -> Unit,
     onClearError: () -> Unit
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
 
     BackHandler {
         onNavigateBack()
@@ -58,6 +62,7 @@ fun FileManagerScreen(
                     when (action) {
                         "New Folder" -> showCreateFolderDialog = true
                         "Delete Selected" -> showDeleteConfirmation = true
+                        "Rename" -> showRenameDialog = true
                     }
                 }
             )
@@ -112,6 +117,8 @@ fun FileManagerScreen(
                                         onToggleSelection(file.absolutePath)
                                     } else if (file.isDirectory) {
                                         onNavigateTo(file.absolutePath)
+                                    } else {
+                                        onOpenFile(file.absolutePath)
                                     }
                                 },
                                 onLongClick = { onToggleSelection(file.absolutePath) }
@@ -158,6 +165,19 @@ fun FileManagerScreen(
             )
         }
 
+        if (showRenameDialog && state.selectedFiles.size == 1) {
+            val selectedPath = state.selectedFiles.first()
+            val currentName = selectedPath.substringAfterLast('/')
+            RenameDialog(
+                currentName = currentName,
+                onDismiss = { showRenameDialog = false },
+                onConfirm = { newName ->
+                    onRenameFile(selectedPath, newName)
+                    showRenameDialog = false
+                }
+            )
+        }
+
         state.error?.let { errorMsg ->
             AlertDialog(
                 onDismissRequest = onClearError,
@@ -192,7 +212,7 @@ fun FileItemRow(
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface),
         leadingContent = {
             Icon(
-                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.Default.InsertDriveFile,
+                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
                 contentDescription = null,
                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(40.dp)
@@ -254,3 +274,39 @@ fun CreateFolderDialog(
         }
     )
 }
+
+@Composable
+fun RenameDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var newName by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename") },
+        text = {
+            OutlinedTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = { Text("New Name") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(newName) },
+                enabled = newName.isNotBlank() && newName != currentName
+            ) {
+                Text("Rename")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+

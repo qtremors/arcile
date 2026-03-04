@@ -84,6 +84,11 @@ fun ArcileTopBar(
                 }
             } else {
                 // actions when items are selected
+                if (selectionCount == 1) {
+                    IconButton(onClick = { onActionSelected("Rename") }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Rename")
+                    }
+                }
                 IconButton(onClick = { onActionSelected("Delete Selected") }) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                 }

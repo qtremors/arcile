@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.3
+> **Version:** 0.1.4
 > **Last Updated:** 2026-03-04
 
 ---
@@ -9,6 +9,31 @@
 ## [Unreleased]
 
 <!-- Accumulate changes here prior to the next formal release. -->
+
+---
+
+## [0.1.4] - 2026-03-04
+
+### Added
+- File-open capability — tapping a file launches `Intent.ACTION_VIEW` via `FileProvider` with MIME type detection
+- Rename UI — rename dialog, ViewModel `renameFile()` function, and edit icon in selection bar (single-selection)
+- `RenameDialog` composable in `FileManagerScreen.kt`
+- `file_provider_paths.xml` and `FileProvider` registration in `AndroidManifest.xml`
+
+### Fixed
+- Permission state now reactive to lifecycle — `onResume` updates a hoisted `mutableStateOf` so the UI recomposes when returning from system settings
+- Replaced deprecated `Icons.Default.InsertDriveFile` with `Icons.AutoMirrored.Filled.InsertDriveFile`
+- `android:allowBackup` set to `false` (template backup rules not configured)
+- Added explicit `kotlinOptions { jvmTarget = "11" }` in `build.gradle.kts`
+
+### Changed
+- [Security] Release builds now use `isMinifyEnabled = true` and `isShrinkResources = true`
+- Navigation dependency moved from hardcoded string to version catalog (`libs.versions.toml`)
+- Lifecycle ViewModel Compose version aligned from `2.8.2` to `2.10.0` (matches `lifecycleRuntimeKtx`)
+
+### Removed
+- `local.properties` confirmed not tracked (already in `.gitignore`)
+- Unused import `kotlinx.coroutines.launch` confirmed not present in `MainActivity.kt`
 
 ---
 

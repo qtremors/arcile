@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.webkit.MimeTypeMap
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -22,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -34,15 +37,20 @@ import dev.qtremors.arcile.presentation.ui.SettingsScreen
 import dev.qtremors.arcile.presentation.ui.ToolsScreen
 import dev.qtremors.arcile.ui.theme.FileManagerTheme
 import dev.qtremors.arcile.ui.theme.ThemeState
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: FileManagerViewModel by viewModels()
 
+    // reactive permission state — updated in onResume so Compose recomposes
+    private val _hasPermission = mutableStateOf(false)
+
     private val storagePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val granted = permissions.entries.all { it.value }
+        _hasPermission.value = granted
         if (granted) {
             viewModel.refresh()
         }
@@ -51,6 +59,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        _hasPermission.value = checkStoragePermission()
 
         setContent {
             var themeState by remember { mutableStateOf(ThemeState()) }
@@ -60,18 +69,18 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    var hasPermission by remember { mutableStateOf(checkStoragePermission()) }
+                    val hasPermission by _hasPermission
 
                     if (hasPermission) {
                         ArcileAppShell(
                             viewModel = viewModel,
-                            onThemeChange = { themeState = it }
+                            onThemeChange = { themeState = it },
+                            onOpenFile = { path -> openFile(path) }
                         )
                     } else {
                         PermissionRequestScreen(
                             onRequestPermission = {
                                 requestStoragePermission()
-                                hasPermission = checkStoragePermission()
                             }
                         )
                     }
@@ -82,8 +91,32 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (checkStoragePermission()) {
+        _hasPermission.value = checkStoragePermission()
+        if (_hasPermission.value) {
             viewModel.refresh()
+        }
+    }
+
+    // open a file via Intent.ACTION_VIEW using FileProvider
+    private fun openFile(path: String) {
+        try {
+            val file = File(path)
+            val uri = FileProvider.getUriForFile(
+                this,
+                "${applicationContext.packageName}.fileprovider",
+                file
+            )
+            val mimeType = MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(file.extension.lowercase())
+                ?: "*/*"
+
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(this, "No app found to open this file", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -123,7 +156,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArcileAppShell(
     viewModel: FileManagerViewModel,
-    onThemeChange: (ThemeState) -> Unit
+    onThemeChange: (ThemeState) -> Unit,
+    onOpenFile: (String) -> Unit
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -212,10 +246,12 @@ fun ArcileAppShell(
                             }
                         },
                         onNavigateTo = { viewModel.navigateToFolder(it) },
+                        onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
                         onDeleteSelected = { viewModel.deleteSelectedFiles() },
+                        onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onClearError = { viewModel.clearError() }
                     )
                 }
