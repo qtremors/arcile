@@ -1,4 +1,4 @@
-package com.qtremors.filemanager.domain
+package dev.qtremors.arcile.domain
 
 import java.io.File
 

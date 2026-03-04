@@ -1,4 +1,4 @@
-package com.qtremors.filemanager.ui.theme
+package dev.qtremors.arcile.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

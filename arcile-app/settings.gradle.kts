@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "File Manager"
+rootProject.name = "Arcile"
 include(":app")
  

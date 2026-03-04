@@ -54,7 +54,7 @@ fun HomeScreen(
                         text = "Categories",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, top = 16.dp, bottom = 8.dp)
+                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
                     )
                 }
                 item { QuickAccessGrid() }
@@ -64,7 +64,7 @@ fun HomeScreen(
                         text = "Folders",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, top = 24.dp, bottom = 8.dp)
+                        modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
                     )
                 }
                 item { MainFoldersRow(onOpenFileBrowser) }
@@ -74,7 +74,7 @@ fun HomeScreen(
                         text = "Recent Files",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, top = 24.dp, bottom = 8.dp)
+                        modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
                     )
                 }
 

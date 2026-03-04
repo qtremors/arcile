@@ -1,11 +1,11 @@
-package com.qtremors.filemanager.presentation
+package dev.qtremors.arcile.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.qtremors.filemanager.data.LocalFileRepository
-import com.qtremors.filemanager.domain.FileModel
-import com.qtremors.filemanager.domain.FileRepository
-import com.qtremors.filemanager.domain.StorageInfo
+import dev.qtremors.arcile.data.LocalFileRepository
+import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.StorageInfo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

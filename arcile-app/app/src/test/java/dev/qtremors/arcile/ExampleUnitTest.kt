@@ -1,4 +1,4 @@
-package com.qtremors.filemanager
+package dev.qtremors.arcile
 
 import org.junit.Test
 

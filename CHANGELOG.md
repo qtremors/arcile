@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.0
+> **Version:** 0.1.1
 > **Last Updated:** 2026-03-04
 
 ---
@@ -10,12 +10,28 @@
 
 <!-- Accumulate changes here prior to the next formal release. -->
 
+---
+
+## [0.1.1] - 2026-03-04
+
 ### Added
 - Project documentation: `README.md`, `DEVELOPMENT.md`, `CHANGELOG.md`, `LICENSE.md`
 - Comprehensive project audit in `TASKS.md` (40 findings across 8 categories)
+- Consolidated `.gitignore` with full Android/IDE/OS coverage
+- App icon source image (`ic_launcher-playstore.png`)
+
+### Fixed
+- Stale `com.qtremors.filemanager` package declarations → `dev.qtremors.arcile` across 8 source files
+- `"File Manager"` → `"Arcile"` in `settings.gradle.kts`, `strings.xml`, `themes.xml`, `AndroidManifest.xml`
+- Missing `Color` import in `FileManagerScreen.kt` causing build failure
+- Invalid `Modifier.padding(horizontal, top, bottom)` overload in `HomeScreen.kt` (3 occurrences)
+- Version references updated from `1.0.0` to `0.1.1`
 
 ### Changed
 - Reformatted `TASKS.md` to use prioritized task template
+
+### Removed
+- Stale `build_log.txt` and `nav_build_log.txt` (referenced old package name)
 
 ---
 

@@ -79,7 +79,7 @@ fun SettingsScreen(
             item {
                 ListItem(
                     headlineContent = { Text("App Version") },
-                    supportingContent = { Text("0.1.0") },
+                    supportingContent = { Text("0.1.1") },
                     leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                 )
             }

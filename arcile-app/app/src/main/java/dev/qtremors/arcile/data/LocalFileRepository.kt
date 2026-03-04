@@ -1,10 +1,10 @@
-package com.qtremors.filemanager.data
+package dev.qtremors.arcile.data
 
 import android.os.Environment
 import android.os.StatFs
-import com.qtremors.filemanager.domain.FileModel
-import com.qtremors.filemanager.domain.FileRepository
-import com.qtremors.filemanager.domain.StorageInfo
+import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.StorageInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
