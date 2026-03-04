@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.2
+> **Version:** 0.1.4
 > **Last Updated:** 2026-03-04
 
 ---
@@ -9,6 +9,65 @@
 ## [Unreleased]
 
 <!-- Accumulate changes here prior to the next formal release. -->
+
+---
+
+## [0.1.5] - 2026-03-04
+### Features & Fixes
+- Added click handlers to Home screen Category icons to open their respective media folders.
+- Recent files list on Home screen are now clickable, opening the file directly instead of just selecting it.
+- Prevented potential crashes / logic bugs with sibling folder navigation in `navigateToFolder`.
+- Optimized performance by hoisting `SimpleDateFormat` to prevent per-row instantiation during scroll.
+- Fixed a resource linking error ensuring `Theme.Material3.DayNight.NoActionBar` is correctly targeted.
+- Code cleanup: Fixed irregular indentations in `ArcileTopBar.kt`.
+- Verified and marked off several issues (`formatFileSize` crashes, settings back navigation, storage parsing logic) that were already effectively solved by existing app logic implementations.
+
+---
+
+## [0.1.4] - 2026-03-04
+
+### Added
+- File-open capability — tapping a file launches `Intent.ACTION_VIEW` via `FileProvider` with MIME type detection
+- Rename UI — rename dialog, ViewModel `renameFile()` function, and edit icon in selection bar (single-selection)
+- `RenameDialog` composable in `FileManagerScreen.kt`
+- `file_provider_paths.xml` and `FileProvider` registration in `AndroidManifest.xml`
+
+### Fixed
+- Permission state now reactive to lifecycle — `onResume` updates a hoisted `mutableStateOf` so the UI recomposes when returning from system settings
+- Replaced deprecated `Icons.Default.InsertDriveFile` with `Icons.AutoMirrored.Filled.InsertDriveFile`
+- `android:allowBackup` set to `false` (template backup rules not configured)
+- Added explicit `kotlinOptions { jvmTarget = "11" }` in `build.gradle.kts`
+
+### Changed
+- [Security] Release builds now use `isMinifyEnabled = true` and `isShrinkResources = true`
+- Navigation dependency moved from hardcoded string to version catalog (`libs.versions.toml`)
+- Lifecycle ViewModel Compose version aligned from `2.8.2` to `2.10.0` (matches `lifecycleRuntimeKtx`)
+
+### Removed
+- `local.properties` confirmed not tracked (already in `.gitignore`)
+- Unused import `kotlinx.coroutines.launch` confirmed not present in `MainActivity.kt`
+
+---
+
+## [0.1.3] - 2026-03-04
+
+### Added
+- Delete confirmation dialog before file/directory deletion
+- "Coming Soon" label on all Tools screen cards
+- Folder name validation (rejects `/`, `\`, `..`, null, blank)
+- Per-file error reporting in batch delete ("Failed to delete N of M files")
+
+### Fixed
+- [Security] Path traversal protection on all file operations — canonical path must resolve within external storage
+- [Security] `renameFile` rejects names containing `/`, `\`, `..`, or null characters
+- `deleteSelectedFiles()` now surfaces per-file failures to the user
+- `themes.xml` uses `Theme.Material3.Light.NoActionBar` (was legacy `android:Theme.Material.Light.NoActionBar`)
+
+### Removed
+- Empty placeholder `ThemePreferences.kt` (0 bytes)
+- Unused import `kotlinx.coroutines.flow.Flow` from `FileRepository.kt`
+- Template colors from `Color.kt` (`Purple80`, `PurpleGrey80`, `Pink80`, `Purple40`, `PurpleGrey40`, `Pink40`)
+- Unused template colors from `res/values/colors.xml` (`purple_200/500/700`, `teal_200/700`)
 
 ---
 

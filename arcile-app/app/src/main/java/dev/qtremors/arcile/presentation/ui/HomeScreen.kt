@@ -26,12 +26,17 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
     state: FileManagerState,
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,
+    onOpenFile: (String) -> Unit,
+    onCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
     Scaffold(
@@ -73,7 +78,7 @@ fun HomeScreen(
                         modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
                     )
                 }
-                item { CategoryGrid(state.categoryStorages) }
+                item { CategoryGrid(state.categoryStorages, onCategoryClick) }
 
                 item {
                     Text(
@@ -115,11 +120,13 @@ fun HomeScreen(
                         }
                     }
                 } else {
+                    val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                     items(state.recentFiles, key = { it.absolutePath }) { file ->
                         FileItemRow(
                             file = file,
+                            formattedDate = formatter.format(Date(file.lastModified)),
                             isSelected = false,
-                            onClick = {},
+                            onClick = { onOpenFile(file.absolutePath) },
                             onLongClick = {}
                         )
                     }
@@ -289,7 +296,10 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
 // --- category grid with colors and sizes ---
 
 @Composable
-fun CategoryGrid(categoryStorages: List<CategoryStorage>) {
+fun CategoryGrid(
+    categoryStorages: List<CategoryStorage>,
+    onCategoryClick: (String) -> Unit
+) {
     // merge categories with their icons and sizes
     data class CategoryDisplay(
         val name: String,
@@ -316,7 +326,8 @@ fun CategoryGrid(categoryStorages: List<CategoryStorage>) {
                     icon = cat.icon,
                     color = cat.color,
                     sizeBytes = cat.sizeBytes,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = { onCategoryClick(cat.name) }
                 )
             }
         }
@@ -328,7 +339,8 @@ fun CategoryGrid(categoryStorages: List<CategoryStorage>) {
                     icon = cat.icon,
                     color = cat.color,
                     sizeBytes = cat.sizeBytes,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    onClick = { onCategoryClick(cat.name) }
                 )
             }
         }

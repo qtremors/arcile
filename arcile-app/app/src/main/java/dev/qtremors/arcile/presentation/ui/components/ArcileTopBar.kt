@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -84,6 +85,11 @@ fun ArcileTopBar(
                 }
             } else {
                 // actions when items are selected
+                if (selectionCount == 1) {
+                    IconButton(onClick = { onActionSelected("Rename") }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Rename")
+                    }
+                }
                 IconButton(onClick = { onActionSelected("Delete Selected") }) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                 }

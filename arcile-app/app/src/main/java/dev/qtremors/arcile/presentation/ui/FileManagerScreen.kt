@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,13 +32,17 @@ fun FileManagerScreen(
     storageRootPath: String,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
+    onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onDeleteSelected: () -> Unit,
+    onRenameFile: (String, String) -> Unit,
     onClearError: () -> Unit
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showRenameDialog by remember { mutableStateOf(false) }
 
     BackHandler {
         onNavigateBack()
@@ -56,7 +61,8 @@ fun FileManagerScreen(
                 onActionSelected = { action ->
                     when (action) {
                         "New Folder" -> showCreateFolderDialog = true
-                        "Delete Selected" -> onDeleteSelected()
+                        "Delete Selected" -> showDeleteConfirmation = true
+                        "Rename" -> showRenameDialog = true
                     }
                 }
             )
@@ -102,15 +108,19 @@ fun FileManagerScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                         items(state.files, key = { it.absolutePath }) { file ->
                             FileItemRow(
                                 file = file,
+                                formattedDate = formatter.format(Date(file.lastModified)),
                                 isSelected = state.selectedFiles.contains(file.absolutePath),
                                 onClick = {
                                     if (state.selectedFiles.isNotEmpty()) {
                                         onToggleSelection(file.absolutePath)
                                     } else if (file.isDirectory) {
                                         onNavigateTo(file.absolutePath)
+                                    } else {
+                                        onOpenFile(file.absolutePath)
                                     }
                                 },
                                 onLongClick = { onToggleSelection(file.absolutePath) }
@@ -127,6 +137,45 @@ fun FileManagerScreen(
                 onConfirm = { name ->
                     onCreateFolder(name)
                     showCreateFolderDialog = false
+                }
+            )
+        }
+
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
+                text = { Text("This action cannot be undone. Directories will be deleted recursively.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDeleteSelected()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showRenameDialog && state.selectedFiles.size == 1) {
+            val selectedPath = state.selectedFiles.first()
+            val currentName = selectedPath.substringAfterLast('/')
+            RenameDialog(
+                currentName = currentName,
+                onDismiss = { showRenameDialog = false },
+                onConfirm = { newName ->
+                    onRenameFile(selectedPath, newName)
+                    showRenameDialog = false
                 }
             )
         }
@@ -150,11 +199,11 @@ fun FileManagerScreen(
 @Composable
 fun FileItemRow(
     file: FileModel,
+    formattedDate: String,
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
 
     ListItem(
         modifier = Modifier
@@ -165,7 +214,7 @@ fun FileItemRow(
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface),
         leadingContent = {
             Icon(
-                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.Default.InsertDriveFile,
+                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
                 contentDescription = null,
                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(40.dp)
@@ -174,7 +223,7 @@ fun FileItemRow(
         headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(formatter.format(Date(file.lastModified)))
+                Text(formattedDate)
                 if (!file.isDirectory) {
                     Text(formatFileSize(file.size))
                 }
@@ -227,3 +276,39 @@ fun CreateFolderDialog(
         }
     )
 }
+
+@Composable
+fun RenameDialog(
+    currentName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var newName by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename") },
+        text = {
+            OutlinedTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = { Text("New Name") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(newName) },
+                enabled = newName.isNotBlank() && newName != currentName
+            ) {
+                Text("Rename")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+

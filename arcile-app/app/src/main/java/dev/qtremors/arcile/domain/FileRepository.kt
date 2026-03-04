@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.domain
 
 import java.io.File
-import kotlinx.coroutines.flow.Flow
 
 data class StorageInfo(
     val totalBytes: Long,
