@@ -2,11 +2,6 @@ package dev.qtremors.arcile.domain
 
 import java.io.File
 
-data class StorageInfo(
-    val totalBytes: Long,
-    val freeBytes: Long
-)
-
 interface FileRepository {
     suspend fun listFiles(path: String): Result<List<FileModel>>
     suspend fun createDirectory(parentPath: String, name: String): Result<FileModel>

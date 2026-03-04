@@ -62,7 +62,7 @@ fun FileManagerScreen(
                     when (action) {
                         "New Folder" -> showCreateFolderDialog = true
                         "Delete Selected" -> showDeleteConfirmation = true
-                        "Rename" -> showRenameDialog = true
+                        "Rename" -> if (state.selectedFiles.size == 1) showRenameDialog = true
                     }
                 }
             )
@@ -111,6 +111,7 @@ fun FileManagerScreen(
                         val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                         items(state.files, key = { it.absolutePath }) { file ->
                             FileItemRow(
+                                modifier = Modifier.animateItem(),
                                 file = file,
                                 formattedDate = formatter.format(Date(file.lastModified)),
                                 isSelected = state.selectedFiles.contains(file.absolutePath),
@@ -202,11 +203,12 @@ fun FileItemRow(
     formattedDate: String,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
 
     ListItem(
-        modifier = Modifier
+        modifier = modifier
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -215,7 +217,7 @@ fun FileItemRow(
         leadingContent = {
             Icon(
                 imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                contentDescription = null,
+                contentDescription = if (file.isDirectory) "Folder" else "File",
                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(40.dp)
             )

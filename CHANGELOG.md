@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.4
+> **Version:** 0.1.6
 > **Last Updated:** 2026-03-04
 
 ---
@@ -9,6 +9,22 @@
 ## [Unreleased]
 
 <!-- Accumulate changes here prior to the next formal release. -->
+
+---
+
+## [0.1.6] - 2026-03-04
+
+### Fixed
+- [Bug] `showRenameDialog` now only triggers when exactly one item is selected — prevents silent no-op on multi-selection
+- [Bug] `openFile()` exception is now logged via `Log.e` and the toast includes the actual error message instead of a generic string
+
+### Improved
+- [A11y] Added descriptive `contentDescription` labels to all core navigation icons (`HomeScreen`, `FileManagerScreen`, `Breadcrumbs`) for TalkBack support
+- [Motion] File list items now animate smoothly on add/remove/reorder via `Modifier.animateItem()` in `LazyColumn`
+
+### Refactored
+- [Refactor] Extracted `StorageInfo` data class to its own file (`StorageInfo.kt`) in the domain package
+- [Verified] `java.util.Stack` was already replaced with `ArrayDeque` — task marked complete
 
 ---
 

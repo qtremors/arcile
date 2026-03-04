@@ -171,7 +171,7 @@ fun StorageSummaryCard(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
-                Icon(Icons.Default.Storage, contentDescription = null)
+                Icon(Icons.Default.Storage, contentDescription = "Storage")
             }
 
             if (total > 0) {
@@ -440,7 +440,7 @@ fun MainFoldersRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(folder.icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    Icon(folder.icon, contentDescription = folder.name, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     Text(text = folder.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 }
             }
