@@ -15,23 +15,18 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 
 @Composable
-fun ToolsScreen(
-    onMenuClick: () -> Unit,
-    onNavigateBack: () -> Unit
-) {
+fun ToolsScreen() {
     Scaffold(
         topBar = {
-            ArcileTopBar(
-                title = "Tools & Utilities",
-                selectionCount = 0,
-                onMenuClick = onMenuClick,
-                onClearSelection = {},
-                onSearchClick = {}, // Typically omitted or implemented for search within tools
-                onSortClick = {},
-                onActionSelected = {}
+            @OptIn(ExperimentalMaterial3Api::class)
+            TopAppBar(
+                title = { Text("Tools & Utilities") },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { padding ->

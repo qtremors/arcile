@@ -4,17 +4,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -22,23 +20,24 @@ import dev.qtremors.arcile.ui.theme.ThemeState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onMenuClick: () -> Unit,
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit
 ) {
-    // In a real implementation this should observe a ViewModel/DataStore
     var currentThemeState by remember { mutableStateOf(ThemeState()) }
 
     Scaffold(
         topBar = {
-            ArcileTopBar(
-                title = "Settings",
-                selectionCount = 0,
-                onMenuClick = onMenuClick,
-                onClearSelection = {},
-                onSearchClick = {},
-                onSortClick = {},
-                onActionSelected = {}
+            TopAppBar(
+                title = { Text("Settings") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
             )
         }
     ) { padding ->
@@ -50,17 +49,17 @@ fun SettingsScreen(
             item {
                 SectionHeader("Appearance")
             }
-            
+
             item {
                 ThemeModeSelector(
                     currentMode = currentThemeState.themeMode,
-                    onModeSelected = { 
-                        currentThemeState = currentThemeState.copy(themeMode = it) 
+                    onModeSelected = {
+                        currentThemeState = currentThemeState.copy(themeMode = it)
                         onThemeChange(currentThemeState)
                     }
                 )
             }
-            
+
             item {
                 AccentColorSelector(
                     currentAccent = currentThemeState.accentColor,
@@ -79,7 +78,7 @@ fun SettingsScreen(
             item {
                 ListItem(
                     headlineContent = { Text("App Version") },
-                    supportingContent = { Text("0.1.1") },
+                    supportingContent = { Text("0.1.2") },
                     leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                 )
             }
@@ -165,7 +164,7 @@ fun AccentColorSelector(
                 AccentColor.entries.forEach { accent ->
                     ListItem(
                         headlineContent = { Text(accent.name) },
-                        leadingContent = { 
+                        leadingContent = {
                             if (accent.color != null) {
                                 Surface(shape = MaterialTheme.shapes.small, color = accent.color, modifier = Modifier.size(24.dp)) {}
                             } else {

@@ -2,7 +2,6 @@ package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,7 +28,7 @@ import java.util.Locale
 @Composable
 fun FileManagerScreen(
     state: FileManagerState,
-    onMenuClick: () -> Unit,
+    storageRootPath: String,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
@@ -47,9 +46,10 @@ fun FileManagerScreen(
     Scaffold(
         topBar = {
             ArcileTopBar(
-                title = "Storage",
+                title = "Browse",
                 selectionCount = state.selectedFiles.size,
-                onMenuClick = onMenuClick,
+                showBackArrow = true,
+                onBackClick = onNavigateBack,
                 onClearSelection = onClearSelection,
                 onSearchClick = {},
                 onSortClick = {},
@@ -73,8 +73,9 @@ fun FileManagerScreen(
             Column(modifier = Modifier.fillMaxSize()) {
                 Breadcrumbs(
                     path = state.currentPath,
-                    onPathSegmentClick = {
-                        // TODO: Implement direct jump to breadcrumb path
+                    storageRootPath = storageRootPath,
+                    onPathSegmentClick = { path ->
+                        onNavigateTo(path)
                     }
                 )
 
@@ -84,11 +85,20 @@ fun FileManagerScreen(
                     }
                 } else if (state.files.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            text = "Empty Directory",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.FolderOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Empty Directory",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -145,7 +155,7 @@ fun FileItemRow(
     onLongClick: () -> Unit
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-    
+
     ListItem(
         modifier = Modifier
             .combinedClickable(
@@ -180,6 +190,7 @@ fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
+        .coerceAtMost(units.size - 1)
     return String.format(Locale.US, "%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
 

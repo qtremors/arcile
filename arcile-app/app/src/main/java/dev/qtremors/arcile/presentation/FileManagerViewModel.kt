@@ -1,8 +1,10 @@
 package dev.qtremors.arcile.presentation
 
+import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.qtremors.arcile.data.LocalFileRepository
+import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
@@ -11,8 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
-import java.util.Stack
+import java.util.ArrayDeque
 
 data class FileManagerState(
     val isHomeScreen: Boolean = true,
@@ -20,6 +21,7 @@ data class FileManagerState(
     val files: List<FileModel> = emptyList(),
     val recentFiles: List<FileModel> = emptyList(),
     val storageInfo: StorageInfo? = null,
+    val categoryStorages: List<CategoryStorage> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val selectedFiles: Set<String> = emptySet()
@@ -32,23 +34,33 @@ class FileManagerViewModel(
     private val _state = MutableStateFlow(FileManagerState())
     val state: StateFlow<FileManagerState> = _state.asStateFlow()
 
-    private val pathHistory = Stack<String>()
+    private val pathHistory = ArrayDeque<String>()
+
+    val storageRootPath: String = Environment.getExternalStorageDirectory().absolutePath
 
     init {
         loadHomeData()
     }
 
-    private fun loadHomeData() {
+    fun loadHomeData() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             val recentResult = repository.getRecentFiles()
             val storageResult = repository.getStorageInfo()
-            
+
             _state.update { currentState ->
                 currentState.copy(
                     isLoading = false,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
                     storageInfo = storageResult.getOrNull()
+                )
+            }
+
+            // load category sizes in background (can take a moment)
+            val categoryResult = repository.getCategoryStorageSizes()
+            _state.update { currentState ->
+                currentState.copy(
+                    categoryStorages = categoryResult.getOrNull() ?: emptyList()
                 )
             }
         }
@@ -62,10 +74,15 @@ class FileManagerViewModel(
 
     fun openFileBrowser() {
         _state.update { it.copy(isHomeScreen = false) }
-        viewModelScope.launch {
-            val root = repository.getRootDirectory()
-            navigateToFolder(root.absolutePath)
-        }
+        pathHistory.clear()
+        loadDirectory(storageRootPath)
+    }
+
+    fun navigateToSpecificFolder(path: String) {
+        _state.update { it.copy(isHomeScreen = false) }
+        pathHistory.clear()
+        pathHistory.push(storageRootPath)
+        loadDirectory(path)
     }
 
     fun navigateToFolder(path: String) {
@@ -77,7 +94,7 @@ class FileManagerViewModel(
 
     fun navigateBack(): Boolean {
         if (_state.value.isHomeScreen) {
-            return false // Let the system handle back if on home screen
+            return false
         }
 
         if (pathHistory.isNotEmpty()) {
@@ -85,14 +102,14 @@ class FileManagerViewModel(
             loadDirectory(previousPath)
             return true
         } else {
-            // At root of file browser, go back to home screen
-            navigateToHome()
-            return true
+            return false
         }
     }
 
     fun refresh() {
-        if (_state.value.currentPath.isNotEmpty()) {
+        if (_state.value.isHomeScreen) {
+            loadHomeData()
+        } else if (_state.value.currentPath.isNotEmpty()) {
             loadDirectory(_state.value.currentPath)
         }
     }
@@ -100,15 +117,15 @@ class FileManagerViewModel(
     private fun loadDirectory(path: String) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, currentPath = path, selectedFiles = emptySet()) }
-            
+
             val result = repository.listFiles(path)
-            
+
             result.onSuccess { files ->
                 _state.update { it.copy(isLoading = false, files = files) }
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load directory") }
                 if (pathHistory.isNotEmpty()) {
-                   pathHistory.pop() // Revert faulty navigation
+                    pathHistory.pop()
                 }
             }
         }

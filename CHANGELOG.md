@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.1
+> **Version:** 0.1.2
 > **Last Updated:** 2026-03-04
 
 ---
@@ -11,6 +11,36 @@
 <!-- Accumulate changes here prior to the next formal release. -->
 
 ---
+
+## [0.1.2] - 2026-03-04
+
+### Added
+- Bottom `NavigationBar` with Home / Browse / Tools tabs (replaces hamburger drawer)
+- Multi-colored storage progress bar segmented by file category
+- 6 color-coded file categories: Images (green), Videos (pink), Audio (orange), Docs (blue), Archives (purple), APKs (cyan)
+- Per-category storage size calculation and display
+- Category legend in storage card showing size used per type
+- Clickable `StorageSummaryCard` → opens file browser
+- Folder shortcuts navigate to actual directories (DCIM, Downloads, Pictures, Documents, Music, Movies)
+- Settings accessible via gear icon in Home screen top bar
+- Back arrow navigation in file browser and settings
+- Edge-to-edge display support (`enableEdgeToEdge()`)
+- `FileCategories.kt` — category definitions with colors and extensions
+
+### Fixed
+- Breadcrumbs now strip `/storage/emulated/0` prefix, show "Internal Storage" as root
+- Breadcrumb segment clicks wired to actual navigation (was a TODO stub)
+- "Empty Directory" when clicking Internal Storage — file browser now auto-loads
+- `Modifier.padding` invalid overload in `HomeScreen.kt`
+- Double status bar padding on Android 15/16 (`contentWindowInsets = WindowInsets(0)`)
+- `formatFileSize` crash potential (clamped `digitGroups`)
+
+### Changed
+- Folder shortcut cards are uniform size (130×48dp)
+
+### Removed
+- Hamburger menu and `ModalNavigationDrawer`
+- `NavigationDrawerContent.kt` (deleted)
 
 ## [0.1.1] - 2026-03-04
 

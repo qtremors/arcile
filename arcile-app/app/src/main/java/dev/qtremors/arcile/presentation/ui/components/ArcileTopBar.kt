@@ -1,10 +1,12 @@
 package dev.qtremors.arcile.presentation.ui.components
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,11 +17,14 @@ import androidx.compose.ui.text.style.TextOverflow
 fun ArcileTopBar(
     title: String,
     selectionCount: Int = 0,
-    onMenuClick: () -> Unit,
+    showBackArrow: Boolean = false,
+    showSettingsIcon: Boolean = false,
+    onBackClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     onClearSelection: () -> Unit,
     onSearchClick: () -> Unit,
     onSortClick: () -> Unit,
-    onActionSelected: (String) -> Unit // For the 3-dot menu
+    onActionSelected: (String) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -36,9 +41,9 @@ fun ArcileTopBar(
                 IconButton(onClick = onClearSelection) {
                     Icon(Icons.Default.Close, contentDescription = "Clear selection")
                 }
-            } else {
-                IconButton(onClick = onMenuClick) {
-                    Icon(Icons.Default.Menu, contentDescription = "Open Drawer")
+            } else if (showBackArrow) {
+                IconButton(onClick = onBackClick) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             }
         },
@@ -49,6 +54,11 @@ fun ArcileTopBar(
                 }
                 IconButton(onClick = onSortClick) {
                     Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                }
+                if (showSettingsIcon) {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
                 }
                 IconButton(onClick = { showMenu = true }) {
                     Icon(Icons.Default.MoreVert, contentDescription = "More Options")
@@ -71,12 +81,11 @@ fun ArcileTopBar(
                             onActionSelected("Grid View")
                         }
                     )
-                    // Add more general actions here
                 }
             } else {
-                // Actions when items are selected
+                // actions when items are selected
                 IconButton(onClick = { onActionSelected("Delete Selected") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Delete selected") // Replace with Delete icon if needed
+                    Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                 }
             }
         },

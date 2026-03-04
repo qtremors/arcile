@@ -2,6 +2,8 @@ package dev.qtremors.arcile.data
 
 import android.os.Environment
 import android.os.StatFs
+import dev.qtremors.arcile.domain.CategoryStorage
+import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
@@ -23,7 +25,7 @@ class LocalFileRepository : FileRepository {
             }
 
             val files = directory.listFiles()?.map { FileModel(it) } ?: emptyList()
-            // Sort: Directories first, then alphabetically
+            // sort: directories first, then alphabetically
             val sortedFiles = files.sortedWith(
                 compareBy<FileModel> { !it.isDirectory }
                     .thenBy { it.name.lowercase() }
@@ -108,7 +110,6 @@ class LocalFileRepository : FileRepository {
                 }
             }
 
-            // Sort by last modified descending
             val topRecent = recentFiles
                 .sortedByDescending { it.lastModified() }
                 .take(limit)
@@ -134,6 +135,46 @@ class LocalFileRepository : FileRepository {
                     freeBytes = availableBlocks * blockSize
                 )
             )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
+        try {
+            val root = Environment.getExternalStorageDirectory()
+
+            // build extension-to-category lookup
+            val extToCategoryIndex = mutableMapOf<String, Int>()
+            FileCategories.all.forEachIndexed { index, cat ->
+                cat.extensions.forEach { ext ->
+                    extToCategoryIndex[ext] = index
+                }
+            }
+
+            // accumulate sizes per category
+            val sizes = LongArray(FileCategories.all.size)
+
+            root.walkTopDown()
+                .filter { it.isFile && !it.isHidden }
+                .forEach { file ->
+                    val ext = file.extension.lowercase()
+                    val catIndex = extToCategoryIndex[ext]
+                    if (catIndex != null) {
+                        sizes[catIndex] += file.length()
+                    }
+                }
+
+            val result = FileCategories.all.mapIndexed { index, cat ->
+                CategoryStorage(
+                    name = cat.name,
+                    color = cat.color,
+                    sizeBytes = sizes[index],
+                    extensions = cat.extensions
+                )
+            }
+
+            Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
         }

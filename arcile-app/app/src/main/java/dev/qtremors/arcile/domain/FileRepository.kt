@@ -16,4 +16,5 @@ interface FileRepository {
     suspend fun getRootDirectory(): File
     suspend fun getRecentFiles(limit: Int = 10): Result<List<FileModel>>
     suspend fun getStorageInfo(): Result<StorageInfo>
+    suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>>
 }

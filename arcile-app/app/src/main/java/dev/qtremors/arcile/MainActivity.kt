@@ -8,10 +8,15 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,10 +32,8 @@ import dev.qtremors.arcile.presentation.ui.FileManagerScreen
 import dev.qtremors.arcile.presentation.ui.HomeScreen
 import dev.qtremors.arcile.presentation.ui.SettingsScreen
 import dev.qtremors.arcile.presentation.ui.ToolsScreen
-import dev.qtremors.arcile.presentation.ui.components.NavigationDrawerContent
 import dev.qtremors.arcile.ui.theme.FileManagerTheme
 import dev.qtremors.arcile.ui.theme.ThemeState
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -47,10 +50,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+        enableEdgeToEdge()
+
         setContent {
-            // For a real app, themeState should be stored in DataStore and observed.
-            // Using a default one for now until Settings is fully fleshed out.
             var themeState by remember { mutableStateOf(ThemeState()) }
 
             FileManagerTheme(themeState = themeState) {
@@ -63,7 +65,6 @@ class MainActivity : ComponentActivity() {
                     if (hasPermission) {
                         ArcileAppShell(
                             viewModel = viewModel,
-                            onExitApp = { finish() },
                             onThemeChange = { themeState = it }
                         )
                     } else {
@@ -81,7 +82,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-check permissions when returning to the app
         if (checkStoragePermission()) {
             viewModel.refresh()
         }
@@ -123,74 +123,111 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun ArcileAppShell(
     viewModel: FileManagerViewModel,
-    onExitApp: () -> Unit,
     onThemeChange: (ThemeState) -> Unit
 ) {
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val coroutineScope = rememberCoroutineScope()
     val navController = rememberNavController()
-    
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: "home"
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            NavigationDrawerContent(
-                currentRoute = currentRoute,
-                onNavigate = { route ->
-                    coroutineScope.launch { drawerState.close() }
-                    navController.navigate(route) {
-                        popUpTo("home") { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
+    // bottom nav tabs
+    val bottomNavItems = listOf(
+        Triple("home", "Home", Icons.Default.Home),
+        Triple("explorer", "Browse", Icons.Default.Folder),
+        Triple("tools", "Tools", Icons.Default.Build)
+    )
+
+    // hide bottom bar on settings (it's a detail screen, not a tab)
+    val showBottomBar = currentRoute in bottomNavItems.map { it.first }
+
+    Scaffold(
+        contentWindowInsets = WindowInsets(0),
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar {
+                    bottomNavItems.forEach { (route, label, icon) ->
+                        NavigationBarItem(
+                            icon = { Icon(icon, contentDescription = label) },
+                            label = { Text(label) },
+                            selected = currentRoute == route,
+                            onClick = {
+                                if (currentRoute != route) {
+                                    // when switching to explorer tab, open file browser
+                                    if (route == "explorer") {
+                                        viewModel.openFileBrowser()
+                                    }
+                                    navController.navigate(route) {
+                                        popUpTo("home") { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
-            )
+            }
         }
-    ) {
-        // We hoist NavHost here instead of managing custom screen stacking.
-        // We will pass the Hamburger opening action to the screens since they define their own TopBar (MD3 guideline for distinct screens).
-
-        NavHost(navController = navController, startDestination = "home") {
-            composable("home") {
-                val state by viewModel.state.collectAsStateWithLifecycle()
-                HomeScreen(
-                    state = state,
-                    onMenuClick = { coroutineScope.launch { drawerState.open() } },
-                    onOpenFileBrowser = { navController.navigate("explorer") }
-                )
-            }
-            composable("explorer") {
-                val state by viewModel.state.collectAsStateWithLifecycle()
-                FileManagerScreen(
-                    state = state,
-                    onMenuClick = { coroutineScope.launch { drawerState.open() } },
-                    onNavigateBack = { 
-                        if (!viewModel.navigateBack()) {
-                            navController.popBackStack()
+    ) { scaffoldPadding ->
+        Box(modifier = Modifier.padding(scaffoldPadding)) {
+            NavHost(navController = navController, startDestination = "home") {
+                composable("home") {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    HomeScreen(
+                        state = state,
+                        onOpenFileBrowser = {
+                            viewModel.openFileBrowser()
+                            navController.navigate("explorer") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onNavigateToPath = { path ->
+                            viewModel.navigateToSpecificFolder(path)
+                            navController.navigate("explorer") {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onSettingsClick = {
+                            navController.navigate("settings")
                         }
-                    },
-                    onNavigateTo = { viewModel.navigateToFolder(it) },
-                    onToggleSelection = { viewModel.toggleSelection(it) },
-                    onClearSelection = { viewModel.clearSelection() },
-                    onCreateFolder = { viewModel.createFolder(it) },
-                    onDeleteSelected = { viewModel.deleteSelectedFiles() },
-                    onClearError = { viewModel.clearError() }
-                )
-            }
-            composable("tools") {
-                ToolsScreen(
-                    onMenuClick = { coroutineScope.launch { drawerState.open() } },
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
-            composable("settings") {
-                SettingsScreen(
-                    onMenuClick = { coroutineScope.launch { drawerState.open() } },
-                    onNavigateBack = { navController.popBackStack() },
-                    onThemeChange = onThemeChange
-                )
+                    )
+                }
+                composable("explorer") {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+
+                    // ensure file browser is loaded when entering the tab
+                    LaunchedEffect(Unit) {
+                        if (state.currentPath.isEmpty()) {
+                            viewModel.openFileBrowser()
+                        }
+                    }
+
+                    FileManagerScreen(
+                        state = state,
+                        storageRootPath = viewModel.storageRootPath,
+                        onNavigateBack = {
+                            if (!viewModel.navigateBack()) {
+                                navController.popBackStack()
+                            }
+                        },
+                        onNavigateTo = { viewModel.navigateToFolder(it) },
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onClearSelection = { viewModel.clearSelection() },
+                        onCreateFolder = { viewModel.createFolder(it) },
+                        onDeleteSelected = { viewModel.deleteSelectedFiles() },
+                        onClearError = { viewModel.clearError() }
+                    )
+                }
+                composable("tools") {
+                    ToolsScreen()
+                }
+                composable("settings") {
+                    SettingsScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onThemeChange = onThemeChange
+                    )
+                }
             }
         }
     }
