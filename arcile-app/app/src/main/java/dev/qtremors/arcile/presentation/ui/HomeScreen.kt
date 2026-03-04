@@ -364,7 +364,7 @@ fun CategoryItem(
     ) {
         Surface(
             shape = MaterialTheme.shapes.large,
-            color = color.copy(alpha = 0.15f),
+            color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier.size(64.dp)
         ) {
             Icon(

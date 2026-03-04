@@ -177,12 +177,14 @@ class FileManagerViewModel(
             for (path in selectedFiles) {
                 repository.deleteFile(path).onFailure { failCount++ }
             }
+            // refresh the directory listing first
+            refresh()
+            // re-apply the error after refresh so the user sees it
             if (failCount > 0) {
                 _state.update {
                     it.copy(error = "Failed to delete $failCount of ${selectedFiles.size} file(s)")
                 }
             }
-            refresh()
         }
     }
 

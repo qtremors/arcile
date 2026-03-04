@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.6
+> **Version:** 0.1.7
 > **Last Updated:** 2026-03-04
 
 ---
@@ -9,6 +9,22 @@
 ## [Unreleased]
 
 <!-- Accumulate changes here prior to the next formal release. -->
+
+---
+
+## [0.1.7] - 2026-03-04
+
+### Fixed
+- [Bug] Per-file deletion error messages are now retained after directory refresh — previously `refresh()` cleared the error before the user could see it
+
+### Refactored
+- [Refactor] Replaced magic string action dispatch in `ArcileTopBar` with `TopBarAction` sealed class — compile-time verified actions
+- [Refactor] Replaced raw string navigation routes (`"home"`, `"explorer"`, etc.) with `AppRoutes` constants
+- [Refactor] Extracted `ArcileAppShell`, `PermissionRequestScreen`, and `getCategoryPath` from `MainActivity.kt` into `ArcileAppShell.kt`
+
+### Improved
+- [Motion] Added slide + fade navigation transitions to all `NavHost` routes — screen switching now feels fluid
+- [Design] Replaced hardcoded `color.copy(alpha = 0.15f)` overlays with proper M3 tonal tokens (`primaryContainer`, `secondaryContainer`)
 
 ---
 

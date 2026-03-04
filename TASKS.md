@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.1.6
+> **Version:** 0.1.7
 > **Last Updated:** 2026-03-04
 
 ---
@@ -22,10 +22,10 @@
   - Leaks data layer into domain; makes `FileModel` non-serializable/non-parcelable.
 - [ ] [Refactor] Single ViewModel for all screens — poor separation of concerns (`FileManagerViewModel.kt`)
   - Manages home, file browser, and file operations. Should be split.
-- [ ] [Refactor] String-based navigation routes without type safety (`MainActivity.kt`)
-  - Raw strings `"home"`, `"explorer"`, `"settings"`, `"tools"` — typos cause silent failures.
-- [ ] [Refactor] Action dispatch via magic strings in `ArcileTopBar` (`ArcileTopBar.kt:23`)
-  - `onActionSelected("New Folder")` etc. — no compile-time verification.
+- [x] [Refactor] String-based navigation routes without type safety (`MainActivity.kt`) (v0.1.7)
+  - ~~Raw strings `"home"`, `"explorer"`, `"settings"`, `"tools"` — typos cause silent failures.~~ Replaced with `AppRoutes` constants.
+- [x] [Refactor] Action dispatch via magic strings in `ArcileTopBar` (`ArcileTopBar.kt:23`) (v0.1.7)
+  - ~~`onActionSelected("New Folder")` etc. — no compile-time verification.~~ Replaced with `TopBarAction` sealed class.
 
 ### Low Priority
 
@@ -35,8 +35,8 @@
   - ~~Replace with `ArrayDeque`.~~ Already using `ArrayDeque` (verified in v0.1.6).
 - [x] [Refactor] `StorageInfo` co-located with `FileRepository` interface (`FileRepository.kt:6-9`)
   - ~~Move to its own file in the domain package for consistency.~~ Done in v0.1.6.
-- [ ] [Refactor] Top-level composables in `MainActivity.kt` (`MainActivity.kt:126-255`)
-  - `ArcileAppShell` and `PermissionRequestScreen` should be in `presentation/ui`.
+- [x] [Refactor] Top-level composables in `MainActivity.kt` (`MainActivity.kt:126-255`) (v0.1.7)
+  - ~~`ArcileAppShell` and `PermissionRequestScreen` should be in `presentation/ui`.~~ Moved to `ArcileAppShell.kt`.
 - [ ] [Docs] No test infrastructure — only template tests exist
   - Add unit tests for `FileManagerViewModel`, `LocalFileRepository`, and UI tests.
 
@@ -46,7 +46,7 @@
 
 - [ ] [Security] Fix prefix-bypass vulnerability in `LocalFileRepository.kt` boundary check (`canonical.startsWith(storageRoot)`).
 - [x] [Bug] Preserve and log exception in `MainActivity.kt` when no app is found to open a file, instead of swallowing it. (v0.1.6)
-- [ ] [Bug] Retain per-file failure messages in `FileManagerViewModel.kt` deletion logic (prevent `refresh()` from clearing the error immediately).
+- [x] [Bug] Retain per-file failure messages in `FileManagerViewModel.kt` deletion logic (prevent `refresh()` from clearing the error immediately). (v0.1.7)
 - [x] [Bug] Fix `showRenameDialog` logic in `FileManagerScreen.kt` so it only shows when exactly one item is selected. (v0.1.6)
 - [ ] [Security] Restrict `file_provider_paths.xml` external-path exposure by normalizing path and enforcing a base directory allowlist in `FileProvider`.
 - [ ] [Config] Fix Compose BOM conflict in `libs.versions.toml`: align `lifecycleViewmodelCompose` and `navigationCompose` versions constraint.
@@ -94,11 +94,11 @@
   - **Fix:** Implement `WindowSizeClass` checks and use `LazyVerticalGrid` or standard row/column dual-pane layouts for expanded widths.
 
 #### G. Material Design 3 Expressive Implementation
-- [ ] [Design] Hardcoded alpha overlays instead of M3 tonal palettes.
+- [x] [Design] Hardcoded alpha overlays instead of M3 tonal palettes. (v0.1.7)
   - **Problem:** Components manually apply `Modifier.background(color.copy(alpha = 0.15f))` for surfaces.
   - **Location:** `HomeScreen.kt:367`, `FileManagerScreen.kt:214`
   - **Impact:** Breaks MD3 dynamic theming contrast guarantees and expressive palette transitions.
-  - **Fix:** Map directly to `MaterialTheme.colorScheme.primaryContainer` or `secondaryContainer`.
+  - ~~**Fix:** Map directly to `MaterialTheme.colorScheme.primaryContainer` or `secondaryContainer`.~~ Done.
 - [ ] [Design] Incorrect manual tonal palette generation for custom seeds.
   - **Problem:** `generateColorSchemeFromSeed` fakes tonal palettes by applying alpha transparency.
   - **Location:** `Theme.kt:53-63`
@@ -106,11 +106,11 @@
   - **Fix:** Use the Material Color Utilities library (`m3color` / HCT) to generate a mathematically correct `ColorScheme`.
 
 #### H. Interaction & Motion Design
-- [ ] [Motion] Abrupt internal navigation transitions.
+- [x] [Motion] Abrupt internal navigation transitions. (v0.1.7)
   - **Problem:** `NavHost` switching between Home and Browse cuts instantly.
   - **Location:** `MainActivity.kt:206-277`
   - **Impact:** The app feels disjointed and lacks spatial awareness between screens.
-  - **Fix:** Implement `enterTransition` and `exitTransition` using `slideIn` / `fadeIn` animations in `composable` routes.
+  - ~~**Fix:** Implement `enterTransition` and `exitTransition` using `slideIn` / `fadeIn` animations in `composable` routes.~~ Done in `ArcileAppShell.kt`.
 - [x] [Motion] Static list updates lacking micro-interactions. (v0.1.6)
   - **Problem:** Deleting or renaming files instantly snaps the `LazyColumn` without visual feedback.
   - **Location:** `FileManagerScreen.kt:113`

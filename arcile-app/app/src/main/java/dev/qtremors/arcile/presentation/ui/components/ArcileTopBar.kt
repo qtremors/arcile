@@ -25,7 +25,7 @@ fun ArcileTopBar(
     onClearSelection: () -> Unit,
     onSearchClick: () -> Unit,
     onSortClick: () -> Unit,
-    onActionSelected: (String) -> Unit
+    onActionSelected: (TopBarAction) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -72,25 +72,25 @@ fun ArcileTopBar(
                         text = { Text("New Folder") },
                         onClick = {
                             showMenu = false
-                            onActionSelected("New Folder")
+                            onActionSelected(TopBarAction.NewFolder)
                         }
                     )
                     DropdownMenuItem(
                         text = { Text("Grid View") },
                         onClick = {
                             showMenu = false
-                            onActionSelected("Grid View")
+                            onActionSelected(TopBarAction.GridView)
                         }
                     )
                 }
             } else {
                 // actions when items are selected
                 if (selectionCount == 1) {
-                    IconButton(onClick = { onActionSelected("Rename") }) {
+                    IconButton(onClick = { onActionSelected(TopBarAction.Rename) }) {
                         Icon(Icons.Default.Edit, contentDescription = "Rename")
                     }
                 }
-                IconButton(onClick = { onActionSelected("Delete Selected") }) {
+                IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                 }
             }

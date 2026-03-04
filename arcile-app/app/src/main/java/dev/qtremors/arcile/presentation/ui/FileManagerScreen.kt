@@ -21,6 +21,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
+import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -60,9 +61,10 @@ fun FileManagerScreen(
                 onSortClick = {},
                 onActionSelected = { action ->
                     when (action) {
-                        "New Folder" -> showCreateFolderDialog = true
-                        "Delete Selected" -> showDeleteConfirmation = true
-                        "Rename" -> if (state.selectedFiles.size == 1) showRenameDialog = true
+                        TopBarAction.NewFolder -> showCreateFolderDialog = true
+                        TopBarAction.DeleteSelected -> showDeleteConfirmation = true
+                        TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
+                        TopBarAction.GridView -> { /* TODO: implement grid view */ }
                     }
                 }
             )
@@ -213,7 +215,7 @@ fun FileItemRow(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.surface),
+            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
         leadingContent = {
             Icon(
                 imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
