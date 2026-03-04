@@ -92,6 +92,13 @@ fun ToolCard(item: ToolItem) {
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Coming Soon",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                textAlign = TextAlign.Center
+            )
         }
     }
 }

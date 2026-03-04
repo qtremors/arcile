@@ -1,24 +1,24 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.1.2
+> **Version:** 0.1.3
 > **Last Updated:** 2026-03-04
 
 ---
 
 ### High Priority
 
-- [ ] [Security] No path traversal protection on file operations (`LocalFileRepository.kt`)
+- [x] [Security] No path traversal protection on file operations (`LocalFileRepository.kt`)
   - `listFiles`, `deleteFile`, `renameFile` accept arbitrary paths with no validation that they resolve within external storage. A bug could allow deletion of protected files.
-- [ ] [Security] `renameFile` does not sanitize `newName` for path traversal (`LocalFileRepository.kt:76`)
+- [x] [Security] `renameFile` does not sanitize `newName` for path traversal (`LocalFileRepository.kt:76`)
   - A name like `../../etc/hosts` constructs a path outside the current directory.
-- [ ] [Bug] `deleteSelectedFiles()` silently swallows per-file deletion errors (`FileManagerViewModel.kt:161-171`)
+- [x] [Bug] `deleteSelectedFiles()` silently swallows per-file deletion errors (`FileManagerViewModel.kt:161-171`)
   - Failed deletions are ignored; user sees no error feedback.
 - [ ] [Bug] Permission state uses `remember` — not reactive to lifecycle (`MainActivity.kt:64`)
   - `hasPermission` never auto-updates when returning from system settings on Android 11+.
 - [ ] [Feature] No file-open capability exists anywhere
   - The app can browse, create, select, and delete — but cannot open files. Tapping a file does nothing.
-- [ ] [Bug] Delete has no confirmation dialog (`FileManagerScreen.kt:58`)
+- [x] [Bug] Delete has no confirmation dialog (`FileManagerScreen.kt:58`)
   - "Delete Selected" immediately deletes (including recursive directory deletion) with zero user confirmation.
 - [ ] [Bug] `navigateToFolder` history logic has false positives for sibling navigation (`FileManagerViewModel.kt:71-91`)
   - String-prefix path comparison misidentifies siblings as parents, corrupting the history stack.
@@ -43,7 +43,7 @@
   - `onNavigateBack` is received but never wired to a navigation icon. User can only use system back.
 - [ ] [Feature] "Grid View" menu option does nothing (`ArcileTopBar.kt:48,97-102`)
   - Appears in overflow menu but no handler processes the action.
-- [ ] [Bug] `refresh()` does nothing on home screen (`FileManagerViewModel.kt:109-113`)
+- [x] [Bug] `refresh()` does nothing on home screen (`FileManagerViewModel.kt:109-113`)
   - `onResume` calls `refresh()` but home data (recent files, storage info) only refreshes via `loadHomeData()`.
 - [ ] [Bug] `StorageSummaryCard` shows garbage when `storageInfo` is null (`HomeScreen.kt:108`)
   - Fallback `totalBytes = 1L` causes misleading math; should show a loading/empty state instead.
@@ -62,9 +62,9 @@
 
 ### Low Priority
 
-- [ ] [Feature] All 8 tools on `ToolsScreen` are non-functional stubs (`ToolsScreen.kt:40-49`)
-  - FTP Server, Analyze Storage, Clean Junk, etc. display cards but do nothing. Add "Coming Soon" indicators or hide.
-- [ ] [Bug] Creating folders with invalid names (e.g., `/`, `\0`) not validated (`FileManagerViewModel.kt:147-158`)
+- [x] [Feature] All 8 tools on `ToolsScreen` are non-functional stubs (`ToolsScreen.kt:40-49`)
+  - FTP Server, Analyze Storage, Clean Junk, etc. display cards but do nothing. ~~Add "Coming Soon" indicators or hide.~~ Added "Coming Soon" labels.
+- [x] [Bug] Creating folders with invalid names (e.g., `/`, `\0`) not validated (`FileManagerViewModel.kt:147-158`)
   - Raw user input passed directly to `File()` constructor.
 - [ ] [Bug] `formatFileSize()` can crash for files ≥ 1 PB (`FileManagerScreen.kt:177-182`)
   - `digitGroups` exceeds `units` array size. Clamp to `units.size - 1`.
@@ -82,9 +82,9 @@
   - Move to its own file in the domain package for consistency.
 - [ ] [Refactor] Top-level composables in `MainActivity.kt` (`MainActivity.kt:126-255`)
   - `ArcileAppShell` and `PermissionRequestScreen` should be in `presentation/ui`.
-- [ ] [Cleanup] Empty file: `ThemePreferences.kt` (`presentation/ui/components/ThemePreferences.kt`)
-  - 0 bytes — dead placeholder. Implement or delete.
-- [ ] [Cleanup] Unused import: `kotlinx.coroutines.flow.Flow` (`FileRepository.kt:4`)
+- [x] [Cleanup] Empty file: `ThemePreferences.kt` (`presentation/ui/components/ThemePreferences.kt`)
+  - 0 bytes — dead placeholder. ~~Implement or delete.~~ Deleted.
+- [x] [Cleanup] Unused import: `kotlinx.coroutines.flow.Flow` (`FileRepository.kt:4`)
 - [ ] [Cleanup] Unused import: `kotlinx.coroutines.launch` (`MainActivity.kt:36`)
 - [ ] [Cleanup] Inconsistent indentation in `ArcileTopBar.kt` (lines 68-126)
 - [ ] [Cleanup] `build_log.txt` and `nav_build_log.txt` committed to repo
@@ -93,13 +93,13 @@
   - Machine-specific SDK paths. Add to `.gitignore` and untrack.
 - [ ] [Cleanup] Deprecated `Icons.Default.InsertDriveFile` (`FileManagerScreen.kt:156`)
   - Replace with `Icons.AutoMirrored.Filled.InsertDriveFile`.
-- [ ] [Cleanup] `Color.kt` uses default Android Studio template colors
-  - Replace with intentional brand colors or remove.
-- [ ] [Cleanup] `res/values/colors.xml` contains unused template colors
-  - `purple_200`, `teal_200`, etc. never referenced. Remove.
-- [ ] [Config] `rootProject.name = "File Manager"` doesn't match "Arcile" (`settings.gradle.kts:25`)
-- [ ] [Config] `themes.xml` uses legacy `android:Theme.Material.Light.NoActionBar` (`res/values/themes.xml:4`)
-  - Should use `Theme.Material3.Light.NoActionBar` to avoid launch theme flash.
+- [x] [Cleanup] `Color.kt` uses default Android Studio template colors
+  - ~~Replace with intentional brand colors or remove.~~ Removed template colors.
+- [x] [Cleanup] `res/values/colors.xml` contains unused template colors
+  - `purple_200`, `teal_200`, etc. never referenced. ~~Remove.~~ Removed.
+- [x] [Config] `rootProject.name = "File Manager"` doesn't match "Arcile" (`settings.gradle.kts:25`)
+- [x] [Config] `themes.xml` uses legacy `android:Theme.Material.Light.NoActionBar` (`res/values/themes.xml:4`)
+  - ~~Should use `Theme.Material3.Light.NoActionBar` to avoid launch theme flash.~~ Fixed.
 - [ ] [Config] Missing explicit `kotlinOptions { jvmTarget = "11" }` (`app/build.gradle.kts`)
 - [ ] [Config] `android:allowBackup="true"` with only template backup rules (`AndroidManifest.xml:11`)
 - [ ] [Docs] No test infrastructure — only template tests exist

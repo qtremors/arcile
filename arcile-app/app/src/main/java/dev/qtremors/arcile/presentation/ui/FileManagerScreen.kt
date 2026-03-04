@@ -38,6 +38,7 @@ fun FileManagerScreen(
     onClearError: () -> Unit
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
 
     BackHandler {
         onNavigateBack()
@@ -56,7 +57,7 @@ fun FileManagerScreen(
                 onActionSelected = { action ->
                     when (action) {
                         "New Folder" -> showCreateFolderDialog = true
-                        "Delete Selected" -> onDeleteSelected()
+                        "Delete Selected" -> showDeleteConfirmation = true
                     }
                 }
             )
@@ -127,6 +128,32 @@ fun FileManagerScreen(
                 onConfirm = { name ->
                     onCreateFolder(name)
                     showCreateFolderDialog = false
+                }
+            )
+        }
+
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
+                text = { Text("This action cannot be undone. Directories will be deleted recursively.") },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            onDeleteSelected()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Cancel")
+                    }
                 }
             )
         }

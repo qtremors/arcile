@@ -1,7 +1,7 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.2
+> **Version:** 0.1.3
 > **Last Updated:** 2026-03-04
 
 ---
@@ -9,6 +9,28 @@
 ## [Unreleased]
 
 <!-- Accumulate changes here prior to the next formal release. -->
+
+---
+
+## [0.1.3] - 2026-03-04
+
+### Added
+- Delete confirmation dialog before file/directory deletion
+- "Coming Soon" label on all Tools screen cards
+- Folder name validation (rejects `/`, `\`, `..`, null, blank)
+- Per-file error reporting in batch delete ("Failed to delete N of M files")
+
+### Fixed
+- [Security] Path traversal protection on all file operations — canonical path must resolve within external storage
+- [Security] `renameFile` rejects names containing `/`, `\`, `..`, or null characters
+- `deleteSelectedFiles()` now surfaces per-file failures to the user
+- `themes.xml` uses `Theme.Material3.Light.NoActionBar` (was legacy `android:Theme.Material.Light.NoActionBar`)
+
+### Removed
+- Empty placeholder `ThemePreferences.kt` (0 bytes)
+- Unused import `kotlinx.coroutines.flow.Flow` from `FileRepository.kt`
+- Template colors from `Color.kt` (`Purple80`, `PurpleGrey80`, `Pink80`, `Purple40`, `PurpleGrey40`, `Pink40`)
+- Unused template colors from `res/values/colors.xml` (`purple_200/500/700`, `teal_200/700`)
 
 ---
 

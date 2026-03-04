@@ -13,6 +13,19 @@ import java.io.File
 
 class LocalFileRepository : FileRepository {
 
+    private val storageRoot: String by lazy {
+        Environment.getExternalStorageDirectory().canonicalPath
+    }
+
+    // path traversal guard — rejects paths that escape external storage
+    private fun validatePath(file: File): Result<Unit> {
+        val canonical = file.canonicalPath
+        if (!canonical.startsWith(storageRoot)) {
+            return Result.failure(SecurityException("Access denied: path outside storage boundary"))
+        }
+        return Result.success(Unit)
+    }
+
     override suspend fun getRootDirectory(): File = withContext(Dispatchers.IO) {
         Environment.getExternalStorageDirectory()
     }
@@ -20,6 +33,8 @@ class LocalFileRepository : FileRepository {
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
             val directory = File(path)
+            validatePath(directory).onFailure { return@withContext Result.failure(it) }
+
             if (!directory.exists() || !directory.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Path is not a valid directory"))
             }
@@ -39,6 +54,8 @@ class LocalFileRepository : FileRepository {
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
         try {
             val newDir = File(parentPath, name)
+            validatePath(newDir).onFailure { return@withContext Result.failure(it) }
+
             if (newDir.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
             }
@@ -55,6 +72,8 @@ class LocalFileRepository : FileRepository {
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val file = File(path)
+            validatePath(file).onFailure { return@withContext Result.failure(it) }
+
             if (!file.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("File does not exist"))
             }
@@ -71,11 +90,23 @@ class LocalFileRepository : FileRepository {
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(Dispatchers.IO) {
          try {
+             // reject names containing path separators or traversal sequences
+             if (newName.contains('/') || newName.contains('\\') ||
+                 newName.contains("..") || newName.contains('\u0000')) {
+                 return@withContext Result.failure(
+                     IllegalArgumentException("Invalid file name: must not contain path separators or '..'")
+                 )
+             }
+
              val file = File(path)
+             validatePath(file).onFailure { return@withContext Result.failure(it) }
+
+             val newFile = File(file.parent, newName)
+             validatePath(newFile).onFailure { return@withContext Result.failure(it) }
+
              if (!file.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File does not exist"))
              }
-             val newFile = File(file.parent, newName)
              if (newFile.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File with that name already exists"))
              }

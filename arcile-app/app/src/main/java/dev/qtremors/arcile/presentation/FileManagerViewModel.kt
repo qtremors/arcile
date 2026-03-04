@@ -150,6 +150,13 @@ class FileManagerViewModel(
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty()) return
 
+        // validate folder name
+        val invalidChars = listOf('/', '\\', '\u0000')
+        if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
+            _state.update { it.copy(error = "Invalid folder name: must not be blank or contain /, \\, or ..") }
+            return
+        }
+
         viewModelScope.launch {
             val result = repository.createDirectory(currentPath, name)
             result.onSuccess {
@@ -166,8 +173,14 @@ class FileManagerViewModel(
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
+            var failCount = 0
             for (path in selectedFiles) {
-                repository.deleteFile(path)
+                repository.deleteFile(path).onFailure { failCount++ }
+            }
+            if (failCount > 0) {
+                _state.update {
+                    it.copy(error = "Failed to delete $failCount of ${selectedFiles.size} file(s)")
+                }
             }
             refresh()
         }
