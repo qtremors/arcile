@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -16,13 +18,31 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.5"
+        versionName = "0.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("local.properties")
+    if (keystorePropertiesFile.exists()) {
+        keystorePropertiesFile.inputStream().use {
+            keystoreProperties.load(it)
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = keystoreProperties["signing.storeFile"]?.let { file(it as String) }
+            storePassword = keystoreProperties["signing.storePassword"] as String?
+            keyAlias = keystoreProperties["signing.keyAlias"] as String?
+            keyPassword = keystoreProperties["signing.keyPassword"] as String?
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -37,6 +57,16 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
+                output.outputFileName.set("Arcile-${variant.applicationId.get()}-${variant.outputs.first().versionName.get()}.apk")
+            }
+        }
     }
 }
 
