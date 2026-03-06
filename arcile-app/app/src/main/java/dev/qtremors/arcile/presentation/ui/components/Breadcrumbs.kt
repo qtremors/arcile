@@ -67,7 +67,7 @@ fun Breadcrumbs(
 
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
+                contentDescription = "Navigate to",
                 modifier = Modifier.padding(horizontal = 2.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
             )

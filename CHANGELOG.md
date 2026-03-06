@@ -1,14 +1,85 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.4
-> **Last Updated:** 2026-03-04
+> **Version:** 0.2.0
+> **Last Updated:** 2026-03-06
 
 ---
 
-## [Unreleased]
+## [0.2.0] - 2026-03-06
 
-<!-- Accumulate changes here prior to the next formal release. -->
+### Added
+- [Feature] The search field now queries the Android MediaStore to provide instant search results across the entire device storage globally, rather than just filtering the local items strictly within the currently opened folder view.
+- [Feature] Image and Video thumbnails now load and display locally in the File Browser lists and Grids seamlessly via Coil caching.
+- [Feature] Peak Refresh Rate request implemented on app launch `onCreate` frame, supporting 120Hz/144Hz displays natively to achieve buttery-smooth 120fps scrolling. 
+- [Feature] Added an interactive layout with new developer and hardware information tiles to the Settings Screen.
+
+### Fixed
+- [Bug] Fixed a build issue causing `SettingsScreen.kt` to fail compilation (`Unresolved reference: Color`).
+- [Bug] The Search bar will now dismiss properly when the phone's back button is pressed instead of getting stuck on the screen or exiting the app prematurely.
+
+### Changed
+- [Design] Settings page completely redesigned and modularized using Jetpack Compose Elevated Tonal Cards, strictly conforming to the Google Material 3 Standards.
+
+---
+
+## [0.1.9] - 2026-03-06
+
+### Added
+- [Feature] Categories on the Home Screen now list all files associated with that extension category globally, instead of shortcutting to specific directories.
+
+### Improved
+- [Performance] `MultiColorStorageBar` category sizing operation now queries `MediaStore.Files` instead of recursively walking the entire filesystem via `walkTopDown()`, removing massive I/O delays.
+- [Design] `MultiColorStorageBar` math logic accurately calculates category sizing vs unmanaged `Other` vs actual free storage space block allocations.
+- [Design] `MultiColorStorageBar`, its bottom legend, and the main `CategoryGrid` now sort dynamically, presenting the largest categories first in descending order instead of static alphabetical listing.
+
+### Fixed
+- [Bug] Application no longer violently reloads the file directory (resetting scroll and selection state) every time the device wakes up from the lock screen.
+- [Bug] Using the back button while deep inside a Category view now correctly returns the user directly to the Home screen instead of dropping them into the root internal storage directory.
+
+---
+
+## [0.1.8] - 2026-03-06
+
+### Added
+- [Feature] Added DataStore persistence for Theme and Accent Color selection, restoring state across process deaths
+- [Feature] Enabled `buildConfig` in Gradle to dynamically display the current App Version under Settings
+- [Feature] Search: Search icon filtering recent files on Home and current-folder contents in Browse
+- [Feature] Sort: Sort dialogs controlling recent-file ordering on Home and current-folder ordering in Browse
+- [Feature] Grid View: Overflow menu toggling between list and adaptive grid layouts in Browse
+- [Design] Refactored SettingsScreen to utilize Material Design 3 `ListItem` components with standardized surfacing
+
+---
+
+## [0.1.7] - 2026-03-04
+
+### Fixed
+- [Bug] Per-file deletion error messages are now retained after directory refresh — previously `refresh()` cleared the error before the user could see it
+
+### Refactored
+- [Refactor] Replaced magic string action dispatch in `ArcileTopBar` with `TopBarAction` sealed class — compile-time verified actions
+- [Refactor] Replaced raw string navigation routes (`"home"`, `"explorer"`, etc.) with `AppRoutes` constants
+- [Refactor] Extracted `ArcileAppShell`, `PermissionRequestScreen`, and `getCategoryPath` from `MainActivity.kt` into `ArcileAppShell.kt`
+
+### Improved
+- [Motion] Added slide + fade navigation transitions to all `NavHost` routes — screen switching now feels fluid
+- [Design] Replaced hardcoded `color.copy(alpha = 0.15f)` overlays with proper M3 tonal tokens (`primaryContainer`, `secondaryContainer`)
+
+---
+
+## [0.1.6] - 2026-03-04
+
+### Fixed
+- [Bug] `showRenameDialog` now only triggers when exactly one item is selected — prevents silent no-op on multi-selection
+- [Bug] `openFile()` exception is now logged via `Log.e` and the toast includes the actual error message instead of a generic string
+
+### Improved
+- [A11y] Added descriptive `contentDescription` labels to all core navigation icons (`HomeScreen`, `FileManagerScreen`, `Breadcrumbs`) for TalkBack support
+- [Motion] File list items now animate smoothly on add/remove/reorder via `Modifier.animateItem()` in `LazyColumn`
+
+### Refactored
+- [Refactor] Extracted `StorageInfo` data class to its own file (`StorageInfo.kt`) in the domain package
+- [Verified] `java.util.Stack` was already replaced with `ArrayDeque` — task marked complete
 
 ---
 

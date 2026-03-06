@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.1.5 | **Last Updated:** 2026-03-04
+**Version:** 0.2.0 | **Last Updated:** 2026-03-06
 
 ---
 

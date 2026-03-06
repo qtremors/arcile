@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.util.Log
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -14,29 +15,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import dev.qtremors.arcile.presentation.FileManagerViewModel
-import dev.qtremors.arcile.presentation.ui.FileManagerScreen
-import dev.qtremors.arcile.presentation.ui.HomeScreen
-import dev.qtremors.arcile.presentation.ui.SettingsScreen
-import dev.qtremors.arcile.presentation.ui.ToolsScreen
+import dev.qtremors.arcile.presentation.ui.ArcileAppShell
+import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.ui.theme.FileManagerTheme
+import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
+import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -62,7 +54,23 @@ class MainActivity : ComponentActivity() {
         _hasPermission.value = checkStoragePermission()
 
         setContent {
-            var themeState by remember { mutableStateOf(ThemeState()) }
+            // Request peak refresh rate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val display = window.windowManager.defaultDisplay
+                val modes = display.supportedModes
+                val maxRefreshRateMode = modes.maxByOrNull { it.refreshRate }
+                if (maxRefreshRateMode != null) {
+                    window.let { win ->
+                        val layoutParams = win.attributes
+                        layoutParams.preferredDisplayModeId = maxRefreshRateMode.modeId
+                        win.attributes = layoutParams
+                    }
+                }
+            }
+
+            val themePreferences = remember { ThemePreferences(applicationContext) }
+            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
+            val coroutineScope = rememberCoroutineScope()
 
             FileManagerTheme(themeState = themeState) {
                 Surface(
@@ -74,7 +82,12 @@ class MainActivity : ComponentActivity() {
                     if (hasPermission) {
                         ArcileAppShell(
                             viewModel = viewModel,
-                            onThemeChange = { themeState = it },
+                            currentThemeState = themeState,
+                            onThemeChange = { newState ->
+                                coroutineScope.launch {
+                                    themePreferences.saveThemeState(newState)
+                                }
+                            },
                             onOpenFile = { path -> openFile(path) }
                         )
                     } else {
@@ -91,8 +104,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        _hasPermission.value = checkStoragePermission()
-        if (_hasPermission.value) {
+        val hadPermission = _hasPermission.value
+        val hasPermission = checkStoragePermission()
+        _hasPermission.value = hasPermission
+        
+        // Only refresh if we just gained permission, to avoid reloading UI on every screen wake
+        if (!hadPermission && hasPermission) {
             viewModel.refresh()
         }
     }
@@ -116,7 +133,8 @@ class MainActivity : ComponentActivity() {
             }
             startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(this, "No app found to open this file", Toast.LENGTH_SHORT).show()
+            Log.e("Arcile", "Failed to open file: $path", e)
+            Toast.makeText(this, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -150,170 +168,5 @@ class MainActivity : ComponentActivity() {
                 )
             )
         }
-    }
-}
-
-@Composable
-fun ArcileAppShell(
-    viewModel: FileManagerViewModel,
-    onThemeChange: (ThemeState) -> Unit,
-    onOpenFile: (String) -> Unit
-) {
-    val navController = rememberNavController()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: "home"
-
-    // bottom nav tabs
-    val bottomNavItems = listOf(
-        Triple("home", "Home", Icons.Default.Home),
-        Triple("explorer", "Browse", Icons.Default.Folder),
-        Triple("tools", "Tools", Icons.Default.Build)
-    )
-
-    // hide bottom bar on settings (it's a detail screen, not a tab)
-    val showBottomBar = currentRoute in bottomNavItems.map { it.first }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { (route, label, icon) ->
-                        NavigationBarItem(
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                            selected = currentRoute == route,
-                            onClick = {
-                                if (currentRoute != route) {
-                                    // when switching to explorer tab, open file browser
-                                    if (route == "explorer") {
-                                        viewModel.openFileBrowser()
-                                    }
-                                    navController.navigate(route) {
-                                        popUpTo("home") { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    ) { scaffoldPadding ->
-        Box(modifier = Modifier.padding(scaffoldPadding)) {
-            NavHost(navController = navController, startDestination = "home") {
-                composable("home") {
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    HomeScreen(
-                        state = state,
-                        onOpenFileBrowser = {
-                            viewModel.openFileBrowser()
-                            navController.navigate("explorer") {
-                                popUpTo("home") { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToPath = { path ->
-                            viewModel.navigateToSpecificFolder(path)
-                            navController.navigate("explorer") {
-                                popUpTo("home") { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onOpenFile = onOpenFile,
-                        onCategoryClick = { categoryName ->
-                            val path = getCategoryPath(categoryName, viewModel.storageRootPath)
-                            viewModel.navigateToSpecificFolder(path)
-                            navController.navigate("explorer") {
-                                popUpTo("home") { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onSettingsClick = {
-                            navController.navigate("settings")
-                        }
-                    )
-                }
-                composable("explorer") {
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-
-                    // ensure file browser is loaded when entering the tab
-                    LaunchedEffect(Unit) {
-                        if (state.currentPath.isEmpty()) {
-                            viewModel.openFileBrowser()
-                        }
-                    }
-
-                    FileManagerScreen(
-                        state = state,
-                        storageRootPath = viewModel.storageRootPath,
-                        onNavigateBack = {
-                            if (!viewModel.navigateBack()) {
-                                navController.popBackStack()
-                            }
-                        },
-                        onNavigateTo = { viewModel.navigateToFolder(it) },
-                        onOpenFile = onOpenFile,
-                        onToggleSelection = { viewModel.toggleSelection(it) },
-                        onClearSelection = { viewModel.clearSelection() },
-                        onCreateFolder = { viewModel.createFolder(it) },
-                        onDeleteSelected = { viewModel.deleteSelectedFiles() },
-                        onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
-                        onClearError = { viewModel.clearError() }
-                    )
-                }
-                composable("tools") {
-                    ToolsScreen()
-                }
-                composable("settings") {
-                    SettingsScreen(
-                        onNavigateBack = { navController.popBackStack() },
-                        onThemeChange = onThemeChange
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "Storage Permission Required",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "This application requires permission to read and manage files on your device.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onRequestPermission) {
-            Text("Grant Permission")
-        }
-    }
-}
-
-private fun getCategoryPath(categoryName: String, root: String): String {
-    return when (categoryName) {
-        "Images" -> java.io.File(root, Environment.DIRECTORY_PICTURES).absolutePath
-        "Videos" -> java.io.File(root, Environment.DIRECTORY_MOVIES).absolutePath
-        "Audio" -> java.io.File(root, Environment.DIRECTORY_MUSIC).absolutePath
-        "Docs" -> java.io.File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath
-        "Archives" -> java.io.File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath
-        "APKs" -> java.io.File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath
-        else -> root
     }
 }
