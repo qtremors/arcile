@@ -20,10 +20,10 @@ import dev.qtremors.arcile.ui.theme.ThemeState
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    currentThemeState: ThemeState,
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit
 ) {
-    var currentThemeState by remember { mutableStateOf(ThemeState()) }
 
     Scaffold(
         topBar = {
@@ -54,8 +54,7 @@ fun SettingsScreen(
                 ThemeModeSelector(
                     currentMode = currentThemeState.themeMode,
                     onModeSelected = {
-                        currentThemeState = currentThemeState.copy(themeMode = it)
-                        onThemeChange(currentThemeState)
+                        onThemeChange(currentThemeState.copy(themeMode = it))
                     }
                 )
             }
@@ -64,8 +63,7 @@ fun SettingsScreen(
                 AccentColorSelector(
                     currentAccent = currentThemeState.accentColor,
                     onAccentSelected = {
-                        currentThemeState = currentThemeState.copy(accentColor = it)
-                        onThemeChange(currentThemeState)
+                        onThemeChange(currentThemeState.copy(accentColor = it))
                     }
                 )
             }
@@ -78,7 +76,7 @@ fun SettingsScreen(
             item {
                 ListItem(
                     headlineContent = { Text("App Version") },
-                    supportingContent = { Text("0.1.5") },
+                    supportingContent = { Text(dev.qtremors.arcile.BuildConfig.VERSION_NAME) },
                     leadingContent = { Icon(Icons.Default.Info, contentDescription = null) }
                 )
             }
@@ -108,6 +106,7 @@ fun ThemeModeSelector(
         headlineContent = { Text("Theme Mode") },
         supportingContent = { Text(currentMode.name) },
         leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null) },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
         modifier = Modifier.clickable { expanded = true }
     )
 
@@ -150,6 +149,7 @@ fun AccentColorSelector(
         headlineContent = { Text("Accent Color") },
         supportingContent = { Text(currentAccent.name) },
         leadingContent = { Icon(Icons.Default.ColorLens, contentDescription = null) },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
         modifier = Modifier.clickable { expanded = true }
     )
 

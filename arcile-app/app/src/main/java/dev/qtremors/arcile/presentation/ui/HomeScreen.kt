@@ -4,16 +4,51 @@ import android.os.Environment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,7 +59,11 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.presentation.FileManagerState
+import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
+import dev.qtremors.arcile.presentation.ui.components.FileSearchField
+import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,9 +75,24 @@ fun HomeScreen(
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,
     onOpenFile: (String) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    onSortOptionChange: (FileSortOption) -> Unit,
     onCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit
 ) {
+    var showSearchBar by rememberSaveable { mutableStateOf(state.homeSearchQuery.isNotEmpty()) }
+    var showSortDialog by remember { mutableStateOf(false) }
+    val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
+        filterAndSortFiles(state.recentFiles, state.homeSearchQuery, state.homeSortOption)
+    }
+
+    LaunchedEffect(state.homeSearchQuery) {
+        if (state.homeSearchQuery.isNotEmpty()) {
+            showSearchBar = true
+        }
+    }
+
     Scaffold(
         topBar = {
             ArcileTopBar(
@@ -47,14 +101,26 @@ fun HomeScreen(
                 showSettingsIcon = true,
                 onSettingsClick = onSettingsClick,
                 onClearSelection = {},
-                onSearchClick = {},
-                onSortClick = {},
+                onSearchClick = {
+                    if (showSearchBar) {
+                        showSearchBar = false
+                        onClearSearch()
+                    } else {
+                        showSearchBar = true
+                    }
+                },
+                onSortClick = { showSortDialog = true },
                 onActionSelected = {}
             )
         }
     ) { padding ->
         if (state.isLoading) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
         } else {
@@ -63,6 +129,18 @@ fun HomeScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                if (showSearchBar) {
+                    item {
+                        FileSearchField(
+                            query = state.homeSearchQuery,
+                            label = "Search recent files",
+                            placeholder = "Filter recent files by name",
+                            onQueryChange = onSearchQueryChange,
+                            onClearSearch = onClearSearch
+                        )
+                    }
+                }
+
                 item {
                     StorageSummaryCard(
                         state = state,
@@ -96,15 +174,27 @@ fun HomeScreen(
                 }
 
                 item {
-                    Text(
-                        text = "Recent Files",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Recent Files",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = state.homeSortOption.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                if (state.recentFiles.isEmpty()) {
+                if (displayedRecentFiles.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -113,7 +203,7 @@ fun HomeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "No recent files",
+                                text = if (state.homeSearchQuery.isBlank()) "No recent files" else "No recent files match \"${state.homeSearchQuery}\"",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -121,7 +211,7 @@ fun HomeScreen(
                     }
                 } else {
                     val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                    items(state.recentFiles, key = { it.absolutePath }) { file ->
+                    items(displayedRecentFiles, key = { it.absolutePath }) { file ->
                         FileItemRow(
                             file = file,
                             formattedDate = formatter.format(Date(file.lastModified)),
@@ -135,10 +225,20 @@ fun HomeScreen(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
+
+        if (showSortDialog) {
+            SortOptionDialog(
+                title = "Sort recent files",
+                selectedOption = state.homeSortOption,
+                onDismiss = { showSortDialog = false },
+                onOptionSelected = { option ->
+                    onSortOptionChange(option)
+                    showSortDialog = false
+                }
+            )
+        }
     }
 }
-
-// --- storage card with multi-colored progress bar ---
 
 @Composable
 fun StorageSummaryCard(
@@ -177,7 +277,6 @@ fun StorageSummaryCard(
             if (total > 0) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // multi-colored storage bar
                 MultiColorStorageBar(
                     totalBytes = total,
                     categoryStorages = state.categoryStorages
@@ -200,7 +299,6 @@ fun StorageSummaryCard(
                     )
                 }
 
-                // category legend below the bar
                 if (state.categoryStorages.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     CategoryLegend(state.categoryStorages)
@@ -241,12 +339,11 @@ fun MultiColorStorageBar(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .weight(fraction.coerceAtLeast(0.005f))
-                                .background(cat.color)
+                                .background(Color(cat.color))
                         )
                     }
                 }
 
-                // remaining "other used" space (used minus all categories)
                 val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
                 val freeBytes = (totalBytes - categorizedBytes).coerceAtLeast(0)
                 if (freeBytes > 0) {
@@ -281,7 +378,7 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(cat.color)
+                        .background(Color(cat.color))
                 )
                 Text(
                     text = "${cat.name} ${formatFileSize(cat.sizeBytes)}",
@@ -293,14 +390,11 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
     }
 }
 
-// --- category grid with colors and sizes ---
-
 @Composable
 fun CategoryGrid(
     categoryStorages: List<CategoryStorage>,
     onCategoryClick: (String) -> Unit
 ) {
-    // merge categories with their icons and sizes
     data class CategoryDisplay(
         val name: String,
         val icon: ImageVector,
@@ -309,16 +403,15 @@ fun CategoryGrid(
     )
 
     val categories = listOf(
-        CategoryDisplay("Images", Icons.Default.Image, FileCategories.Images.color, categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
-        CategoryDisplay("Videos", Icons.Default.VideoFile, FileCategories.Videos.color, categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
-        CategoryDisplay("Audio", Icons.Default.AudioFile, FileCategories.Audio.color, categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
-        CategoryDisplay("Docs", Icons.Default.Description, FileCategories.Documents.color, categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
-        CategoryDisplay("Archives", Icons.Default.FolderZip, FileCategories.Archives.color, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
-        CategoryDisplay("APKs", Icons.Default.Android, FileCategories.APKs.color, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Images", Icons.Default.Image, Color(FileCategories.Images.color), categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
+        CategoryDisplay("Videos", Icons.Default.VideoFile, Color(FileCategories.Videos.color), categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
+        CategoryDisplay("Audio", Icons.Default.AudioFile, Color(FileCategories.Audio.color), categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
+        CategoryDisplay("Docs", Icons.Default.Description, Color(FileCategories.Documents.color), categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Archives", Icons.Default.FolderZip, Color(FileCategories.Archives.color), categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
+        CategoryDisplay("APKs", Icons.Default.Android, Color(FileCategories.APKs.color), categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
     )
 
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {
-        // first row: 3 items
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             categories.take(3).forEach { cat ->
                 CategoryItem(
@@ -331,8 +424,12 @@ fun CategoryGrid(
                 )
             }
         }
-        // second row: 3 items
-        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
             categories.drop(3).take(3).forEach { cat ->
                 CategoryItem(
                     name = cat.name,
@@ -390,8 +487,6 @@ fun CategoryItem(
     }
 }
 
-// --- folder shortcuts ---
-
 @Composable
 fun MainFoldersRow(
     onOpenFileBrowser: () -> Unit,
@@ -447,3 +542,4 @@ fun MainFoldersRow(
         }
     }
 }
+

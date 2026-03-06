@@ -20,6 +20,11 @@ data class FileManagerState(
     val currentPath: String = "",
     val files: List<FileModel> = emptyList(),
     val recentFiles: List<FileModel> = emptyList(),
+    val browserSearchQuery: String = "",
+    val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
+    val homeSearchQuery: String = "",
+    val homeSortOption: FileSortOption = FileSortOption.DATE_NEWEST,
+    val isGridView: Boolean = false,
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val isLoading: Boolean = false,
@@ -56,7 +61,6 @@ class FileManagerViewModel(
                 )
             }
 
-            // load category sizes in background (can take a moment)
             val categoryResult = repository.getCategoryStorageSizes()
             _state.update { currentState ->
                 currentState.copy(
@@ -146,11 +150,30 @@ class FileManagerViewModel(
         _state.update { it.copy(selectedFiles = emptySet()) }
     }
 
+    fun updateBrowserSearchQuery(query: String) {
+        _state.update { it.copy(browserSearchQuery = query) }
+    }
+
+    fun updateBrowserSortOption(sortOption: FileSortOption) {
+        _state.update { it.copy(browserSortOption = sortOption) }
+    }
+
+    fun setGridView(enabled: Boolean) {
+        _state.update { it.copy(isGridView = enabled) }
+    }
+
+    fun updateHomeSearchQuery(query: String) {
+        _state.update { it.copy(homeSearchQuery = query) }
+    }
+
+    fun updateHomeSortOption(sortOption: FileSortOption) {
+        _state.update { it.copy(homeSortOption = sortOption) }
+    }
+
     fun createFolder(name: String) {
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty()) return
 
-        // validate folder name
         val invalidChars = listOf('/', '\\', '\u0000')
         if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
             _state.update { it.copy(error = "Invalid folder name: must not be blank or contain /, \\, or ..") }
@@ -177,9 +200,7 @@ class FileManagerViewModel(
             for (path in selectedFiles) {
                 repository.deleteFile(path).onFailure { failCount++ }
             }
-            // refresh the directory listing first
             refresh()
-            // re-apply the error after refresh so the user sees it
             if (failCount > 0) {
                 _state.update {
                     it.copy(error = "Failed to delete $failCount of ${selectedFiles.size} file(s)")
@@ -189,7 +210,6 @@ class FileManagerViewModel(
     }
 
     fun renameFile(path: String, newName: String) {
-        // validate name
         val invalidChars = listOf('/', '\\', '\u0000')
         if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
             _state.update { it.copy(error = "Invalid name: must not be blank or contain /, \\, or ..") }
@@ -208,6 +228,6 @@ class FileManagerViewModel(
     }
 
     fun clearError() {
-         _state.update { it.copy(error = null) }
+        _state.update { it.copy(error = null) }
     }
 }

@@ -20,7 +20,7 @@ class LocalFileRepository : FileRepository {
     // path traversal guard — rejects paths that escape external storage
     private fun validatePath(file: File): Result<Unit> {
         val canonical = file.canonicalPath
-        if (!canonical.startsWith(storageRoot)) {
+        if (canonical != storageRoot && !canonical.startsWith(storageRoot + File.separator)) {
             return Result.failure(SecurityException("Access denied: path outside storage boundary"))
         }
         return Result.success(Unit)

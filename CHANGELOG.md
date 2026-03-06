@@ -1,14 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.7
-> **Last Updated:** 2026-03-04
+> **Version:** 0.1.8
+> **Last Updated:** 2026-03-06
 
 ---
 
-## [Unreleased]
+## [0.1.8] - 2026-03-06
 
-<!-- Accumulate changes here prior to the next formal release. -->
+### Added
+- [Feature] Added DataStore persistence for Theme and Accent Color selection, restoring state across process deaths
+- [Feature] Enabled `buildConfig` in Gradle to dynamically display the current App Version under Settings
+- [Feature] Search: Search icon filtering recent files on Home and current-folder contents in Browse
+- [Feature] Sort: Sort dialogs controlling recent-file ordering on Home and current-folder ordering in Browse
+- [Feature] Grid View: Overflow menu toggling between list and adaptive grid layouts in Browse
+- [Design] Refactored SettingsScreen to utilize Material Design 3 `ListItem` components with standardized surfacing
 
 ---
 

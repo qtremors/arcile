@@ -21,11 +21,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.FileProvider
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.presentation.FileManagerViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.ui.theme.FileManagerTheme
+import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
+import kotlinx.coroutines.launch
 import java.io.File
 
 class MainActivity : ComponentActivity() {
@@ -51,7 +54,9 @@ class MainActivity : ComponentActivity() {
         _hasPermission.value = checkStoragePermission()
 
         setContent {
-            var themeState by remember { mutableStateOf(ThemeState()) }
+            val themePreferences = remember { ThemePreferences(applicationContext) }
+            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
+            val coroutineScope = rememberCoroutineScope()
 
             FileManagerTheme(themeState = themeState) {
                 Surface(
@@ -63,7 +68,12 @@ class MainActivity : ComponentActivity() {
                     if (hasPermission) {
                         ArcileAppShell(
                             viewModel = viewModel,
-                            onThemeChange = { themeState = it },
+                            currentThemeState = themeState,
+                            onThemeChange = { newState ->
+                                coroutineScope.launch {
+                                    themePreferences.saveThemeState(newState)
+                                }
+                            },
                             onOpenFile = { path -> openFile(path) }
                         )
                     } else {

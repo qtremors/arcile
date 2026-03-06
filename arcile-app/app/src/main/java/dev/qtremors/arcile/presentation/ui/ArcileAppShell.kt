@@ -5,13 +5,27 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +43,7 @@ import java.io.File
 @Composable
 fun ArcileAppShell(
     viewModel: FileManagerViewModel,
+    currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit
 ) {
@@ -36,14 +51,12 @@ fun ArcileAppShell(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
 
-    // bottom nav tabs
     val bottomNavItems = listOf(
         Triple(AppRoutes.HOME, "Home", Icons.Default.Home),
         Triple(AppRoutes.EXPLORER, "Browse", Icons.Default.Folder),
         Triple(AppRoutes.TOOLS, "Tools", Icons.Default.Build)
     )
 
-    // hide bottom bar on settings (it's a detail screen, not a tab)
     val showBottomBar = currentRoute in bottomNavItems.map { it.first }
 
     Scaffold(
@@ -58,7 +71,6 @@ fun ArcileAppShell(
                             selected = currentRoute == route,
                             onClick = {
                                 if (currentRoute != route) {
-                                    // when switching to explorer tab, open file browser
                                     if (route == AppRoutes.EXPLORER) {
                                         viewModel.openFileBrowser()
                                     }
@@ -103,6 +115,9 @@ fun ArcileAppShell(
                             }
                         },
                         onOpenFile = onOpenFile,
+                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
+                        onClearSearch = { viewModel.updateHomeSearchQuery("") },
+                        onSortOptionChange = { viewModel.updateHomeSortOption(it) },
                         onCategoryClick = { categoryName ->
                             val path = getCategoryPath(categoryName, viewModel.storageRootPath)
                             viewModel.navigateToSpecificFolder(path)
@@ -119,7 +134,6 @@ fun ArcileAppShell(
                 composable(AppRoutes.EXPLORER) {
                     val state by viewModel.state.collectAsStateWithLifecycle()
 
-                    // ensure file browser is loaded when entering the tab
                     LaunchedEffect(Unit) {
                         if (state.currentPath.isEmpty()) {
                             viewModel.openFileBrowser()
@@ -141,6 +155,10 @@ fun ArcileAppShell(
                         onCreateFolder = { viewModel.createFolder(it) },
                         onDeleteSelected = { viewModel.deleteSelectedFiles() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
+                        onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
+                        onClearSearch = { viewModel.updateBrowserSearchQuery("") },
+                        onSortOptionChange = { viewModel.updateBrowserSortOption(it) },
+                        onGridViewChange = { viewModel.setGridView(it) },
                         onClearError = { viewModel.clearError() }
                     )
                 }
@@ -149,6 +167,7 @@ fun ArcileAppShell(
                 }
                 composable(AppRoutes.SETTINGS) {
                     SettingsScreen(
+                        currentThemeState = currentThemeState,
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange
                     )
@@ -172,14 +191,14 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "This application requires permission to read and manage files on your device.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(32.dp))
         Button(onClick = onRequestPermission) {
             Text("Grant Permission")
         }
