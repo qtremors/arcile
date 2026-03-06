@@ -20,6 +20,8 @@ data class FileManagerState(
     val isHomeScreen: Boolean = true,
     val currentPath: String = "",
     val files: List<FileModel> = emptyList(),
+    val searchResults: List<FileModel> = emptyList(),
+    val isSearching: Boolean = false,
     val recentFiles: List<FileModel> = emptyList(),
     val browserSearchQuery: String = "",
     val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
@@ -106,6 +108,13 @@ class FileManagerViewModel(
     }
 
     fun navigateBack(): Boolean {
+        // If the search query is active, clear the search first before actually going back
+        if (_state.value.browserSearchQuery.isNotEmpty() || _state.value.homeSearchQuery.isNotEmpty()) {
+            updateBrowserSearchQuery("")
+            updateHomeSearchQuery("")
+            return true
+        }
+
         if (_state.value.isHomeScreen) {
             return false
         }
@@ -179,6 +188,7 @@ class FileManagerViewModel(
 
     fun updateBrowserSearchQuery(query: String) {
         _state.update { it.copy(browserSearchQuery = query) }
+        debouncedSearch(query)
     }
 
     fun updateBrowserSortOption(sortOption: FileSortOption) {
@@ -191,6 +201,28 @@ class FileManagerViewModel(
 
     fun updateHomeSearchQuery(query: String) {
         _state.update { it.copy(homeSearchQuery = query) }
+        debouncedSearch(query)
+    }
+
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    private fun debouncedSearch(query: String) {
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            // Wait for user to stop typing
+            kotlinx.coroutines.delay(400)
+            _state.update { it.copy(isSearching = true, error = null) }
+            val result = repository.searchGlobal(query)
+            result.onSuccess { files ->
+                _state.update { it.copy(isSearching = false, searchResults = files) }
+            }.onFailure { error ->
+                _state.update { it.copy(isSearching = false, error = error.message ?: "Search failed") }
+            }
+        }
     }
 
     fun updateHomeSortOption(sortOption: FileSortOption) {

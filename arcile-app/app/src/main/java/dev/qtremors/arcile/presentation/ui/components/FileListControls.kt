@@ -23,36 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.presentation.FileSortOption
 
-@Composable
-fun FileSearchField(
-    query: String,
-    label: String,
-    placeholder: String,
-    onQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        singleLine = true,
-        label = { Text(label) },
-        placeholder = { Text(placeholder) },
-        leadingIcon = {
-            Icon(Icons.Default.Search, contentDescription = null)
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = onClearSearch) {
-                    Icon(Icons.Default.Clear, contentDescription = "Clear search")
-                }
-            }
-        }
-    )
-}
 
 @Composable
 fun SortOptionDialog(

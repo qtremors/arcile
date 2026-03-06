@@ -32,6 +32,8 @@ fun ArcileTopBar(
     selectionCount: Int = 0,
     showBackArrow: Boolean = false,
     showSettingsIcon: Boolean = false,
+    showSearchAction: Boolean = true,
+    showSortAction: Boolean = true,
     showGridViewAction: Boolean = false,
     isGridView: Boolean = false,
     onBackClick: () -> Unit = {},
@@ -64,11 +66,15 @@ fun ArcileTopBar(
         },
         actions = {
             if (selectionCount == 0) {
-                IconButton(onClick = onSearchClick) {
-                    Icon(Icons.Default.Search, contentDescription = "Search")
+                if (showSearchAction) {
+                    IconButton(onClick = onSearchClick) {
+                        Icon(Icons.Default.Search, contentDescription = "Search")
+                    }
                 }
-                IconButton(onClick = onSortClick) {
-                    Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                if (showSortAction) {
+                    IconButton(onClick = onSortClick) {
+                        Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                    }
                 }
                 if (showSettingsIcon) {
                     IconButton(onClick = onSettingsClick) {

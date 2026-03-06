@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -59,9 +60,13 @@ import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
-import dev.qtremors.arcile.presentation.ui.components.FileSearchField
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.domain.FileCategories
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -90,8 +95,10 @@ fun FileManagerScreen(
     var showRenameDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
-    val displayedFiles = remember(state.files, state.browserSearchQuery, state.browserSortOption) {
-        filterAndSortFiles(state.files, state.browserSearchQuery, state.browserSortOption)
+
+    // Always show full folder contents — search results only appear in the dropdown
+    val displayedFiles = remember(state.files, state.browserSortOption) {
+        filterAndSortFiles(state.files, "", state.browserSortOption)
     }
 
     LaunchedEffect(state.browserSearchQuery) {
@@ -101,40 +108,50 @@ fun FileManagerScreen(
     }
 
     BackHandler {
-        onNavigateBack()
+        if (showSearchBar) {
+            showSearchBar = false
+            onClearSearch()
+        } else {
+            onNavigateBack()
+        }
     }
 
     Scaffold(
         topBar = {
-            ArcileTopBar(
-                title = "Browse",
-                selectionCount = state.selectedFiles.size,
-                showBackArrow = true,
-                showGridViewAction = true,
-                isGridView = state.isGridView,
-                onBackClick = onNavigateBack,
-                onClearSelection = onClearSelection,
-                onSearchClick = {
-                    if (showSearchBar) {
+            if (showSearchBar) {
+                SearchTopBar(
+                    query = state.browserSearchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    onClose = {
                         showSearchBar = false
                         onClearSearch()
-                    } else {
-                        showSearchBar = true
+                    },
+                    placeholder = "Search all files..."
+                )
+            } else {
+                ArcileTopBar(
+                    title = "Browse",
+                    selectionCount = state.selectedFiles.size,
+                    showBackArrow = true,
+                    showGridViewAction = true,
+                    isGridView = state.isGridView,
+                    onBackClick = onNavigateBack,
+                    onClearSelection = onClearSelection,
+                    onSearchClick = { showSearchBar = true },
+                    onSortClick = { showSortDialog = true },
+                    onActionSelected = { action ->
+                        when (action) {
+                            TopBarAction.NewFolder -> showCreateFolderDialog = true
+                            TopBarAction.DeleteSelected -> showDeleteConfirmation = true
+                            TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
+                            TopBarAction.GridView -> onGridViewChange(!state.isGridView)
+                        }
                     }
-                },
-                onSortClick = { showSortDialog = true },
-                onActionSelected = { action ->
-                    when (action) {
-                        TopBarAction.NewFolder -> showCreateFolderDialog = true
-                        TopBarAction.DeleteSelected -> showDeleteConfirmation = true
-                        TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
-                        TopBarAction.GridView -> onGridViewChange(!state.isGridView)
-                    }
-                }
-            )
+                )
+            }
         },
         floatingActionButton = {
-            if (state.selectedFiles.isEmpty()) {
+            if (state.selectedFiles.isEmpty() && !showSearchBar) {
                 FloatingActionButton(onClick = { showCreateFolderDialog = true }) {
                     Icon(Icons.Default.CreateNewFolder, contentDescription = "Create folder")
                 }
@@ -146,26 +163,59 @@ fun FileManagerScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
+            // When search has completed, show search results instead of browse content
+            val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
+
             Column(modifier = Modifier.fillMaxSize()) {
-                Breadcrumbs(
-                    path = state.currentPath,
-                    storageRootPath = storageRootPath,
-                    onPathSegmentClick = { path ->
-                        onNavigateTo(path)
+                if (searchHasCompleted) {
+                    // Search results in the content area
+                    if (state.searchResults.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.SearchOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "No results for \"${state.browserSearchQuery}\"",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else {
+                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(state.searchResults, key = { it.absolutePath }) { file ->
+                                FileItemRow(
+                                    file = file,
+                                    formattedDate = formatter.format(Date(file.lastModified)),
+                                    isSelected = false,
+                                    onClick = {
+                                        showSearchBar = false
+                                        onClearSearch()
+                                        if (file.isDirectory) {
+                                            onNavigateTo(file.absolutePath)
+                                        } else {
+                                            onOpenFile(file.absolutePath)
+                                        }
+                                    },
+                                    onLongClick = {}
+                                )
+                            }
+                        }
                     }
-                )
-
-                if (showSearchBar) {
-                    FileSearchField(
-                        query = state.browserSearchQuery,
-                        label = "Search current folder",
-                        placeholder = "Filter files and folders by name",
-                        onQueryChange = onSearchQueryChange,
-                        onClearSearch = onClearSearch
-                    )
-                }
-
-                if (state.isLoading) {
+                } else if (showSearchBar && state.isSearching) {
+                    // Loading indicator while search is running
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -174,47 +224,67 @@ fun FileManagerScreen(
                     ) {
                         CircularProgressIndicator()
                     }
-                } else if (displayedFiles.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                Icons.Default.FolderOff,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = if (state.browserSearchQuery.isBlank()) "Empty Directory" else "No items match \"${state.browserSearchQuery}\"",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                } else if (state.isGridView) {
-                    FileGrid(
-                        files = displayedFiles,
-                        selectedFiles = state.selectedFiles,
-                        onNavigateTo = onNavigateTo,
-                        onOpenFile = onOpenFile,
-                        onToggleSelection = onToggleSelection,
-                        modifier = Modifier.weight(1f)
-                    )
                 } else {
-                    FileList(
-                        files = displayedFiles,
-                        selectedFiles = state.selectedFiles,
-                        onNavigateTo = onNavigateTo,
-                        onOpenFile = onOpenFile,
-                        onToggleSelection = onToggleSelection,
-                        modifier = Modifier.weight(1f)
+                    // Normal browse content
+                    Breadcrumbs(
+                        path = state.currentPath,
+                        storageRootPath = storageRootPath,
+                        onPathSegmentClick = { path ->
+                            onNavigateTo(path)
+                        }
                     )
+
+                    if (state.isLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
+                    } else if (displayedFiles.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.FolderOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Empty Directory",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    } else if (state.isGridView) {
+                        FileGrid(
+                            files = displayedFiles,
+                            selectedFiles = state.selectedFiles,
+                            onNavigateTo = onNavigateTo,
+                            onOpenFile = onOpenFile,
+                            onToggleSelection = onToggleSelection,
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        FileList(
+                            files = displayedFiles,
+                            selectedFiles = state.selectedFiles,
+                            onNavigateTo = onNavigateTo,
+                            onOpenFile = onOpenFile,
+                            onToggleSelection = onToggleSelection,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -385,12 +455,24 @@ fun FileItemRow(
             )
             .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
         leadingContent = {
-            Icon(
-                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                contentDescription = if (file.isDirectory) "Folder" else "File",
-                tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(40.dp)
-            )
+            if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
+                FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))) {
+                AsyncImage(
+                    model = File(file.absolutePath),
+                    contentDescription = "Thumbnail",
+                    modifier = Modifier.size(40.dp),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                    contentDescription = if (file.isDirectory) "Folder" else "File",
+                    tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
         },
         headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
@@ -433,12 +515,24 @@ private fun FileGridItem(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                contentDescription = if (file.isDirectory) "Folder" else "File",
-                tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(36.dp)
-            )
+            if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
+                FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))) {
+                AsyncImage(
+                    model = File(file.absolutePath),
+                    contentDescription = "Thumbnail",
+                    modifier = Modifier.fillMaxWidth().height(100.dp),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Icon(
+                    imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                    contentDescription = if (file.isDirectory) "Folder" else "File",
+                    tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
             Text(
                 text = file.name,
                 style = MaterialTheme.typography.titleSmall,

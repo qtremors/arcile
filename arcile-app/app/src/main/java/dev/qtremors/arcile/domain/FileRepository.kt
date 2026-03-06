@@ -12,4 +12,5 @@ interface FileRepository {
     suspend fun getStorageInfo(): Result<StorageInfo>
     suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>>
     suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>>
+    suspend fun searchGlobal(query: String): Result<List<FileModel>>
 }

@@ -62,7 +62,7 @@ import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.ui.components.FileSearchField
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import java.io.File
 import java.text.SimpleDateFormat
@@ -99,17 +99,12 @@ fun HomeScreen(
                 title = "Arcile",
                 selectionCount = 0,
                 showSettingsIcon = true,
+                showSearchAction = false,
+                showSortAction = false,
                 onSettingsClick = onSettingsClick,
                 onClearSelection = {},
-                onSearchClick = {
-                    if (showSearchBar) {
-                        showSearchBar = false
-                        onClearSearch()
-                    } else {
-                        showSearchBar = true
-                    }
-                },
-                onSortClick = { showSortDialog = true },
+                onSearchClick = {},
+                onSortClick = {},
                 onActionSelected = {}
             )
         }
@@ -124,22 +119,14 @@ fun HomeScreen(
                 CircularProgressIndicator()
             }
         } else {
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                if (showSearchBar) {
-                    item {
-                        FileSearchField(
-                            query = state.homeSearchQuery,
-                            label = "Search recent files",
-                            placeholder = "Filter recent files by name",
-                            onQueryChange = onSearchQueryChange,
-                            onClearSearch = onClearSearch
-                        )
-                    }
-                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
 
                 item {
                     StorageSummaryCard(
@@ -186,11 +173,6 @@ fun HomeScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = state.homeSortOption.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
 
@@ -203,7 +185,7 @@ fun HomeScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = if (state.homeSearchQuery.isBlank()) "No recent files" else "No recent files match \"${state.homeSearchQuery}\"",
+                                text = "No recent files",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -225,19 +207,8 @@ fun HomeScreen(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
-
-        if (showSortDialog) {
-            SortOptionDialog(
-                title = "Sort recent files",
-                selectedOption = state.homeSortOption,
-                onDismiss = { showSortDialog = false },
-                onOptionSelected = { option ->
-                    onSortOptionChange(option)
-                    showSortDialog = false
-                }
-            )
-        }
     }
+}
 }
 
 @Composable

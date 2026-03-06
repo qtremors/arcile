@@ -1,8 +1,25 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.9
+> **Version:** 0.2.0
 > **Last Updated:** 2026-03-06
+
+---
+
+## [0.2.0] - 2026-03-06
+
+### Added
+- [Feature] The search field now queries the Android MediaStore to provide instant search results across the entire device storage globally, rather than just filtering the local items strictly within the currently opened folder view.
+- [Feature] Image and Video thumbnails now load and display locally in the File Browser lists and Grids seamlessly via Coil caching.
+- [Feature] Peak Refresh Rate request implemented on app launch `onCreate` frame, supporting 120Hz/144Hz displays natively to achieve buttery-smooth 120fps scrolling. 
+- [Feature] Added an interactive layout with new developer and hardware information tiles to the Settings Screen.
+
+### Fixed
+- [Bug] Fixed a build issue causing `SettingsScreen.kt` to fail compilation (`Unresolved reference: Color`).
+- [Bug] The Search bar will now dismiss properly when the phone's back button is pressed instead of getting stuck on the screen or exiting the app prematurely.
+
+### Changed
+- [Design] Settings page completely redesigned and modularized using Jetpack Compose Elevated Tonal Cards, strictly conforming to the Google Material 3 Standards.
 
 ---
 

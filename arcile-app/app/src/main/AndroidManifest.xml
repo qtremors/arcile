@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
 
     <application
+        android:name=".ArcileApp"
         android:requestLegacyExternalStorage="true"
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"

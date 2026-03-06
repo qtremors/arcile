@@ -250,4 +250,32 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             Result.failure(e)
         }
     }
+
+    override suspend fun searchGlobal(query: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext Result.success(emptyList())
+        try {
+            val filesList = mutableListOf<FileModel>()
+            val uri = MediaStore.Files.getContentUri("external")
+            val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+            
+            // Query for files where the display name contains the query string (case-insensitive)
+            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
+            val selectionArgs = arrayOf("%$query%")
+            
+            context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(dataCol)
+                    if (path != null) {
+                        filesList.add(FileModel(File(path)))
+                    }
+                }
+            }
+            
+            Result.success(filesList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

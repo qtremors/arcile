@@ -54,6 +54,20 @@ class MainActivity : ComponentActivity() {
         _hasPermission.value = checkStoragePermission()
 
         setContent {
+            // Request peak refresh rate
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val display = window.windowManager.defaultDisplay
+                val modes = display.supportedModes
+                val maxRefreshRateMode = modes.maxByOrNull { it.refreshRate }
+                if (maxRefreshRateMode != null) {
+                    window.let { win ->
+                        val layoutParams = win.attributes
+                        layoutParams.preferredDisplayModeId = maxRefreshRateMode.modeId
+                        win.attributes = layoutParams
+                    }
+                }
+            }
+
             val themePreferences = remember { ThemePreferences(applicationContext) }
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val coroutineScope = rememberCoroutineScope()
