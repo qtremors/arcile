@@ -1,7 +1,8 @@
 package dev.qtremors.arcile.presentation
 
+import android.app.Application
 import android.os.Environment
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.domain.CategoryStorage
@@ -33,8 +34,10 @@ data class FileManagerState(
 )
 
 class FileManagerViewModel(
-    private val repository: FileRepository = LocalFileRepository()
-) : ViewModel() {
+    application: Application
+) : AndroidViewModel(application) {
+
+    private val repository: FileRepository = LocalFileRepository(application)
 
     private val _state = MutableStateFlow(FileManagerState())
     val state: StateFlow<FileManagerState> = _state.asStateFlow()
@@ -89,6 +92,12 @@ class FileManagerViewModel(
         loadDirectory(path)
     }
 
+    fun navigateToCategory(categoryName: String) {
+        _state.update { it.copy(isHomeScreen = false) }
+        pathHistory.clear()
+        loadCategory(categoryName)
+    }
+
     fun navigateToFolder(path: String) {
         if (_state.value.currentPath.isNotEmpty() && _state.value.currentPath != path) {
             pathHistory.push(_state.value.currentPath)
@@ -106,6 +115,7 @@ class FileManagerViewModel(
             loadDirectory(previousPath)
             return true
         } else {
+            _state.update { it.copy(isHomeScreen = true, selectedFiles = emptySet()) }
             return false
         }
     }
@@ -128,6 +138,23 @@ class FileManagerViewModel(
                 _state.update { it.copy(isLoading = false, files = files) }
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load directory") }
+                if (pathHistory.isNotEmpty()) {
+                    pathHistory.pop()
+                }
+            }
+        }
+    }
+
+    private fun loadCategory(categoryName: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null, currentPath = "Category: $categoryName", selectedFiles = emptySet()) }
+
+            val result = repository.getFilesByCategory(categoryName)
+
+            result.onSuccess { files ->
+                _state.update { it.copy(isLoading = false, files = files) }
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load category") }
                 if (pathHistory.isNotEmpty()) {
                     pathHistory.pop()
                 }

@@ -90,8 +90,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        _hasPermission.value = checkStoragePermission()
-        if (_hasPermission.value) {
+        val hadPermission = _hasPermission.value
+        val hasPermission = checkStoragePermission()
+        _hasPermission.value = hasPermission
+        
+        // Only refresh if we just gained permission, to avoid reloading UI on every screen wake
+        if (!hadPermission && hasPermission) {
             viewModel.refresh()
         }
     }

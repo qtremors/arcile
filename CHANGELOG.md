@@ -1,8 +1,24 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.1.8
+> **Version:** 0.1.9
 > **Last Updated:** 2026-03-06
+
+---
+
+## [0.1.9] - 2026-03-06
+
+### Added
+- [Feature] Categories on the Home Screen now list all files associated with that extension category globally, instead of shortcutting to specific directories.
+
+### Improved
+- [Performance] `MultiColorStorageBar` category sizing operation now queries `MediaStore.Files` instead of recursively walking the entire filesystem via `walkTopDown()`, removing massive I/O delays.
+- [Design] `MultiColorStorageBar` math logic accurately calculates category sizing vs unmanaged `Other` vs actual free storage space block allocations.
+- [Design] `MultiColorStorageBar`, its bottom legend, and the main `CategoryGrid` now sort dynamically, presenting the largest categories first in descending order instead of static alphabetical listing.
+
+### Fixed
+- [Bug] Application no longer violently reloads the file directory (resetting scroll and selection state) every time the device wakes up from the lock screen.
+- [Bug] Using the back button while deep inside a Category view now correctly returns the user directly to the Home screen instead of dropping them into the root internal storage directory.
 
 ---
 

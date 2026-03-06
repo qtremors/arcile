@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.1.8
+> **Version:** 0.1.9
 > **Last Updated:** 2026-03-06
 
 ---
@@ -40,11 +40,11 @@
   - **Fix:** Integrate `SavedStateHandle` to persist navigation state variables.
 
 #### C. Performance & Resource Efficiency
-- [ ] [Performance] Massive I/O bottleneck in category sizing.
-  - **Problem:** `getCategoryStorageSizes()` performs a full recursive `walkTopDown()` of the entire external storage.
-  - **Location:** `LocalFileRepository.kt:174-212`
-  - **Impact:** Delays Home screen loading significantly by blocking I/O and burning CPU/battery on devices with many files.
-  - **Fix:** Track category sizes incrementally via MediaStore queries or cache with long TTLs.
+- [x] [Performance] Massive I/O bottleneck in category sizing. (v0.1.9)
+  - ~~**Problem:** `getCategoryStorageSizes()` performs a full recursive `walkTopDown()` of the entire external storage.~~
+  - ~~**Location:** `LocalFileRepository.kt:174-212`~~
+  - ~~**Impact:** Delays Home screen loading significantly by blocking I/O and burning CPU/battery on devices with many files.~~
+  - **Fix:** Refactored domain architecture to inject Application Context and utilize instant `MediaStore` queries.
 
 #### D. Architecture & Design Quality
 - [ ] [Architecture] Hardcoded Android framework dependencies in ViewModel.

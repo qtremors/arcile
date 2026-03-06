@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.data
 
+import android.content.Context
 import android.os.Environment
 import android.os.StatFs
+import android.provider.MediaStore
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
@@ -11,7 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-class LocalFileRepository : FileRepository {
+class LocalFileRepository(private val context: Context) : FileRepository {
 
     private val storageRoot: String by lazy {
         Environment.getExternalStorageDirectory().canonicalPath
@@ -173,9 +175,6 @@ class LocalFileRepository : FileRepository {
 
     override suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
         try {
-            val root = Environment.getExternalStorageDirectory()
-
-            // build extension-to-category lookup
             val extToCategoryIndex = mutableMapOf<String, Int>()
             FileCategories.all.forEachIndexed { index, cat ->
                 cat.extensions.forEach { ext ->
@@ -183,18 +182,27 @@ class LocalFileRepository : FileRepository {
                 }
             }
 
-            // accumulate sizes per category
             val sizes = LongArray(FileCategories.all.size)
 
-            root.walkTopDown()
-                .filter { it.isFile && !it.isHidden }
-                .forEach { file ->
-                    val ext = file.extension.lowercase()
-                    val catIndex = extToCategoryIndex[ext]
-                    if (catIndex != null) {
-                        sizes[catIndex] += file.length()
+            val uri = MediaStore.Files.getContentUri("external")
+            val projection = arrayOf(MediaStore.Files.FileColumns.DATA, MediaStore.Files.FileColumns.SIZE)
+            
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(dataCol)
+                    val size = cursor.getLong(sizeCol)
+                    if (path != null) {
+                        val ext = File(path).extension.lowercase()
+                        val catIndex = extToCategoryIndex[ext]
+                        if (catIndex != null) {
+                            sizes[catIndex] += size
+                        }
                     }
                 }
+            }
 
             val result = FileCategories.all.mapIndexed { index, cat ->
                 CategoryStorage(
@@ -206,6 +214,38 @@ class LocalFileRepository : FileRepository {
             }
 
             Result.success(result)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+        try {
+            val category = FileCategories.all.find { it.name == categoryName }
+                ?: return@withContext Result.failure(IllegalArgumentException("Unknown category: $categoryName"))
+            
+            val extensions = category.extensions.map { it.lowercase() }.toSet()
+            val filesList = mutableListOf<FileModel>()
+
+            val uri = MediaStore.Files.getContentUri("external")
+            val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+            
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                
+                while (cursor.moveToNext()) {
+                    val path = cursor.getString(dataCol)
+                    if (path != null) {
+                        val file = File(path)
+                        if (extensions.contains(file.extension.lowercase())) {
+                            filesList.add(FileModel(file))
+                        }
+                    }
+                }
+            }
+            
+            val sortedFiles = filesList.sortedBy { it.name.lowercase() }
+            Result.success(sortedFiles)
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -279,6 +279,7 @@ fun StorageSummaryCard(
 
                 MultiColorStorageBar(
                     totalBytes = total,
+                    freeBytes = free,
                     categoryStorages = state.categoryStorages
                 )
 
@@ -318,6 +319,7 @@ fun StorageSummaryCard(
 @Composable
 fun MultiColorStorageBar(
     totalBytes: Long,
+    freeBytes: Long,
     categoryStorages: List<CategoryStorage>
 ) {
     val barHeight = 10.dp
@@ -332,7 +334,12 @@ fun MultiColorStorageBar(
     ) {
         if (totalBytes > 0 && categoryStorages.isNotEmpty()) {
             Row(modifier = Modifier.fillMaxSize()) {
-                categoryStorages.forEach { cat ->
+                val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
+                val actualUsedBytes = totalBytes - freeBytes
+                val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
+
+                val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
+                sortedCategories.forEach { cat ->
                     if (cat.sizeBytes > 0) {
                         val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
                         Box(
@@ -344,8 +351,16 @@ fun MultiColorStorageBar(
                     }
                 }
 
-                val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
-                val freeBytes = (totalBytes - categorizedBytes).coerceAtLeast(0)
+                if (otherUsedBytes > 0) {
+                    val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .weight(otherFraction.coerceAtLeast(0.005f))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                    )
+                }
+
                 if (freeBytes > 0) {
                     val freeFraction = freeBytes.toFloat() / totalBytes.toFloat()
                     Box(
@@ -369,7 +384,8 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
             .fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        categoryStorages.filter { it.sizeBytes > 0 }.forEach { cat ->
+        val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
+        sortedCategories.filter { it.sizeBytes > 0 }.forEach { cat ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -409,7 +425,7 @@ fun CategoryGrid(
         CategoryDisplay("Docs", Icons.Default.Description, Color(FileCategories.Documents.color), categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
         CategoryDisplay("Archives", Icons.Default.FolderZip, Color(FileCategories.Archives.color), categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
         CategoryDisplay("APKs", Icons.Default.Android, Color(FileCategories.APKs.color), categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
-    )
+    ).sortedByDescending { it.sizeBytes }
 
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {

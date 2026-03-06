@@ -119,8 +119,7 @@ fun ArcileAppShell(
                         onClearSearch = { viewModel.updateHomeSearchQuery("") },
                         onSortOptionChange = { viewModel.updateHomeSortOption(it) },
                         onCategoryClick = { categoryName ->
-                            val path = getCategoryPath(categoryName, viewModel.storageRootPath)
-                            viewModel.navigateToSpecificFolder(path)
+                            viewModel.navigateToCategory(categoryName)
                             navController.navigate(AppRoutes.EXPLORER) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
@@ -205,14 +204,4 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
     }
 }
 
-private fun getCategoryPath(categoryName: String, root: String): String {
-    return when (categoryName) {
-        "Images" -> File(root, Environment.DIRECTORY_PICTURES).absolutePath
-        "Videos" -> File(root, Environment.DIRECTORY_MOVIES).absolutePath
-        "Audio" -> File(root, Environment.DIRECTORY_MUSIC).absolutePath
-        "Docs" -> File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath
-        "Archives" -> File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath
-        "APKs" -> File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath
-        else -> root
-    }
-}
+
