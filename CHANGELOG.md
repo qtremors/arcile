@@ -1,8 +1,25 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.2.3
+> **Version:** 0.2.4
 > **Last Updated:** 2026-03-07
+
+---
+
+## [0.2.4] - 2026-03-07
+
+### Added
+- [Design] Fully adapted the app to Google's Material 3 Expressive guidelines, including new shape scales, dynamic color themes, and typography refinements.
+- [Component] Replaced the single FAB inside the File Manager with a new Material 3 Expressive animated Expandable FAB Menu containing `New File` and `New Folder`.
+- [Motion] Implemented `SharedTransitionLayout` to support smooth shared element bounds transitions across navigation screens.
+- [Motion] Added `animateContentSize` for dynamic layout adjustments across expanding containers.
+
+### Changed
+- [Component] Overhauled `ArcileTopBar`, `GlobalSearchBar`, and Button components to map tightly against modern M3 surface container roles and expressive variants.
+- [Design] Transitioned the default system font family to `Outfit` to align with the expressive aesthetic profile.
+
+### Fixed
+- [Bug] Fixed the `Trash Bin` utility card on the Home Screen being unclickable due to redundant touch interception hierarchies.
 
 ---
 

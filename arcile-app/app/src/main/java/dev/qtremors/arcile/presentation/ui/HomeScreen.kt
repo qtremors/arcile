@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import android.os.Environment
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -181,8 +182,8 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Box(modifier = Modifier.weight(1f).clickable { onNavigateToTrash() }) {
-                                ToolCard(ToolItem("Trash Bin", Icons.Default.Delete))
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Trash Bin", Icons.Default.Delete), onClick = onNavigateToTrash)
                             }
                             Box(modifier = Modifier.weight(1f)) {
                                 ToolCard(ToolItem("Analyze Storage", Icons.Default.PieChart))
@@ -271,9 +272,9 @@ fun StorageSummaryCard(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         ),
-        shape = MaterialTheme.shapes.extraLarge
+        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.extraLarge
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(24.dp).animateContentSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -489,8 +490,8 @@ fun CategoryItem(
             .padding(8.dp)
     ) {
         Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(64.dp)
         ) {
             Icon(
@@ -554,8 +555,8 @@ fun MainFoldersGrid(
             ) {
                 rowFolders.forEach { folder ->
                     Surface(
-                        shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
                         onClick = {
                             if (folder.path != null) {
                                 onNavigateToPath(folder.path)

@@ -108,21 +108,22 @@ fun TrashScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
-                    titleContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
-                    navigationIconContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer,
-                    actionIconContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
+                    containerColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
+                    titleContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
                 )
             )
         },
         floatingActionButton = {
             if (state.selectedFiles.isEmpty() && state.trashFiles.isNotEmpty()) {
-                FloatingActionButton(
+                androidx.compose.material3.ExtendedFloatingActionButton(
                     onClick = { showEmptyTrashConfirmation = true },
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                ) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = "Empty Trash", tint = MaterialTheme.colorScheme.onErrorContainer)
-                }
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    text = { Text("Empty Trash") },
+                    icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) },
+                    shape = dev.qtremors.arcile.ui.theme.ExpressiveCutShape
+                )
             }
         }
     ) { padding ->
@@ -174,12 +175,15 @@ fun TrashScreen(
                 title = { Text("Empty Trash?") },
                 text = { Text("All items in the trash will be permanently deleted. This action cannot be undone.") },
                 confirmButton = {
-                    Button(
+                    androidx.compose.material3.FilledTonalButton(
                         onClick = {
                             showEmptyTrashConfirmation = false
                             onEmptyTrash()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                        colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     ) {
                         Text("Empty Trash")
                     }

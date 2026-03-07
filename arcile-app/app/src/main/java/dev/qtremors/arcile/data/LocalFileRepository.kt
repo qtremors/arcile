@@ -74,6 +74,24 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
+    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
+        try {
+            val newFile = File(parentPath, name)
+            validatePath(newFile).onFailure { return@withContext Result.failure(it) }
+
+            if (newFile.exists()) {
+                return@withContext Result.failure(IllegalArgumentException("File already exists"))
+            }
+            if (newFile.createNewFile()) {
+                Result.success(FileModel(newFile))
+            } else {
+                Result.failure(Exception("Failed to create file"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
         // Redirection: by default, "deleting" a file now drops it into the Trash Bin seamlessly
         moveToTrash(listOf(path))

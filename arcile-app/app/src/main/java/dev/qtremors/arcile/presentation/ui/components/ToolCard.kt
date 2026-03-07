@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 data class ToolItem(val name: String, val icon: ImageVector)
 
 @Composable
-fun ToolCard(item: ToolItem) {
+fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     
@@ -47,7 +47,7 @@ fun ToolCard(item: ToolItem) {
         label = "toolCardScale"
     )
 
-    Card(
+    androidx.compose.material3.ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer {
@@ -57,13 +57,13 @@ fun ToolCard(item: ToolItem) {
             .clickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = { /* TODO: Implement tool actions */ }
+                onClick = onClick
             )
             .aspectRatio(1f),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.large
     ) {
         Column(
             modifier = Modifier

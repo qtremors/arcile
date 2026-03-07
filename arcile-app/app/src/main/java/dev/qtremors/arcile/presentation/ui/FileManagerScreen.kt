@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -26,6 +27,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
@@ -48,6 +50,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,6 +60,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -92,6 +101,7 @@ fun FileManagerScreen(
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
+    onCreateFile: (String) -> Unit,
     onDeleteSelected: () -> Unit,
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -110,8 +120,15 @@ fun FileManagerScreen(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showCreateFileDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
+    
+    var isFabExpanded by remember { mutableStateOf(false) }
+    val fabIconRotation by animateFloatAsState(
+        targetValue = if (isFabExpanded) 45f else 0f,
+        label = "fabRotation"
+    )
 
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
@@ -175,9 +192,19 @@ fun FileManagerScreen(
         },
         floatingActionButton = {
             if (state.selectedFiles.isEmpty() && !showSearchBar) {
-                FloatingActionButton(onClick = { showCreateFolderDialog = true }) {
-                    Icon(Icons.Default.CreateNewFolder, contentDescription = "Create folder")
-                }
+                ExpandableFabMenu(
+                    isExpanded = isFabExpanded,
+                    onToggleExpand = { isFabExpanded = !isFabExpanded },
+                    fabIconRotation = fabIconRotation,
+                    onCreateFileClick = { 
+                        isFabExpanded = false
+                        showCreateFileDialog = true 
+                    },
+                    onCreateFolderClick = { 
+                        isFabExpanded = false
+                        showCreateFolderDialog = true 
+                    }
+                )
             }
         }
     ) { padding ->
@@ -364,13 +391,14 @@ fun FileManagerScreen(
                 title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
                 text = { Text("This action cannot be undone. Directories will be deleted recursively.") },
                 confirmButton = {
-                    Button(
+                    androidx.compose.material3.FilledTonalButton(
                         onClick = {
                             showDeleteConfirmation = false
                             onDeleteSelected()
                         },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
+                        colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )
                     ) {
                         Text("Delete")
@@ -380,6 +408,16 @@ fun FileManagerScreen(
                     TextButton(onClick = { showDeleteConfirmation = false }) {
                         Text("Cancel")
                     }
+                }
+            )
+        }
+
+        if (showCreateFileDialog) {
+            CreateFileDialog(
+                onDismiss = { showCreateFileDialog = false },
+                onConfirm = { fileName ->
+                    showCreateFileDialog = false
+                    onCreateFile(fileName)
                 }
             )
         }
@@ -582,7 +620,7 @@ private fun FileGridItem(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.large,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
         )
@@ -590,7 +628,8 @@ private fun FileGridItem(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(16.dp)
+                .animateContentSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
@@ -659,9 +698,43 @@ fun CreateFolderDialog(
             )
         },
         confirmButton = {
-            Button(
+            androidx.compose.material3.FilledTonalButton(
                 onClick = { onConfirm(folderName) },
                 enabled = folderName.isNotBlank()
+            ) {
+                Text("Create")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun CreateFileDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var fileName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Create File") },
+        text = {
+            OutlinedTextField(
+                value = fileName,
+                onValueChange = { fileName = it },
+                label = { Text("File Name (e.g., text.txt)") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.FilledTonalButton(
+                onClick = { onConfirm(fileName) },
+                enabled = fileName.isNotBlank()
             ) {
                 Text("Create")
             }
@@ -694,7 +767,7 @@ fun RenameDialog(
             )
         },
         confirmButton = {
-            Button(
+            androidx.compose.material3.FilledTonalButton(
                 onClick = { onConfirm(newName) },
                 enabled = newName.isNotBlank() && newName != currentName
             ) {
@@ -707,4 +780,89 @@ fun RenameDialog(
             }
         }
     )
+}
+
+@Composable
+fun ExpandableFabMenu(
+    isExpanded: Boolean,
+    onToggleExpand: () -> Unit,
+    fabIconRotation: Float,
+    onCreateFileClick: () -> Unit,
+    onCreateFolderClick: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.End) {
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { 50 })
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            "New File", 
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                    FloatingActionButton(
+                        onClick = onCreateFileClick,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = dev.qtremors.arcile.ui.theme.ExpressiveAsymmetricShape,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = "New File")
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            "New Folder", 
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                    FloatingActionButton(
+                        onClick = onCreateFolderClick,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = dev.qtremors.arcile.ui.theme.ExpressiveAsymmetricShape,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(Icons.Default.CreateNewFolder, contentDescription = "New Folder")
+                    }
+                }
+            }
+        }
+        FloatingActionButton(
+            onClick = onToggleExpand,
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            shape = dev.qtremors.arcile.ui.theme.ExpressiveCutShape
+        ) {
+            Icon(
+                Icons.Default.Add, 
+                contentDescription = "Create new",
+                modifier = Modifier.rotate(fabIconRotation)
+            )
+        }
+    }
 }

@@ -31,8 +31,10 @@ import androidx.navigation.compose.rememberNavController
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.FileManagerViewModel
 import dev.qtremors.arcile.ui.theme.ThemeState
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import java.io.File
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
     viewModel: FileManagerViewModel,
@@ -44,18 +46,19 @@ fun ArcileAppShell(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0)
-    ) { scaffoldPadding ->
-        Box(modifier = Modifier.padding(scaffoldPadding)) {
-            NavHost(
-                navController = navController,
-                startDestination = AppRoutes.HOME,
-                enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
-                exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
-                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
-                popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
-            ) {
+    androidx.compose.animation.SharedTransitionLayout {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0)
+        ) { scaffoldPadding ->
+            Box(modifier = Modifier.padding(scaffoldPadding)) {
+                NavHost(
+                    navController = navController,
+                    startDestination = AppRoutes.HOME,
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
+                ) {
                 composable(AppRoutes.HOME) {
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     HomeScreen(
@@ -122,6 +125,7 @@ fun ArcileAppShell(
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
+                        onCreateFile = { viewModel.createFile(it) },
                         onDeleteSelected = { viewModel.deleteSelectedFiles() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
@@ -166,6 +170,7 @@ fun ArcileAppShell(
                         onThemeChange = onThemeChange
                     )
                 }
+            }
             }
         }
     }

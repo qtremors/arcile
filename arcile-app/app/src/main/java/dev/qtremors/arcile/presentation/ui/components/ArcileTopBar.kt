@@ -20,7 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,7 +58,7 @@ fun ArcileTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    TopAppBar(
+    CenterAlignedTopAppBar(
         title = {
             Text(
                 text = if (selectionCount > 0) "$selectionCount selected" else title,
@@ -166,9 +166,9 @@ fun ArcileTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = if (selectionCount > 0) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
-            titleContentColor = if (selectionCount > 0) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+            containerColor = if (selectionCount > 0) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
+            titleContentColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }

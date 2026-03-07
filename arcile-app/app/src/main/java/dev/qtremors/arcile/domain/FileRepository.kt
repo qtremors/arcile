@@ -5,6 +5,7 @@ import java.io.File
 interface FileRepository {
     suspend fun listFiles(path: String): Result<List<FileModel>>
     suspend fun createDirectory(parentPath: String, name: String): Result<FileModel>
+    suspend fun createFile(parentPath: String, name: String): Result<FileModel>
     suspend fun deleteFile(path: String): Result<Unit>
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun getRootDirectory(): File

@@ -40,11 +40,7 @@ fun SettingsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         }
     ) { padding ->
@@ -123,12 +119,12 @@ fun SettingsSection(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 8.dp)
         )
-        Card(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-            shape = MaterialTheme.shapes.large
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.large
         ) {
-            Column(content = content)
+            Column(content = content, modifier = Modifier.padding(vertical = 4.dp))
         }
     }
 }

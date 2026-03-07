@@ -269,6 +269,26 @@ class FileManagerViewModel(
         }
     }
 
+    fun createFile(name: String) {
+        val currentPath = _state.value.currentPath
+        if (currentPath.isEmpty()) return
+
+        val invalidChars = listOf('/', '\\', '\u0000')
+        if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
+            _state.update { it.copy(error = "Invalid file name: must not be blank or contain /, \\, or ..") }
+            return
+        }
+
+        viewModelScope.launch {
+            val result = repository.createFile(currentPath, name)
+            result.onSuccess {
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message ?: "Failed to create file") }
+            }
+        }
+    }
+
     fun deleteSelectedFiles() {
         val selectedFiles = _state.value.selectedFiles.toList()
         if (selectedFiles.isEmpty()) return
