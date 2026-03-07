@@ -100,17 +100,18 @@ fun ArcileAppShell(
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
+                        },
+                        onNavigateToRecentFiles = {
+                            viewModel.navigateToRecentFiles()
+                            navController.navigate(AppRoutes.RECENT_FILES) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
                 composable(AppRoutes.EXPLORER) {
                     val state by viewModel.state.collectAsStateWithLifecycle()
-
-                    LaunchedEffect(Unit) {
-                        if (state.currentPath.isEmpty()) {
-                            viewModel.openFileBrowser()
-                        }
-                    }
 
                     FileManagerScreen(
                         state = state,
@@ -156,6 +157,22 @@ fun ArcileAppShell(
                         onRestoreSelected = { viewModel.restoreSelectedTrash() },
                         onEmptyTrash = { viewModel.emptyTrash() },
                         onClearError = { viewModel.clearError() }
+                    )
+                }
+                composable(AppRoutes.RECENT_FILES) {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    RecentFilesScreen(
+                        state = state,
+                        onNavigateBack = {
+                            if (!viewModel.navigateBack()) {
+                                navController.popBackStack()
+                            }
+                        },
+                        onOpenFile = onOpenFile,
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onClearSelection = { viewModel.clearSelection() },
+                        onDeleteSelected = { viewModel.deleteSelectedFiles() },
+                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) }
                     )
                 }
                 composable(AppRoutes.TOOLS) {

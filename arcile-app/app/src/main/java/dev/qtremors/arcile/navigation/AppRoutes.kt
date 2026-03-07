@@ -9,4 +9,5 @@ object AppRoutes {
     const val TOOLS = "tools"
     const val SETTINGS = "settings"
     const val TRASH = "trash"
+    const val RECENT_FILES = "recent_files"
 }

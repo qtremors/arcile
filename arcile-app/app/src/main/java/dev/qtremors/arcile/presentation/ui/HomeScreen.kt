@@ -91,10 +91,18 @@ fun HomeScreen(
     onCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
     onNavigateToTools: () -> Unit,
-    onNavigateToTrash: () -> Unit
+    onNavigateToTrash: () -> Unit,
+    onNavigateToRecentFiles: () -> Unit
 ) {
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
-        filterAndSortFiles(state.recentFiles, state.homeSearchQuery, state.homeSortOption)
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val todayStart = cal.timeInMillis
+        val todayFiles = state.recentFiles.filter { it.lastModified >= todayStart }
+        filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
     }
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -240,6 +248,9 @@ fun HomeScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
+                        TextButton(onClick = onNavigateToRecentFiles) {
+                            Text("See All")
+                        }
                     }
                 }
 

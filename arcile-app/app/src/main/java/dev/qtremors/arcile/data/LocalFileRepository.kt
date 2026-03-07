@@ -31,6 +31,13 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         return Result.success(Unit)
     }
 
+    private fun validateFileName(name: String): Result<Unit> {
+        if (name.contains('/') || name.contains('\\') || name.contains("..") || name.contains('\u0000')) {
+            return Result.failure(IllegalArgumentException("Invalid file name: must not contain path separators or '..'"))
+        }
+        return Result.success(Unit)
+    }
+
     override suspend fun getRootDirectory(): File = withContext(Dispatchers.IO) {
         Environment.getExternalStorageDirectory()
     }
@@ -58,6 +65,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
         try {
+            validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newDir = File(parentPath, name)
             validatePath(newDir).onFailure { return@withContext Result.failure(it) }
 
@@ -76,6 +84,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
         try {
+            validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newFile = File(parentPath, name)
             validatePath(newFile).onFailure { return@withContext Result.failure(it) }
 
@@ -100,12 +109,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(Dispatchers.IO) {
          try {
              // reject names containing path separators or traversal sequences
-             if (newName.contains('/') || newName.contains('\\') ||
-                 newName.contains("..") || newName.contains('\u0000')) {
-                 return@withContext Result.failure(
-                     IllegalArgumentException("Invalid file name: must not contain path separators or '..'")
-                 )
-             }
+             validateFileName(newName).onFailure { return@withContext Result.failure(it) }
 
              val file = File(path)
              validatePath(file).onFailure { return@withContext Result.failure(it) }
@@ -130,32 +134,56 @@ class LocalFileRepository(private val context: Context) : FileRepository {
          }
     }
 
-    override suspend fun getRecentFiles(limit: Int): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun getRecentFiles(limit: Int, minTimestamp: Long): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
-            val root = Environment.getExternalStorageDirectory()
-            val targetDirs = listOf(
-                File(root, Environment.DIRECTORY_DOWNLOADS),
-                File(root, Environment.DIRECTORY_DOCUMENTS),
-                File(root, Environment.DIRECTORY_PICTURES),
-                File(root, Environment.DIRECTORY_DCIM)
+            val filesList = mutableListOf<FileModel>()
+            val uri = MediaStore.Files.getContentUri("external")
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.MIME_TYPE
             )
-
-            val recentFiles = mutableListOf<File>()
-            for (dir in targetDirs) {
-                if (dir.exists() && dir.isDirectory) {
-                    dir.walkTopDown()
-                        .maxDepth(3)
-                        .filter { it.isFile && !it.isHidden }
-                        .forEach { recentFiles.add(it) }
+            
+            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            // Ensure we are filtering out directories (where MIME_TYPE is null or directory format)
+            val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
+            val selection = if (minTimestamp > 0) "$baseSelection AND ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?" else baseSelection
+            val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString()) else null
+            
+            context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                
+                while (cursor.moveToNext() && filesList.size < limit) {
+                    val path = cursor.getString(dataCol)
+                    val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
+                    
+                    if (path != null && !name.startsWith(".")) {
+                        val size = cursor.getLong(sizeCol)
+                        // MediaStore dates are usually in seconds
+                        val dateModified = cursor.getLong(dateCol) * 1000L 
+                        
+                        val extension = path.substringAfterLast('.', "")
+                        
+                        filesList.add(FileModel(
+                            file = null, // don't hold the file ref to prevent implicit I/O later
+                            absolutePath = path,
+                            name = name,
+                            size = size,
+                            isDirectory = false,
+                            lastModified = dateModified,
+                            extension = extension,
+                            isHidden = false
+                        ))
+                    }
                 }
             }
-
-            val topRecent = recentFiles
-                .sortedByDescending { it.lastModified() }
-                .take(limit)
-                .map { FileModel(it) }
-
-            Result.success(topRecent)
+            
+            Result.success(filesList)
         } catch (e: Exception) {
              Result.failure(e)
         }

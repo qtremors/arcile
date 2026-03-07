@@ -47,7 +47,8 @@ data class FileManagerState(
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
     val isTrashScreen: Boolean = false,
-    val trashFiles: List<TrashMetadata> = emptyList()
+    val trashFiles: List<TrashMetadata> = emptyList(),
+    val isRecentFilesScreen: Boolean = false
 )
 
 class FileManagerViewModel(
@@ -70,7 +71,8 @@ class FileManagerViewModel(
     fun loadHomeData() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            val recentResult = repository.getRecentFiles()
+            val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+            val recentResult = repository.getRecentFiles(limit = Int.MAX_VALUE, minTimestamp = oneWeekAgo)
             val storageResult = repository.getStorageInfo()
 
             _state.update { currentState ->
@@ -91,26 +93,26 @@ class FileManagerViewModel(
     }
 
     fun navigateToHome() {
-        _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, selectedFiles = emptySet()) }
+        _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
         loadHomeData()
     }
 
     fun openFileBrowser() {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false) }
         pathHistory.clear()
         loadDirectory(storageRootPath)
     }
 
     fun navigateToSpecificFolder(path: String) {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false) }
         pathHistory.clear()
         pathHistory.push(storageRootPath)
         loadDirectory(path)
     }
 
     fun navigateToCategory(categoryName: String) {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false) }
         pathHistory.clear()
         loadCategory(categoryName)
     }
@@ -134,7 +136,7 @@ class FileManagerViewModel(
             return false
         }
         
-        if (_state.value.isTrashScreen) {
+        if (_state.value.isTrashScreen || _state.value.isRecentFilesScreen) {
             navigateToHome()
             return true
         }
@@ -144,7 +146,7 @@ class FileManagerViewModel(
             loadDirectory(previousPath)
             return true
         } else {
-            _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, selectedFiles = emptySet()) }
+            _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, selectedFiles = emptySet()) }
             return false
         }
     }
@@ -409,9 +411,18 @@ class FileManagerViewModel(
     // --- Trash Subsystem Implementations ---
 
     fun navigateToTrash() {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = true, selectedFiles = emptySet()) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = true, isRecentFilesScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
         loadTrashFiles()
+    }
+
+    fun navigateToRecentFiles() {
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = true, selectedFiles = emptySet()) }
+        pathHistory.clear()
+        // Ensure data is loaded
+        if (_state.value.recentFiles.isEmpty()) {
+            loadHomeData()
+        }
     }
 
     private fun loadTrashFiles() {

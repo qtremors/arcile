@@ -2,7 +2,8 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.2.0 | **Last Updated:** 2026-03-06
+**Version:** 0.2.6 | **Last Updated:** 2026-03-07
+**Scope:** Internal Development, Security, and Style Specification
 
 ---
 
@@ -43,7 +44,7 @@ graph TD
 | Single-module project | MVP simplicity — no multi-module overhead for an initial version |
 | `StateFlow` over `LiveData` | Compose-native, null-safe, and better coroutine integration |
 | `java.io.File` API directly | Simple and sufficient for local file operations at this stage |
-| No DI framework | Avoiding Hilt/Koin complexity in MVP — repository is constructor-injected with a default |
+| No DI framework | Avoiding Hilt/Koin complexity in MVP (ViewModel refactoring planned to resolve this) |
 | `Stack` for path history | Simple LIFO navigation history (flagged for replacement with `ArrayDeque`) |
 | Material 3 dynamic theming | Native Material You support on Android 12+ with manual fallback color schemes |
 
@@ -305,7 +306,7 @@ fun methodUnderTest_scenario_expectedResult()
 
 Examples:
 ```kotlin
-fun navigateToFolder_withValidPath_updatesStateAndHistory()
+fun navigateToFolder_updatesStateAndHistory()
 fun deleteFile_fileDoesNotExist_returnsFailure()
 fun formatFileSize_zeroBytes_returnsZeroB()
 ```
@@ -335,8 +336,8 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 ```bash
 ./gradlew assembleDebug
 ```
-
-APK output: `app/build/outputs/apk/debug/app-debug.apk`
+For standard builds:
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.2.6.apk`
 
 ### Release Build
 

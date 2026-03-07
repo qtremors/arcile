@@ -22,10 +22,30 @@ class AudioAlbumArtFetcher(
             retriever.setDataSource(file.absolutePath)
             val art = retriever.embeddedPicture
             if (art != null) {
-                val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size)
+                // First decode bounds only to get dimensions
+                val decodeOptions = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeByteArray(art, 0, art.size, decodeOptions)
+
+                // Calculate a reasonable sample size (target max ~500px)
+                val targetSize = 500
+                var sampleSize = 1
+                while (decodeOptions.outWidth / sampleSize > targetSize || 
+                       decodeOptions.outHeight / sampleSize > targetSize) {
+                    sampleSize *= 2
+                }
+
+                // Decode actual bitmap with downsampling
+                decodeOptions.apply {
+                    inJustDecodeBounds = false
+                    inSampleSize = sampleSize
+                }
+                
+                val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size, decodeOptions)
                 DrawableResult(
                     drawable = BitmapDrawable(options.context.resources, bitmap),
-                    isSampled = false,
+                    isSampled = true,
                     dataSource = DataSource.DISK
                 )
             } else {

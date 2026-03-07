@@ -52,21 +52,29 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         _hasPermission.value = checkStoragePermission()
-
-        setContent {
-            // Request peak refresh rate
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val display = window.windowManager.defaultDisplay
-                val modes = display.supportedModes
-                val maxRefreshRateMode = modes.maxByOrNull { it.refreshRate }
-                if (maxRefreshRateMode != null) {
-                    window.let { win ->
-                        val layoutParams = win.attributes
-                        layoutParams.preferredDisplayModeId = maxRefreshRateMode.modeId
-                        win.attributes = layoutParams
-                    }
+        
+        // Request peak refresh rate outside of Compose recomposition cycle
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display
+            } else {
+                @Suppress("DEPRECATION")
+                window.windowManager.defaultDisplay
+            }
+            
+            val modes = display?.supportedModes
+            val maxRefreshRateMode = modes?.maxByOrNull { it.refreshRate }
+            if (maxRefreshRateMode != null) {
+                window.let { win ->
+                    val layoutParams = win.attributes
+                    layoutParams.preferredDisplayModeId = maxRefreshRateMode.modeId
+                    win.attributes = layoutParams
                 }
             }
+        }
+
+        setContent {
+
 
             val themePreferences = remember { ThemePreferences(applicationContext) }
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())

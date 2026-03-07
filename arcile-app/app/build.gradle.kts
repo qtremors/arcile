@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.2.5"
+        versionCode = 10
+        versionName = "0.2.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -64,6 +64,8 @@ android {
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
+            // The Stable Artifacts API currently doesn't expose a simple public setter for outputFileName.
+            // Casting to the internal VariantOutputImpl is currently the standard workaround.
             if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
                 output.outputFileName.set("Arcile-${variant.applicationId.get()}-${variant.outputs.first().versionName.get()}.apk")
             }

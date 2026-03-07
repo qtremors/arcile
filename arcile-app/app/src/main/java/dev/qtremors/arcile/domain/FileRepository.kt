@@ -9,7 +9,7 @@ interface FileRepository {
     suspend fun deleteFile(path: String): Result<Unit>
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun getRootDirectory(): File
-    suspend fun getRecentFiles(limit: Int = 10): Result<List<FileModel>>
+    suspend fun getRecentFiles(limit: Int = 10, minTimestamp: Long = 0L): Result<List<FileModel>>
     suspend fun getStorageInfo(): Result<StorageInfo>
     suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>>
     suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>>
