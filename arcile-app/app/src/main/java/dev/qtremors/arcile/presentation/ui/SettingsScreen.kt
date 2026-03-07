@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -22,7 +23,7 @@ import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.ThemeState
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     currentThemeState: ThemeState,

@@ -1,8 +1,21 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.2.0
-> **Last Updated:** 2026-03-06
+> **Version:** 0.2.1
+> **Last Updated:** 2026-03-07
+
+---
+
+## [0.2.1] - 2026-03-07
+
+### Added
+- [Feature] Bumped Compose Material 3 dependency to `1.4.0-alpha08` to introduce M3 Expressive API features.
+
+### Changed
+- [Design] Migrated traditional standard `CircularProgressIndicator` across all app screens to the new morphing `LoadingIndicator`.
+- [Design] Restructured setting and file browser lists to utilize proper `OneLineListItem` and `TwoLineListItem` formatting structure instead of generic ListItems.
+- [Motion] Added spring-based physics motion and scaling to `Card` and file grid components.
+- [UX] Contextual selection items in the `ArcileTopBar` are now grouped cleanly inside a tonal surface container to behave like a unified ButtonGroup.
 
 ---
 

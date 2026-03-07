@@ -11,6 +11,7 @@
 - [Architecture Overview](#architecture-overview)
 - [Project Structure](#project-structure)
 - [Naming Conventions](#naming-conventions)
+- [UI & Design Guidelines](#ui--design-guidelines)
 - [Configuration](#configuration)
 - [Security Practices](#security-practices)
 - [Error Handling](#error-handling)
@@ -130,6 +131,44 @@ arcile/
 | **Enum classes** | `PascalCase` | `ThemeMode`, `AccentColor` |
 | **Enum values** | `UPPER_SNAKE_CASE` | `ThemeMode.SYSTEM`, `AccentColor.DYNAMIC` |
 | **Compose colors** | `PascalCase` | `Purple80`, `PurpleGrey40` |
+
+---
+
+## UI & Design Guidelines
+
+### Material 3 Expressive
+
+Arcile uses **Material 3 Expressive**, an evolution of the Material Design 3 system that focuses on more organic, fluid, and emotionally resonant interfaces. **Do not use outdated M3/M2 components when an expressive alternative exists.**
+
+#### Key Principles
+
+1. **Motion Physics:** Use spring-based animations instead of fixed-duration easing (`tween`). Jetpack Compose 1.7+ defaults to springs for many modifiers, but always explicitly prefer `spring()` for custom animations to create a bouncy, lively feel.
+2. **Morphing & Fluidity:** Favor components that morph dynamically rather than static generic shapes. 
+3. **Typography & Hierarchy:** Utilize the expanded typography scale and deeper dynamic color contrast to establish clear visual hierarchy.
+
+#### Implementation Requirements
+
+- **Dependency:** Ensure `androidx.compose.material3:material3` is using a recent version that supports expressive components (e.g., `1.4.0-alpha` or newer).
+- **Opt-In:** Expressive APIs are currently marked as experimental. Use the `@OptIn(ExperimentalMaterial3ExpressiveApi::class)` annotation on your composables or files.
+
+#### Preferred Components
+
+| Legacy/Standard Version | M3 Expressive Alternative | Use Case |
+|-------------------|---------------------------|----------|
+| `CircularProgressIndicator` | `LoadingIndicator` / `ContainedLoadingIndicator` | Loading states. Morphs through playful shapes instead of just spinning. |
+| Standard `Button` | `SplitButton` | When a main action consistently needs a secondary dropdown/overflow action. |
+| Standard `Row` of buttons | `ButtonGroup` | Grouping related, flexible actions dynamically. |
+| Standard List Items | Expressive List Items | Segmented/interactive styling for lists (`OneLineListItem`, etc.). |
+
+**Example Usage:**
+
+```kotlin
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ExpressiveLoading() {
+    LoadingIndicator() // Use this instead of CircularProgressIndicator
+}
+```
 
 ---
 

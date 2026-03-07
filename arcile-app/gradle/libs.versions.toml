@@ -13,6 +13,7 @@ lifecycleViewmodelCompose = "2.8.5"
 navigationCompose = "2.8.5"
 datastorePreferences = "1.1.1"
 coil = "2.6.0"
+composeMaterial3 = "1.4.0-alpha08"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -28,7 +29,7 @@ androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
-androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "composeMaterial3" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose" }

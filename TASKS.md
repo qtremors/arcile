@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.2.0
-> **Last Updated:** 2026-03-06
+> **Version:** 0.2.1
+> **Last Updated:** 2026-03-07
 
 ---
 
@@ -39,13 +39,6 @@
   - **Impact:** User loses their navigation position if the app is killed in the background.
   - **Fix:** Integrate `SavedStateHandle` to persist navigation state variables.
 
-#### C. Performance & Resource Efficiency
-- [x] [Performance] Massive I/O bottleneck in category sizing. (v0.1.9)
-  - ~~**Problem:** `getCategoryStorageSizes()` performs a full recursive `walkTopDown()` of the entire external storage.~~
-  - ~~**Location:** `LocalFileRepository.kt:174-212`~~
-  - ~~**Impact:** Delays Home screen loading significantly by blocking I/O and burning CPU/battery on devices with many files.~~
-  - **Fix:** Refactored domain architecture to inject Application Context and utilize instant `MediaStore` queries.
-
 #### D. Architecture & Design Quality
 - [ ] [Architecture] Hardcoded Android framework dependencies in ViewModel.
   - **Problem:** `FileManagerViewModel` initializes `storageRootPath` via `Environment.getExternalStorageDirectory()`.
@@ -68,6 +61,18 @@
   - **Fix:** Use the Material Color Utilities library (`m3color` / HCT) to generate a mathematically correct `ColorScheme`.
 
 ---
+
+### PR Review Findings
+
+- [ ] [Chore] Replace internal `VariantOutputImpl` with Stable Artifacts API for APK renaming (`build.gradle.kts:64-71`)
+- [ ] [Performance] Downsample album art in `AudioAlbumArtFetcher` to prevent OOM (`AudioAlbumArtFetcher.kt:25`)
+- [ ] [Correctness] Move refresh-rate side-effect out of `setContent` to prevent redundant execution (`MainActivity.kt:57-69`)
+- [ ] [Chore] Use non-deprecated `display` API on Android 30+ (`MainActivity.kt:59`)
+- [ ] [Performance] Prevent redundant `openFileBrowser()` calls in `ArcileAppShell` (`ArcileAppShell.kt:136-140`)
+- [ ] [UX] Wire unused search and sort states in `HomeScreen` to the UI (`HomeScreen.kt:84-88`)
+- [ ] [Bug] Remove extra closing brace causing syntax error in `HomeScreen.kt` (`HomeScreen.kt:212`)
+- [ ] [Chore] Replace deprecated `Divider` with `HorizontalDivider` in `SettingsScreen.kt` (`SettingsScreen.kt:66, 84, 92, 100`)
+- [ ] [Docs] Update stale architecture and configuration details in `DEVELOPMENT.md` (`DEVELOPMENT.md:5, 46, 76, 308, 339`)
 
 ### Backlog / Ideas
 

@@ -23,9 +23,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.padding
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ArcileTopBar(
     title: String,
@@ -106,13 +112,22 @@ fun ArcileTopBar(
                     }
                 }
             } else {
-                if (selectionCount == 1) {
-                    IconButton(onClick = { onActionSelected(TopBarAction.Rename) }) {
-                        Icon(Icons.Default.Edit, contentDescription = "Rename")
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    tonalElevation = 2.dp,
+                    modifier = androidx.compose.ui.Modifier.padding(end = 8.dp)
+                ) {
+                    Row {
+                        if (selectionCount == 1) {
+                            IconButton(onClick = { onActionSelected(TopBarAction.Rename) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Rename")
+                            }
+                        }
+                        IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete selected")
+                        }
                     }
-                }
-                IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete selected")
                 }
             }
         },

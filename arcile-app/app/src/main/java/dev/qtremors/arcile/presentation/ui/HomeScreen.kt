@@ -36,8 +36,9 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -69,6 +70,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     state: FileManagerState,
@@ -116,7 +118,7 @@ fun HomeScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                LoadingIndicator()
             }
         } else {
             Box(
