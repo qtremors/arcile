@@ -42,12 +42,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.presentation.FileManagerState
 import java.text.SimpleDateFormat
@@ -75,9 +84,12 @@ fun TrashScreen(
         }
     }
 
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            LargeTopAppBar(
                 title = {
                     Text(
                         text = if (state.selectedFiles.isNotEmpty()) "${state.selectedFiles.size} selected" else "Trash Bin",
@@ -85,6 +97,7 @@ fun TrashScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 },
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     if (state.selectedFiles.isNotEmpty()) {
                         IconButton(onClick = onClearSelection) {
@@ -107,25 +120,13 @@ fun TrashScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
+                colors = TopAppBarDefaults.largeTopAppBarColors(
                     containerColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
-                    titleContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         },
-        floatingActionButton = {
-            if (state.selectedFiles.isEmpty() && state.trashFiles.isNotEmpty()) {
-                androidx.compose.material3.ExtendedFloatingActionButton(
-                    onClick = { showEmptyTrashConfirmation = true },
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    text = { Text("Empty Trash") },
-                    icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) },
-                    shape = dev.qtremors.arcile.ui.theme.ExpressiveCutShape
-                )
-            }
-        }
     ) { padding ->
         Box(
             modifier = Modifier
@@ -173,14 +174,15 @@ fun TrashScreen(
                 onDismissRequest = { showEmptyTrashConfirmation = false },
                 icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 title = { Text("Empty Trash?") },
+                shape = ExpressiveSquircleShape,
                 text = { Text("All items in the trash will be permanently deleted. This action cannot be undone.") },
                 confirmButton = {
-                    androidx.compose.material3.FilledTonalButton(
+                    FilledTonalButton(
                         onClick = {
                             showEmptyTrashConfirmation = false
                             onEmptyTrash()
                         },
-                        colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                        colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -223,31 +225,48 @@ private fun TrashList(
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         items(files, key = { it.id }) { trashItem ->
             val isSelected = selectedFiles.contains(trashItem.id)
-            ListItem(
+            
+            val animatedSurfaceColor by animateColorAsState(
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                label = "trashListItemColor"
+            )
+            
+            val animatedShape by androidx.compose.animation.core.animateValueAsState(
+                targetValue = if (isSelected) dev.qtremors.arcile.ui.theme.ExpressiveShapes.large else ExpressiveSquircleShape,
+                typeConverter = androidx.compose.animation.core.TwoWayConverter({ androidx.compose.animation.core.AnimationVector1D(0f) }, { dev.qtremors.arcile.ui.theme.ExpressiveShapes.large }),
+                label = "trashListItemShape"
+            )
+
+            Surface(
+                shape = if (isSelected) dev.qtremors.arcile.ui.theme.ExpressiveShapes.large else ExpressiveSquircleShape,
+                color = animatedSurfaceColor,
                 modifier = Modifier
+                    .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)
                     .combinedClickable(
                         onClick = { onToggleSelection(trashItem.id) },
                         onLongClick = { onToggleSelection(trashItem.id) }
                     )
-                    .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
-                headlineContent = { Text(trashItem.fileModel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                supportingContent = {
-                    Column {
-                        Text(
-                            text = "Deleted: ${formatter.format(Date(trashItem.deletionTime))}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Text(
-                            text = "From: ${trashItem.originalPath.substringBeforeLast("/")}/",
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-            )
+            ) {
+                ListItem(
+                    headlineContent = { Text(trashItem.fileModel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    supportingContent = {
+                        Column {
+                            Text(
+                                text = "Deleted: ${formatter.format(Date(trashItem.deletionTime))}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "From: ${trashItem.originalPath.substringBeforeLast("/")}/",
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    },
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
+            }
         }
     }
 }

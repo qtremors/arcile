@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -17,50 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Basic color schemes if dynamic is not available or overriden by a specific seed color.
-// We will use the system's dynamic color generation if available and selected.
-private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFFD0BCFF),
-    secondary = Color(0xFFCCC2DC),
-    tertiary = Color(0xFFEFB8C8),
-    background = Color(0xFF1C1B1F),
-    surface = Color(0xFF1C1B1F)
-)
-
-private val LightColorScheme = lightColorScheme(
-    primary = Color(0xFF6650a4),
-    secondary = Color(0xFF625b71),
-    tertiary = Color(0xFF7D5260),
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE)
-)
-
-private val OledColorScheme = darkColorScheme(
-    primary = Color(0xFFD0BCFF),
-    secondary = Color(0xFFCCC2DC),
-    tertiary = Color(0xFFEFB8C8),
-    background = Color.Black,
-    surface = Color.Black,
-    surfaceVariant = Color(0xFF121212),
-    onBackground = Color.White,
-    onSurface = Color.White
-)
-
-/**
- * Returns a fallback color scheme mapped roughly from a base seed color.
- * In a fully robust app, you'd use Material Color Utilities to generate a full tonal palette.
- */
-private fun generateColorSchemeFromSeed(seed: Color, isDark: Boolean): ColorScheme {
-    // For a simple implementation, we adjust the primary colors based on the seed.
-    // Real dynamic theming from a seed uses the m3color library.
-    val baseScheme = if (isDark) DarkColorScheme else LightColorScheme
-    return baseScheme.copy(
-        primary = seed,
-        // Approximate other tones relative to primary for MVP
-        primaryContainer = seed.copy(alpha = 0.3f),
-        onPrimaryContainer = seed
-    )
-}
+// Baseline schemes moved to Color.kt
 
 @Composable
 fun FileManagerTheme(
@@ -97,13 +55,22 @@ fun FileManagerTheme(
         }
         
         // 2. Custom Seed Color chosen
-        themeState.accentColor != AccentColor.DYNAMIC && themeState.accentColor.color != null -> {
-            val scheme = generateColorSchemeFromSeed(themeState.accentColor.color, effectivelyDark)
+        themeState.accentColor != AccentColor.DYNAMIC -> {
+            val scheme = when (themeState.accentColor) {
+                AccentColor.BLUE -> if (effectivelyDark) BlueDarkScheme else BlueLightScheme
+                AccentColor.CYAN -> if (effectivelyDark) CyanDarkScheme else CyanLightScheme
+                AccentColor.GREEN -> if (effectivelyDark) GreenDarkScheme else GreenLightScheme
+                AccentColor.RED -> if (effectivelyDark) RedDarkScheme else RedLightScheme
+                AccentColor.PURPLE -> if (effectivelyDark) PurpleDarkScheme else PurpleLightScheme
+                else -> if (effectivelyDark) DarkColorScheme else LightColorScheme // Monochrome / Fallback
+            }
             if (themeState.themeMode == ThemeMode.OLED) {
                  scheme.copy(
                      background = Color.Black,
                      surface = Color.Black,
-                     surfaceVariant = Color(0xFF121212)
+                     surfaceVariant = Color(0xFF121212),
+                     surfaceContainerLowest = Color.Black,
+                     surfaceContainerLow = Color(0xFF0F0D13)
                  )
             } else {
                 scheme
@@ -116,6 +83,8 @@ fun FileManagerTheme(
         else -> LightColorScheme
     }
 
+    val categoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
+
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -127,10 +96,14 @@ fun FileManagerTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = ExpressiveShapes,
-        content = content
-    )
+    CompositionLocalProvider(
+        LocalCategoryColors provides categoryColors
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = ExpressiveShapes,
+            content = content
+        )
+    }
 }

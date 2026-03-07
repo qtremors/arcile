@@ -45,8 +45,12 @@ fun ArcileTopBar(
     showSearchAction: Boolean = true,
     showSortAction: Boolean = true,
     showGridViewAction: Boolean = false,
+    showNewFolderAction: Boolean = true,
+    showSettingsMenuAction: Boolean = false,
+    showAboutAction: Boolean = false,
     isGridView: Boolean = false,
     hasClipboardItems: Boolean = false,
+    scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior? = null,
     onBackClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onClearSelection: () -> Unit,
@@ -58,7 +62,10 @@ fun ArcileTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    CenterAlignedTopAppBar(
+    val containerColor = if (selectionCount > 0) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent
+
+    androidx.compose.material3.LargeTopAppBar(
+        scrollBehavior = scrollBehavior,
         title = {
             Text(
                 text = if (selectionCount > 0) "$selectionCount selected" else title,
@@ -120,13 +127,33 @@ fun ArcileTopBar(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false }
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("New Folder") },
-                        onClick = {
-                            showMenu = false
-                            onActionSelected(TopBarAction.NewFolder)
-                        }
-                    )
+                    if (showNewFolderAction) {
+                        DropdownMenuItem(
+                            text = { Text("New Folder") },
+                            onClick = {
+                                showMenu = false
+                                onActionSelected(TopBarAction.NewFolder)
+                            }
+                        )
+                    }
+                    if (showSettingsMenuAction) {
+                        DropdownMenuItem(
+                            text = { Text("Settings") },
+                            onClick = {
+                                showMenu = false
+                                onActionSelected(TopBarAction.Settings)
+                            }
+                        )
+                    }
+                    if (showAboutAction) {
+                        DropdownMenuItem(
+                            text = { Text("About") },
+                            onClick = {
+                                showMenu = false
+                                onActionSelected(TopBarAction.About)
+                            }
+                        )
+                    }
                     if (showGridViewAction) {
                         DropdownMenuItem(
                             text = { Text(if (isGridView) "List View" else "Grid View") },
@@ -166,8 +193,9 @@ fun ArcileTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-            containerColor = if (selectionCount > 0) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
+        colors = TopAppBarDefaults.largeTopAppBarColors(
+            containerColor = containerColor,
+            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
     )

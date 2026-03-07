@@ -73,6 +73,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.draw.clip
+import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import dev.qtremors.arcile.ui.theme.ExpressivePillShape
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.ExpressiveAsymmetricShape
+import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.FileSortOption
@@ -150,7 +157,10 @@ fun FileManagerScreen(
         }
     }
 
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             if (showSearchBar) {
                 SearchTopBar(
@@ -170,6 +180,7 @@ fun FileManagerScreen(
                     showGridViewAction = true,
                     isGridView = state.isGridView,
                     hasClipboardItems = state.clipboardState != null,
+                    scrollBehavior = scrollBehavior,
                     onBackClick = onNavigateBack,
                     onClearSelection = onClearSelection,
                     onSearchClick = { showSearchBar = true },
@@ -185,6 +196,7 @@ fun FileManagerScreen(
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
+                            else -> {}
                         }
                     }
                 )
@@ -544,46 +556,60 @@ fun FileItemRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ListItem(
+    val animatedSurfaceColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        label = "listItemColor"
+    )
+    
+    val animatedShape by androidx.compose.animation.core.animateValueAsState(
+        targetValue = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
+        typeConverter = androidx.compose.animation.core.TwoWayConverter({ androidx.compose.animation.core.AnimationVector1D(0f) }, { ExpressiveShapes.large }),
+        label = "listItemShape"
+    )
+
+    Surface(
+        shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
+        color = animatedSurfaceColor,
         modifier = modifier
+            .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
-        leadingContent = {
-            if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
-                FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))) {
-                AsyncImage(
-                    model = File(file.absolutePath),
-                    contentDescription = "Thumbnail",
-                    modifier = Modifier.size(40.dp),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                    contentDescription = if (file.isDirectory) "Folder" else "File",
-                    tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
-        },
-        headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(formattedDate)
-                if (!file.isDirectory) {
-                    Text(formatFileSize(file.size))
+    ) {
+        ListItem(
+            leadingContent = {
+                if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
+                    FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                    FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                    FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))) {
+                    AsyncImage(
+                        model = File(file.absolutePath),
+                        contentDescription = "Thumbnail",
+                        modifier = Modifier.size(40.dp).clip(ExpressiveSquircleShape),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                        contentDescription = if (file.isDirectory) "Folder" else "File",
+                        tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(40.dp)
+                    )
                 }
-            }
-        },
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent
+            },
+            headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            supportingContent = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(formattedDate)
+                    if (!file.isDirectory) {
+                        Text(formatFileSize(file.size))
+                    }
+                }
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
-    )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -601,8 +627,8 @@ private fun FileGridItem(
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
+            dampingRatio = 0.8f,
+            stiffness = 380f
         ),
         label = "gridItemScale"
     )
@@ -620,9 +646,9 @@ private fun FileGridItem(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.large,
+        shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
         )
     ) {
         Column(
@@ -689,6 +715,7 @@ fun CreateFolderDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create Folder") },
+        shape = ExpressiveSquircleShape,
         text = {
             OutlinedTextField(
                 value = folderName,
@@ -723,6 +750,7 @@ fun CreateFileDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create File") },
+        shape = ExpressiveSquircleShape,
         text = {
             OutlinedTextField(
                 value = fileName,
@@ -758,6 +786,7 @@ fun RenameDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Rename") },
+        shape = ExpressiveSquircleShape,
         text = {
             OutlinedTextField(
                 value = newName,
@@ -790,6 +819,8 @@ fun ExpandableFabMenu(
     onCreateFileClick: () -> Unit,
     onCreateFolderClick: () -> Unit
 ) {
+    val fabShape = if (isExpanded) ExpressiveSquircleShape else ExpressiveShapes.large
+
     Column(horizontalAlignment = Alignment.End) {
         AnimatedVisibility(
             visible = isExpanded,
@@ -801,62 +832,26 @@ fun ExpandableFabMenu(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            "New File", 
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
-                    FloatingActionButton(
-                        onClick = onCreateFileClick,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = dev.qtremors.arcile.ui.theme.ExpressiveAsymmetricShape,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = "New File")
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            "New Folder", 
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
-                    FloatingActionButton(
-                        onClick = onCreateFolderClick,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        shape = dev.qtremors.arcile.ui.theme.ExpressiveAsymmetricShape,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(Icons.Default.CreateNewFolder, contentDescription = "New Folder")
-                    }
-                }
+                androidx.compose.material3.ExtendedFloatingActionButton(
+                    onClick = onCreateFileClick,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = ExpressivePillShape,
+                    text = { Text("New File") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = "New File") }
+                )
+                androidx.compose.material3.ExtendedFloatingActionButton(
+                    onClick = onCreateFolderClick,
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = ExpressivePillShape,
+                    text = { Text("New Folder") },
+                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = "New Folder") }
+                )
             }
         }
         FloatingActionButton(
             onClick = onToggleExpand,
             containerColor = MaterialTheme.colorScheme.primaryContainer,
-            shape = dev.qtremors.arcile.ui.theme.ExpressiveCutShape
+            shape = fabShape
         ) {
             Icon(
                 Icons.Default.Add, 

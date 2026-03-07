@@ -214,7 +214,6 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             val result = FileCategories.all.mapIndexed { index, cat ->
                 CategoryStorage(
                     name = cat.name,
-                    color = cat.color,
                     sizeBytes = sizes[index],
                     extensions = cat.extensions
                 )

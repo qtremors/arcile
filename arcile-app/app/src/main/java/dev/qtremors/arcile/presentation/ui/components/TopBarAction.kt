@@ -11,4 +11,6 @@ sealed class TopBarAction {
     data object Copy : TopBarAction()
     data object Cut : TopBarAction()
     data object Share : TopBarAction()
+    data object Settings : TopBarAction()
+    data object About : TopBarAction()
 }

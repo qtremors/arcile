@@ -16,3 +16,5 @@ val ExpressiveShapes = Shapes(
 // Custom expressive shape variants for unique components
 val ExpressiveCutShape = CutCornerShape(topStart = 24.dp, bottomEnd = 24.dp)
 val ExpressiveAsymmetricShape = RoundedCornerShape(topStart = 32.dp, bottomStart = 8.dp, topEnd = 32.dp, bottomEnd = 32.dp)
+val ExpressiveSquircleShape = RoundedCornerShape(28.dp) // Close approximation of squircle
+val ExpressivePillShape = RoundedCornerShape(50) // Perfect pill

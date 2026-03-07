@@ -30,8 +30,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 
-data class ToolItem(val name: String, val icon: ImageVector)
+data class ToolItem(val name: String, val icon: ImageVector, val isImplemented: Boolean = false)
 
 @Composable
 fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
@@ -41,8 +42,8 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
+            dampingRatio = 0.8f,
+            stiffness = 380f
         ),
         label = "toolCardScale"
     )
@@ -63,7 +64,7 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ),
-        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.large
+        shape = ExpressiveShapes.large
     ) {
         Column(
             modifier = Modifier
@@ -85,13 +86,15 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Coming Soon",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                textAlign = TextAlign.Center
-            )
+            if (!item.isImplemented) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Coming Soon",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
 }
