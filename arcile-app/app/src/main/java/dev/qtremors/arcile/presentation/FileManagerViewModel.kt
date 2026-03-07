@@ -1,7 +1,11 @@
 package dev.qtremors.arcile.presentation
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Environment
+import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dev.qtremors.arcile.data.LocalFileRepository
@@ -9,12 +13,20 @@ import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.TrashMetadata
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
+
+enum class ClipboardOperation { COPY, CUT }
+
+data class ClipboardState(
+    val operation: ClipboardOperation,
+    val sourcePaths: List<String>
+)
 
 data class FileManagerState(
     val isHomeScreen: Boolean = true,
@@ -32,7 +44,10 @@ data class FileManagerState(
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
-    val selectedFiles: Set<String> = emptySet()
+    val selectedFiles: Set<String> = emptySet(),
+    val clipboardState: ClipboardState? = null,
+    val isTrashScreen: Boolean = false,
+    val trashFiles: List<TrashMetadata> = emptyList()
 )
 
 class FileManagerViewModel(
@@ -76,26 +91,26 @@ class FileManagerViewModel(
     }
 
     fun navigateToHome() {
-        _state.update { it.copy(isHomeScreen = true, selectedFiles = emptySet()) }
+        _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
         loadHomeData()
     }
 
     fun openFileBrowser() {
-        _state.update { it.copy(isHomeScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false) }
         pathHistory.clear()
         loadDirectory(storageRootPath)
     }
 
     fun navigateToSpecificFolder(path: String) {
-        _state.update { it.copy(isHomeScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false) }
         pathHistory.clear()
         pathHistory.push(storageRootPath)
         loadDirectory(path)
     }
 
     fun navigateToCategory(categoryName: String) {
-        _state.update { it.copy(isHomeScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false) }
         pathHistory.clear()
         loadCategory(categoryName)
     }
@@ -118,22 +133,27 @@ class FileManagerViewModel(
         if (_state.value.isHomeScreen) {
             return false
         }
+        
+        if (_state.value.isTrashScreen) {
+            navigateToHome()
+            return true
+        }
 
         if (pathHistory.isNotEmpty()) {
             val previousPath = pathHistory.pop()
             loadDirectory(previousPath)
             return true
         } else {
-            _state.update { it.copy(isHomeScreen = true, selectedFiles = emptySet()) }
+            _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, selectedFiles = emptySet()) }
             return false
         }
     }
 
     fun refresh() {
-        if (_state.value.isHomeScreen) {
-            loadHomeData()
-        } else if (_state.value.currentPath.isNotEmpty()) {
-            loadDirectory(_state.value.currentPath)
+        when {
+            _state.value.isHomeScreen -> loadHomeData()
+            _state.value.isTrashScreen -> loadTrashFiles()
+            _state.value.currentPath.isNotEmpty() -> loadDirectory(_state.value.currentPath)
         }
     }
 
@@ -253,19 +273,8 @@ class FileManagerViewModel(
         val selectedFiles = _state.value.selectedFiles.toList()
         if (selectedFiles.isEmpty()) return
 
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            var failCount = 0
-            for (path in selectedFiles) {
-                repository.deleteFile(path).onFailure { failCount++ }
-            }
-            refresh()
-            if (failCount > 0) {
-                _state.update {
-                    it.copy(error = "Failed to delete $failCount of ${selectedFiles.size} file(s)")
-                }
-            }
-        }
+        // New pipeline routes explicit deletions smoothly into the underlying trash protocol
+        moveToTrashSelected()
     }
 
     fun renameFile(path: String, newName: String) {
@@ -288,5 +297,160 @@ class FileManagerViewModel(
 
     fun clearError() {
         _state.update { it.copy(error = null) }
+    }
+
+    // --- Clipboard & Core Transfer System ---
+
+    fun copySelectedToClipboard() {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isNotEmpty()) {
+            _state.update {
+                it.copy(
+                    clipboardState = ClipboardState(ClipboardOperation.COPY, selected),
+                    selectedFiles = emptySet()
+                )
+            }
+        }
+    }
+
+    fun cutSelectedToClipboard() {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isNotEmpty()) {
+            _state.update {
+                it.copy(
+                    clipboardState = ClipboardState(ClipboardOperation.CUT, selected),
+                    selectedFiles = emptySet()
+                )
+            }
+        }
+    }
+
+    fun cancelClipboard() {
+        _state.update { it.copy(clipboardState = null) }
+    }
+
+    fun pasteFromClipboard() {
+        val clipboard = _state.value.clipboardState ?: return
+        val currentPath = _state.value.currentPath
+        if (currentPath.isEmpty() || _state.value.isHomeScreen || _state.value.isTrashScreen) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            val result = if (clipboard.operation == ClipboardOperation.COPY) {
+                repository.copyFiles(clipboard.sourcePaths, currentPath)
+            } else {
+                repository.moveFiles(clipboard.sourcePaths, currentPath)
+            }
+
+            result.onSuccess {
+                _state.update { it.copy(clipboardState = null) }
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to paste files") }
+            }
+        }
+    }
+
+    fun shareSelectedFiles(context: Context) {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+
+        try {
+            val uris = ArrayList<Uri>()
+            for (path in selected) {
+                val file = java.io.File(path)
+                if (file.exists() && file.isFile) {
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    uris.add(uri)
+                }
+            }
+            if (uris.isEmpty()) return
+
+            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "*/*"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            
+            val chooser = Intent.createChooser(intent, "Share files via")
+            chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            context.startActivity(chooser)
+            
+            clearSelection()
+        } catch (e: Exception) {
+            _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }
+        }
+    }
+
+    // --- Trash Subsystem Implementations ---
+
+    fun navigateToTrash() {
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = true, selectedFiles = emptySet()) }
+        pathHistory.clear()
+        loadTrashFiles()
+    }
+
+    private fun loadTrashFiles() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null, currentPath = "Trash Bin", selectedFiles = emptySet()) }
+            val result = repository.getTrashFiles()
+            result.onSuccess { trashItems ->
+                _state.update { it.copy(isLoading = false, trashFiles = trashItems) }
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load Trash Bin") }
+            }
+        }
+    }
+
+    fun moveToTrashSelected() {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            val result = repository.moveToTrash(selected)
+            result.onSuccess {
+                clearSelection()
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                refresh()
+            }
+        }
+    }
+
+    fun restoreSelectedTrash() {
+        val selectedTrashIds = _state.value.selectedFiles.toList()
+        if (selectedTrashIds.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            val result = repository.restoreFromTrash(selectedTrashIds)
+            result.onSuccess {
+                clearSelection()
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                refresh()
+            }
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            val result = repository.emptyTrash()
+            result.onSuccess {
+                clearSelection()
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
+                refresh()
+            }
+        }
     }
 }

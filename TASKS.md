@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.2.2
+> **Version:** 0.2.3
 > **Last Updated:** 2026-03-07
 
 ---
@@ -77,8 +77,7 @@
 > A repository for future ideas, enhancements, and unprioritized features.
 
 - SAF (Storage Access Framework) integration for better Android 11+ compatibility
-- Copy/Move/Paste file operations with progress tracking
-- File sharing via `Intent.ACTION_SEND`
+- File properties dialog (size, permissions, creation date)
 - File properties dialog (size, permissions, creation date)
 - Thumbnail previews for images and videos
 - Compress/extract ZIP support

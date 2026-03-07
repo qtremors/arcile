@@ -8,4 +8,7 @@ sealed class TopBarAction {
     data object DeleteSelected : TopBarAction()
     data object Rename : TopBarAction()
     data object GridView : TopBarAction()
+    data object Copy : TopBarAction()
+    data object Cut : TopBarAction()
+    data object Share : TopBarAction()
 }

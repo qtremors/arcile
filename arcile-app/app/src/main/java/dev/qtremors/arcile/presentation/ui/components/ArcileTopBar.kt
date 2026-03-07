@@ -3,11 +3,15 @@ package dev.qtremors.arcile.presentation.ui.components
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -42,11 +46,14 @@ fun ArcileTopBar(
     showSortAction: Boolean = true,
     showGridViewAction: Boolean = false,
     isGridView: Boolean = false,
+    hasClipboardItems: Boolean = false,
     onBackClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onClearSelection: () -> Unit,
     onSearchClick: () -> Unit,
     onSortClick: () -> Unit,
+    onPasteClick: () -> Unit = {},
+    onCancelPaste: () -> Unit = {},
     onActionSelected: (TopBarAction) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -72,23 +79,42 @@ fun ArcileTopBar(
         },
         actions = {
             if (selectionCount == 0) {
-                if (showSearchAction) {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
+                if (hasClipboardItems) {
+                    // Floating Clipboard Command tray overlaying standard actions
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        tonalElevation = 4.dp,
+                        modifier = androidx.compose.ui.Modifier.padding(end = 8.dp)
+                    ) {
+                        Row {
+                            IconButton(onClick = onCancelPaste) {
+                                Icon(Icons.Default.Close, contentDescription = "Cancel transfer", tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                            }
+                            IconButton(onClick = onPasteClick) {
+                                Icon(Icons.Default.ContentPaste, contentDescription = "Paste here", tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                            }
+                        }
                     }
-                }
-                if (showSortAction) {
-                    IconButton(onClick = onSortClick) {
-                        Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                } else {
+                    if (showSearchAction) {
+                        IconButton(onClick = onSearchClick) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
                     }
-                }
-                if (showSettingsIcon) {
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    if (showSortAction) {
+                        IconButton(onClick = onSortClick) {
+                            Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                        }
                     }
-                }
-                IconButton(onClick = { showMenu = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                    if (showSettingsIcon) {
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                        }
+                    }
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                    }
                 }
                 DropdownMenu(
                     expanded = showMenu,
@@ -119,6 +145,15 @@ fun ArcileTopBar(
                     modifier = androidx.compose.ui.Modifier.padding(end = 8.dp)
                 ) {
                     Row {
+                        IconButton(onClick = { onActionSelected(TopBarAction.Share) }) {
+                            Icon(Icons.Default.Share, contentDescription = "Share")
+                        }
+                        IconButton(onClick = { onActionSelected(TopBarAction.Copy) }) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                        }
+                        IconButton(onClick = { onActionSelected(TopBarAction.Cut) }) {
+                            Icon(Icons.Default.ContentCut, contentDescription = "Cut")
+                        }
                         if (selectionCount == 1) {
                             IconButton(onClick = { onActionSelected(TopBarAction.Rename) }) {
                                 Icon(Icons.Default.Edit, contentDescription = "Rename")

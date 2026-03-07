@@ -8,4 +8,5 @@ object AppRoutes {
     const val EXPLORER = "explorer"
     const val TOOLS = "tools"
     const val SETTINGS = "settings"
+    const val TRASH = "trash"
 }

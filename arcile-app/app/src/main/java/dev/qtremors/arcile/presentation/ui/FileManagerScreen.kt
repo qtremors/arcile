@@ -43,6 +43,9 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -95,7 +98,14 @@ fun FileManagerScreen(
     onClearSearch: () -> Unit,
     onSortOptionChange: (FileSortOption) -> Unit,
     onGridViewChange: (Boolean) -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onCopySelected: () -> Unit,
+    onCutSelected: () -> Unit,
+    onPasteFromClipboard: () -> Unit,
+    onCancelClipboard: () -> Unit,
+    onShareSelected: () -> Unit,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -142,16 +152,22 @@ fun FileManagerScreen(
                     showBackArrow = true,
                     showGridViewAction = true,
                     isGridView = state.isGridView,
+                    hasClipboardItems = state.clipboardState != null,
                     onBackClick = onNavigateBack,
                     onClearSelection = onClearSelection,
                     onSearchClick = { showSearchBar = true },
                     onSortClick = { showSortDialog = true },
+                    onPasteClick = onPasteFromClipboard,
+                    onCancelPaste = onCancelClipboard,
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
                             TopBarAction.DeleteSelected -> showDeleteConfirmation = true
                             TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
                             TopBarAction.GridView -> onGridViewChange(!state.isGridView)
+                            TopBarAction.Copy -> onCopySelected()
+                            TopBarAction.Cut -> onCutSelected()
+                            TopBarAction.Share -> onShareSelected()
                         }
                     }
                 )
@@ -240,57 +256,93 @@ fun FileManagerScreen(
                             onNavigateTo(path)
                         }
                     )
-
-                    if (state.isLoading) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            LoadingIndicator()
-                        }
-                    } else if (displayedFiles.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.FolderOff,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(48.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Empty Directory",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
+                    
+                    val pullRefreshState = rememberPullToRefreshState()
+                    
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = onRefresh,
+                        state = pullRefreshState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        indicator = {
+                            val pullDistance = pullRefreshState.distanceFraction
+                            val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
+                            
+                            if (isRefreshing || pullDistance > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopCenter)
+                                        .graphicsLayer {
+                                            translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
+                                            alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
+                                        }
+                                        .padding(top = 8.dp)
+                                ) {
+                                    Card(
+                                        shape = androidx.compose.foundation.shape.CircleShape,
+                                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.padding(10.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            LoadingIndicator(modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                }
                             }
                         }
-                    } else if (state.isGridView) {
-                        FileGrid(
-                            files = displayedFiles,
-                            selectedFiles = state.selectedFiles,
-                            onNavigateTo = onNavigateTo,
-                            onOpenFile = onOpenFile,
-                            onToggleSelection = onToggleSelection,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        FileList(
-                            files = displayedFiles,
-                            selectedFiles = state.selectedFiles,
-                            onNavigateTo = onNavigateTo,
-                            onOpenFile = onOpenFile,
-                            onToggleSelection = onToggleSelection,
-                            modifier = Modifier.weight(1f)
-                        )
+                    ) {
+                        if (state.isLoading && !isRefreshing) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator()
+                            }
+                        } else if (displayedFiles.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.Default.FolderOff,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "Empty Directory",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        } else if (state.isGridView) {
+                            FileGrid(
+                                files = displayedFiles,
+                                selectedFiles = state.selectedFiles,
+                                onNavigateTo = onNavigateTo,
+                                onOpenFile = onOpenFile,
+                                onToggleSelection = onToggleSelection,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            FileList(
+                                files = displayedFiles,
+                                selectedFiles = state.selectedFiles,
+                                onNavigateTo = onNavigateTo,
+                                onOpenFile = onOpenFile,
+                                onToggleSelection = onToggleSelection,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }

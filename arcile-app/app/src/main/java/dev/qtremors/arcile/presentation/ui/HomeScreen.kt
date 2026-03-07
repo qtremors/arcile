@@ -23,11 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AudioFile
-import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.FilterNone
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
@@ -48,12 +48,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +59,6 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.presentation.FileManagerState
-import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.ToolCard
@@ -83,7 +77,8 @@ fun HomeScreen(
     onOpenFile: (String) -> Unit,
     onCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
-    onNavigateToTools: () -> Unit
+    onNavigateToTools: () -> Unit,
+    onNavigateToTrash: () -> Unit
 ) {
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         filterAndSortFiles(state.recentFiles, state.homeSearchQuery, state.homeSortOption)
@@ -186,8 +181,8 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering))
+                            Box(modifier = Modifier.weight(1f).clickable { onNavigateToTrash() }) {
+                                ToolCard(ToolItem("Trash Bin", Icons.Default.Delete))
                             }
                             Box(modifier = Modifier.weight(1f)) {
                                 ToolCard(ToolItem("Analyze Storage", Icons.Default.PieChart))
@@ -198,10 +193,10 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             Box(modifier = Modifier.weight(1f)) {
-                                ToolCard(ToolItem("Clean Junk", Icons.Default.CleaningServices))
+                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering))
                             }
                             Box(modifier = Modifier.weight(1f)) {
-                                ToolCard(ToolItem("Duplicates", Icons.Default.FilterNone))
+                                ToolCard(ToolItem("Clean Junk", Icons.Default.CleaningServices))
                             }
                         }
                     }

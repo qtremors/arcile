@@ -90,6 +90,13 @@ fun ArcileAppShell(
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
+                        },
+                        onNavigateToTrash = {
+                            viewModel.navigateToTrash()
+                            navController.navigate(AppRoutes.TRASH) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
@@ -121,6 +128,29 @@ fun ArcileAppShell(
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
                         onSortOptionChange = { viewModel.updateBrowserSortOption(it) },
                         onGridViewChange = { viewModel.setGridView(it) },
+                        onClearError = { viewModel.clearError() },
+                        onCopySelected = { viewModel.copySelectedToClipboard() },
+                        onCutSelected = { viewModel.cutSelectedToClipboard() },
+                        onPasteFromClipboard = { viewModel.pasteFromClipboard() },
+                        onCancelClipboard = { viewModel.cancelClipboard() },
+                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
+                        isRefreshing = state.isLoading,
+                        onRefresh = { viewModel.refresh() }
+                    )
+                }
+                composable(AppRoutes.TRASH) {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    TrashScreen(
+                        state = state,
+                        onNavigateBack = {
+                            if (!viewModel.navigateBack()) {
+                                navController.popBackStack()
+                            }
+                        },
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onClearSelection = { viewModel.clearSelection() },
+                        onRestoreSelected = { viewModel.restoreSelectedTrash() },
+                        onEmptyTrash = { viewModel.emptyTrash() },
                         onClearError = { viewModel.clearError() }
                     )
                 }

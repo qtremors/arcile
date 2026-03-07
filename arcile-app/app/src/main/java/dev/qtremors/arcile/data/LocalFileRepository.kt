@@ -9,9 +9,12 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.TrashMetadata
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 
 class LocalFileRepository(private val context: Context) : FileRepository {
 
@@ -72,22 +75,8 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     }
 
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val file = File(path)
-            validatePath(file).onFailure { return@withContext Result.failure(it) }
-
-            if (!file.exists()) {
-                return@withContext Result.failure(IllegalArgumentException("File does not exist"))
-            }
-            val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
-            if (success) {
-                Result.success(Unit)
-            } else {
-                Result.failure(Exception("Failed to delete file or directory"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+        // Redirection: by default, "deleting" a file now drops it into the Trash Bin seamlessly
+        moveToTrash(listOf(path))
     }
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(Dispatchers.IO) {
@@ -274,6 +263,251 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             }
             
             Result.success(filesList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // --- Core Operations ---
+
+    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val destDir = File(destinationPath)
+            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+
+            if (!destDir.exists() || !destDir.isDirectory) {
+                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
+            }
+
+            for (path in sourcePaths) {
+                val sourceFile = File(path)
+                validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
+
+                if (!sourceFile.exists()) continue
+
+                var targetFile = File(destDir, sourceFile.name)
+                validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
+
+                // Prevent destructive overwrite when pasting directly into the exact same source folder
+                if (sourceFile.absolutePath == targetFile.absolutePath) {
+                    val nameWithoutExt = sourceFile.nameWithoutExtension
+                    val ext = if (sourceFile.extension.isNotEmpty()) ".${sourceFile.extension}" else ""
+                    var copyIndex = 1
+                    do {
+                        val suffix = if (copyIndex == 1) " - Copy" else " - Copy ($copyIndex)"
+                        targetFile = File(destDir, "$nameWithoutExt$suffix$ext")
+                        copyIndex++
+                    } while (targetFile.exists())
+                }
+
+                if (sourceFile.isDirectory) {
+                    sourceFile.copyRecursively(targetFile, overwrite = true)
+                } else {
+                    sourceFile.copyTo(targetFile, overwrite = true)
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val destDir = File(destinationPath)
+            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+
+            if (!destDir.exists() || !destDir.isDirectory) {
+                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
+            }
+
+            for (path in sourcePaths) {
+                val sourceFile = File(path)
+                validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
+
+                if (!sourceFile.exists()) continue
+
+                val targetFile = File(destDir, sourceFile.name)
+                validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
+
+                if (sourceFile.absolutePath == targetFile.absolutePath) continue // moving to same location
+                
+                // Try simple rename first (fast moving on same mount)
+                val success = sourceFile.renameTo(targetFile)
+                if (!success) {
+                    // Fallback to copy+delete
+                    if (sourceFile.isDirectory) {
+                        sourceFile.copyRecursively(targetFile, overwrite = true)
+                        sourceFile.deleteRecursively()
+                    } else {
+                        sourceFile.copyTo(targetFile, overwrite = true)
+                        sourceFile.delete()
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // --- Trash Subsystem ---
+
+    private val trashDir: File by lazy {
+        File(storageRoot, ".arcile_trash").apply {
+            if (!exists()) {
+                mkdirs()
+                File(this, ".nomedia").createNewFile() // Hide from gallery
+            }
+        }
+    }
+
+    private val trashMetadataDir: File by lazy {
+        File(trashDir, ".metadata").apply {
+            if (!exists()) mkdirs()
+        }
+    }
+
+    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!trashDir.exists()) trashDir.mkdirs()
+            if (!trashMetadataDir.exists()) trashMetadataDir.mkdirs()
+
+            for (path in paths) {
+                val file = File(path)
+                validatePath(file).onFailure { return@withContext Result.failure(it) }
+
+                if (!file.exists()) continue
+                // Don't trash the trash
+                if (file.absolutePath.startsWith(trashDir.absolutePath)) continue
+
+                val trashId = java.util.UUID.randomUUID().toString()
+                val targetTrashFile = File(trashDir, trashId)
+                
+                // Write metadata JSON
+                val metadataJson = JSONObject().apply {
+                    put("id", trashId)
+                    put("originalPath", file.absolutePath)
+                    put("deletionTime", System.currentTimeMillis())
+                }
+                File(trashMetadataDir, "$trashId.json").writeText(metadataJson.toString())
+
+                // Move abstracting name
+                val success = file.renameTo(targetTrashFile)
+                if (!success) {
+                    // Revert metadata
+                    File(trashMetadataDir, "$trashId.json").delete()
+                    // Fallback
+                    if (file.isDirectory) {
+                        file.copyRecursively(targetTrashFile, overwrite = true)
+                        file.deleteRecursively()
+                    } else {
+                        file.copyTo(targetTrashFile, overwrite = true)
+                        file.delete()
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            for (id in trashIds) {
+                val metadataFile = File(trashMetadataDir, "$id.json")
+                val trashedFile = File(trashDir, id)
+                
+                if (!metadataFile.exists() || !trashedFile.exists()) continue
+
+                val json = JSONObject(metadataFile.readText())
+                val originalPath = json.getString("originalPath")
+                
+                val originalFile = File(originalPath)
+                validatePath(originalFile).onFailure { continue } // Skip invalid restores
+                
+                // Ensure target parent directory exists
+                originalFile.parentFile?.mkdirs()
+
+                // Restore
+                val success = trashedFile.renameTo(originalFile)
+                if (!success) {
+                    if (trashedFile.isDirectory) {
+                        trashedFile.copyRecursively(originalFile, overwrite = true)
+                        trashedFile.deleteRecursively()
+                    } else {
+                        trashedFile.copyTo(originalFile, overwrite = true)
+                        trashedFile.delete()
+                    }
+                }
+                
+                // On success, clean up metadata
+                if (originalFile.exists()) {
+                    metadataFile.delete()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (trashDir.exists()) {
+                trashDir.listFiles()?.forEach { file ->
+                    if (file.name != ".metadata" && file.name != ".nomedia") {
+                        file.deleteRecursively()
+                    }
+                }
+                trashMetadataDir.listFiles()?.forEach { it.delete() }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(Dispatchers.IO) {
+        try {
+            val list = mutableListOf<TrashMetadata>()
+            if (trashDir.exists() && trashMetadataDir.exists()) {
+                trashMetadataDir.listFiles()?.forEach { metadataFile ->
+                    if (metadataFile.isFile && metadataFile.extension == "json") {
+                        try {
+                            val json = JSONObject(metadataFile.readText())
+                            val id = json.getString("id")
+                            val originalPath = json.getString("originalPath")
+                            val deletionTime = json.getLong("deletionTime")
+                            
+                            val trashedFile = File(trashDir, id)
+                            if (trashedFile.exists()) {
+                                // Provide a faked FileModel where the literal underlying object is the hash blob, but its name appears as the original
+                                val originalFileContext = File(originalPath)
+                                val spoofedModel = FileModel(
+                                   file = null,
+                                   absolutePath = trashedFile.absolutePath,
+                                   name = originalFileContext.name,
+                                   size = if (trashedFile.isFile) trashedFile.length() else 0L,
+                                   isDirectory = trashedFile.isDirectory,
+                                   lastModified = trashedFile.lastModified(),
+                                   extension = originalFileContext.extension,
+                                   isHidden = false
+                                )
+                                
+                                list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel))
+                            } else {
+                                // Orphaned metadata
+                                metadataFile.delete() 
+                            }
+                        } catch (e: Exception) {
+                            // Skip corrupted metadata
+                        }
+                    }
+                }
+            }
+            Result.success(list.sortedByDescending { it.deletionTime })
         } catch (e: Exception) {
             Result.failure(e)
         }

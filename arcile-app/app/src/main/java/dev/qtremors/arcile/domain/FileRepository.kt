@@ -13,4 +13,14 @@ interface FileRepository {
     suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>>
     suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>>
     suspend fun searchGlobal(query: String): Result<List<FileModel>>
+    
+    // Core Operations
+    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit>
+    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit>
+    
+    // Trash Subsystem
+    suspend fun moveToTrash(paths: List<String>): Result<Unit>
+    suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit>
+    suspend fun emptyTrash(): Result<Unit>
+    suspend fun getTrashFiles(): Result<List<TrashMetadata>>
 }
