@@ -1,10 +1,25 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.2.6
+> **Version:** 0.2.7
 > **Last Updated:** 2026-03-07
 
 ---
+
+## [0.2.7] - 2026-03-07
+
+### Added
+- [Feature] Implemented a comprehensive Storage Management Dashboard providing a visual breakdown of device storage by category.
+- [Feature] Added deep category navigation—clicking any storage category in the dashboard instantly opens that specific media group in the file explorer.
+- [Navigation] Integrated the dashboard via a long-press gesture on the primary Home screen storage card.
+
+### Improved
+- [UI] Refined the `MultiColorStorageBar` to provide accurate real-time feedback and better visual clarity between categorized data and system overhead.
+
+### Fixed
+- [Bug] Resolved Jetpack Compose `@Composable` context violations preventing builds when prepping data inside `LazyColumn` scopes.
+- [Bug] Fixed critical missing imports and fully-qualified name resolution failures in the `HomeScreen` and `StorageDashboard` UI modules.
+- [Bug] Corrected deprecated icon usage to the modern `AutoMirrored` standards.
 
 ## [0.2.6] - 2026-03-07
 

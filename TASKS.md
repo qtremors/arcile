@@ -15,19 +15,6 @@
 - [ ] [Refactor] Single ViewModel for all screens — poor separation of concerns (`FileManagerViewModel.kt`)
   - Manages home, file browser, and file operations. Should be split.
 
-### Low Priority
-
-- [x] [Performance] `getRecentFiles()` performs recursive file walk on every home screen load (`LocalFileRepository.kt:91-121`)
-  - `walkTopDown().maxDepth(3)` on 4 directories — can be slow on devices with many files. Cache with TTL.
-- [ ] [Docs] No test infrastructure — only template tests exist
-  - Add unit tests for `FileManagerViewModel`, `LocalFileRepository`, and UI tests.
-
----
-
-### PR Review Findings
-
-- [x] [Security] Restrict `file_provider_paths.xml` external-path exposure by normalizing path and enforcing a base directory allowlist in `FileProvider`.
-
 ---
 
 ### Comprehensive Audit Findings
@@ -62,15 +49,6 @@
 
 ---
 
-### PR Review Findings
-
-- [x] [Chore] Replace internal `VariantOutputImpl` with Stable Artifacts API for APK renaming (`build.gradle.kts:64-71`)
-- [x] [Performance] Downsample album art in `AudioAlbumArtFetcher` to prevent OOM (`AudioAlbumArtFetcher.kt:25`)
-- [x] [Correctness] Move refresh-rate side-effect out of `setContent` to prevent redundant execution (`MainActivity.kt:57-69`)
-- [x] [Chore] Use non-deprecated `display` API on Android 30+ (`MainActivity.kt:59`)
-- [x] [Performance] Prevent redundant `openFileBrowser()` calls in `ArcileAppShell` (`ArcileAppShell.kt:136-140`)
-- [x] [Docs] Update stale architecture and configuration details in `DEVELOPMENT.md` (`DEVELOPMENT.md:5, 46, 76, 308, 339`)
-
 ### Backlog / Ideas
 
 > A repository for future ideas, enhancements, and unprioritized features.
@@ -89,7 +67,6 @@
   - Support for file operations and creation directly within the vault.
 - **Storage Management Dashboard**: Long-pressing the storage bar on the Home page should open a detailed storage management screen with graphical representations of space utilization.
 - **Customizable Quick Access**: Replace hard-coded folders on the Home screen with user-selectable folders for quick access.
-- [x] **Improved Recent Files UI**: The Home page "Recent Files" section should only display files from today, and the expanded "See All" page should display files from the past week.
 - **Enhanced Category Browsing**: Opening a category displays all related folders and files, featuring navigation via tabs or a bottom app bar for all the related folders.
 - **File/Folder Properties**: Add an option to view detailed properties directly.
 - **Contextual Search**:

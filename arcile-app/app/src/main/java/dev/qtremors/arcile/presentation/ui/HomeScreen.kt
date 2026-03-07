@@ -58,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.combinedClickable
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -92,7 +93,8 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     onNavigateToTools: () -> Unit,
     onNavigateToTrash: () -> Unit,
-    onNavigateToRecentFiles: () -> Unit
+    onNavigateToRecentFiles: () -> Unit,
+    onOpenStorageDashboard: () -> Unit
 ) {
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         val cal = java.util.Calendar.getInstance()
@@ -155,7 +157,8 @@ fun HomeScreen(
                 item {
                     StorageSummaryCard(
                         state = state,
-                        onClick = onOpenFileBrowser
+                        onClick = onOpenFileBrowser,
+                        onLongClick = onOpenStorageDashboard
                     )
                 }
 
@@ -289,10 +292,12 @@ fun HomeScreen(
 }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StorageSummaryCard(
     state: FileManagerState,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val total = state.storageInfo?.totalBytes ?: 0L
     val free = state.storageInfo?.freeBytes ?: 0L
@@ -301,8 +306,12 @@ fun StorageSummaryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        onClick = onClick,
+            .padding(16.dp)
+            .clip(ExpressiveSquircleShape)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer

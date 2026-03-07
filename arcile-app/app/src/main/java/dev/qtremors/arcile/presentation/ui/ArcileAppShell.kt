@@ -107,6 +107,25 @@ fun ArcileAppShell(
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
+                        },
+                        onOpenStorageDashboard = {
+                            navController.navigate(AppRoutes.STORAGE_DASHBOARD) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+                composable(AppRoutes.STORAGE_DASHBOARD) {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    StorageDashboardScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onCategoryClick = { categoryName ->
+                            viewModel.navigateToCategory(categoryName)
+                            navController.navigate(AppRoutes.EXPLORER) {
+                                popUpTo(AppRoutes.STORAGE_DASHBOARD) { inclusive = true }
+                            }
                         }
                     )
                 }
