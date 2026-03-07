@@ -10,6 +10,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.presentation.SearchFilters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -285,29 +286,80 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun searchGlobal(query: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun searchFiles(query: String, pathScope: String?, filters: Any?): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext Result.success(emptyList())
+        val searchFilters = filters as? SearchFilters
+
         try {
             val filesList = mutableListOf<FileModel>()
-            val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
             
-            // Query for files where the display name contains the query string (case-insensitive)
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
-            val selectionArgs = arrayOf("%$query%")
-            
-            context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
-                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+            if (pathScope != null) {
+                // Scoped recursive search
+                val rootDir = File(pathScope)
+                if (rootDir.exists() && rootDir.isDirectory) {
+                    rootDir.walkTopDown().forEach { file ->
+                        if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
+                            filesList.add(FileModel(file))
+                        }
+                    }
+                }
+            } else {
+                // Global MediaStore search
+                val uri = MediaStore.Files.getContentUri("external")
+                val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+                val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
+                val selectionArgs = arrayOf("%$query%")
                 
-                while (cursor.moveToNext()) {
-                    val path = cursor.getString(dataCol)
-                    if (path != null) {
-                        filesList.add(FileModel(File(path)))
+                context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    while (cursor.moveToNext()) {
+                        val path = cursor.getString(dataCol)
+                        if (path != null) {
+                            val f = File(path)
+                            if (!f.name.startsWith(".")) {
+                                filesList.add(FileModel(f))
+                            }
+                        }
                     }
                 }
             }
             
-            Result.success(filesList)
+            // Apply Filters sequentially if present
+            var resultList = filesList.toList()
+            
+            searchFilters?.let { sf ->
+                if (sf.itemType == "Files") {
+                    resultList = resultList.filter { !it.isDirectory }
+                } else if (sf.itemType == "Folders") {
+                    resultList = resultList.filter { it.isDirectory }
+                }
+                
+                if (sf.fileType != null && sf.fileType != "All") {
+                    val category = FileCategories.all.find { it.name == sf.fileType }
+                    if (category != null) {
+                        val exts = category.extensions.map { it.lowercase() }.toSet()
+                        resultList = resultList.filter { !it.isDirectory && exts.contains(it.name.substringAfterLast('.').lowercase()) }
+                    }
+                }
+                
+                if (sf.minSize != null) {
+                    resultList = resultList.filter { !it.isDirectory && it.size >= sf.minSize }
+                }
+                
+                if (sf.maxSize != null) {
+                    resultList = resultList.filter { !it.isDirectory && it.size <= sf.maxSize }
+                }
+                
+                if (sf.minDateMillis != null) {
+                    resultList = resultList.filter { it.lastModified >= sf.minDateMillis }
+                }
+                
+                if (sf.maxDateMillis != null) {
+                    resultList = resultList.filter { it.lastModified <= sf.maxDateMillis }
+                }
+            }
+            
+            Result.success(resultList)
         } catch (e: Exception) {
             Result.failure(e)
         }

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SortByAlpha
@@ -174,6 +175,9 @@ fun ArcileTopBar(
                     Row {
                         IconButton(onClick = { onActionSelected(TopBarAction.Share) }) {
                             Icon(Icons.Default.Share, contentDescription = "Share")
+                        }
+                        IconButton(onClick = { onActionSelected(TopBarAction.SelectAll) }) {
+                            Icon(Icons.Default.SelectAll, contentDescription = "Select All")
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.Copy) }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = "Copy")

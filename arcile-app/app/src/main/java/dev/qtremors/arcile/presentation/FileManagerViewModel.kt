@@ -14,6 +14,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.presentation.SearchFilters
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +49,9 @@ data class FileManagerState(
     val clipboardState: ClipboardState? = null,
     val isTrashScreen: Boolean = false,
     val trashFiles: List<TrashMetadata> = emptyList(),
-    val isRecentFilesScreen: Boolean = false
+    val isRecentFilesScreen: Boolean = false,
+    val activeSearchFilters: SearchFilters = SearchFilters(),
+    val isSearchFilterMenuVisible: Boolean = false
 )
 
 class FileManagerViewModel(
@@ -204,6 +207,12 @@ class FileManagerViewModel(
         }
     }
 
+    fun selectMultiple(paths: List<String>) {
+        _state.update { currentState ->
+            currentState.copy(selectedFiles = currentState.selectedFiles + paths)
+        }
+    }
+
     fun clearSelection() {
         _state.update { it.copy(selectedFiles = emptySet()) }
     }
@@ -238,13 +247,31 @@ class FileManagerViewModel(
             // Wait for user to stop typing
             kotlinx.coroutines.delay(400)
             _state.update { it.copy(isSearching = true, error = null) }
-            val result = repository.searchGlobal(query)
+            
+            val stateVal = _state.value
+            val pathScope = if (stateVal.isHomeScreen) null else stateVal.currentPath
+            val filters = stateVal.activeSearchFilters
+            
+            val result = repository.searchFiles(query, pathScope, filters)
             result.onSuccess { files ->
                 _state.update { it.copy(isSearching = false, searchResults = files) }
             }.onFailure { error ->
                 _state.update { it.copy(isSearching = false, error = error.message ?: "Search failed") }
             }
         }
+    }
+
+    fun updateSearchFilters(filters: SearchFilters) {
+        _state.update { it.copy(activeSearchFilters = filters) }
+        val stateVal = _state.value
+        val currentQuery = if (stateVal.isHomeScreen) stateVal.homeSearchQuery else stateVal.browserSearchQuery
+        if (currentQuery.isNotBlank()) {
+            debouncedSearch(currentQuery)
+        }
+    }
+    
+    fun toggleSearchFilterMenu(visible: Boolean) {
+        _state.update { it.copy(isSearchFilterMenuVisible = visible) }
     }
 
     fun updateHomeSortOption(sortOption: FileSortOption) {

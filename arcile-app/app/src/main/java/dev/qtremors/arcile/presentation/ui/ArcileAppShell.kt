@@ -113,7 +113,10 @@ fun ArcileAppShell(
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
-                        }
+                        },
+                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
+                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
                     )
                 }
                 composable(AppRoutes.STORAGE_DASHBOARD) {
@@ -143,6 +146,7 @@ fun ArcileAppShell(
                         onNavigateTo = { viewModel.navigateToFolder(it) },
                         onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
+                        onSelectMultiple = { viewModel.selectMultiple(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
                         onCreateFile = { viewModel.createFile(it) },
@@ -159,7 +163,9 @@ fun ArcileAppShell(
                         onCancelClipboard = { viewModel.cancelClipboard() },
                         onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
                         isRefreshing = state.isLoading,
-                        onRefresh = { viewModel.refresh() }
+                        onRefresh = { viewModel.refresh() },
+                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
                     )
                 }
                 composable(AppRoutes.TRASH) {

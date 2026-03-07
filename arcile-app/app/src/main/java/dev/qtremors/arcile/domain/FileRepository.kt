@@ -13,7 +13,7 @@ interface FileRepository {
     suspend fun getStorageInfo(): Result<StorageInfo>
     suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>>
     suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>>
-    suspend fun searchGlobal(query: String): Result<List<FileModel>>
+    suspend fun searchFiles(query: String, pathScope: String? = null, filters: Any? = null): Result<List<FileModel>>
     
     // Core Operations
     suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit>

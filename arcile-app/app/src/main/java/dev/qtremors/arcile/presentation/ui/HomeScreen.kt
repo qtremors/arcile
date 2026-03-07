@@ -81,6 +81,12 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
+import dev.qtremors.arcile.presentation.SearchFilters
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -94,7 +100,10 @@ fun HomeScreen(
     onNavigateToTools: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToRecentFiles: () -> Unit,
-    onOpenStorageDashboard: () -> Unit
+    onOpenStorageDashboard: () -> Unit,
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchFiltersChange: (SearchFilters) -> Unit = {},
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {}
 ) {
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         val cal = java.util.Calendar.getInstance()
@@ -118,23 +127,24 @@ fun HomeScreen(
                 showSettingsIcon = true,
                 showSearchAction = false,
                 showSortAction = false,
-                showNewFolderAction = false,
-                showSettingsMenuAction = false,
-                showAboutAction = true,
-                scrollBehavior = scrollBehavior,
-                onSettingsClick = onSettingsClick,
-                onClearSelection = {},
-                onSearchClick = {},
-                onSortClick = {},
-                onActionSelected = { action ->
-                    when (action) {
-                        TopBarAction.Settings -> onSettingsClick()
-                        else -> {}
+                    showNewFolderAction = false,
+                    showSettingsMenuAction = false,
+                    showAboutAction = true,
+                    scrollBehavior = scrollBehavior,
+                    onSettingsClick = onSettingsClick,
+                    onClearSelection = {},
+                    onSearchClick = {},
+                    onSortClick = {},
+                    onActionSelected = { action ->
+                        when (action) {
+                            TopBarAction.Settings -> onSettingsClick()
+                            else -> {}
+                        }
                     }
-                }
-            )
+                )
         }
     ) { padding ->
+        
         if (state.isLoading) {
             Box(
                 modifier = Modifier

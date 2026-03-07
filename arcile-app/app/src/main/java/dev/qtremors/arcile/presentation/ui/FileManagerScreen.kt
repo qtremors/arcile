@@ -1,26 +1,37 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.TwoWayConverter
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -28,6 +39,7 @@ import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
@@ -39,15 +51,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -83,13 +95,18 @@ import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.SearchFilters
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
+import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import androidx.compose.foundation.lazy.LazyRow
 import dev.qtremors.arcile.domain.FileCategories
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import java.io.File
@@ -106,6 +123,7 @@ fun FileManagerScreen(
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
+    onSelectMultiple: (List<String>) -> Unit,
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
@@ -122,7 +140,9 @@ fun FileManagerScreen(
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
     isRefreshing: Boolean,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onSearchFiltersChange: (SearchFilters) -> Unit = {},
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {}
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -163,15 +183,22 @@ fun FileManagerScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             if (showSearchBar) {
-                SearchTopBar(
-                    query = state.browserSearchQuery,
-                    onQueryChange = onSearchQueryChange,
-                    onClose = {
-                        showSearchBar = false
-                        onClearSearch()
-                    },
-                    placeholder = "Search all files..."
-                )
+                Column {
+                    SearchTopBar(
+                        query = state.browserSearchQuery,
+                        onQueryChange = onSearchQueryChange,
+                        onClose = {
+                            showSearchBar = false
+                            onClearSearch()
+                        },
+                        onFilterClick = { onToggleSearchFilterMenu(true) },
+                        placeholder = "Search all files..."
+                    )
+                    ActiveFiltersRow(
+                        filters = state.activeSearchFilters,
+                        onClearFilter = { clearedFilters -> onSearchFiltersChange(clearedFilters) }
+                    )
+                }
             } else {
                 ArcileTopBar(
                     title = "Browse",
@@ -196,6 +223,7 @@ fun FileManagerScreen(
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
+                            TopBarAction.SelectAll -> onSelectMultiple(displayedFiles.map { it.absolutePath })
                             else -> {}
                         }
                     }
@@ -370,6 +398,7 @@ fun FileManagerScreen(
                                 onNavigateTo = onNavigateTo,
                                 onOpenFile = onOpenFile,
                                 onToggleSelection = onToggleSelection,
+                                onSelectMultiple = onSelectMultiple,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -379,6 +408,7 @@ fun FileManagerScreen(
                                 onNavigateTo = onNavigateTo,
                                 onOpenFile = onOpenFile,
                                 onToggleSelection = onToggleSelection,
+                                onSelectMultiple = onSelectMultiple,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -386,8 +416,18 @@ fun FileManagerScreen(
                 }
             }
         }
+    }
 
-        if (showCreateFolderDialog) {
+    if (state.isSearchFilterMenuVisible) {
+        SearchFiltersBottomSheet(
+            currentFilters = state.activeSearchFilters,
+            onApplyFilters = { onSearchFiltersChange(it) },
+            onDismiss = { onToggleSearchFilterMenu(false) }
+        )
+    }
+
+    // Dialogs
+    if (showCreateFolderDialog) {
             CreateFolderDialog(
                 onDismiss = { showCreateFolderDialog = false },
                 onConfirm = { name ->
@@ -472,7 +512,6 @@ fun FileManagerScreen(
             )
         }
     }
-}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -482,12 +521,15 @@ private fun FileList(
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
+    onSelectMultiple: (List<String>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LazyColumn(modifier = modifier.fillMaxWidth()) {
-        items(files, key = { it.absolutePath }) { file ->
+        items(files.size, key = { index -> files[index].absolutePath }) { index ->
+            val file = files[index]
             FileItemRow(
                 modifier = Modifier.animateItem(),
                 file = file,
@@ -495,6 +537,7 @@ private fun FileList(
                 isSelected = selectedFiles.contains(file.absolutePath),
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
+                        lastInteractedIndex = index
                         onToggleSelection(file.absolutePath)
                     } else if (file.isDirectory) {
                         onNavigateTo(file.absolutePath)
@@ -502,12 +545,24 @@ private fun FileList(
                         onOpenFile(file.absolutePath)
                     }
                 },
-                onLongClick = { onToggleSelection(file.absolutePath) }
+                onLongClick = {
+                    if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
+                        val start = minOf(lastInteractedIndex!!, index)
+                        val end = maxOf(lastInteractedIndex!!, index)
+                        val rangePaths = files.subList(start, end + 1).map { it.absolutePath }
+                        onSelectMultiple(rangePaths)
+                        lastInteractedIndex = index
+                    } else {
+                        lastInteractedIndex = index
+                        onToggleSelection(file.absolutePath)
+                    }
+                }
             )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FileGrid(
     files: List<FileModel>,
@@ -515,9 +570,11 @@ private fun FileGrid(
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
+    onSelectMultiple: (List<String>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 160.dp),
@@ -526,13 +583,15 @@ private fun FileGrid(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        gridItems(files, key = { it.absolutePath }) { file ->
+        items(files.size, key = { index -> files[index].absolutePath }) { index ->
+            val file = files[index]
             FileGridItem(
                 file = file,
                 formattedDate = formatter.format(Date(file.lastModified)),
                 isSelected = selectedFiles.contains(file.absolutePath),
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
+                        lastInteractedIndex = index
                         onToggleSelection(file.absolutePath)
                     } else if (file.isDirectory) {
                         onNavigateTo(file.absolutePath)
@@ -540,7 +599,18 @@ private fun FileGrid(
                         onOpenFile(file.absolutePath)
                     }
                 },
-                onLongClick = { onToggleSelection(file.absolutePath) }
+                onLongClick = { 
+                    if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
+                        val start = minOf(lastInteractedIndex!!, index)
+                        val end = maxOf(lastInteractedIndex!!, index)
+                        val rangePaths = files.subList(start, end + 1).map { it.absolutePath }
+                        onSelectMultiple(rangePaths)
+                        lastInteractedIndex = index
+                    } else {
+                        lastInteractedIndex = index
+                        onToggleSelection(file.absolutePath)
+                    }
+                }
             )
         }
     }
@@ -858,6 +928,57 @@ fun ExpandableFabMenu(
                 contentDescription = "Create new",
                 modifier = Modifier.rotate(fabIconRotation)
             )
+        }
+    }
+}
+
+@Composable
+fun ActiveFiltersRow(
+    filters: SearchFilters,
+    onClearFilter: (SearchFilters) -> Unit
+) {
+    val activeChips = mutableListOf<Pair<String, SearchFilters>>()
+    
+    if (filters.itemType != null && filters.itemType != "Any") {
+        activeChips.add(Pair(filters.itemType, filters.copy(itemType = null)))
+    }
+    
+    if (filters.fileType != null) {
+        activeChips.add(Pair(filters.fileType, filters.copy(fileType = null)))
+    }
+    if (filters.minSize != null || filters.maxSize != null) {
+        val label = when {
+            filters.minSize != null && filters.maxSize != null -> "Size: ${filters.minSize / (1024*1024)}MB - ${filters.maxSize / (1024*1024)}MB"
+            filters.minSize != null -> "Size: >${filters.minSize / (1024*1024)}MB"
+            else -> "Size: <${filters.maxSize!! / (1024*1024)}MB"
+        }
+        activeChips.add(Pair(label, filters.copy(minSize = null, maxSize = null)))
+    }
+    if (filters.minDateMillis != null || filters.maxDateMillis != null) {
+        activeChips.add(Pair("Date Filter", filters.copy(minDateMillis = null, maxDateMillis = null)))
+    }
+
+    if (activeChips.isNotEmpty()) {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(activeChips) { (label, updatedFilter) ->
+                androidx.compose.material3.InputChip(
+                    selected = true,
+                    onClick = { onClearFilter(updatedFilter) },
+                    label = { Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
+                    trailingIcon = {
+                        androidx.compose.material3.Icon(
+                            Icons.Default.Clear,
+                            contentDescription = "Clear",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+            }
         }
     }
 }

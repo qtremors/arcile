@@ -1,8 +1,26 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.2.7
+> **Version:** 0.2.8
 > **Last Updated:** 2026-03-07
+
+---
+
+## [0.2.8] - 2026-03-07
+
+### Added
+- [Feature] Contextual Content Search: Integrated local file search logic directly bound to the user's current directory exploration scope. Searching in `Downloads` will now yield results strictly contained within the `Downloads` node mapping, bypassing the global MediaStore dump. 
+- [Feature] Search Filters: Introduced an inline bottom sheet for real-time granular file filtering during search operations. Support logic dynamically targets:
+  - File Type (Images, Videos, Audio, Docs)
+  - Item Type (Folders, Files)
+  - Minimum and Maximum Size spans (< 10 MB, 10 - 100MB, etc.)
+  - Date Modified ranges (Today, Last 7 Days, Last 30 Days)
+- [Feature] Smart Range Selection: Enabled intuitive multi-select logic in the File Browser. Once in selection mode, long-pressing two discrete files now automatically calculates and selects the spatial bounds bridging the two items.
+- [Feature] Select All: Injected a global 'Select All' toggle into the navigation bar during selection mode to batch select the entire directory instantly.
+
+### Improved
+- [UI] Search interface cleanly docks directly into the `FileManagerScreen`'s application bar alongside dynamic removable chips plotting active filters on a secondary layout row.
+- [UI] Filter Bottom sheet horizontally scrolls constraint dimensions to cleanly block native text wrapping glitches on tight pixel screens. 
 
 ---
 

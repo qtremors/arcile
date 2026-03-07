@@ -13,4 +13,5 @@ sealed class TopBarAction {
     data object Share : TopBarAction()
     data object Settings : TopBarAction()
     data object About : TopBarAction()
+    data object SelectAll : TopBarAction()
 }
