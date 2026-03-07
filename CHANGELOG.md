@@ -1,8 +1,24 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.2.1
+> **Version:** 0.2.2
 > **Last Updated:** 2026-03-07
+
+---
+
+## [0.2.2] - 2026-03-07
+
+### Added
+- [Feature] Introduced a global "Show All" button on the Home screen's Utilities dashboard to seamlessly dive into the dedicated Tools screen.
+- [Component] Abstracted the `ToolCard` feature out of the `ToolsScreen` into a unified layout module accessible across the app.
+
+### Changed
+- [Design] Radically transformed the Home screen Folders layout from a hidden horizontal scroll row into a rigid 3-row grid block that renders all shortcuts instantly.
+- [Design] Relocated 4 primary system Utilities out of the `ToolsScreen` and planted them directly onto the Home screen as a responsive 2x2 grid.
+
+### Fixed
+- [Bug] Cleaned up unused variables, dead topbar action properties, and dangling Material Icon imports from `HomeScreen.kt` and `ArcileAppShell.kt`.
+- [Bug] Fixed IDE compilation warnings throwing Unresolved Reference errors on missing UI elements.
 
 ---
 

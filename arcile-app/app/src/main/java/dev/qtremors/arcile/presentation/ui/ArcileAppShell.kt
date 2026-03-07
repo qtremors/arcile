@@ -12,15 +12,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,41 +44,8 @@ fun ArcileAppShell(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
 
-    val bottomNavItems = listOf(
-        Triple(AppRoutes.HOME, "Home", Icons.Default.Home),
-        Triple(AppRoutes.EXPLORER, "Browse", Icons.Default.Folder),
-        Triple(AppRoutes.TOOLS, "Tools", Icons.Default.Build)
-    )
-
-    val showBottomBar = currentRoute in bottomNavItems.map { it.first }
-
     Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { (route, label, icon) ->
-                        NavigationBarItem(
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                            selected = currentRoute == route,
-                            onClick = {
-                                if (currentRoute != route) {
-                                    if (route == AppRoutes.EXPLORER) {
-                                        viewModel.openFileBrowser()
-                                    }
-                                    navController.navigate(route) {
-                                        popUpTo(AppRoutes.HOME) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
+        contentWindowInsets = WindowInsets(0)
     ) { scaffoldPadding ->
         Box(modifier = Modifier.padding(scaffoldPadding)) {
             NavHost(
@@ -115,9 +75,6 @@ fun ArcileAppShell(
                             }
                         },
                         onOpenFile = onOpenFile,
-                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
-                        onClearSearch = { viewModel.updateHomeSearchQuery("") },
-                        onSortOptionChange = { viewModel.updateHomeSortOption(it) },
                         onCategoryClick = { categoryName ->
                             viewModel.navigateToCategory(categoryName)
                             navController.navigate(AppRoutes.EXPLORER) {
@@ -127,6 +84,12 @@ fun ArcileAppShell(
                         },
                         onSettingsClick = {
                             navController.navigate(AppRoutes.SETTINGS)
+                        },
+                        onNavigateToTools = {
+                            navController.navigate(AppRoutes.TOOLS) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
                         }
                     )
                 }
@@ -162,7 +125,9 @@ fun ArcileAppShell(
                     )
                 }
                 composable(AppRoutes.TOOLS) {
-                    ToolsScreen()
+                    ToolsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
                 composable(AppRoutes.SETTINGS) {
                     SettingsScreen(

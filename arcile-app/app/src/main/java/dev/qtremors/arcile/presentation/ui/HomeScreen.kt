@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -24,16 +23,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FilterNone
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -43,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,8 +67,8 @@ import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
-import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
+import dev.qtremors.arcile.presentation.ui.components.ToolCard
+import dev.qtremors.arcile.presentation.ui.components.ToolItem
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -77,22 +81,12 @@ fun HomeScreen(
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,
     onOpenFile: (String) -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    onSortOptionChange: (FileSortOption) -> Unit,
     onCategoryClick: (String) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onNavigateToTools: () -> Unit
 ) {
-    var showSearchBar by rememberSaveable { mutableStateOf(state.homeSearchQuery.isNotEmpty()) }
-    var showSortDialog by remember { mutableStateOf(false) }
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         filterAndSortFiles(state.recentFiles, state.homeSearchQuery, state.homeSortOption)
-    }
-
-    LaunchedEffect(state.homeSearchQuery) {
-        if (state.homeSearchQuery.isNotEmpty()) {
-            showSearchBar = true
-        }
     }
 
     Scaffold(
@@ -156,10 +150,61 @@ fun HomeScreen(
                     )
                 }
                 item {
-                    MainFoldersRow(
+                    MainFoldersGrid(
                         onOpenFileBrowser = onOpenFileBrowser,
                         onNavigateToPath = onNavigateToPath
                     )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Utilities",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(onClick = onNavigateToTools) {
+                            Text("Show All")
+                        }
+                    }
+                }
+
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering))
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Analyze Storage", Icons.Default.PieChart))
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Clean Junk", Icons.Default.CleaningServices))
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Duplicates", Icons.Default.FilterNone))
+                            }
+                        }
+                    }
                 }
 
                 item {
@@ -477,11 +522,10 @@ fun CategoryItem(
 }
 
 @Composable
-fun MainFoldersRow(
+fun MainFoldersGrid(
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit
 ) {
-    val scrollState = rememberScrollState()
     val root = Environment.getExternalStorageDirectory()
 
     data class FolderShortcut(val name: String, val icon: ImageVector, val path: String?)
@@ -496,36 +540,56 @@ fun MainFoldersRow(
         FolderShortcut("All Files", Icons.Default.Folder, null)
     )
 
-    Row(
+    Column(
         modifier = Modifier
-            .horizontalScroll(scrollState)
+            .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        folders.forEach { folder ->
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                onClick = {
-                    if (folder.path != null) {
-                        onNavigateToPath(folder.path)
-                    } else {
-                        onOpenFileBrowser()
-                    }
-                },
-                modifier = Modifier
-                    .width(130.dp)
-                    .height(48.dp)
+        val rows = listOf(
+            folders.subList(0, 3), 
+            folders.subList(3, 6), 
+            folders.subList(6, 7)
+        )
+
+        rows.forEach { rowFolders ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(folder.icon, contentDescription = folder.name, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    Text(text = folder.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                rowFolders.forEach { folder ->
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        onClick = {
+                            if (folder.path != null) {
+                                onNavigateToPath(folder.path)
+                            } else {
+                                onOpenFileBrowser()
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(folder.icon, contentDescription = folder.name, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Text(text = folder.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                        }
+                    }
+                }
+                
+                // Add invisible spacer blocks to balance rows that aren't fully populated
+                if (rowFolders.size < 3) {
+                    repeat(3 - rowFolders.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }

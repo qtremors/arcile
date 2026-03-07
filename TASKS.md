@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.2.1
+> **Version:** 0.2.2
 > **Last Updated:** 2026-03-07
 
 ---
@@ -69,8 +69,6 @@
 - [ ] [Correctness] Move refresh-rate side-effect out of `setContent` to prevent redundant execution (`MainActivity.kt:57-69`)
 - [ ] [Chore] Use non-deprecated `display` API on Android 30+ (`MainActivity.kt:59`)
 - [ ] [Performance] Prevent redundant `openFileBrowser()` calls in `ArcileAppShell` (`ArcileAppShell.kt:136-140`)
-- [ ] [UX] Wire unused search and sort states in `HomeScreen` to the UI (`HomeScreen.kt:84-88`)
-- [ ] [Bug] Remove extra closing brace causing syntax error in `HomeScreen.kt` (`HomeScreen.kt:212`)
 - [ ] [Chore] Replace deprecated `Divider` with `HorizontalDivider` in `SettingsScreen.kt` (`SettingsScreen.kt:66, 84, 92, 100`)
 - [ ] [Docs] Update stale architecture and configuration details in `DEVELOPMENT.md` (`DEVELOPMENT.md:5, 46, 76, 308, 339`)
 
