@@ -5,10 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.TwoWayConverter
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateValueAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -72,11 +69,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,7 +88,8 @@ import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.presentation.SearchFilters
+import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
@@ -103,7 +97,7 @@ import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
-import androidx.compose.foundation.lazy.LazyRow
+
 import dev.qtremors.arcile.domain.FileCategories
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -441,7 +435,7 @@ fun FileManagerScreen(
             AlertDialog(
                 onDismissRequest = { showDeleteConfirmation = false },
                 title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
-                text = { Text("This action cannot be undone. Directories will be deleted recursively.") },
+                text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
                 confirmButton = {
                     androidx.compose.material3.FilledTonalButton(
                         onClick = {
@@ -631,11 +625,7 @@ fun FileItemRow(
         label = "listItemColor"
     )
     
-    val animatedShape by androidx.compose.animation.core.animateValueAsState(
-        targetValue = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
-        typeConverter = androidx.compose.animation.core.TwoWayConverter({ androidx.compose.animation.core.AnimationVector1D(0f) }, { ExpressiveShapes.large }),
-        label = "listItemShape"
-    )
+
 
     Surface(
         shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
@@ -767,13 +757,7 @@ private fun FileGridItem(
     }
 }
 
-fun formatFileSize(size: Long): String {
-    if (size <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
-        .coerceAtMost(units.size - 1)
-    return String.format(Locale.US, "%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
-}
+
 
 @Composable
 fun CreateFolderDialog(

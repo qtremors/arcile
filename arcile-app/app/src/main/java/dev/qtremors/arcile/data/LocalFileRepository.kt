@@ -10,7 +10,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.TrashMetadata
-import dev.qtremors.arcile.presentation.SearchFilters
+import dev.qtremors.arcile.domain.SearchFilters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -286,9 +286,9 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun searchFiles(query: String, pathScope: String?, filters: Any?): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun searchFiles(query: String, pathScope: String?, filters: SearchFilters?): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext Result.success(emptyList())
-        val searchFilters = filters as? SearchFilters
+        val searchFilters = filters
 
         try {
             val filesList = mutableListOf<FileModel>()

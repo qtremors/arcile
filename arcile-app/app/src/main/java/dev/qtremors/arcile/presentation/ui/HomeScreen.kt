@@ -83,7 +83,8 @@ import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
-import dev.qtremors.arcile.presentation.SearchFilters
+import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.utils.formatFileSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue

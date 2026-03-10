@@ -231,11 +231,7 @@ private fun TrashList(
                 label = "trashListItemColor"
             )
             
-            val animatedShape by androidx.compose.animation.core.animateValueAsState(
-                targetValue = if (isSelected) dev.qtremors.arcile.ui.theme.ExpressiveShapes.large else ExpressiveSquircleShape,
-                typeConverter = androidx.compose.animation.core.TwoWayConverter({ androidx.compose.animation.core.AnimationVector1D(0f) }, { dev.qtremors.arcile.ui.theme.ExpressiveShapes.large }),
-                label = "trashListItemShape"
-            )
+            
 
             Surface(
                 shape = if (isSelected) dev.qtremors.arcile.ui.theme.ExpressiveShapes.large else ExpressiveSquircleShape,

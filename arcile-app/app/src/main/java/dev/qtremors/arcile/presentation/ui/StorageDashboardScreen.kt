@@ -41,6 +41,7 @@ import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import androidx.compose.ui.graphics.Color
+import dev.qtremors.arcile.utils.formatFileSize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

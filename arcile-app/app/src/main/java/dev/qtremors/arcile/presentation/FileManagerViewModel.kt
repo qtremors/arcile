@@ -14,7 +14,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.TrashMetadata
-import dev.qtremors.arcile.presentation.SearchFilters
+import dev.qtremors.arcile.domain.SearchFilters
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -446,10 +446,8 @@ class FileManagerViewModel(
     fun navigateToRecentFiles() {
         _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = true, selectedFiles = emptySet()) }
         pathHistory.clear()
-        // Ensure data is loaded
-        if (_state.value.recentFiles.isEmpty()) {
-            loadHomeData()
-        }
+        // Always reload to ensure fresh data
+        loadHomeData()
     }
 
     private fun loadTrashFiles() {

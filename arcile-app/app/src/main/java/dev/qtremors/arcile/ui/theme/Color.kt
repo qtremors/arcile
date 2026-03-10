@@ -51,10 +51,10 @@ val OledColorScheme = darkColorScheme(
     surface = Color.Black,
     surfaceVariant = Color(0xFF121212),
     surfaceContainerLowest = Color.Black,
-    surfaceContainerLow = Color(0xFF1C1B1F),
-    surfaceContainer = Color(0xFF211F26),
-    surfaceContainerHigh = Color(0xFF2B2930),
-    surfaceContainerHighest = Color(0xFF36343B),
+    surfaceContainerLow = Color(0xFF0A0A0A),
+    surfaceContainer = Color(0xFF111111),
+    surfaceContainerHigh = Color(0xFF1A1A1A),
+    surfaceContainerHighest = Color(0xFF222222),
     onBackground = Color.White,
     onSurface = Color.White
 )

@@ -1,10 +1,9 @@
+@file:Suppress("DEPRECATION_WARNING")
 package dev.qtremors.arcile.presentation
 
-data class SearchFilters(
-    val fileType: String? = null,
-    val itemType: String? = null,
-    val minSize: Long? = null,
-    val maxSize: Long? = null,
-    val minDateMillis: Long? = null,
-    val maxDateMillis: Long? = null
-)
+/**
+ * @deprecated Moved to [dev.qtremors.arcile.domain.SearchFilters].
+ * This file is kept temporarily to avoid breaking any external references.
+ */
+@Deprecated("Use dev.qtremors.arcile.domain.SearchFilters instead", ReplaceWith("dev.qtremors.arcile.domain.SearchFilters"))
+typealias SearchFilters = dev.qtremors.arcile.domain.SearchFilters

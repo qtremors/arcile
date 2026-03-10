@@ -12,7 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.presentation.SearchFilters
+import dev.qtremors.arcile.domain.SearchFilters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
