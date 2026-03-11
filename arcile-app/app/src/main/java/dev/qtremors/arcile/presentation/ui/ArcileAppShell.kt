@@ -12,15 +12,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,8 +31,10 @@ import androidx.navigation.compose.rememberNavController
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.FileManagerViewModel
 import dev.qtremors.arcile.ui.theme.ThemeState
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import java.io.File
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
     viewModel: FileManagerViewModel,
@@ -51,51 +46,19 @@ fun ArcileAppShell(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
 
-    val bottomNavItems = listOf(
-        Triple(AppRoutes.HOME, "Home", Icons.Default.Home),
-        Triple(AppRoutes.EXPLORER, "Browse", Icons.Default.Folder),
-        Triple(AppRoutes.TOOLS, "Tools", Icons.Default.Build)
-    )
-
-    val showBottomBar = currentRoute in bottomNavItems.map { it.first }
-
-    Scaffold(
-        contentWindowInsets = WindowInsets(0),
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { (route, label, icon) ->
-                        NavigationBarItem(
-                            icon = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                            selected = currentRoute == route,
-                            onClick = {
-                                if (currentRoute != route) {
-                                    if (route == AppRoutes.EXPLORER) {
-                                        viewModel.openFileBrowser()
-                                    }
-                                    navController.navigate(route) {
-                                        popUpTo(AppRoutes.HOME) { saveState = true }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-    ) { scaffoldPadding ->
-        Box(modifier = Modifier.padding(scaffoldPadding)) {
-            NavHost(
-                navController = navController,
-                startDestination = AppRoutes.HOME,
-                enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
-                exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
-                popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
-                popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
-            ) {
+    androidx.compose.animation.SharedTransitionLayout {
+        Scaffold(
+            contentWindowInsets = WindowInsets(0)
+        ) { scaffoldPadding ->
+            Box(modifier = Modifier.padding(scaffoldPadding)) {
+                NavHost(
+                    navController = navController,
+                    startDestination = AppRoutes.HOME,
+                    enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
+                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
+                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
+                ) {
                 composable(AppRoutes.HOME) {
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     HomeScreen(
@@ -115,9 +78,6 @@ fun ArcileAppShell(
                             }
                         },
                         onOpenFile = onOpenFile,
-                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
-                        onClearSearch = { viewModel.updateHomeSearchQuery("") },
-                        onSortOptionChange = { viewModel.updateHomeSortOption(it) },
                         onCategoryClick = { categoryName ->
                             viewModel.navigateToCategory(categoryName)
                             navController.navigate(AppRoutes.EXPLORER) {
@@ -127,17 +87,53 @@ fun ArcileAppShell(
                         },
                         onSettingsClick = {
                             navController.navigate(AppRoutes.SETTINGS)
+                        },
+                        onNavigateToTools = {
+                            navController.navigate(AppRoutes.TOOLS) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onNavigateToTrash = {
+                            viewModel.navigateToTrash()
+                            navController.navigate(AppRoutes.TRASH) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onNavigateToRecentFiles = {
+                            viewModel.navigateToRecentFiles()
+                            navController.navigate(AppRoutes.RECENT_FILES) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onOpenStorageDashboard = {
+                            navController.navigate(AppRoutes.STORAGE_DASHBOARD) {
+                                popUpTo(AppRoutes.HOME) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
+                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
+                    )
+                }
+                composable(AppRoutes.STORAGE_DASHBOARD) {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    StorageDashboardScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onCategoryClick = { categoryName ->
+                            viewModel.navigateToCategory(categoryName)
+                            navController.navigate(AppRoutes.EXPLORER) {
+                                popUpTo(AppRoutes.STORAGE_DASHBOARD) { inclusive = true }
+                            }
                         }
                     )
                 }
                 composable(AppRoutes.EXPLORER) {
                     val state by viewModel.state.collectAsStateWithLifecycle()
-
-                    LaunchedEffect(Unit) {
-                        if (state.currentPath.isEmpty()) {
-                            viewModel.openFileBrowser()
-                        }
-                    }
 
                     FileManagerScreen(
                         state = state,
@@ -150,19 +146,64 @@ fun ArcileAppShell(
                         onNavigateTo = { viewModel.navigateToFolder(it) },
                         onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
+                        onSelectMultiple = { viewModel.selectMultiple(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
-                        onDeleteSelected = { viewModel.deleteSelectedFiles() },
+                        onCreateFile = { viewModel.createFile(it) },
+                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
                         onSortOptionChange = { viewModel.updateBrowserSortOption(it) },
                         onGridViewChange = { viewModel.setGridView(it) },
+                        onClearError = { viewModel.clearError() },
+                        onCopySelected = { viewModel.copySelectedToClipboard() },
+                        onCutSelected = { viewModel.cutSelectedToClipboard() },
+                        onPasteFromClipboard = { viewModel.pasteFromClipboard() },
+                        onCancelClipboard = { viewModel.cancelClipboard() },
+                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
+                        isRefreshing = state.isLoading,
+                        onRefresh = { viewModel.refresh() },
+                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
+                    )
+                }
+                composable(AppRoutes.TRASH) {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    TrashScreen(
+                        state = state,
+                        onNavigateBack = {
+                            if (!viewModel.navigateBack()) {
+                                navController.popBackStack()
+                            }
+                        },
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onClearSelection = { viewModel.clearSelection() },
+                        onRestoreSelected = { viewModel.restoreSelectedTrash() },
+                        onEmptyTrash = { viewModel.emptyTrash() },
                         onClearError = { viewModel.clearError() }
                     )
                 }
+                composable(AppRoutes.RECENT_FILES) {
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    RecentFilesScreen(
+                        state = state,
+                        onNavigateBack = {
+                            if (!viewModel.navigateBack()) {
+                                navController.popBackStack()
+                            }
+                        },
+                        onOpenFile = onOpenFile,
+                        onToggleSelection = { viewModel.toggleSelection(it) },
+                        onClearSelection = { viewModel.clearSelection() },
+                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
+                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) }
+                    )
+                }
                 composable(AppRoutes.TOOLS) {
-                    ToolsScreen()
+                    ToolsScreen(
+                        onNavigateBack = { navController.popBackStack() }
+                    )
                 }
                 composable(AppRoutes.SETTINGS) {
                     SettingsScreen(
@@ -171,6 +212,7 @@ fun ArcileAppShell(
                         onThemeChange = onThemeChange
                     )
                 }
+            }
             }
         }
     }

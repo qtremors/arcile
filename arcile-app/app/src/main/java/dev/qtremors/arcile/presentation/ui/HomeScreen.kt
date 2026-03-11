@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import android.os.Environment
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
@@ -32,68 +34,115 @@ import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.combinedClickable
+import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import dev.qtremors.arcile.ui.theme.ExpressivePillShape
+import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.presentation.FileManagerState
-import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
-import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
+import dev.qtremors.arcile.presentation.ui.components.ToolCard
+import dev.qtremors.arcile.presentation.ui.components.ToolItem
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
+import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.utils.getCategoryColor
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 
+/**
+ * Dashboard screen shown when the app first launches.
+ *
+ * Displays a storage summary card, per-category storage breakdown, quick-access folder
+ * shortcuts, a utilities tray, and a recent-files list.
+ *
+ * @param state Current [FileManagerState] providing storage info, recent files, and category data.
+ * @param onOpenFileBrowser Invoked when the user wants to browse all files from the storage root.
+ * @param onNavigateToPath Invoked when the user taps a quick-access folder shortcut.
+ * @param onOpenFile Invoked when the user taps a recent file to open it externally.
+ * @param onCategoryClick Invoked with the category name when the user taps a category tile.
+ * @param onSettingsClick Navigates to the Settings screen.
+ * @param onNavigateToTools Navigates to the Tools screen.
+ * @param onNavigateToTrash Navigates to the Trash screen.
+ * @param onNavigateToRecentFiles Navigates to the full Recent Files screen.
+ * @param onOpenStorageDashboard Navigates to the Storage Dashboard screen.
+ * @param onSearchQueryChange Propagates search query changes to the ViewModel.
+ * @param onSearchFiltersChange Propagates updated search filter selections to the ViewModel.
+ * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     state: FileManagerState,
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,
     onOpenFile: (String) -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    onSortOptionChange: (FileSortOption) -> Unit,
     onCategoryClick: (String) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onNavigateToTools: () -> Unit,
+    onNavigateToTrash: () -> Unit,
+    onNavigateToRecentFiles: () -> Unit,
+    onOpenStorageDashboard: () -> Unit,
+    onSearchQueryChange: (String) -> Unit = {},
+    onSearchFiltersChange: (SearchFilters) -> Unit = {},
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {}
 ) {
-    var showSearchBar by rememberSaveable { mutableStateOf(state.homeSearchQuery.isNotEmpty()) }
-    var showSortDialog by remember { mutableStateOf(false) }
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
-        filterAndSortFiles(state.recentFiles, state.homeSearchQuery, state.homeSortOption)
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val todayStart = cal.timeInMillis
+        val todayFiles = state.recentFiles.filter { it.lastModified >= todayStart }
+        filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
     }
 
-    LaunchedEffect(state.homeSearchQuery) {
-        if (state.homeSearchQuery.isNotEmpty()) {
-            showSearchBar = true
-        }
-    }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             ArcileTopBar(
                 title = "Arcile",
@@ -101,14 +150,24 @@ fun HomeScreen(
                 showSettingsIcon = true,
                 showSearchAction = false,
                 showSortAction = false,
-                onSettingsClick = onSettingsClick,
-                onClearSelection = {},
-                onSearchClick = {},
-                onSortClick = {},
-                onActionSelected = {}
-            )
+                    showNewFolderAction = false,
+                    showSettingsMenuAction = false,
+                    showAboutAction = true,
+                    scrollBehavior = scrollBehavior,
+                    onSettingsClick = onSettingsClick,
+                    onClearSelection = {},
+                    onSearchClick = {},
+                    onSortClick = {},
+                    onActionSelected = { action ->
+                        when (action) {
+                            TopBarAction.Settings -> onSettingsClick()
+                            else -> {}
+                        }
+                    }
+                )
         }
     ) { padding ->
+        
         if (state.isLoading) {
             Box(
                 modifier = Modifier
@@ -116,7 +175,7 @@ fun HomeScreen(
                     .padding(padding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                LoadingIndicator()
             }
         } else {
             Box(
@@ -131,7 +190,8 @@ fun HomeScreen(
                 item {
                     StorageSummaryCard(
                         state = state,
-                        onClick = onOpenFileBrowser
+                        onClick = onOpenFileBrowser,
+                        onLongClick = onOpenStorageDashboard
                     )
                 }
 
@@ -154,10 +214,61 @@ fun HomeScreen(
                     )
                 }
                 item {
-                    MainFoldersRow(
+                    MainFoldersGrid(
                         onOpenFileBrowser = onOpenFileBrowser,
                         onNavigateToPath = onNavigateToPath
                     )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Utilities",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(onClick = onNavigateToTools) {
+                            Text("Show All")
+                        }
+                    }
+                }
+
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Trash Bin", Icons.Default.Delete, isImplemented = true), onClick = onNavigateToTrash)
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Analyze Storage", Icons.Default.PieChart, isImplemented = false))
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering, isImplemented = false))
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                ToolCard(ToolItem("Clean Junk", Icons.Default.CleaningServices, isImplemented = false))
+                            }
+                        }
+                    }
                 }
 
                 item {
@@ -173,6 +284,9 @@ fun HomeScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
+                        TextButton(onClick = onNavigateToRecentFiles) {
+                            Text("See All")
+                        }
                     }
                 }
 
@@ -187,7 +301,7 @@ fun HomeScreen(
                             Text(
                                 text = "No recent files",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -211,10 +325,12 @@ fun HomeScreen(
 }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StorageSummaryCard(
     state: FileManagerState,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val total = state.storageInfo?.totalBytes ?: 0L
     val free = state.storageInfo?.freeBytes ?: 0L
@@ -223,15 +339,19 @@ fun StorageSummaryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        onClick = onClick,
+            .padding(16.dp)
+            .clip(ExpressiveSquircleShape)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
         ),
-        shape = MaterialTheme.shapes.extraLarge
+        shape = ExpressiveSquircleShape
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(24.dp).animateContentSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -267,7 +387,7 @@ fun StorageSummaryCard(
                     Text(
                         text = "${formatFileSize(free)} free",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
 
@@ -280,7 +400,7 @@ fun StorageSummaryCard(
                 Text(
                     text = "Tap to browse storage",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         }
@@ -294,7 +414,7 @@ fun MultiColorStorageBar(
     categoryStorages: List<CategoryStorage>
 ) {
     val barHeight = 10.dp
-    val barShape = RoundedCornerShape(barHeight / 2)
+    val barShape = ExpressivePillShape
 
     Box(
         modifier = Modifier
@@ -309,15 +429,17 @@ fun MultiColorStorageBar(
                 val actualUsedBytes = totalBytes - freeBytes
                 val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
 
+                val categoryColors = LocalCategoryColors.current
                 val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
                 sortedCategories.forEach { cat ->
                     if (cat.sizeBytes > 0) {
                         val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
+                        val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .weight(fraction.coerceAtLeast(0.005f))
-                                .background(Color(cat.color))
+                                .background(catColor)
                         )
                     }
                 }
@@ -355,8 +477,10 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
             .fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        val categoryColors = LocalCategoryColors.current
         val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
         sortedCategories.filter { it.sizeBytes > 0 }.forEach { cat ->
+            val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -365,12 +489,12 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(Color(cat.color))
+                        .background(catColor)
                 )
                 Text(
                     text = "${cat.name} ${formatFileSize(cat.sizeBytes)}",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -389,13 +513,15 @@ fun CategoryGrid(
         val sizeBytes: Long
     )
 
+    val catColors = LocalCategoryColors.current
+
     val categories = listOf(
-        CategoryDisplay("Images", Icons.Default.Image, Color(FileCategories.Images.color), categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
-        CategoryDisplay("Videos", Icons.Default.VideoFile, Color(FileCategories.Videos.color), categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
-        CategoryDisplay("Audio", Icons.Default.AudioFile, Color(FileCategories.Audio.color), categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
-        CategoryDisplay("Docs", Icons.Default.Description, Color(FileCategories.Documents.color), categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
-        CategoryDisplay("Archives", Icons.Default.FolderZip, Color(FileCategories.Archives.color), categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
-        CategoryDisplay("APKs", Icons.Default.Android, Color(FileCategories.APKs.color), categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Images", Icons.Default.Image, catColors.images, categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
+        CategoryDisplay("Videos", Icons.Default.VideoFile, catColors.videos, categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
+        CategoryDisplay("Audio", Icons.Default.AudioFile, catColors.audio, categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
+        CategoryDisplay("Docs", Icons.Default.Description, catColors.docs, categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Archives", Icons.Default.FolderZip, catColors.archives, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
+        CategoryDisplay("APKs", Icons.Default.Android, catColors.apks, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
     ).sortedByDescending { it.sizeBytes }
 
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {
@@ -440,15 +566,35 @@ fun CategoryItem(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.90f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.8f,
+            stiffness = 380f
+        ),
+        label = "categoryScale"
+    )
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
-            .clickable(onClick = onClick)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                onClick = onClick
+            )
             .padding(8.dp)
     ) {
         Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.secondaryContainer,
+            shape = ExpressiveSquircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(64.dp)
         ) {
             Icon(
@@ -475,11 +621,10 @@ fun CategoryItem(
 }
 
 @Composable
-fun MainFoldersRow(
+fun MainFoldersGrid(
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit
 ) {
-    val scrollState = rememberScrollState()
     val root = Environment.getExternalStorageDirectory()
 
     data class FolderShortcut(val name: String, val icon: ImageVector, val path: String?)
@@ -494,36 +639,56 @@ fun MainFoldersRow(
         FolderShortcut("All Files", Icons.Default.Folder, null)
     )
 
-    Row(
+    Column(
         modifier = Modifier
-            .horizontalScroll(scrollState)
+            .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        folders.forEach { folder ->
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                onClick = {
-                    if (folder.path != null) {
-                        onNavigateToPath(folder.path)
-                    } else {
-                        onOpenFileBrowser()
-                    }
-                },
-                modifier = Modifier
-                    .width(130.dp)
-                    .height(48.dp)
+        val rows = listOf(
+            folders.subList(0, 3), 
+            folders.subList(3, 6), 
+            folders.subList(6, 7)
+        )
+
+        rows.forEach { rowFolders ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(folder.icon, contentDescription = folder.name, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                    Text(text = folder.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                rowFolders.forEach { folder ->
+                    Surface(
+                        shape = ExpressivePillShape,
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        onClick = {
+                            if (folder.path != null) {
+                                onNavigateToPath(folder.path)
+                            } else {
+                                onOpenFileBrowser()
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(folder.icon, contentDescription = folder.name, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                            Text(text = folder.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                        }
+                    }
+                }
+                
+                // Add invisible spacer blocks to balance rows that aren't fully populated
+                if (rowFolders.size < 3) {
+                    repeat(3 - rowFolders.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }

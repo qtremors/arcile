@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +36,7 @@ fun SearchTopBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit,
+    onFilterClick: () -> Unit = {},
     placeholder: String = "Search files..."
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -82,6 +84,9 @@ fun SearchTopBar(
                 IconButton(onClick = { onQueryChange("") }) {
                     Icon(Icons.Default.Clear, contentDescription = "Clear")
                 }
+            }
+            IconButton(onClick = onFilterClick) {
+                Icon(Icons.Default.FilterList, contentDescription = "Filters")
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

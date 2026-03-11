@@ -1,28 +1,65 @@
 package dev.qtremors.arcile.presentation.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.SettingsSuggest
+import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateColorAsState
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.ThemeState
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Settings screen for theme and appearance preferences.
+ *
+ * Displays a theme mode selector (System / Light / Dark / OLED) and an accent color picker.
+ * Theme state is persisted via [dev.qtremors.arcile.ui.theme.ThemePreferences] (DataStore).
+ * Also includes an About section with app version, developer, repository, and device info.
+ *
+ * @param currentThemeState Current [ThemeState] reflecting the active theme mode and accent color.
+ * @param onNavigateBack Called when the user navigates back.
+ * @param onThemeChange Called with the updated [ThemeState] whenever the user changes a setting.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     currentThemeState: ThemeState,
@@ -31,19 +68,19 @@ fun SettingsScreen(
 ) {
     val uriHandler = LocalUriHandler.current
 
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            LargeTopAppBar(
                 title = { Text("Settings") },
+                scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         }
     ) { padding ->
@@ -63,7 +100,7 @@ fun SettingsScreen(
                             onThemeChange(currentThemeState.copy(themeMode = it))
                         }
                     )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     AccentColorSelector(
                         currentAccent = currentThemeState.accentColor,
                         onAccentSelected = {
@@ -81,23 +118,23 @@ fun SettingsScreen(
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                     )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
                         headlineContent = { Text("Developer") },
                         supportingContent = { Text("Tremors (@qtremors)") },
                         leadingContent = { Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { uriHandler.openUri("https://github.com/qtremors") }
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors") }
                     )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
                         headlineContent = { Text("Repository") },
                         supportingContent = { Text("github.com/qtremors/arcile") },
                         leadingContent = { Icon(Icons.Default.Source, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { uriHandler.openUri("https://github.com/qtremors/arcile") }
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors/arcile") }
                     )
-                    Divider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
                         headlineContent = { Text("Device") },
                         supportingContent = { Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})") },
@@ -122,105 +159,189 @@ fun SettingsSection(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 8.dp)
         )
-        Card(
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
-            shape = MaterialTheme.shapes.large
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shape = ExpressiveShapes.large
         ) {
-            Column(content = content)
+            Column(content = content, modifier = Modifier.padding(vertical = 4.dp))
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemeModeSelector(
     currentMode: ThemeMode,
     onModeSelected: (ThemeMode) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ListItem(
-        headlineContent = { Text("Theme Mode") },
-        supportingContent = { Text(currentMode.name) },
-        leadingContent = { Icon(Icons.Default.DarkMode, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable { expanded = true }
-    )
-
-    if (expanded) {
-        ModalBottomSheet(onDismissRequest = { expanded = false }) {
-            Column(modifier = Modifier.padding(bottom = 32.dp)) {
-                Text(
-                    text = "Select Theme Mode",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(16.dp)
-                )
-                ThemeMode.entries.forEach { mode ->
-                    ListItem(
-                        headlineContent = { Text(mode.name) },
-                        trailingContent = {
-                            if (mode == currentMode) {
-                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        },
-                        modifier = Modifier.clickable {
-                            onModeSelected(mode)
-                            expanded = false
-                        }
-                    )
-                }
-            }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(
+            text = "Theme Mode",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeModeCard(ThemeMode.SYSTEM, "System", Icons.Default.SettingsSuggest, currentMode == ThemeMode.SYSTEM, Modifier.weight(1f), onModeSelected)
+            ThemeModeCard(ThemeMode.LIGHT, "Light", Icons.Default.LightMode, currentMode == ThemeMode.LIGHT, Modifier.weight(1f), onModeSelected)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ThemeModeCard(ThemeMode.DARK, "Dark", Icons.Default.DarkMode, currentMode == ThemeMode.DARK, Modifier.weight(1f), onModeSelected)
+            ThemeModeCard(ThemeMode.OLED, "OLED", Icons.Default.Contrast, currentMode == ThemeMode.OLED, Modifier.weight(1f), onModeSelected)
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ThemeModeCard(
+    mode: ThemeMode,
+    label: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: (ThemeMode) -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.8f,
+            stiffness = 380f
+        ), label = "cardScale"
+    )
+
+    val containerColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        label = "containerColor"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        label = "contentColor"
+    )
+
+    Surface(
+        shape = ExpressiveSquircleShape,
+        color = containerColor,
+        contentColor = contentColor,
+        border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(ExpressiveSquircleShape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = androidx.compose.foundation.LocalIndication.current,
+                onClick = { onClick(mode) }
+            )
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(text = label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
 @Composable
 fun AccentColorSelector(
     currentAccent: AccentColor,
     onAccentSelected: (AccentColor) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    ListItem(
-        headlineContent = { Text("Accent Color") },
-        supportingContent = { Text(currentAccent.name) },
-        leadingContent = { Icon(Icons.Default.ColorLens, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-        modifier = Modifier.clickable { expanded = true }
-    )
-
-    if (expanded) {
-        ModalBottomSheet(onDismissRequest = { expanded = false }) {
-            Column(modifier = Modifier.padding(bottom = 32.dp)) {
-                Text(
-                    text = "Select Accent Color",
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(16.dp)
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Text(
+            text = "Accent Color",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+        )
+        
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(AccentColor.entries) { accent ->
+                val isSelected = currentAccent == accent
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.85f else if (isSelected) 1.1f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = 0.8f,
+                        stiffness = 380f
+                    ), label = "chipScale"
                 )
-                AccentColor.entries.forEach { accent ->
-                    ListItem(
-                        headlineContent = { Text(accent.name) },
-                        leadingContent = {
-                            if (accent.color != null) {
-                                Surface(shape = MaterialTheme.shapes.small, color = accent.color, modifier = Modifier.size(24.dp)) {}
-                            } else {
-                                Icon(Icons.Default.ColorLens, contentDescription = null)
-                            }
-                        },
-                        trailingContent = {
-                            if (accent == currentAccent) {
-                                Icon(Icons.Default.Check, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        },
-                        modifier = Modifier.clickable {
-                            onAccentSelected(accent)
-                            expanded = false
+
+                val displayColor = accent.color ?: MaterialTheme.colorScheme.outlineVariant
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(48.dp)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
                         }
-                    )
+                        .clip(CircleShape)
+                        .background(displayColor)
+                        .then(
+                            if (!isSelected) {
+                                Modifier.border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    shape = CircleShape
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = androidx.compose.foundation.LocalIndication.current,
+                            onClick = { onAccentSelected(accent) }
+                        )
+                ) {
+                    if (isSelected) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Selected",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(4.dp)
+                            )
+                        }
+                    } else if (accent == AccentColor.DYNAMIC) {
+                        Icon(
+                            imageVector = Icons.Default.ColorLens,
+                            contentDescription = "Dynamic",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Selected: ${currentAccent.name}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
     }
 }

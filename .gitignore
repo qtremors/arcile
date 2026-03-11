@@ -29,6 +29,9 @@ local.properties
 *.iws
 *.ipr
 
+# IDE
+.vscode
+
 # Captures (Android Studio memory snapshots)
 captures/
 

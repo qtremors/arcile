@@ -1,8 +1,181 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.2.0
-> **Last Updated:** 2026-03-06
+> **Version:** 0.3.0
+> **Last Updated:** 2026-03-11
+
+---
+
+## [0.3.0] - 2026-03-11
+
+### Fixed
+- [Bug] `loadHomeData()` no longer triggers double recomposition — recent files, storage info, and category sizes are now merged into a single `_state.update` call.
+- [Bug] `SimpleDateFormat` instance in `RecentFilesScreen` is now wrapped in `remember` to prevent per-recomposition GC pressure.
+
+### Improved
+- [UX] Error messages now display as non-blocking `Snackbar` notifications at the bottom of the screen, replacing the modal `AlertDialog` that forced user interaction before retrying.
+- [UX] Clipboard copy/cut operations now show feedback via `Snackbar`: "N item(s) copied to clipboard" or "N item(s) cut to clipboard".
+- [Motion] FAB expansion menu now shows a dismissible scrim overlay — tapping outside the expanded menu closes it cleanly.
+- [Motion] File selection padding transition (0dp → 8dp) is now smoothly animated via `animateDpAsState` instead of an abrupt layout jump.
+- [Architecture] Category color mapping (`getCategoryColor()`) centralized into `utils/CategoryColors.kt`, replacing 3 duplicated `when` blocks across `HomeScreen.kt` and `StorageDashboardScreen.kt`.
+
+### Changed
+- [Naming] `deleteSelectedFiles()` renamed to `moveSelectedToTrash()` in `FileManagerViewModel` to accurately reflect the trash-based deletion pipeline.
+
+### Removed
+- [Security] Removed `android:requestLegacyExternalStorage="true"` from `AndroidManifest.xml` — ignored on Android 11+ and a security regression on Android 10.
+
+---
+
+## [0.2.9] - 2026-03-10
+
+### Fixed
+- [Bug] Delete confirmation dialog now correctly states "Selected items will be moved to the Trash Bin. You can restore them later" instead of the misleading "This action cannot be undone."
+- [Bug] Recent Files screen now always reloads data when navigated to, preventing stale file lists after file operations.
+- [Bug] `FileRepository.searchFiles()` parameter changed from `Any?` to `SearchFilters?` for compile-time type safety.
+
+### Improved
+- [Architecture] Moved `SearchFilters` data class from `presentation` to `domain` package, fixing an architectural dependency violation (data layer was importing from presentation layer).
+- [Architecture] Extracted `formatFileSize()` utility from `FileManagerScreen.kt` into a shared `utils/FormatUtils.kt` module, resolving cross-file coupling.
+- [Design] Restored the bundled Outfit font across all 13 Material typography styles, replacing the system `SansSerif` fallback that was set in v0.2.5.
+- [Design] Fixed OLED theme `surfaceContainer`, `surfaceContainerHigh`, and `surfaceContainerHighest` tokens to use properly dark values, ensuring cards and elevated surfaces render near-black in OLED mode.
+- [Design] Removed deprecated `window.statusBarColor` and `window.navigationBarColor` API calls from `ArcileTheme` — `enableEdgeToEdge()` already handles system bar colors.
+
+### Removed
+- [Cleanup] Removed dead `animatedShape` animation code from `FileItemRow` and `TrashScreen` — the `TwoWayConverter` was a no-op that always returned the same shape value.
+- [Cleanup] Removed duplicate imports (`AnimatedVisibility`, `fadeIn`, `fadeOut`, `slideInVertically`, `slideOutVertically`, `LazyRow`) from `FileManagerScreen.kt`.
+
+---
+
+## [0.2.8] - 2026-03-07
+
+### Added
+- [Feature] Contextual Content Search: Integrated local file search logic directly bound to the user's current directory exploration scope. Searching in `Downloads` will now yield results strictly contained within the `Downloads` node mapping, bypassing the global MediaStore dump. 
+- [Feature] Search Filters: Introduced an inline bottom sheet for real-time granular file filtering during search operations. Support logic dynamically targets:
+  - File Type (Images, Videos, Audio, Docs)
+  - Item Type (Folders, Files)
+  - Minimum and Maximum Size spans (< 10 MB, 10 - 100MB, etc.)
+  - Date Modified ranges (Today, Last 7 Days, Last 30 Days)
+- [Feature] Smart Range Selection: Enabled intuitive multi-select logic in the File Browser. Once in selection mode, long-pressing two discrete files now automatically calculates and selects the spatial bounds bridging the two items.
+- [Feature] Select All: Injected a global 'Select All' toggle into the navigation bar during selection mode to batch select the entire directory instantly.
+
+### Improved
+- [UI] Search interface cleanly docks directly into the `FileManagerScreen`'s application bar alongside dynamic removable chips plotting active filters on a secondary layout row.
+- [UI] Filter Bottom sheet horizontally scrolls constraint dimensions to cleanly block native text wrapping glitches on tight pixel screens. 
+
+---
+
+## [0.2.7] - 2026-03-07
+
+### Added
+- [Feature] Implemented a comprehensive Storage Management Dashboard providing a visual breakdown of device storage by category.
+- [Feature] Added deep category navigation—clicking any storage category in the dashboard instantly opens that specific media group in the file explorer.
+- [Navigation] Integrated the dashboard via a long-press gesture on the primary Home screen storage card.
+
+### Improved
+- [UI] Refined the `MultiColorStorageBar` to provide accurate real-time feedback and better visual clarity between categorized data and system overhead.
+
+### Fixed
+- [Bug] Resolved Jetpack Compose `@Composable` context violations preventing builds when prepping data inside `LazyColumn` scopes.
+- [Bug] Fixed critical missing imports and fully-qualified name resolution failures in the `HomeScreen` and `StorageDashboard` UI modules.
+- [Bug] Corrected deprecated icon usage to the modern `AutoMirrored` standards.
+
+## [0.2.6] - 2026-03-07
+
+### Added
+- [Feature] Expanded the Recent Files experience via a dedicated "See All" screen that organizes recent items chronologically by full calendar days (Today, Yesterday, etc.) with explicit sticky headers natively mapped across timezone and daylight saving boundaries.
+- [Security] Applied `validateFileName` middleware across the repository to aggressively screen all directory/file creations and renames for invalid characters and explicit path traversal (`..` escapes) vectors.
+- [Security] Locked down `FileProvider` (`file_provider_paths.xml`) so the internal system no longer exposes the entire root `external_files` path to external apps.
+
+### Improved
+- [Performance] Eliminated severe "Recent Files" UI loading stutters by natively querying `SIZE`, `DISPLAY_NAME`, `DATE_MODIFIED`, and `MIME_TYPE` from the raw SQL MediaStore cursors, bypassing tens of thousands of simultaneous disk properties queries.
+- [Performance] `getRecentFiles` now securely pulls unbounded recent artifacts up to exactly 7 trailing days ago flawlessly, without an arbitrary query cap truncating results.
+- [Performance] Upgraded `AudioAlbumArtFetcher.kt` to natively sample large Bitmaps into memory rather than triggering OutOfMemory errors when loading raw byte streams into the cache. 
+
+### Changed
+- [Build] Integrated the Stable Artifacts API alongside standard configuration outputs (`Arcile-dev.qtremors.arcile-0.2.6.apk`) over the obsolete undocumented `VariantOutputImpl` internal API.
+
+### Fixed
+- [Bug] Prevented random directories from incorrectly populating the `RecentFilesScreen` as "0-byte files" by explicitly excluding rows where `MIME_TYPE` is null.
+- [Bug] Repositioned the high-refresh rate (120FPS) hardware configuration block in `MainActivity.kt` safely out of the `setContent` composable block and wired it directly to the Android 30+ non-deprecated `Display` subsystem.
+- [Bug] Stopped the Storage `ArcileAppShell` pathing tree from crashing and causing double-launches due to an improperly scoped `LaunchedEffect` listener on the App Shell backstack.
+
+
+## [0.2.5] - 2026-03-07
+
+### Fixed
+- [Bug] Resolved fully qualified name resolution failures breaking builds across UI screens.
+- [Bug] Fixed missing Compose runtime imports causing `HomeScreen` compilation errors.
+
+### Changed
+- [Design] Corrected `ExpandableFabMenu` internal actions to use `ExtendedFloatingActionButton` paired with `ExpressivePillShape` for proper pill construction.
+- [Design] Main internal storage `FloatingActionButton` now properly morphs its shape radius from an expressive squircle (16dp) to a perfect circle (28dp) when expanding its options.
+- [Design] Typography system globally swapped from the custom 'Outfit' font to the native `SansSerif` font to immediately enhance text legibility and contrast against vibrant Material 3 backgrounds.
+- [Design] Removed hard-coded alpha layer transparencies from various text components on the `HomeScreen` to solve legibility challenges and ensure pure M3 text color semantic rendering.
+- [Design] The `FileGridItem`, `FileItemRow`, and `TrashList` items now properly physically morph into an `ExpressiveShapes.large` container when selected, instead of using a baseline flat color switch.
+- [Architecture] `ArcileTopBar` refactored to allow parent screens to granularly pass booleans determining the overflow menu actions (e.g., hiding "New Folder" from the Home Screen, exposing "Settings" and "About" instead).
+- [Component] The `ToolCard` components on the Home Screen now check an internal `isImplemented` flag to decide whether to render the "Coming Soon" badge, unflagging the active Trash Bin.
+
+### Removed
+- [Cleanup] Removed the redundant `ExtendedFloatingActionButton` for "Empty Trash" situated at the bottom of the `TrashScreen` since the action is already unified within the `TopAppBar`.
+
+---
+
+## [0.2.4] - 2026-03-07
+
+### Added
+- [Design] Fully adapted the app to Google's Material 3 Expressive guidelines, including new shape scales, dynamic color themes, and typography refinements.
+- [Component] Replaced the single FAB inside the File Manager with a new Material 3 Expressive animated Expandable FAB Menu containing `New File` and `New Folder`.
+- [Motion] Implemented `SharedTransitionLayout` to support smooth shared element bounds transitions across navigation screens.
+- [Motion] Added `animateContentSize` for dynamic layout adjustments across expanding containers.
+
+### Changed
+- [Component] Overhauled `ArcileTopBar`, `GlobalSearchBar`, and Button components to map tightly against modern M3 surface container roles and expressive variants.
+- [Design] Transitioned the default system font family to `Outfit` to align with the expressive aesthetic profile.
+
+### Fixed
+- [Bug] Fixed the `Trash Bin` utility card on the Home Screen being unclickable due to redundant touch interception hierarchies.
+
+---
+
+## [0.2.3] - 2026-03-07
+
+### Added
+- [Feature] Core File Operations (`Copy`, `Cut`, `Paste`, `Share`) supported natively through application domain/repository architecture.
+- [Feature] Full `Trash Bin` system utilizing a highly-secured hidden system `.arcile_trash` vault. Default `delete` flows now map through `moveToTrash`.
+- [Feature] Added new AppRoutes screen for the Trash system, injected inside the `HomeScreen` as a fast shortcut.
+- [Feature] Embedded system clipboard monitoring inside `FileManagerState` memory to dynamically expose floating clipboard paste/cancel panels inside the main toolbar across location mutations.
+- [Feature] Intelligent copy conflict overrides mapping duplicate files sharing namespaces via a new automatic ` - Copy (*)` suffix resolution protocol to prevent filesystem erasure.
+- [Design] Integrated Material 3 Expressive `PullToRefresh` layout wrapper across all directory traversal screens inside `FileManagerScreen`.
+
+---
+
+## [0.2.2] - 2026-03-07
+
+### Added
+- [Feature] Introduced a global "Show All" button on the Home screen's Utilities dashboard to seamlessly dive into the dedicated Tools screen.
+- [Component] Abstracted the `ToolCard` feature out of the `ToolsScreen` into a unified layout module accessible across the app.
+
+### Changed
+- [Design] Radically transformed the Home screen Folders layout from a hidden horizontal scroll row into a rigid 3-row grid block that renders all shortcuts instantly.
+- [Design] Relocated 4 primary system Utilities out of the `ToolsScreen` and planted them directly onto the Home screen as a responsive 2x2 grid.
+
+### Fixed
+- [Bug] Cleaned up unused variables, dead topbar action properties, and dangling Material Icon imports from `HomeScreen.kt` and `ArcileAppShell.kt`.
+- [Bug] Fixed IDE compilation warnings throwing Unresolved Reference errors on missing UI elements.
+
+---
+
+## [0.2.1] - 2026-03-07
+
+### Added
+- [Feature] Bumped Compose Material 3 dependency to `1.4.0-alpha08` to introduce M3 Expressive API features.
+
+### Changed
+- [Design] Migrated traditional standard `CircularProgressIndicator` across all app screens to the new morphing `LoadingIndicator`.
+- [Design] Restructured setting and file browser lists to utilize proper `OneLineListItem` and `TwoLineListItem` formatting structure instead of generic ListItems.
+- [Motion] Added spring-based physics motion and scaling to `Card` and file grid components.
+- [UX] Contextual selection items in the `ArcileTopBar` are now grouped cleanly inside a tonal surface container to behave like a unified ButtonGroup.
 
 ---
 

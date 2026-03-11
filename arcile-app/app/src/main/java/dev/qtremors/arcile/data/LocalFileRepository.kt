@@ -9,9 +9,13 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.SearchFilters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 
 class LocalFileRepository(private val context: Context) : FileRepository {
 
@@ -24,6 +28,13 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         val canonical = file.canonicalPath
         if (canonical != storageRoot && !canonical.startsWith(storageRoot + File.separator)) {
             return Result.failure(SecurityException("Access denied: path outside storage boundary"))
+        }
+        return Result.success(Unit)
+    }
+
+    private fun validateFileName(name: String): Result<Unit> {
+        if (name.contains('/') || name.contains('\\') || name.contains("..") || name.contains('\u0000')) {
+            return Result.failure(IllegalArgumentException("Invalid file name: must not contain path separators or '..'"))
         }
         return Result.success(Unit)
     }
@@ -55,6 +66,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
         try {
+            validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newDir = File(parentPath, name)
             validatePath(newDir).onFailure { return@withContext Result.failure(it) }
 
@@ -71,34 +83,34 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
         try {
-            val file = File(path)
-            validatePath(file).onFailure { return@withContext Result.failure(it) }
+            validateFileName(name).onFailure { return@withContext Result.failure(it) }
+            val newFile = File(parentPath, name)
+            validatePath(newFile).onFailure { return@withContext Result.failure(it) }
 
-            if (!file.exists()) {
-                return@withContext Result.failure(IllegalArgumentException("File does not exist"))
+            if (newFile.exists()) {
+                return@withContext Result.failure(IllegalArgumentException("File already exists"))
             }
-            val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
-            if (success) {
-                Result.success(Unit)
+            if (newFile.createNewFile()) {
+                Result.success(FileModel(newFile))
             } else {
-                Result.failure(Exception("Failed to delete file or directory"))
+                Result.failure(Exception("Failed to create file"))
             }
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
+    override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        // Redirection: by default, "deleting" a file now drops it into the Trash Bin seamlessly
+        moveToTrash(listOf(path))
+    }
+
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(Dispatchers.IO) {
          try {
              // reject names containing path separators or traversal sequences
-             if (newName.contains('/') || newName.contains('\\') ||
-                 newName.contains("..") || newName.contains('\u0000')) {
-                 return@withContext Result.failure(
-                     IllegalArgumentException("Invalid file name: must not contain path separators or '..'")
-                 )
-             }
+             validateFileName(newName).onFailure { return@withContext Result.failure(it) }
 
              val file = File(path)
              validatePath(file).onFailure { return@withContext Result.failure(it) }
@@ -123,32 +135,56 @@ class LocalFileRepository(private val context: Context) : FileRepository {
          }
     }
 
-    override suspend fun getRecentFiles(limit: Int): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun getRecentFiles(limit: Int, minTimestamp: Long): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
-            val root = Environment.getExternalStorageDirectory()
-            val targetDirs = listOf(
-                File(root, Environment.DIRECTORY_DOWNLOADS),
-                File(root, Environment.DIRECTORY_DOCUMENTS),
-                File(root, Environment.DIRECTORY_PICTURES),
-                File(root, Environment.DIRECTORY_DCIM)
+            val filesList = mutableListOf<FileModel>()
+            val uri = MediaStore.Files.getContentUri("external")
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.MIME_TYPE
             )
-
-            val recentFiles = mutableListOf<File>()
-            for (dir in targetDirs) {
-                if (dir.exists() && dir.isDirectory) {
-                    dir.walkTopDown()
-                        .maxDepth(3)
-                        .filter { it.isFile && !it.isHidden }
-                        .forEach { recentFiles.add(it) }
+            
+            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            // Ensure we are filtering out directories (where MIME_TYPE is null or directory format)
+            val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
+            val selection = if (minTimestamp > 0) "$baseSelection AND ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?" else baseSelection
+            val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString()) else null
+            
+            context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                
+                while (cursor.moveToNext() && filesList.size < limit) {
+                    val path = cursor.getString(dataCol)
+                    val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
+                    
+                    if (path != null && !name.startsWith(".")) {
+                        val size = cursor.getLong(sizeCol)
+                        // MediaStore dates are usually in seconds
+                        val dateModified = cursor.getLong(dateCol) * 1000L 
+                        
+                        val extension = path.substringAfterLast('.', "")
+                        
+                        filesList.add(FileModel(
+                            file = null, // don't hold the file ref to prevent implicit I/O later
+                            absolutePath = path,
+                            name = name,
+                            size = size,
+                            isDirectory = false,
+                            lastModified = dateModified,
+                            extension = extension,
+                            isHidden = false
+                        ))
+                    }
                 }
             }
-
-            val topRecent = recentFiles
-                .sortedByDescending { it.lastModified() }
-                .take(limit)
-                .map { FileModel(it) }
-
-            Result.success(topRecent)
+            
+            Result.success(filesList)
         } catch (e: Exception) {
              Result.failure(e)
         }
@@ -207,7 +243,6 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             val result = FileCategories.all.mapIndexed { index, cat ->
                 CategoryStorage(
                     name = cat.name,
-                    color = cat.color,
                     sizeBytes = sizes[index],
                     extensions = cat.extensions
                 )
@@ -251,29 +286,325 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun searchGlobal(query: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun searchFiles(query: String, pathScope: String?, filters: SearchFilters?): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext Result.success(emptyList())
+        val searchFilters = filters
+
         try {
             val filesList = mutableListOf<FileModel>()
-            val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
             
-            // Query for files where the display name contains the query string (case-insensitive)
-            val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
-            val selectionArgs = arrayOf("%$query%")
-            
-            context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
-                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+            if (pathScope != null) {
+                // Scoped recursive search
+                val rootDir = File(pathScope)
+                if (rootDir.exists() && rootDir.isDirectory) {
+                    rootDir.walkTopDown().forEach { file ->
+                        if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
+                            filesList.add(FileModel(file))
+                        }
+                    }
+                }
+            } else {
+                // Global MediaStore search
+                val uri = MediaStore.Files.getContentUri("external")
+                val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+                val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
+                val selectionArgs = arrayOf("%$query%")
                 
-                while (cursor.moveToNext()) {
-                    val path = cursor.getString(dataCol)
-                    if (path != null) {
-                        filesList.add(FileModel(File(path)))
+                context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    while (cursor.moveToNext()) {
+                        val path = cursor.getString(dataCol)
+                        if (path != null) {
+                            val f = File(path)
+                            if (!f.name.startsWith(".")) {
+                                filesList.add(FileModel(f))
+                            }
+                        }
                     }
                 }
             }
             
-            Result.success(filesList)
+            // Apply Filters sequentially if present
+            var resultList = filesList.toList()
+            
+            searchFilters?.let { sf ->
+                if (sf.itemType == "Files") {
+                    resultList = resultList.filter { !it.isDirectory }
+                } else if (sf.itemType == "Folders") {
+                    resultList = resultList.filter { it.isDirectory }
+                }
+                
+                if (sf.fileType != null && sf.fileType != "All") {
+                    val category = FileCategories.all.find { it.name == sf.fileType }
+                    if (category != null) {
+                        val exts = category.extensions.map { it.lowercase() }.toSet()
+                        resultList = resultList.filter { !it.isDirectory && exts.contains(it.name.substringAfterLast('.').lowercase()) }
+                    }
+                }
+                
+                if (sf.minSize != null) {
+                    resultList = resultList.filter { !it.isDirectory && it.size >= sf.minSize }
+                }
+                
+                if (sf.maxSize != null) {
+                    resultList = resultList.filter { !it.isDirectory && it.size <= sf.maxSize }
+                }
+                
+                if (sf.minDateMillis != null) {
+                    resultList = resultList.filter { it.lastModified >= sf.minDateMillis }
+                }
+                
+                if (sf.maxDateMillis != null) {
+                    resultList = resultList.filter { it.lastModified <= sf.maxDateMillis }
+                }
+            }
+            
+            Result.success(resultList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // --- Core Operations ---
+
+    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val destDir = File(destinationPath)
+            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+
+            if (!destDir.exists() || !destDir.isDirectory) {
+                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
+            }
+
+            for (path in sourcePaths) {
+                val sourceFile = File(path)
+                validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
+
+                if (!sourceFile.exists()) continue
+
+                var targetFile = File(destDir, sourceFile.name)
+                validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
+
+                // Prevent destructive overwrite when pasting directly into the exact same source folder
+                if (sourceFile.absolutePath == targetFile.absolutePath) {
+                    val nameWithoutExt = sourceFile.nameWithoutExtension
+                    val ext = if (sourceFile.extension.isNotEmpty()) ".${sourceFile.extension}" else ""
+                    var copyIndex = 1
+                    do {
+                        val suffix = if (copyIndex == 1) " - Copy" else " - Copy ($copyIndex)"
+                        targetFile = File(destDir, "$nameWithoutExt$suffix$ext")
+                        copyIndex++
+                    } while (targetFile.exists())
+                }
+
+                if (sourceFile.isDirectory) {
+                    sourceFile.copyRecursively(targetFile, overwrite = true)
+                } else {
+                    sourceFile.copyTo(targetFile, overwrite = true)
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val destDir = File(destinationPath)
+            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+
+            if (!destDir.exists() || !destDir.isDirectory) {
+                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
+            }
+
+            for (path in sourcePaths) {
+                val sourceFile = File(path)
+                validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
+
+                if (!sourceFile.exists()) continue
+
+                val targetFile = File(destDir, sourceFile.name)
+                validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
+
+                if (sourceFile.absolutePath == targetFile.absolutePath) continue // moving to same location
+                
+                // Try simple rename first (fast moving on same mount)
+                val success = sourceFile.renameTo(targetFile)
+                if (!success) {
+                    // Fallback to copy+delete
+                    if (sourceFile.isDirectory) {
+                        sourceFile.copyRecursively(targetFile, overwrite = true)
+                        sourceFile.deleteRecursively()
+                    } else {
+                        sourceFile.copyTo(targetFile, overwrite = true)
+                        sourceFile.delete()
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    // --- Trash Subsystem ---
+
+    private val trashDir: File by lazy {
+        File(storageRoot, ".arcile_trash").apply {
+            if (!exists()) {
+                mkdirs()
+                File(this, ".nomedia").createNewFile() // Hide from gallery
+            }
+        }
+    }
+
+    private val trashMetadataDir: File by lazy {
+        File(trashDir, ".metadata").apply {
+            if (!exists()) mkdirs()
+        }
+    }
+
+    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (!trashDir.exists()) trashDir.mkdirs()
+            if (!trashMetadataDir.exists()) trashMetadataDir.mkdirs()
+
+            for (path in paths) {
+                val file = File(path)
+                validatePath(file).onFailure { return@withContext Result.failure(it) }
+
+                if (!file.exists()) continue
+                // Don't trash the trash
+                if (file.absolutePath.startsWith(trashDir.absolutePath)) continue
+
+                val trashId = java.util.UUID.randomUUID().toString()
+                val targetTrashFile = File(trashDir, trashId)
+                
+                // Write metadata JSON
+                val metadataJson = JSONObject().apply {
+                    put("id", trashId)
+                    put("originalPath", file.absolutePath)
+                    put("deletionTime", System.currentTimeMillis())
+                }
+                File(trashMetadataDir, "$trashId.json").writeText(metadataJson.toString())
+
+                // Move abstracting name
+                val success = file.renameTo(targetTrashFile)
+                if (!success) {
+                    // Revert metadata
+                    File(trashMetadataDir, "$trashId.json").delete()
+                    // Fallback
+                    if (file.isDirectory) {
+                        file.copyRecursively(targetTrashFile, overwrite = true)
+                        file.deleteRecursively()
+                    } else {
+                        file.copyTo(targetTrashFile, overwrite = true)
+                        file.delete()
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            for (id in trashIds) {
+                val metadataFile = File(trashMetadataDir, "$id.json")
+                val trashedFile = File(trashDir, id)
+                
+                if (!metadataFile.exists() || !trashedFile.exists()) continue
+
+                val json = JSONObject(metadataFile.readText())
+                val originalPath = json.getString("originalPath")
+                
+                val originalFile = File(originalPath)
+                validatePath(originalFile).onFailure { continue } // Skip invalid restores
+                
+                // Ensure target parent directory exists
+                originalFile.parentFile?.mkdirs()
+
+                // Restore
+                val success = trashedFile.renameTo(originalFile)
+                if (!success) {
+                    if (trashedFile.isDirectory) {
+                        trashedFile.copyRecursively(originalFile, overwrite = true)
+                        trashedFile.deleteRecursively()
+                    } else {
+                        trashedFile.copyTo(originalFile, overwrite = true)
+                        trashedFile.delete()
+                    }
+                }
+                
+                // On success, clean up metadata
+                if (originalFile.exists()) {
+                    metadataFile.delete()
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            if (trashDir.exists()) {
+                trashDir.listFiles()?.forEach { file ->
+                    if (file.name != ".metadata" && file.name != ".nomedia") {
+                        file.deleteRecursively()
+                    }
+                }
+                trashMetadataDir.listFiles()?.forEach { it.delete() }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(Dispatchers.IO) {
+        try {
+            val list = mutableListOf<TrashMetadata>()
+            if (trashDir.exists() && trashMetadataDir.exists()) {
+                trashMetadataDir.listFiles()?.forEach { metadataFile ->
+                    if (metadataFile.isFile && metadataFile.extension == "json") {
+                        try {
+                            val json = JSONObject(metadataFile.readText())
+                            val id = json.getString("id")
+                            val originalPath = json.getString("originalPath")
+                            val deletionTime = json.getLong("deletionTime")
+                            
+                            val trashedFile = File(trashDir, id)
+                            if (trashedFile.exists()) {
+                                // Provide a faked FileModel where the literal underlying object is the hash blob, but its name appears as the original
+                                val originalFileContext = File(originalPath)
+                                val spoofedModel = FileModel(
+                                   file = null,
+                                   absolutePath = trashedFile.absolutePath,
+                                   name = originalFileContext.name,
+                                   size = if (trashedFile.isFile) trashedFile.length() else 0L,
+                                   isDirectory = trashedFile.isDirectory,
+                                   lastModified = trashedFile.lastModified(),
+                                   extension = originalFileContext.extension,
+                                   isHidden = false
+                                )
+                                
+                                list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel))
+                            } else {
+                                // Orphaned metadata
+                                metadataFile.delete() 
+                            }
+                        } catch (e: Exception) {
+                            // Skip corrupted metadata
+                        }
+                    }
+                }
+            }
+            Result.success(list.sortedByDescending { it.deletionTime })
         } catch (e: Exception) {
             Result.failure(e)
         }

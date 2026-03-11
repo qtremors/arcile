@@ -20,6 +20,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.presentation.FileSortOption
 
@@ -40,6 +41,7 @@ fun SortOptionDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.small)
                             .clickable { onOptionSelected(option) }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,

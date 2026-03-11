@@ -2,7 +2,8 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.2.0 | **Last Updated:** 2026-03-06
+**Version:** 0.3.0 | **Last Updated:** 2026-03-11
+**Scope:** Internal Development, Security, and Style Specification
 
 ---
 
@@ -11,6 +12,7 @@
 - [Architecture Overview](#architecture-overview)
 - [Project Structure](#project-structure)
 - [Naming Conventions](#naming-conventions)
+- [UI & Design Guidelines](#ui--design-guidelines)
 - [Configuration](#configuration)
 - [Security Practices](#security-practices)
 - [Error Handling](#error-handling)
@@ -42,7 +44,7 @@ graph TD
 | Single-module project | MVP simplicity — no multi-module overhead for an initial version |
 | `StateFlow` over `LiveData` | Compose-native, null-safe, and better coroutine integration |
 | `java.io.File` API directly | Simple and sufficient for local file operations at this stage |
-| No DI framework | Avoiding Hilt/Koin complexity in MVP — repository is constructor-injected with a default |
+| No DI framework | Avoiding Hilt/Koin complexity in MVP (ViewModel refactoring planned to resolve this) |
 | `Stack` for path history | Simple LIFO navigation history (flagged for replacement with `ArrayDeque`) |
 | Material 3 dynamic theming | Native Material You support on Android 12+ with manual fallback color schemes |
 
@@ -52,41 +54,67 @@ graph TD
 
 ```
 arcile/
-├── arcile-app/                           # Android project root (Gradle)
+├── arcile-app/                             # Android project root (Gradle)
 │   ├── app/
 │   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml       # Permissions, activity declaration
+│   │   │   ├── AndroidManifest.xml         # Permissions, activity declaration
 │   │   │   ├── java/dev/qtremors/arcile/
-│   │   │   │   ├── MainActivity.kt       # Activity, permission flow, navigation shell
+│   │   │   │   ├── ArcileApp.kt            # Application class (Coil image loader)
+│   │   │   │   ├── MainActivity.kt         # Activity, permission flow, navigation shell
 │   │   │   │   ├── data/
-│   │   │   │   │   └── LocalFileRepository.kt  # File system implementation
+│   │   │   │   │   └── LocalFileRepository.kt   # Full file system implementation
 │   │   │   │   ├── domain/
-│   │   │   │   │   ├── FileModel.kt      # File data class
-│   │   │   │   │   └── FileRepository.kt # Interface + StorageInfo model
+│   │   │   │   │   ├── FileModel.kt        # Core file data class
+│   │   │   │   │   ├── FileRepository.kt   # Repository interface (all operations)
+│   │   │   │   │   ├── FileCategories.kt   # Category definitions & MIME mappings
+│   │   │   │   │   ├── SearchFilters.kt    # Filter criteria for file search
+│   │   │   │   │   ├── StorageInfo.kt      # Storage total/free byte model
+│   │   │   │   │   └── TrashMetadata.kt    # Trash entry model (id, originalPath, time)
+│   │   │   │   ├── image/
+│   │   │   │   │   ├── ApkIconFetcher.kt   # Coil fetcher for APK file icons
+│   │   │   │   │   └── AudioAlbumArtFetcher.kt  # Coil fetcher for audio album art
+│   │   │   │   ├── navigation/
+│   │   │   │   │   └── AppRoutes.kt        # Centralised route string constants
 │   │   │   │   ├── presentation/
-│   │   │   │   │   ├── FileManagerViewModel.kt  # ViewModel + FileManagerState
+│   │   │   │   │   ├── FileManagerViewModel.kt  # Shared ViewModel + FileManagerState
+│   │   │   │   │   ├── FilePresentation.kt      # Presentation-layer file model
+│   │   │   │   │   ├── SearchFilters.kt         # Presentation search filter model
 │   │   │   │   │   └── ui/
-│   │   │   │   │       ├── HomeScreen.kt         # Dashboard screen
-│   │   │   │   │       ├── FileManagerScreen.kt  # File browser screen
-│   │   │   │   │       ├── SettingsScreen.kt     # Settings screen
-│   │   │   │   │       ├── ToolsScreen.kt        # Tools grid screen
+│   │   │   │   │       ├── ArcileAppShell.kt         # Nav host + bottom bar shell
+│   │   │   │   │       ├── HomeScreen.kt             # Dashboard screen
+│   │   │   │   │       ├── FileManagerScreen.kt      # File browser screen (985 lines)
+│   │   │   │   │       ├── RecentFilesScreen.kt      # Recent files list screen
+│   │   │   │   │       ├── SettingsScreen.kt         # Theme/accent settings screen
+│   │   │   │   │       ├── StorageDashboardScreen.kt # Storage breakdown screen
+│   │   │   │   │       ├── ToolsScreen.kt            # Tools grid screen
+│   │   │   │   │       ├── TrashScreen.kt            # Trash management screen
 │   │   │   │   │       └── components/
-│   │   │   │   │           ├── ArcileTopBar.kt       # Reusable top bar
-│   │   │   │   │           ├── Breadcrumbs.kt        # Path breadcrumb bar
-│   │   │   │   │           └── ThemePreferences.kt   # Empty — placeholder for DataStore
-│   │   │   │   └── ui/theme/
-│   │   │   │       ├── Color.kt          # Color constants
-│   │   │   │       ├── Theme.kt          # Compose theme setup
-│   │   │   │       ├── ThemeState.kt     # ThemeMode, AccentColor enums
-│   │   │   │       └── Type.kt           # Typography
-│   │   │   └── res/                      # Standard Android resources
-│   │   ├── build.gradle.kts              # App-level build config
-│   │   └── proguard-rules.pro            # ProGuard/R8 rules (defaults)
-│   ├── gradle/libs.versions.toml         # Version catalog
-│   ├── build.gradle.kts                  # Project-level build config
+│   │   │   │   │           ├── ArcileTopBar.kt           # Reusable contextual top bar
+│   │   │   │   │           ├── Breadcrumbs.kt            # Path breadcrumb bar
+│   │   │   │   │           ├── FileListControls.kt       # Sort/filter/view-mode controls 
+│   │   │   │   │           ├── GlobalSearchBar.kt        # App-wide search bar
+│   │   │   │   │           ├── SearchFiltersBottomSheet.kt # Filter bottom sheet
+│   │   │   │   │           ├── ToolCard.kt               # Tool grid card component
+│   │   │   │   │           └── TopBarAction.kt           # Top bar action model
+│   │   │   │   ├── ui/theme/
+│   │   │   │   │   ├── CategoryColors.kt   # Per-category color mappings
+│   │   │   │   │   ├── Color.kt            # Color constants + accent schemes
+│   │   │   │   │   ├── Shape.kt            # Custom shape definitions (squircle)
+│   │   │   │   │   ├── Theme.kt            # Compose theme entry point
+│   │   │   │   │   ├── ThemePreferences.kt # DataStore-backed theme persistence
+│   │   │   │   │   ├── ThemeState.kt       # ThemeMode, AccentColor enums
+│   │   │   │   │   └── Type.kt             # Typography scale
+│   │   │   │   └── utils/
+│   │   │   │       ├── CategoryColors.kt   # Category-to-color utility
+│   │   │   │       └── FormatUtils.kt      # File size / date formatting helpers
+│   │   │   └── res/                        # Standard Android resources
+│   │   ├── build.gradle.kts               # App-level build config
+│   │   └── proguard-rules.pro             # ProGuard/R8 rules
+│   ├── gradle/libs.versions.toml          # Version catalog
+│   ├── build.gradle.kts                   # Project-level build config
 │   └── settings.gradle.kts               # Module settings
 ├── README.md
-├── DEVELOPMENT.md                        # This file
+├── DEVELOPMENT.md                         # This file
 ├── CHANGELOG.md
 ├── TASKS.md
 └── LICENSE.md
@@ -130,6 +158,44 @@ arcile/
 | **Enum classes** | `PascalCase` | `ThemeMode`, `AccentColor` |
 | **Enum values** | `UPPER_SNAKE_CASE` | `ThemeMode.SYSTEM`, `AccentColor.DYNAMIC` |
 | **Compose colors** | `PascalCase` | `Purple80`, `PurpleGrey40` |
+
+---
+
+## UI & Design Guidelines
+
+### Material 3 Expressive
+
+Arcile uses **Material 3 Expressive**, an evolution of the Material Design 3 system that focuses on more organic, fluid, and emotionally resonant interfaces. **Do not use outdated M3/M2 components when an expressive alternative exists.**
+
+#### Key Principles
+
+1. **Motion Physics:** Use spring-based animations instead of fixed-duration easing (`tween`). Jetpack Compose 1.7+ defaults to springs for many modifiers, but always explicitly prefer `spring()` for custom animations to create a bouncy, lively feel.
+2. **Morphing & Fluidity:** Favor components that morph dynamically rather than static generic shapes. 
+3. **Typography & Hierarchy:** Utilize the expanded typography scale and deeper dynamic color contrast to establish clear visual hierarchy.
+
+#### Implementation Requirements
+
+- **Dependency:** Ensure `androidx.compose.material3:material3` is using a recent version that supports expressive components (e.g., `1.4.0-alpha` or newer).
+- **Opt-In:** Expressive APIs are currently marked as experimental. Use the `@OptIn(ExperimentalMaterial3ExpressiveApi::class)` annotation on your composables or files.
+
+#### Preferred Components
+
+| Legacy/Standard Version | M3 Expressive Alternative | Use Case |
+|-------------------|---------------------------|----------|
+| `CircularProgressIndicator` | `LoadingIndicator` / `ContainedLoadingIndicator` | Loading states. Morphs through playful shapes instead of just spinning. |
+| Standard `Button` | `SplitButton` | When a main action consistently needs a secondary dropdown/overflow action. |
+| Standard `Row` of buttons | `ButtonGroup` | Grouping related, flexible actions dynamically. |
+| Standard List Items | Expressive List Items | Segmented/interactive styling for lists (`OneLineListItem`, etc.). |
+
+**Example Usage:**
+
+```kotlin
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun ExpressiveLoading() {
+    LoadingIndicator() // Use this instead of CircularProgressIndicator
+}
+```
 
 ---
 
@@ -213,19 +279,38 @@ If you discover a security vulnerability, please open a private issue or contact
 
 The data access layer for all file system operations.
 
+**File operations:**
+
 | Method | Description |
 |--------|-------------|
 | `listFiles(path)` | List and sort directory contents (folders first, alphabetical) |
 | `createDirectory(parentPath, name)` | Create a new directory |
+| `createFile(parentPath, name)` | Create a new empty file |
 | `deleteFile(path)` | Delete a file or directory recursively |
-| `renameFile(path, newName)` | Rename a file (implemented but no UI) |
+| `renameFile(path, newName)` | Rename a file |
+| `copyFiles(sourcePaths, destinationPath)` | Copy files to destination (overwrites) |
+| `moveFiles(sourcePaths, destinationPath)` | Move files (atomic rename or copy+delete) |
 | `getRootDirectory()` | Get external storage root |
-| `getRecentFiles(limit)` | Walk common directories for recently modified files |
+| `getRecentFiles(limit, minTimestamp)` | Recent files via MediaStore |
 | `getStorageInfo()` | Get total/free bytes via `StatFs` |
+| `getCategoryStorageSizes()` | Per-category storage breakdown via MediaStore |
+| `getFilesByCategory(categoryName)` | All files in a category via MediaStore |
+| `searchFiles(query, pathScope, filters)` | MediaStore + filesystem search with filters |
+
+**Trash subsystem:**
+
+| Method | Description |
+|--------|-------------|
+| `moveToTrash(paths)` | Move files to `.arcile_trash/` with metadata |
+| `restoreFromTrash(trashIds)` | Restore items to their original paths |
+| `emptyTrash()` | Permanently delete all trash contents |
+| `getTrashFiles()` | List all `TrashMetadata` entries |
 
 ### FileManagerViewModel
 
-Single ViewModel managing state for home and file browser screens.
+Shared ViewModel managing state for all current screens (home, explorer, trash, search, clipboard).
+
+> **Note:** This is a planned refactor target — see [TASKS.md](TASKS.md) section D for context.
 
 | Method | Description |
 |--------|-------------|
@@ -236,7 +321,35 @@ Single ViewModel managing state for home and file browser screens.
 | `navigateBack()` | Pop history or return to home |
 | `toggleSelection(path)` | Toggle file selection |
 | `createFolder(name)` | Create folder in current directory |
-| `deleteSelectedFiles()` | Delete all selected files |
+| `deleteSelectedFiles()` | Move selected files to trash |
+| `copySelectedFiles()` | Stage selected files for copy |
+| `cutSelectedFiles()` | Stage selected files for move |
+| `pasteFiles(destinationPath)` | Execute staged copy or move |
+| `shareSelectedFiles()` | Launch Android share intent for selection |
+| `searchFiles(query)` | Run a file search against the repository |
+
+### Navigation
+
+All route strings are centralised in `AppRoutes` in the `navigation/` package:
+
+| Constant | Route |
+|----------|-------|
+| `HOME` | `"home"` |
+| `EXPLORER` | `"explorer"` |
+| `TOOLS` | `"tools"` |
+| `SETTINGS` | `"settings"` |
+| `TRASH` | `"trash"` |
+| `RECENT_FILES` | `"recent_files"` |
+| `STORAGE_DASHBOARD` | `"storage_dashboard"` |
+
+### Image Loading
+
+Coil image loading is configured in `ArcileApp` (Application class) with two custom `Fetcher` implementations:
+
+| Fetcher | Source | Result |
+|---------|--------|---------|
+| `ApkIconFetcher` | `.apk` file path | Extracts the app icon via `PackageManager` |
+| `AudioAlbumArtFetcher` | Audio file path | Extracts album art via `MediaMetadataRetriever` |
 
 ---
 
@@ -266,7 +379,7 @@ fun methodUnderTest_scenario_expectedResult()
 
 Examples:
 ```kotlin
-fun navigateToFolder_withValidPath_updatesStateAndHistory()
+fun navigateToFolder_updatesStateAndHistory()
 fun deleteFile_fileDoesNotExist_returnsFailure()
 fun formatFileSize_zeroBytes_returnsZeroB()
 ```
@@ -296,8 +409,10 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 ```bash
 ./gradlew assembleDebug
 ```
+For standard builds:
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk`
 
-APK output: `app/build/outputs/apk/debug/app-debug.apk`
+> **Note:** The output filename is controlled by the `androidComponents` block in `app/build.gradle.kts`, which uses `VariantOutputImpl` (an internal AGP API) to inject the app ID and version into the filename. This is a known anomaly — see [TASKS.md](TASKS.md) general anomalies section for details.
 
 ### Release Build
 
@@ -327,7 +442,9 @@ APK output: `app/build/outputs/apk/debug/app-debug.apk`
 |---------------------|----------------------|-----------------|
 | `compileSdk` block syntax | Uses `release(36) { minorApiLevel = 1 }` instead of `compileSdk = 36` | Required for AGP 9.x structured SDK versioning |
 | `requestLegacyExternalStorage` in manifest | Deprecated attribute | Still needed for Android 10 (API 29) backward compatibility |
-| Single ViewModel for all screens | Unusual for multi-screen apps | Intentional MVP simplification; refactoring planned (see TASKS.md D4) |
+| Single ViewModel for all screens | Unusual for multi-screen apps | Intentional MVP simplification; refactoring planned (see TASKS.md D) |
+| `VariantOutputImpl` cast in `androidComponents` | Internal AGP API | No stable public API for `outputFileName` exists yet in AGP 9.x — see TASKS.md anomalies |
+| `.arcile_trash/` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
 
 ### Technical Debt
 
