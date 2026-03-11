@@ -116,6 +116,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+
 /**
  * Full-featured file browser screen.
  *
@@ -710,11 +713,14 @@ fun FileItemRow(
         label = "listItemVPadding"
     )
 
+    val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else formatFileSize(file.size)}, Modified $formattedDate"
+
     Surface(
         shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
         color = animatedSurfaceColor,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
+            .semantics(mergeDescendants = true) { contentDescription = contentDesc }
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -775,6 +781,8 @@ private fun FileGridItem(
         ),
         label = "gridItemScale"
     )
+    
+    val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else dev.qtremors.arcile.utils.formatFileSize(file.size)}, Modified $formattedDate"
 
     Card(
         modifier = Modifier
@@ -783,6 +791,7 @@ private fun FileGridItem(
                 scaleX = scale
                 scaleY = scale
             }
+            .semantics(mergeDescendants = true) { contentDescription = contentDesc }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,

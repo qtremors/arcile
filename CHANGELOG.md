@@ -1,8 +1,26 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.2
+> **Version:** 0.3.3
 > **Last Updated:** 2026-03-11
+
+---
+
+## [0.3.3] - 2026-03-11
+
+### Fixed
+- [Bug] Trash restore data corruption risk: orphaned metadata implicitly handled and skipped gracefully.
+- [Bug] `moveFiles()` copy+delete fallback is now atomic and triggers a complete rollback on partial failure.
+
+### Improved
+- [Security] Added internal KDoc highlighting that the `.arcile_trash` vault on shared external storage natively lacks encryption.
+- [Performance] Verified `FileModel` constructor skips inherently expensive disk I/O operations natively via default values.
+- [Performance] `getRecentFiles()` stops blindly querying the MediaStore unconditionally by instituting hard limits per feature view.
+- [Accessibility] Added rich `contentDescription` semantics to both `FileItemRow` and `FileGridItem` allowing precise TalkBack announcements.
+- [Accessibility] Adjusted Home Screen categorized shortcut elements to universally respect minimal 48dp interaction touch targets.
+- [UX] `ToolsScreen` and identical components now properly restrict click behaviors and dynamically dim opacity for uninitialized capabilities.
+- [Smoothness] Removed redundant `SimpleDateFormat` recreations triggering costly UI Thread Garbage Collection sweeps in `RecentFilesScreen`.
+- [Smoothness] Stripped problematic layout shifting flags (`animateContentSize`) off the `StorageSummaryCard` stopping native redraw jittering.
 
 ---
 

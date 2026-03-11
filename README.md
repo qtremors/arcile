@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.3.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.3.3-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
@@ -66,7 +66,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.3.apk
 ```
 
 ### Release Signing

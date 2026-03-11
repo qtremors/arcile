@@ -1,23 +1,10 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.3.2
+> **Version:** 0.3.3
 > **Last Updated:** 2026-03-11
 
 ---
-
-## Medium Priority
-
-- [x] [Refactor] ViewModel directly instantiates `LocalFileRepository` — no DI (`FileManagerViewModel.kt:61`)
-  - Hardcoded concrete implementation makes unit testing impossible without real filesystem.
-- [x] [Refactor] `FileModel` holds a `java.io.File` reference — breaks domain separation (`FileModel.kt:6`)
-  - Leaks data layer into domain; makes `FileModel` non-serializable/non-parcelable.
-- [x] [Refactor] Single ViewModel for all screens — poor separation of concerns (`FileManagerViewModel.kt`)
-  - Manages home, file browser, trash, recent files, clipboard, and search. Should be split per feature.
-
----
-
-## Comprehensive Audit Findings
 
 ### A. Correctness & Reliability
 
@@ -45,7 +32,7 @@
   - **Impact:** Possible inconsistent UI state after configuration changes or deep-linking.
   - **Fix:** Use Navigation Compose route as the single source of truth. Derive the ViewModel flags from the current route, or remove them entirely.
 
-- [ ] [Bug] Trash restore data corruption risk: orphaned metadata silently deleted.
+- [x] [Bug] Trash restore data corruption risk: orphaned metadata silently deleted.
   - **Problem:** In `getTrashFiles()`, orphaned metadata files (where the trashed blob is missing) are deleted without warning or logging.
   - **Location:** `LocalFileRepository.kt:597-600`
   - **Impact:** If a trash blob is accidentally missing, user loses all record of the file.
@@ -57,7 +44,7 @@
   - **Impact:** Data loss when pasting to a folder that already contains files with the same name.
   - **Fix:** Check for existence and prompt user (keep both, replace, skip).
 
-- [ ] [Bug] `moveFiles()` copy+delete fallback does not revert on partial failure.
+- [x] [Bug] `moveFiles()` copy+delete fallback does not revert on partial failure.
   - **Problem:** If `copyRecursively` succeeds but `deleteRecursively` fails, data exists in two places with no cleanup.
   - **Location:** `LocalFileRepository.kt:436-442`
   - **Impact:** Inconsistent file state; user may not realize duplicates exist.
@@ -79,7 +66,7 @@
   - **Impact:** Credential exposure risk.
   - **Fix:** Use environment variables or a dedicated CI secrets mechanism instead of a local file.
 
-- [ ] [Security] Trash directory (`.arcile_trash`) stored on shared external storage with no encryption.
+- [x] [Security] Trash directory (`.arcile_trash`) stored on shared external storage with no encryption.
   - **Problem:** "Deleted" files are simply renamed and moved to `/storage/emulated/0/.arcile_trash/`. Any app with `MANAGE_EXTERNAL_STORAGE` can read them.
   - **Location:** `LocalFileRepository.kt:453-460`
   - **Impact:** Sensitive files are accessible after "deletion". The `.nomedia` only hides from gallery, not from other file managers.
@@ -95,7 +82,7 @@
 
 ### C. Performance & Resource Efficiency
 
-- [ ] [Performance] `getRecentFiles()` queries MediaStore with `limit = Int.MAX_VALUE`.
+- [x] [Performance] `getRecentFiles()` queries MediaStore with `limit = Int.MAX_VALUE`.
   - **Problem:** On home screen load, `loadHomeData()` requests `getRecentFiles(limit = Int.MAX_VALUE, minTimestamp = oneWeekAgo)`. On devices with thousands of recent files, this creates a massive list in memory.
   - **Location:** `FileManagerViewModel.kt:78`
   - **Impact:** High memory usage and slow home screen load on devices with many files.
@@ -119,7 +106,7 @@
   - **Impact:** Search in the root directory can take 10+ seconds and allocate many `FileModel` objects.
   - **Fix:** Cap results (e.g., first 200 matches), add cancellation checks in the walk, or use MediaStore for scoped search too.
 
-- [ ] [Performance] `FileModel` constructor triggers I/O in default parameter expressions.
+- [x] [Performance] `FileModel` constructor triggers I/O in default parameter expressions.
   - **Problem:** `val size = if (file != null && file.isFile) file.length() else 0L` and `file?.lastModified()` perform filesystem I/O at construction time.
   - **Location:** `FileModel.kt:5-14`
   - **Impact:** Constructing `FileModel(File(...))` anywhere triggers synchronous disk reads.
@@ -209,19 +196,19 @@
   - **Impact:** Poor screen real estate utilization on tablets and foldables.
   - **Fix:** Implement `WindowSizeClass` checks and use dual-pane layouts for expanded widths.
 
-- [ ] [Accessibility] No `contentDescription` on file item rows.
+- [x] [Accessibility] No `contentDescription` on file item rows.
   - **Problem:** `FileItemRow` and `FileGridItem` have no semantic description for the entire clickable unit.
   - **Location:** `FileManagerScreen.kt:620-683`, `FileManagerScreen.kt:685-768`
   - **Impact:** TalkBack users get fragmented information instead of "file name, size, date".
   - **Fix:** Add `Modifier.semantics { contentDescription = "..." }` or use `ListItem` semantics properly.
 
-- [ ] [Accessibility] Category items lack proper touch target sizes.
+- [x] [Accessibility] Category items lack proper touch target sizes.
   - **Problem:** `CategoryItem` icons are 64dp but the clickable area is not guaranteed to meet the 48dp minimum accessibility guideline in all cases.
   - **Location:** `HomeScreen.kt:553-614`
   - **Impact:** Potential touch target issues on high-density screens.
   - **Fix:** Ensure minimum 48dp clickable area via `Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)`.
 
-- [ ] [UX] `ToolsScreen` items are not clickable (except Trash Bin).
+- [x] [UX] `ToolsScreen` items are not clickable (except Trash Bin).
   - **Problem:** All tool cards except "Trash Bin" have no `onClick` handler or show "Coming Soon" but are still visually identical to actionable cards.
   - **Location:** `ToolsScreen.kt:73-74`, `ToolCard.kt:38`
   - **Impact:** User taps a tool card and nothing happens — confusing.
@@ -264,13 +251,13 @@
 
 ### I. App Smoothness & Rendering Stability
 
-- [ ] [Smoothness] `remember {}` around `SimpleDateFormat` is not keyed — creates a new formatter on each recomposition in some cases.
+- [x] [Smoothness] `remember {}` around `SimpleDateFormat` is not keyed — creates a new formatter on each recomposition in some cases.
   - **Problem:** `RecentFilesScreen.kt:48` uses `val formatter = SimpleDateFormat(...)` outside `remember` — a new instance every recomposition.
   - **Location:** `RecentFilesScreen.kt:48`
   - **Impact:** Minor GC pressure during scrolling.
   - **Fix:** Wrap in `remember { }`.
 
-- [ ] [Smoothness] `animateContentSize()` on `StorageSummaryCard` column may cause layout flickering.
+- [x] [Smoothness] `animateContentSize()` on `StorageSummaryCard` column may cause layout flickering.
   - **Problem:** `Column(modifier = Modifier.padding(24.dp).animateContentSize())` animates size for content that doesn't change dynamically.
   - **Location:** `HomeScreen.kt:331`
   - **Impact:** Unnecessary animation measurement on every composition; potential flicker if storage data arrives asynchronously.

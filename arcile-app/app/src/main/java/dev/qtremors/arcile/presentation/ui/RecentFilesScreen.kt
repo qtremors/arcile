@@ -114,24 +114,22 @@ fun RecentFilesScreen(
             }
         } else {
             val groupedFiles = remember(state.recentFiles) {
+                val groupFormat = SimpleDateFormat("EEEE, MMM dd", Locale.getDefault())
+                val cal = Calendar.getInstance()
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val today = cal.timeInMillis
+                
+                cal.add(Calendar.DAY_OF_YEAR, -1)
+                val yesterday = cal.timeInMillis
+
                 state.recentFiles.groupBy { file ->
-                    val cal = Calendar.getInstance()
-                    cal.set(Calendar.HOUR_OF_DAY, 0)
-                    cal.set(Calendar.MINUTE, 0)
-                    cal.set(Calendar.SECOND, 0)
-                    cal.set(Calendar.MILLISECOND, 0)
-                    val today = cal.timeInMillis
-                    
-                    cal.add(Calendar.DAY_OF_YEAR, -1)
-                    val yesterday = cal.timeInMillis
-                    
                     when {
                         file.lastModified >= today -> "Today"
                         file.lastModified >= yesterday -> "Yesterday"
-                        else -> {
-                            val format = SimpleDateFormat("EEEE, MMM dd", Locale.getDefault())
-                            format.format(Date(file.lastModified))
-                        }
+                        else -> groupFormat.format(Date(file.lastModified))
                     }
                 }
             }

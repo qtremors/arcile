@@ -54,11 +54,13 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                alpha = if (item.isImplemented) 1f else 0.5f
             }
             .clickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = onClick
+                onClick = onClick,
+                enabled = item.isImplemented
             )
             .aspectRatio(1f),
         colors = CardDefaults.elevatedCardColors(

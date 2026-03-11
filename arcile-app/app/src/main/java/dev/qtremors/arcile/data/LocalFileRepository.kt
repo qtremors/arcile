@@ -475,12 +475,23 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 val success = sourceFile.renameTo(targetFile)
                 if (!success) {
                     // Fallback to copy+delete
-                    if (sourceFile.isDirectory) {
-                        sourceFile.copyRecursively(targetFile, overwrite = true)
-                        sourceFile.deleteRecursively()
-                    } else {
-                        sourceFile.copyTo(targetFile, overwrite = true)
-                        sourceFile.delete()
+                    try {
+                        if (sourceFile.isDirectory) {
+                            sourceFile.copyRecursively(targetFile, overwrite = true)
+                            if (!sourceFile.deleteRecursively()) {
+                                targetFile.deleteRecursively() // revert
+                                return@withContext Result.failure(Exception("Failed to delete source directory after copy"))
+                            }
+                        } else {
+                            sourceFile.copyTo(targetFile, overwrite = true)
+                            if (!sourceFile.delete()) {
+                                targetFile.delete() // revert
+                                return@withContext Result.failure(Exception("Failed to delete source file after copy"))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
+                        return@withContext Result.failure(e)
                     }
                 }
             }
@@ -507,6 +518,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
+    /**
+     * Moves the specified files to the trash directory.
+     * Note: The trash directory (`.arcile_trash`) is stored on shared external storage with no encryption.
+     * Any app with `MANAGE_EXTERNAL_STORAGE` permission can access these "deleted" files.
+     */
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!trashDir.exists()) trashDir.mkdirs()
@@ -645,7 +661,9 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                                 list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel))
                             } else {
                                 // Orphaned metadata
+                                android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for file $originalPath")
                                 metadataFile.delete() 
+
                             }
                         } catch (e: Exception) {
                             // Skip corrupted metadata
