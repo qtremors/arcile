@@ -45,12 +45,6 @@
   - **Impact:** Possible inconsistent UI state after configuration changes or deep-linking.
   - **Fix:** Use Navigation Compose route as the single source of truth. Derive the ViewModel flags from the current route, or remove them entirely.
 
-- [x] [Bug] `deleteSelectedFiles()` silently redirects to `moveToTrashSelected()` without user feedback.
-  - **Problem:** Delete dialog text says "This action cannot be undone" but files are actually moved to trash (recoverable).
-  - **Location:** `FileManagerViewModel.kt:321-327`, `FileManagerScreen.kt:444`
-  - **Impact:** Misleading UX; user thinks files are permanently deleted.
-  - **Fix:** Update dialog text to say "Move to Trash Bin" or add a separate permanent-delete path.
-
 - [ ] [Bug] Trash restore data corruption risk: orphaned metadata silently deleted.
   - **Problem:** In `getTrashFiles()`, orphaned metadata files (where the trashed blob is missing) are deleted without warning or logging.
   - **Location:** `LocalFileRepository.kt:597-600`
@@ -68,18 +62,6 @@
   - **Location:** `LocalFileRepository.kt:436-442`
   - **Impact:** Inconsistent file state; user may not realize duplicates exist.
   - **Fix:** Wrap in try/catch and revert the copy on delete failure, or report a partial-failure error.
-
-- [x] [Bug] `recentFiles` on `RecentFilesScreen` may be stale.
-  - **Problem:** `navigateToRecentFiles()` only loads data if `recentFiles.isEmpty()`, meaning if the user deletes or adds files and re-enters, the list is outdated.
-  - **Location:** `FileManagerViewModel.kt:446-453`
-  - **Impact:** Showing stale recent files after file operations.
-  - **Fix:** Always reload recent files data when navigating to the screen.
-
-- [x] [Bug] `searchFiles()` parameter `filters: Any?` violates type safety.
-  - **Problem:** The `FileRepository` interface declares `filters: Any?`, only cast to `SearchFilters` at runtime in the implementation.
-  - **Location:** `FileRepository.kt:16`, `LocalFileRepository.kt:291`
-  - **Impact:** No compile-time type checking; incorrect types silently ignore filters.
-  - **Fix:** Change the interface parameter to `filters: SearchFilters?`.
 
 ---
 
@@ -108,12 +90,6 @@
   - **Location:** `AndroidManifest.xml:7`, `MainActivity.kt:159-178`
   - **Impact:** App is completely blocked if the user denies — no partial-access mode via SAF.
   - **Fix:** Implement SAF fallback for granular per-folder access.
-
-- [x] [Security] `android:requestLegacyExternalStorage="true"` is set unnecessarily.
-  - **Problem:** This flag is ignored on Android 11+ (API 30+) and the app targets API 36 with `minSdk = 24`.
-  - **Location:** `AndroidManifest.xml:11`
-  - **Impact:** Minor — adds confusion; on API 29 (Android 10) it disables scoped storage which is a security regression.
-  - **Fix:** Remove the flag since the app already handles `MANAGE_EXTERNAL_STORAGE` for 11+ and legacy permissions for <10.
 
 ---
 
@@ -183,18 +159,6 @@
   - **Impact:** Impossible to swap implementations, difficult to test, tight coupling.
   - **Fix:** Adopt Hilt (or Koin) for constructor injection across the app.
 
-- [x] [Architecture] `LocalFileRepository` imports from `presentation` layer.
-  - **Problem:** `import dev.qtremors.arcile.presentation.SearchFilters` — data layer depends on presentation layer.
-  - **Location:** `LocalFileRepository.kt:13`
-  - **Impact:** Violates Clean Architecture dependency rule (data → domain only, never data → presentation).
-  - **Fix:** Move `SearchFilters` to `domain` package.
-
-- [x] [Architecture] `FileRepository.searchFiles()` uses `Any?` for filters parameter.
-  - **Problem:** Domain interface uses untyped `Any?`, defeating the purpose of interface contracts.
-  - **Location:** `FileRepository.kt:16`
-  - **Impact:** Breaks static type safety and makes the interface unreliable.
-  - **Fix:** Define a domain-level `SearchFilters` type in the `domain` package.
-
 - [ ] [Architecture] `ShareSelectedFiles()` in ViewModel creates an `Intent` — Android framework concern.
   - **Problem:** ViewModel directly constructs and launches `Intent` and calls `context.startActivity()`.
   - **Location:** `FileManagerViewModel.kt:403-436`
@@ -217,36 +181,6 @@
 
 ### E. Maintainability & Code Quality
 
-- [x] [Code Quality] Duplicate imports in `FileManagerScreen.kt`.
-  - **Problem:** `AnimatedVisibility`, `fadeIn`, `fadeOut`, `slideInVertically`, `slideOutVertically`, `LazyRow` are all imported twice.
-  - **Location:** `FileManagerScreen.kt:4-7/75-79` and `FileManagerScreen.kt:34/106`
-  - **Impact:** Code clutter, confusing for contributors.
-  - **Fix:** Remove duplicate imports.
-
-- [x] [Code Quality] Category color mapping duplicated in 3 places.
-  - **Problem:** The `when (cat.name)` block mapping category names to colors is copy-pasted in `MultiColorStorageBar`, `CategoryLegend`, and `StorageDashboardScreen`.
-  - **Location:** `HomeScreen.kt:414-421`, `HomeScreen.kt:468-475`, `StorageDashboardScreen.kt:63-71`
-  - **Impact:** Inconsistency risk; changing one without the others creates subtle visual bugs.
-  - **Fix:** Create a `getCategoryColor(name: String): Color` utility function in the theme layer.
-
-- [x] [Code Quality] `formatFileSize()` is a top-level function in `FileManagerScreen.kt`.
-  - **Problem:** Utility function buried inside a 985-line screen file, yet consumed by `HomeScreen.kt` and `StorageDashboardScreen.kt`.
-  - **Location:** `FileManagerScreen.kt:770-776`
-  - **Impact:** Cross-file dependency on what looks like a screen-private function.
-  - **Fix:** Move to a shared `utils` package.
-
-- [x] [Code Quality] Dead/unused parameter: `animatedShape` in `FileItemRow`.
-  - **Problem:** `animatedShape` is computed via `animateValueAsState` but never used — the actual shape is hardcoded below.
-  - **Location:** `FileManagerScreen.kt:634-638`
-  - **Impact:** Wasted computation; misleading code.
-  - **Fix:** Remove the unused `animatedShape` or use it in the `Surface` shape parameter.
-
-- [x] [Code Quality] Non-idiomatic shape animation in `FileItemRow` and `TrashScreen`.
-  - **Problem:** `TwoWayConverter` for `Shape` always returns the same value regardless of the input — the animation does nothing.
-  - **Location:** `FileManagerScreen.kt:634-638`, `TrashScreen.kt:234-238`
-  - **Impact:** False impression of animation; wasted CPU cycles.
-  - **Fix:** Remove the no-op animation or implement a proper shape morph via `animateDp` on corner radius.
-
 - [ ] [Code Quality] `FileManagerScreen.kt` is 985 lines.
   - **Problem:** Single file contains the main screen, file list, file grid, dialogs, FAB menu, and filter row.
   - **Location:** `FileManagerScreen.kt`
@@ -258,12 +192,6 @@
   - **Location:** `MainActivity.kt:79`
   - **Impact:** If the Activity is recreated, a new `DataStore` flow is created, potentially racing with the old one.
   - **Fix:** Hoist `ThemePreferences` to the Activity level or inject via DI.
-
-- [x] [Code Quality] Direct use of `java.text.SimpleDateFormat` — not thread-safe.
-  - **Problem:** `SimpleDateFormat` instances created inside `remember {}` blocks in composables.
-  - **Location:** `FileManagerScreen.kt:527`, `RecentFilesScreen.kt:48`, `TrashScreen.kt:223`
-  - **Impact:** Potential date formatting corruption if recomposition races (unlikely but possible).
-  - **Fix:** Use `java.time.format.DateTimeFormatter` (thread-safe) or `kotlin.text` formatting.
 
 - [ ] [Code Quality] No unit tests exist.
   - **Problem:** `ExampleInstrumentedTest.kt` is the only test file — it's the default template.
@@ -293,24 +221,6 @@
   - **Impact:** Potential touch target issues on high-density screens.
   - **Fix:** Ensure minimum 48dp clickable area via `Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)`.
 
-- [x] [UX] Error state shown as dialog — blocks interaction.
-  - **Problem:** Errors are displayed as `AlertDialog` which requires dismissal before any other action.
-  - **Location:** `FileManagerScreen.kt:502-513`, `TrashScreen.kt:201-212`
-  - **Impact:** Disruptive flow; user must always click "OK" before retrying.
-  - **Fix:** Use a `Snackbar` for transient errors (network, IO), reserve dialogs for confirmations.
-
-- [x] [UX] Delete confirmation dialog text is misleading.
-  - **Problem:** Says "This action cannot be undone" but the implementation moves files to a recoverable trash bin.
-  - **Location:** `FileManagerScreen.kt:444`
-  - **Impact:** User anxiety about a recoverable action; UX mismatch.
-  - **Fix:** Change text to "Items will be moved to Trash Bin. You can restore them later."
-
-- [x] [UX] No confirmation or feedback after clipboard copy/cut.
-  - **Problem:** `copySelectedToClipboard()` and `cutSelectedToClipboard()` update state silently. No toast, snackbar, or visual feedback.
-  - **Location:** `FileManagerViewModel.kt:353-375`
-  - **Impact:** User isn't sure if the action succeeded.
-  - **Fix:** Show a `Snackbar` with "N items copied" or highlight the clipboard indicator in the top bar.
-
 - [ ] [UX] `ToolsScreen` items are not clickable (except Trash Bin).
   - **Problem:** All tool cards except "Trash Bin" have no `onClick` handler or show "Coming Soon" but are still visually identical to actionable cards.
   - **Location:** `ToolsScreen.kt:73-74`, `ToolCard.kt:38`
@@ -327,29 +237,12 @@
   - **Impact:** Tonal palettes may not pass WCAG contrast checks; no guarantee of accessibility mapping.
   - **Fix:** Use the `material-color-utilities` library to generate `ColorScheme` from seed color at runtime. The current approach is acceptable if the values were exported from the Material Theme Builder.
 
-- [x] [Design] Typography uses system `FontFamily.SansSerif` for all styles.
-  - **Problem:** All 13 typography styles use `FontFamily.SansSerif` despite the project bundling `outfit_regular.ttf`.
-  - **Location:** `Type.kt:12-118`, `res/font/outfit_regular.ttf`
-  - **Impact:** The bundled Outfit font is completely unused; the app uses default system font.
-  - **Fix:** Define a `FontFamily` using the bundled Outfit font and apply it to the Typography.
 
 - [ ] [Design] `ExpressiveSquircleShape` is a simple `RoundedCornerShape(28.dp)`, not a true squircle.
   - **Problem:** A squircle (superellipse) has continuously changing curvature, while `RoundedCornerShape` uses circular arc corners.
   - **Location:** `Shape.kt:19`
   - **Impact:** Visual discrepancy with true M3 Expressive squircle shapes.
   - **Fix:** Use `RoundedCornerShape` with `CornerSize` percent or implement a custom `CutoutShape`. Alternatively, accept this as a reasonable approximation. Note: Compose does not natively support superellipse shapes.
-
-- [x] [Design] `statusBarColor` and `navigationBarColor` are set via deprecated APIs.
-  - **Problem:** `window.statusBarColor` and `window.navigationBarColor` are deprecated from Android 15 (API 35) onwards. System enforces edge-to-edge.
-  - **Location:** `Theme.kt:92-93`
-  - **Impact:** No-ops on Android 15+; may cause unexpected bar colors on older versions.
-  - **Fix:** Remove manual bar coloring; the `enableEdgeToEdge()` call in `onCreate` already handles this.
-
-- [x] [Design] OLED theme overrides only a few surface tokens.
-  - **Problem:** OLED mode changes `background`, `surface`, `surfaceVariant`, `surfaceContainerLowest`, and `surfaceContainerLow` but leaves `surfaceContainer`, `surfaceContainerHigh`, and `surfaceContainerHighest` unchanged.
-  - **Location:** `Theme.kt:68-74`, `Color.kt:46-60`
-  - **Impact:** Cards and elevated surfaces still show non-black backgrounds in "OLED" mode.
-  - **Fix:** Override all `surfaceContainer*` tokens with appropriately dark values.
 
 ---
 
@@ -367,18 +260,6 @@
   - **Impact:** Folder-to-folder navigation feels abrupt — content just swaps.
   - **Fix:** Add a crossfade or shared-element transition for the file list when changing directories.
 
-- [x] [Motion] FAB expansion has no background scrim/dismiss on outside tap.
-  - **Problem:** `ExpandableFabMenu` expands but there's no scrim overlay or dismiss-on-touch-outside behavior.
-  - **Location:** `FileManagerScreen.kt:884-933`
-  - **Impact:** The expanded FAB options float without context; user must tap the FAB again to dismiss.
-  - **Fix:** Add a full-screen transparent `Box` with a click listener to dismiss when tapping outside.
-
-- [x] [Motion] Selection state change lacks micro-animation on row padding.
-  - **Problem:** `FileItemRow` padding changes from `0.dp` to `8.dp` when selected, but this is not animated — it causes a layout jump.
-  - **Location:** `FileManagerScreen.kt:644`
-  - **Impact:** Visible jump when selecting/deselecting items.
-  - **Fix:** Use `animateDpAsState` for the padding values.
-
 ---
 
 ### I. App Smoothness & Rendering Stability
@@ -395,34 +276,28 @@
   - **Impact:** Unnecessary animation measurement on every composition; potential flicker if storage data arrives asynchronously.
   - **Fix:** Remove `animateContentSize()` unless needed for dynamic content changes.
 
-- [x] [Smoothness] Category storage data loads in two separate `_state.update` calls — causes double recomposition.
-  - **Problem:** `loadHomeData()` updates state once for recent files + storage info, then again for category storages.
-  - **Location:** `FileManagerViewModel.kt:74-96`
-  - **Impact:** HomeScreen recomposes twice in quick succession; potential visual flicker of the storage bar.
-  - **Fix:** Combine both state updates into a single `_state.update` call by awaiting both results concurrently using `async/await`.
-
 ---
 
 ### J. Documentation Quality
 
-- [ ] [Docs] `README.md` version is outdated (references v0.2.3, actual version is v0.2.8).
+- [x] [Docs] `README.md` version is outdated (references v0.2.3, actual version is v0.3.0).
   - **Location:** `README.md`, `TASKS.md` header
   - **Impact:** Confusing for contributors checking out the project.
   - **Fix:** Keep version references consistent with `build.gradle.kts`.
 
-- [ ] [Docs] No developer onboarding or build instructions.
+- [x] [Docs] No developer onboarding or build instructions.
   - **Problem:** `README.md` does not include how to clone, configure signing, or build the app.
   - **Location:** `README.md`
   - **Impact:** New contributors cannot build the project without reading Gradle files.
   - **Fix:** Add a "Getting Started" section with clone, signing config, and build/run commands.
 
-- [ ] [Docs] `DEVELOPMENT.md` exists but may not reflect current architecture.
+- [x] [Docs] `DEVELOPMENT.md` exists but may not reflect current architecture.
   - **Problem:** `DEVELOPMENT.md` is 19KB but needs verification against the actual codebase structure.
   - **Location:** `DEVELOPMENT.md`
   - **Impact:** Potentially misleading documentation.
   - **Fix:** Review and update to match current file structure, architecture, and conventions.
 
-- [ ] [Docs] No KDoc/documentation on public API surfaces.
+- [x] [Docs] No KDoc/documentation on public API surfaces.
   - **Problem:** `FileRepository`, `FileModel`, `FileManagerViewModel`, and all screen composables have zero documentation comments.
   - **Location:** All `domain/` and `presentation/` files
   - **Impact:** Contributors must read implementation to understand contracts.

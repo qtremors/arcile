@@ -115,6 +115,39 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+/**
+ * Full-featured file browser screen.
+ *
+ * Supports list and grid views, multi-select with range selection, inline search with filters,
+ * file creation, rename, delete (via trash), copy/cut/paste clipboard, share, and pull-to-refresh.
+ *
+ * @param state Current [FileManagerState] containing file list, selection, search, and clipboard state.
+ * @param storageRootPath Absolute path of the storage root — used for breadcrumb display.
+ * @param onNavigateBack Called when the user navigates back (hardware back or top bar back button).
+ * @param onNavigateTo Called with the target directory path when the user opens a folder.
+ * @param onOpenFile Called with the file path when the user opens a non-directory file.
+ * @param onToggleSelection Toggles selection state for the given file path.
+ * @param onSelectMultiple Selects all provided file paths (used for range selection).
+ * @param onClearSelection Clears all current selections.
+ * @param onCreateFolder Creates a new directory with the given name in the current directory.
+ * @param onCreateFile Creates a new empty file with the given name in the current directory.
+ * @param onDeleteSelected Moves all currently selected items to trash.
+ * @param onRenameFile Renames the file at [path] to [newName].
+ * @param onSearchQueryChange Updates the search query in the ViewModel.
+ * @param onClearSearch Clears the active search query.
+ * @param onSortOptionChange Updates the sort option for the current directory listing.
+ * @param onGridViewChange Switches between list and grid view layouts.
+ * @param onClearError Clears the current error message from state.
+ * @param onCopySelected Stages selected files for a copy operation.
+ * @param onCutSelected Stages selected files for a move operation.
+ * @param onPasteFromClipboard Executes the pending clipboard operation in the current directory.
+ * @param onCancelClipboard Cancels the current clipboard operation.
+ * @param onShareSelected Launches the system share sheet for selected files.
+ * @param isRefreshing `true` while a pull-to-refresh reload is in progress.
+ * @param onRefresh Triggers a directory reload (invoked by pull-to-refresh).
+ * @param onSearchFiltersChange Updates the active search filters.
+ * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun FileManagerScreen(

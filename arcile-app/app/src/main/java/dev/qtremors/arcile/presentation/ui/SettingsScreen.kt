@@ -48,6 +48,17 @@ import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.ThemeState
 
+/**
+ * Settings screen for theme and appearance preferences.
+ *
+ * Displays a theme mode selector (System / Light / Dark / OLED) and an accent color picker.
+ * Theme state is persisted via [dev.qtremors.arcile.ui.theme.ThemePreferences] (DataStore).
+ * Also includes an About section with app version, developer, repository, and device info.
+ *
+ * @param currentThemeState Current [ThemeState] reflecting the active theme mode and accent color.
+ * @param onNavigateBack Called when the user navigates back.
+ * @param onThemeChange Called with the updated [ThemeState] whenever the user changes a setting.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(

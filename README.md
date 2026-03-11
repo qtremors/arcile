@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-0.3.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
@@ -49,22 +50,44 @@
 ### Setup
 
 ```bash
-# Clone and navigate
+# Clone the repository
 git clone https://github.com/qtremors/arcile.git
-cd arcile/arcile-app
 
 # Open in Android Studio
 # File → Open → select the arcile-app directory
+```
 
-# Or build via CLI
+Or build from the command line (run from inside `arcile-app/`):
+
+```bash
 ./gradlew assembleDebug
 ```
 
-Install the APK on a connected device or emulator:
+Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/app-debug.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk
 ```
+
+### Release Signing
+
+Release builds are signed using credentials stored in `local.properties` (not committed). To configure signing:
+
+1. Generate a keystore (or use an existing one):
+   ```bash
+   keytool -genkeypair -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key-alias
+   ```
+2. Add the following to `arcile-app/local.properties`:
+   ```properties
+   signing.storeFile=/absolute/path/to/my-release-key.jks
+   signing.storePassword=your_store_password
+   signing.keyAlias=your_key_alias
+   signing.keyPassword=your_key_password
+   ```
+3. Build the release APK:
+   ```bash
+   ./gradlew assembleRelease
+   ```
 
 > **Note:** The app requires **All Files Access** permission (Android 11+) or **READ/WRITE_EXTERNAL_STORAGE** (Android 10 and below) to function.
 
@@ -89,31 +112,48 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 ```
 arcile/
-├── arcile-app/                   # Android project root
+├── arcile-app/                          # Android project root
 │   ├── app/src/main/
 │   │   ├── java/dev/qtremors/arcile/
-│   │   │   ├── MainActivity.kt           # Entry point, permissions, nav shell
-│   │   │   ├── data/                      # Data layer
-│   │   │   │   └── LocalFileRepository.kt # File system operations
-│   │   │   ├── domain/                    # Domain layer
-│   │   │   │   ├── FileModel.kt           # File data model
-│   │   │   │   └── FileRepository.kt      # Repository interface + StorageInfo
-│   │   │   ├── presentation/              # Presentation layer
-│   │   │   │   ├── FileManagerViewModel.kt # Shared ViewModel + state
-│   │   │   │   └── ui/                    # Composable screens
+│   │   │   ├── ArcileApp.kt             # Application class (Coil image loader)
+│   │   │   ├── MainActivity.kt          # Entry point, permissions, nav shell
+│   │   │   ├── data/
+│   │   │   │   └── LocalFileRepository.kt
+│   │   │   ├── domain/
+│   │   │   │   ├── FileModel.kt
+│   │   │   │   ├── FileRepository.kt    # Repository interface
+│   │   │   │   ├── FileCategories.kt
+│   │   │   │   ├── SearchFilters.kt
+│   │   │   │   ├── StorageInfo.kt
+│   │   │   │   └── TrashMetadata.kt
+│   │   │   ├── image/                   # Coil custom fetchers
+│   │   │   │   ├── ApkIconFetcher.kt
+│   │   │   │   └── AudioAlbumArtFetcher.kt
+│   │   │   ├── navigation/
+│   │   │   │   └── AppRoutes.kt         # Route string constants
+│   │   │   ├── presentation/
+│   │   │   │   ├── FileManagerViewModel.kt
+│   │   │   │   ├── FilePresentation.kt
+│   │   │   │   ├── SearchFilters.kt
+│   │   │   │   └── ui/
+│   │   │   │       ├── ArcileAppShell.kt
 │   │   │   │       ├── HomeScreen.kt
 │   │   │   │       ├── FileManagerScreen.kt
+│   │   │   │       ├── RecentFilesScreen.kt
 │   │   │   │       ├── SettingsScreen.kt
+│   │   │   │       ├── StorageDashboardScreen.kt
 │   │   │   │       ├── ToolsScreen.kt
-│   │   │   │       └── components/        # Reusable UI components
-│   │   │   └── ui/theme/                  # Theme configuration
-│   │   └── res/                           # Android resources
-│   ├── build.gradle.kts                   # App-level build config
-│   └── gradle/libs.versions.toml          # Version catalog
-├── DEVELOPMENT.md                # Developer documentation
-├── CHANGELOG.md                  # Version history
-├── TASKS.md                      # Audit findings and planned work
-├── LICENSE.md                    # License terms
+│   │   │   │       ├── TrashScreen.kt
+│   │   │   │       └── components/      # Reusable UI components
+│   │   │   ├── ui/theme/                # Theme, colors, typography, shapes
+│   │   │   └── utils/                   # Formatting & color utilities
+│   │   └── res/                         # Android resources
+│   ├── build.gradle.kts
+│   └── gradle/libs.versions.toml        # Version catalog
+├── DEVELOPMENT.md                       # Developer documentation
+├── CHANGELOG.md                         # Version history
+├── TASKS.md                             # Audit findings and planned work
+├── LICENSE.md
 └── README.md
 ```
 

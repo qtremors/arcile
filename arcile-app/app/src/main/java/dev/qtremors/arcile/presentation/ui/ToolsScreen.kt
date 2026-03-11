@@ -28,6 +28,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+
+/**
+ * Utilities grid screen listing planned and implemented tools.
+ *
+ * Currently only the Trash Bin tool is functional. All other tool cards are marked as
+ * "Coming Soon" and are not clickable. See TASKS.md F4 for the UX issue around
+ * non-interactive cards being visually identical to actionable ones.
+ *
+ * @param onNavigateBack Called when the user navigates back.
+ */
 @Composable
 fun ToolsScreen(
     onNavigateBack: () -> Unit

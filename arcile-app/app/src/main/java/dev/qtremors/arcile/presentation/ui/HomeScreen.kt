@@ -91,6 +91,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 
+/**
+ * Dashboard screen shown when the app first launches.
+ *
+ * Displays a storage summary card, per-category storage breakdown, quick-access folder
+ * shortcuts, a utilities tray, and a recent-files list.
+ *
+ * @param state Current [FileManagerState] providing storage info, recent files, and category data.
+ * @param onOpenFileBrowser Invoked when the user wants to browse all files from the storage root.
+ * @param onNavigateToPath Invoked when the user taps a quick-access folder shortcut.
+ * @param onOpenFile Invoked when the user taps a recent file to open it externally.
+ * @param onCategoryClick Invoked with the category name when the user taps a category tile.
+ * @param onSettingsClick Navigates to the Settings screen.
+ * @param onNavigateToTools Navigates to the Tools screen.
+ * @param onNavigateToTrash Navigates to the Trash screen.
+ * @param onNavigateToRecentFiles Navigates to the full Recent Files screen.
+ * @param onOpenStorageDashboard Navigates to the Storage Dashboard screen.
+ * @param onSearchQueryChange Propagates search query changes to the ViewModel.
+ * @param onSearchFiltersChange Propagates updated search filter selections to the ViewModel.
+ * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
