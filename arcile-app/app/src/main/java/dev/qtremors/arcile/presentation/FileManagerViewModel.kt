@@ -32,6 +32,8 @@ data class ClipboardState(
 data class FileManagerState(
     val isHomeScreen: Boolean = true,
     val currentPath: String = "",
+    val isCategoryScreen: Boolean = false,
+    val activeCategoryName: String = "",
     val files: List<FileModel> = emptyList(),
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
@@ -44,6 +46,7 @@ data class FileManagerState(
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val isLoading: Boolean = false,
+    val isPullToRefreshing: Boolean = false,
     val error: String? = null,
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
@@ -67,6 +70,9 @@ class FileManagerViewModel(
 
     val storageRootPath: String = Environment.getExternalStorageDirectory().absolutePath
 
+    /** Maximum number of recent files shown on the Home screen preview. */
+    private val RECENTS_PREVIEW_LIMIT = 50
+
     init {
         loadHomeData()
     }
@@ -77,7 +83,7 @@ class FileManagerViewModel(
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
 
             // Fetch all data sequentially, then combine into a single state update
-            val recentResult = repository.getRecentFiles(limit = Int.MAX_VALUE, minTimestamp = oneWeekAgo)
+            val recentResult = repository.getRecentFiles(limit = RECENTS_PREVIEW_LIMIT, minTimestamp = oneWeekAgo)
             val storageResult = repository.getStorageInfo()
             val categoryResult = repository.getCategoryStorageSizes()
 
@@ -112,7 +118,7 @@ class FileManagerViewModel(
     }
 
     fun navigateToCategory(categoryName: String) {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false, isCategoryScreen = true, activeCategoryName = categoryName) }
         pathHistory.clear()
         loadCategory(categoryName)
     }
@@ -146,15 +152,17 @@ class FileManagerViewModel(
             loadDirectory(previousPath)
             return true
         } else {
-            _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, selectedFiles = emptySet()) }
-            return false  // Let navController.popBackStack() handle route-level navigation
+            _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, isCategoryScreen = false, selectedFiles = emptySet()) }
+            return true  // Handled: switched to Home; caller should NOT also pop the nav back stack
         }
     }
 
-    fun refresh() {
+    fun refresh(pullToRefresh: Boolean = false) {
         when {
             _state.value.isHomeScreen -> loadHomeData()
             _state.value.isTrashScreen -> loadTrashFiles()
+            _state.value.isRecentFilesScreen -> loadRecentFilesFull(pullToRefresh)
+            _state.value.isCategoryScreen -> loadCategory(_state.value.activeCategoryName)
             _state.value.currentPath.isNotEmpty() -> loadDirectory(_state.value.currentPath)
         }
     }
@@ -178,7 +186,7 @@ class FileManagerViewModel(
 
     private fun loadCategory(categoryName: String) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, currentPath = "Category: $categoryName", selectedFiles = emptySet()) }
+            _state.update { it.copy(isLoading = true, error = null, isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet()) }
 
             val result = repository.getFilesByCategory(categoryName)
 
@@ -244,11 +252,17 @@ class FileManagerViewModel(
             // Wait for user to stop typing
             kotlinx.coroutines.delay(400)
             _state.update { it.copy(isSearching = true, error = null) }
-            
+
             val stateVal = _state.value
-            val pathScope = if (stateVal.isHomeScreen) null else stateVal.currentPath
+            // Use a real filesystem path only for directory-browser screens.
+            // For home, category, and recent screens, search MediaStore-wide (pathScope = null).
+            val pathScope = when {
+                !stateVal.isHomeScreen && !stateVal.isCategoryScreen && !stateVal.isRecentFilesScreen
+                    && stateVal.currentPath.isNotEmpty() -> stateVal.currentPath
+                else -> null
+            }
             val filters = stateVal.activeSearchFilters
-            
+
             val result = repository.searchFiles(query, pathScope, filters)
             result.onSuccess { files ->
                 _state.update { it.copy(isSearching = false, searchResults = files) }
@@ -440,10 +454,21 @@ class FileManagerViewModel(
     }
 
     fun navigateToRecentFiles() {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = true, selectedFiles = emptySet()) }
+        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = true, isCategoryScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
-        // Always reload to ensure fresh data
-        loadHomeData()
+        loadRecentFilesFull()
+    }
+
+    private fun loadRecentFilesFull(pullToRefresh: Boolean = false) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
+            val result = repository.getRecentFiles(limit = 500)
+            result.onSuccess { files ->
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, recentFiles = files) }
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load recent files") }
+            }
+        }
     }
 
     private fun loadTrashFiles() {

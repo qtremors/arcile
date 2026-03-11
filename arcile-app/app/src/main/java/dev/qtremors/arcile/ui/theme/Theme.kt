@@ -61,7 +61,8 @@ fun FileManagerTheme(
                 AccentColor.GREEN -> if (effectivelyDark) GreenDarkScheme else GreenLightScheme
                 AccentColor.RED -> if (effectivelyDark) RedDarkScheme else RedLightScheme
                 AccentColor.PURPLE -> if (effectivelyDark) PurpleDarkScheme else PurpleLightScheme
-                else -> if (effectivelyDark) DarkColorScheme else LightColorScheme // Monochrome / Fallback
+                AccentColor.MONOCHROME -> if (effectivelyDark) MonochromeDarkScheme else MonochromeLightScheme
+                AccentColor.DYNAMIC -> if (effectivelyDark) DarkColorScheme else LightColorScheme // fallback: dynamic not supported below API 31
             }
             if (themeState.themeMode == ThemeMode.OLED) {
                  scheme.copy(

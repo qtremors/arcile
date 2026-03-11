@@ -294,14 +294,23 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             val filesList = mutableListOf<FileModel>()
             
             if (pathScope != null) {
-                // Scoped recursive search
+                // Scoped recursive search — validate the scope root before walking
                 val rootDir = File(pathScope)
+                validatePath(rootDir).onFailure { return@withContext Result.failure(it) }
+                val storageRootCanonical = File(storageRoot).canonicalPath
                 if (rootDir.exists() && rootDir.isDirectory) {
-                    rootDir.walkTopDown().forEach { file ->
-                        if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
-                            filesList.add(FileModel(file))
+                    rootDir.walkTopDown()
+                        .onEnter { dir ->
+                            // Prune symlinked / out-of-bound directories
+                            val dirCanonical = dir.canonicalPath
+                            dirCanonical == storageRootCanonical ||
+                                dirCanonical.startsWith(storageRootCanonical + File.separator)
                         }
-                    }
+                        .forEach { file ->
+                            if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
+                                filesList.add(FileModel(file))
+                            }
+                        }
                 }
             } else {
                 // Global MediaStore search
@@ -382,6 +391,17 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
                 if (!sourceFile.exists()) continue
 
+                // Reject copies where the destination is inside the source tree
+                if (sourceFile.isDirectory) {
+                    val sourcePath = sourceFile.canonicalFile.toPath()
+                    val destPath = destDir.canonicalFile.toPath()
+                    if (destPath.startsWith(sourcePath)) {
+                        return@withContext Result.failure(
+                            IllegalArgumentException("Cannot copy a directory into itself or one of its subdirectories")
+                        )
+                    }
+                }
+
                 var targetFile = File(destDir, sourceFile.name)
                 validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
 
@@ -423,6 +443,17 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
 
                 if (!sourceFile.exists()) continue
+
+                // Reject moves where the destination is inside the source tree
+                if (sourceFile.isDirectory) {
+                    val sourcePath = sourceFile.canonicalFile.toPath()
+                    val destPath = destDir.canonicalFile.toPath()
+                    if (destPath.startsWith(sourcePath)) {
+                        return@withContext Result.failure(
+                            IllegalArgumentException("Cannot move a directory into itself or one of its subdirectories")
+                        )
+                    }
+                }
 
                 val targetFile = File(destDir, sourceFile.name)
                 validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
@@ -521,9 +552,17 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 val json = JSONObject(metadataFile.readText())
                 val originalPath = json.getString("originalPath")
                 
-                val originalFile = File(originalPath)
+                var originalFile = File(originalPath)
                 validatePath(originalFile).onFailure { continue } // Skip invalid restores
-                
+
+                // Non-destructive restore: if the target already exists, use a conflict name
+                if (originalFile.exists()) {
+                    val timestamp = System.currentTimeMillis()
+                    val conflictName = "${originalFile.nameWithoutExtension}.restore-conflict-$timestamp" +
+                        (if (originalFile.extension.isNotEmpty()) ".${originalFile.extension}" else "")
+                    originalFile = File(originalFile.parentFile, conflictName)
+                }
+
                 // Ensure target parent directory exists
                 originalFile.parentFile?.mkdirs()
 
@@ -538,8 +577,8 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                         trashedFile.delete()
                     }
                 }
-                
-                // On success, clean up metadata
+
+                // Clean up metadata only once the file was actually created by this restore
                 if (originalFile.exists()) {
                     metadataFile.delete()
                 }

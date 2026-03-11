@@ -162,8 +162,8 @@ fun ArcileAppShell(
                         onPasteFromClipboard = { viewModel.pasteFromClipboard() },
                         onCancelClipboard = { viewModel.cancelClipboard() },
                         onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
-                        isRefreshing = state.isLoading,
-                        onRefresh = { viewModel.refresh() },
+                        isRefreshing = state.isPullToRefreshing,
+                        onRefresh = { viewModel.refresh(pullToRefresh = true) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
                     )

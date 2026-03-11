@@ -48,11 +48,17 @@ interface FileRepository {
     suspend fun createFile(parentPath: String, name: String): Result<FileModel>
 
     /**
-     * Deletes the file or directory at [path].
+     * Soft-deletes the file or directory at [path] by moving it to the app Trash.
      *
-     * Deletion is recursive — any directory contents are removed before the directory itself.
+     * Implementations may move the file/directory to Trash rather than permanently removing it.
+     * [dev.qtremors.arcile.data.LocalFileRepository.deleteFile] is an example of soft-delete:
+     * it delegates to [moveToTrash] and the item can be restored via [restoreFromTrash] or
+     * permanently removed via [emptyTrash].
      *
-     * @return [Result.success] if deletion succeeded, [Result.failure] otherwise.
+     * No space reclamation is guaranteed until the Trash is emptied. Recursive removal of
+     * directory contents is handled by the Trash subsystem.
+     *
+     * @return [Result.success] if the item was moved to Trash, [Result.failure] otherwise.
      */
     suspend fun deleteFile(path: String): Result<Unit>
 

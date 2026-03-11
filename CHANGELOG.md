@@ -1,8 +1,37 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.0
+> **Version:** 0.3.1
 > **Last Updated:** 2026-03-11
+
+---
+
+## [0.3.1] - 2026-03-11
+
+### Fixed
+- [Bug] `SearchFiltersBottomSheet`: Date filter chip selected-state checks now use live time-window range comparison instead of exact equality against a stale `remember { System.currentTimeMillis() }` — chips correctly highlight after the sheet is closed and reopened.
+- [Bug] `FileManagerScreen`: Long-press range-selection anchor `lastInteractedIndex` is now reset to `null` whenever the file list changes (directory navigation, sort change), preventing stale-index out-of-bounds errors and incorrect batch selections in both list and grid views.
+- [Bug] `RecentFilesScreen`: System back gesture now clears selection mode (via `BackHandler`) instead of navigating away with `selectedFiles` still populated.
+- [Bug] `RecentFilesScreen`: Delete action now shows a confirmation `AlertDialog` ("items will be moved to Trash Bin") before invoking `onDeleteSelected()`, matching the behavior in `FileManagerScreen`.
+- [Bug] `AudioAlbumArtFetcher`: `return@try null` replaced with `return null` — `try` is not a valid label target in Kotlin; the `finally { retriever.release() }` block still executes correctly.
+- [Bug] `FileManagerViewModel`: `isPullToRefreshing` state now exclusively drives the pull-to-refresh indicator; general `isLoading` no longer conflated with the swipe gesture.
+- [Bug] `FileManagerViewModel`: `navigateBack()` now returns `true` after switching state to `isHomeScreen`, preventing the `NavController` from also popping the back stack (double-navigation).
+- [Bug] `FileManagerViewModel`: `refresh()` now routes to the correct loader for each screen type (home, trash, recent files, category, directory browser).
+- [Bug] `FileManagerViewModel`: `debouncedSearch()` uses `pathScope = null` (MediaStore-wide) on home, category, and recent screens; scopes to `currentPath` only when inside a directory browser.
+- [Bug] `LocalFileRepository`: Copy/move operations now reject ancestor targets, preventing infinite filesystem loops.
+- [Bug] `LocalFileRepository`: `restoreFromTrash` is non-destructive — if the restore target already exists a conflict-safe filename is generated instead of overwriting.
+- [Bug] `LocalFileRepository`: `searchFiles` validates `pathScope` and prunes directories outside the storage root during recursive walks.
+
+### Improved
+- [A11y] `SettingsScreen`: Theme mode card rows now use `Modifier.selectableGroup()` and each card exposes `Modifier.selectable(role = Role.RadioButton)`, allowing TalkBack to announce them as an exclusive radio group.
+- [A11y] `SettingsScreen`: Accent color label replaced `currentAccent.name` (raw enum constant) with a friendly `accentLabel()` helper returning "Dynamic", "Monochrome", "Blue", etc.
+
+### Added
+- [Theme] `AccentColor.MONOCHROME` now resolves to dedicated `MonochromeLightScheme` / `MonochromeDarkScheme` grayscale color schemes instead of falling through to the purple default.
+- [Security] `file_provider_paths.xml`: Added root `external-path path="/"` entry so `FileProvider.getUriForFile()` succeeds for any file on external storage, not just the ten named standard folders.
+
+### Docs
+- [KDoc] `FileRepository.deleteFile` KDoc corrected to describe soft-delete (trash) behavior rather than permanent deletion.
 
 ---
 

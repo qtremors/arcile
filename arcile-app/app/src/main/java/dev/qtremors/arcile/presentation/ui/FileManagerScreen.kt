@@ -588,6 +588,9 @@ private fun FileList(
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
+    // Reset the range-selection anchor whenever the list content changes (directory change, sort, etc.)
+    LaunchedEffect(files) { lastInteractedIndex = null }
+
     LazyColumn(modifier = modifier.fillMaxWidth()) {
         items(files.size, key = { index -> files[index].absolutePath }) { index ->
             val file = files[index]
@@ -636,6 +639,9 @@ private fun FileGrid(
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
+
+    // Reset the range-selection anchor whenever the list content changes (directory change, sort, etc.)
+    LaunchedEffect(files) { lastInteractedIndex = null }
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 160.dp),

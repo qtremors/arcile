@@ -300,3 +300,52 @@ val PurpleDarkScheme = darkColorScheme(
     outline = Color(0xFF998D96),
     outlineVariant = Color(0xFF4E444B)
 )
+
+// Monochrome / grayscale accent palette
+val MonochromeLightScheme = lightColorScheme(
+    primary = Color(0xFF3B3B3B),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE0E0E0),
+    onPrimaryContainer = Color(0xFF1A1A1A),
+    secondary = Color(0xFF5C5C5C),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFEEEEEE),
+    onSecondaryContainer = Color(0xFF2B2B2B),
+    background = Color(0xFFFAFAFA),
+    surface = Color(0xFFFAFAFA),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFF5F5F5),
+    surfaceContainer = Color(0xFFEEEEEE),
+    surfaceContainerHigh = Color(0xFFE8E8E8),
+    surfaceContainerHighest = Color(0xFFE0E0E0),
+    onSurface = Color(0xFF1C1C1C),
+    onBackground = Color(0xFF1C1C1C),
+    surfaceVariant = Color(0xFFE0E0E0),
+    onSurfaceVariant = Color(0xFF4A4A4A),
+    outline = Color(0xFF757575),
+    outlineVariant = Color(0xFFBDBDBD)
+)
+
+val MonochromeDarkScheme = darkColorScheme(
+    primary = Color(0xFFCCCCCC),
+    onPrimary = Color(0xFF222222),
+    primaryContainer = Color(0xFF444444),
+    onPrimaryContainer = Color(0xFFE0E0E0),
+    secondary = Color(0xFFAAAAAA),
+    onSecondary = Color(0xFF303030),
+    secondaryContainer = Color(0xFF3D3D3D),
+    onSecondaryContainer = Color(0xFFDDDDDD),
+    background = Color(0xFF1A1A1A),
+    surface = Color(0xFF1A1A1A),
+    surfaceContainerLowest = Color(0xFF101010),
+    surfaceContainerLow = Color(0xFF1A1A1A),
+    surfaceContainer = Color(0xFF1F1F1F),
+    surfaceContainerHigh = Color(0xFF292929),
+    surfaceContainerHighest = Color(0xFF333333),
+    onSurface = Color(0xFFE0E0E0),
+    onBackground = Color(0xFFE0E0E0),
+    surfaceVariant = Color(0xFF3D3D3D),
+    onSurfaceVariant = Color(0xFFBBBBBB),
+    outline = Color(0xFF888888),
+    outlineVariant = Color(0xFF444444)
+)

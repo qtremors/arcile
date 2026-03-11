@@ -6,6 +6,74 @@
 
 ---
 
+## PR Review ✅
+
+> All 17 findings have been verified against the current codebase. Every item is either properly
+> fixed or was confirmed to be an acceptable trade-off. Marked done on 2026-03-11.
+
+- [x] **build.gradle.kts — VariantOutputImpl cast**: Still uses internal API cast but includes a
+  documenting comment explaining no stable public API exists. Acceptable trade-off with pinned AGP.
+
+- [x] **LocalFileRepository.searchFiles — scoped search boundary checks**: `validatePath(rootDir)` is
+  called before walking, and `onEnter` prunes directories whose canonical path falls outside
+  `storageRoot`. Fixed.
+
+- [x] **LocalFileRepository.copyFiles — copy-into-self rejection**: Both `copyFiles()` and
+  `moveFiles()` canonicalize paths and check `destPath.startsWith(sourcePath)` for directories,
+  returning a failure Result if the destination is inside the source tree. Fixed.
+
+- [x] **LocalFileRepository.restoreFromTrash — non-destructive restore**: If `originalFile.exists()`,
+  a conflict filename with timestamp is generated. `metadataFile` is only deleted after confirming
+  `originalFile.exists()` post-restore. Fixed.
+
+- [x] **FileRepository.deleteFile — KDoc contract mismatch**: KDoc now says "Soft-deletes" and
+  mentions that implementations may move to Trash, references `LocalFileRepository.deleteFile` as
+  an example. Fixed.
+
+- [x] **AudioAlbumArtFetcher — null bitmap check**: `BitmapFactory.decodeByteArray` result is checked
+  for null with `?: return null`, letting Coil use its fallback. Fixed.
+
+- [x] **FileManagerViewModel.loadHomeData — unbounded recent files**: Uses `RECENTS_PREVIEW_LIMIT = 50`
+  constant instead of `Int.MAX_VALUE`. Fixed.
+
+- [x] **FileManagerViewModel.navigateBack — returns false on home transition**: The `else` branch now
+  `return true` with a comment "Handled: switched to Home; caller should NOT also pop." Fixed.
+
+- [x] **FileManagerViewModel.refresh — screen-type-aware dispatch**: `refresh()` uses a `when` block
+  that dispatches to `loadHomeData()`, `loadTrashFiles()`, `loadRecentFilesFull()`,
+  `loadCategory()`, or `loadDirectory()` based on screen flags. `debouncedSearch()` uses `pathScope`
+  only for directory-browser screens. Fixed.
+
+- [x] **ArcileAppShell — pull-to-refresh flag**: `isPullToRefreshing` flag added to state.
+  `isRefreshing = state.isPullToRefreshing` and `onRefresh = { viewModel.refresh(pullToRefresh = true) }`
+  are wired in `ArcileAppShell`. Fixed.
+
+- [x] **SearchFiltersBottomSheet — date filter equality check**: No longer uses `remember { System.currentTimeMillis() }`. Selected checks use range-based
+  comparisons (e.g., `>= now - 2*day && < now`) instead of exact equality. Fixed.
+
+- [x] **FileManagerScreen — stale lastInteractedIndex**: Both `FileList` and `FileGrid` composables
+  have `LaunchedEffect(files) { lastInteractedIndex = null }` to reset the anchor on list changes.
+  Fixed.
+
+- [x] **RecentFilesScreen — BackHandler for selection**: `BackHandler(enabled = isSelectionMode) { onClearSelection() }` is present before the Scaffold. Fixed.
+
+- [x] **RecentFilesScreen — delete confirmation dialog**: `showConfirmDelete` state added with
+  an `AlertDialog` matching `FileManagerScreen`'s pattern. `IconButton` sets `showConfirmDelete = true`
+  instead of calling `onDeleteSelected()` directly. Fixed.
+
+- [x] **SettingsScreen — TalkBack semantics & accent labels**: `Modifier.selectableGroup()` wraps each
+  row, `Modifier.selectable(... role = Role.RadioButton)` is passed to each `ThemeModeCard`.
+  `accentLabel()` helper returns human-readable names instead of enum `.name`. Fixed.
+
+- [x] **Theme.kt — exhaustive AccentColor when**: Explicit `AccentColor.MONOCHROME` case added
+  mapping to `MonochromeDarkScheme`/`MonochromeLightScheme`. `AccentColor.DYNAMIC` is also explicit
+  as a fallback branch. No broad `else`. Fixed.
+
+- [x] **file_provider_paths.xml — root external-path mapping**: Root-level `<external-path name="external_root" path="/" />`
+  added so `FileProvider.getUriForFile()` succeeds for any file the UI allows. Fixed.
+
+---
+
 ## Medium Priority (Pre-existing)
 
 - [ ] [Refactor] ViewModel directly instantiates `LocalFileRepository` — no DI (`FileManagerViewModel.kt:61`)

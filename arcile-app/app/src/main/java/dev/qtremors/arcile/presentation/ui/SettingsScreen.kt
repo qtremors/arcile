@@ -181,15 +181,21 @@ fun ThemeModeSelector(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 12.dp)
         )
-        
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ThemeModeCard(ThemeMode.SYSTEM, "System", Icons.Default.SettingsSuggest, currentMode == ThemeMode.SYSTEM, Modifier.weight(1f), onModeSelected)
-            ThemeModeCard(ThemeMode.LIGHT, "Light", Icons.Default.LightMode, currentMode == ThemeMode.LIGHT, Modifier.weight(1f), onModeSelected)
+
+        Row(
+            modifier = Modifier.fillMaxWidth().selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ThemeModeCard(ThemeMode.SYSTEM, "System", Icons.Default.SettingsSuggest, currentMode == ThemeMode.SYSTEM, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.SYSTEM, onClick = { onModeSelected(ThemeMode.SYSTEM) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
+            ThemeModeCard(ThemeMode.LIGHT, "Light", Icons.Default.LightMode, currentMode == ThemeMode.LIGHT, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.LIGHT, onClick = { onModeSelected(ThemeMode.LIGHT) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ThemeModeCard(ThemeMode.DARK, "Dark", Icons.Default.DarkMode, currentMode == ThemeMode.DARK, Modifier.weight(1f), onModeSelected)
-            ThemeModeCard(ThemeMode.OLED, "OLED", Icons.Default.Contrast, currentMode == ThemeMode.OLED, Modifier.weight(1f), onModeSelected)
+        Row(
+            modifier = Modifier.fillMaxWidth().selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ThemeModeCard(ThemeMode.DARK, "Dark", Icons.Default.DarkMode, currentMode == ThemeMode.DARK, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.DARK, onClick = { onModeSelected(ThemeMode.DARK) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
+            ThemeModeCard(ThemeMode.OLED, "OLED", Icons.Default.Contrast, currentMode == ThemeMode.OLED, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.OLED, onClick = { onModeSelected(ThemeMode.OLED) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
         }
     }
 }
@@ -338,10 +344,21 @@ fun AccentColorSelector(
         
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Selected: ${currentAccent.name}",
+            text = "Selected: ${accentLabel(currentAccent)}",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
     }
+}
+
+/** Returns a user-friendly display name for each [AccentColor] variant. */
+fun accentLabel(accent: AccentColor): String = when (accent) {
+    AccentColor.DYNAMIC -> "Dynamic"
+    AccentColor.MONOCHROME -> "Monochrome"
+    AccentColor.BLUE -> "Blue"
+    AccentColor.CYAN -> "Cyan"
+    AccentColor.GREEN -> "Green"
+    AccentColor.RED -> "Red"
+    AccentColor.PURPLE -> "Purple"
 }
