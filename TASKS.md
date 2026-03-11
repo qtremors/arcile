@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.2.9
-> **Last Updated:** 2026-03-10
+> **Version:** 0.3.0
+> **Last Updated:** 2026-03-11
 
 ---
 
@@ -45,7 +45,7 @@
   - **Impact:** Possible inconsistent UI state after configuration changes or deep-linking.
   - **Fix:** Use Navigation Compose route as the single source of truth. Derive the ViewModel flags from the current route, or remove them entirely.
 
-- [ ] [Bug] `deleteSelectedFiles()` silently redirects to `moveToTrashSelected()` without user feedback.
+- [x] [Bug] `deleteSelectedFiles()` silently redirects to `moveToTrashSelected()` without user feedback.
   - **Problem:** Delete dialog text says "This action cannot be undone" but files are actually moved to trash (recoverable).
   - **Location:** `FileManagerViewModel.kt:321-327`, `FileManagerScreen.kt:444`
   - **Impact:** Misleading UX; user thinks files are permanently deleted.
@@ -109,7 +109,7 @@
   - **Impact:** App is completely blocked if the user denies — no partial-access mode via SAF.
   - **Fix:** Implement SAF fallback for granular per-folder access.
 
-- [ ] [Security] `android:requestLegacyExternalStorage="true"` is set unnecessarily.
+- [x] [Security] `android:requestLegacyExternalStorage="true"` is set unnecessarily.
   - **Problem:** This flag is ignored on Android 11+ (API 30+) and the app targets API 36 with `minSdk = 24`.
   - **Location:** `AndroidManifest.xml:11`
   - **Impact:** Minor — adds confusion; on API 29 (Android 10) it disables scoped storage which is a security regression.
@@ -223,7 +223,7 @@
   - **Impact:** Code clutter, confusing for contributors.
   - **Fix:** Remove duplicate imports.
 
-- [ ] [Code Quality] Category color mapping duplicated in 3 places.
+- [x] [Code Quality] Category color mapping duplicated in 3 places.
   - **Problem:** The `when (cat.name)` block mapping category names to colors is copy-pasted in `MultiColorStorageBar`, `CategoryLegend`, and `StorageDashboardScreen`.
   - **Location:** `HomeScreen.kt:414-421`, `HomeScreen.kt:468-475`, `StorageDashboardScreen.kt:63-71`
   - **Impact:** Inconsistency risk; changing one without the others creates subtle visual bugs.
@@ -259,7 +259,7 @@
   - **Impact:** If the Activity is recreated, a new `DataStore` flow is created, potentially racing with the old one.
   - **Fix:** Hoist `ThemePreferences` to the Activity level or inject via DI.
 
-- [ ] [Code Quality] Direct use of `java.text.SimpleDateFormat` — not thread-safe.
+- [x] [Code Quality] Direct use of `java.text.SimpleDateFormat` — not thread-safe.
   - **Problem:** `SimpleDateFormat` instances created inside `remember {}` blocks in composables.
   - **Location:** `FileManagerScreen.kt:527`, `RecentFilesScreen.kt:48`, `TrashScreen.kt:223`
   - **Impact:** Potential date formatting corruption if recomposition races (unlikely but possible).
@@ -293,7 +293,7 @@
   - **Impact:** Potential touch target issues on high-density screens.
   - **Fix:** Ensure minimum 48dp clickable area via `Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)`.
 
-- [ ] [UX] Error state shown as dialog — blocks interaction.
+- [x] [UX] Error state shown as dialog — blocks interaction.
   - **Problem:** Errors are displayed as `AlertDialog` which requires dismissal before any other action.
   - **Location:** `FileManagerScreen.kt:502-513`, `TrashScreen.kt:201-212`
   - **Impact:** Disruptive flow; user must always click "OK" before retrying.
@@ -305,7 +305,7 @@
   - **Impact:** User anxiety about a recoverable action; UX mismatch.
   - **Fix:** Change text to "Items will be moved to Trash Bin. You can restore them later."
 
-- [ ] [UX] No confirmation or feedback after clipboard copy/cut.
+- [x] [UX] No confirmation or feedback after clipboard copy/cut.
   - **Problem:** `copySelectedToClipboard()` and `cutSelectedToClipboard()` update state silently. No toast, snackbar, or visual feedback.
   - **Location:** `FileManagerViewModel.kt:353-375`
   - **Impact:** User isn't sure if the action succeeded.
@@ -367,13 +367,13 @@
   - **Impact:** Folder-to-folder navigation feels abrupt — content just swaps.
   - **Fix:** Add a crossfade or shared-element transition for the file list when changing directories.
 
-- [ ] [Motion] FAB expansion has no background scrim/dismiss on outside tap.
+- [x] [Motion] FAB expansion has no background scrim/dismiss on outside tap.
   - **Problem:** `ExpandableFabMenu` expands but there's no scrim overlay or dismiss-on-touch-outside behavior.
   - **Location:** `FileManagerScreen.kt:884-933`
   - **Impact:** The expanded FAB options float without context; user must tap the FAB again to dismiss.
   - **Fix:** Add a full-screen transparent `Box` with a click listener to dismiss when tapping outside.
 
-- [ ] [Motion] Selection state change lacks micro-animation on row padding.
+- [x] [Motion] Selection state change lacks micro-animation on row padding.
   - **Problem:** `FileItemRow` padding changes from `0.dp` to `8.dp` when selected, but this is not animated — it causes a layout jump.
   - **Location:** `FileManagerScreen.kt:644`
   - **Impact:** Visible jump when selecting/deselecting items.
@@ -395,7 +395,7 @@
   - **Impact:** Unnecessary animation measurement on every composition; potential flicker if storage data arrives asynchronously.
   - **Fix:** Remove `animateContentSize()` unless needed for dynamic content changes.
 
-- [ ] [Smoothness] Category storage data loads in two separate `_state.update` calls — causes double recomposition.
+- [x] [Smoothness] Category storage data loads in two separate `_state.update` calls — causes double recomposition.
   - **Problem:** `loadHomeData()` updates state once for recent files + storage info, then again for category storages.
   - **Location:** `FileManagerViewModel.kt:74-96`
   - **Impact:** HomeScreen recomposes twice in quick succession; potential visual flicker of the storage bar.

@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -13,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,7 +35,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items as gridItems
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
@@ -42,7 +45,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,15 +52,18 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
+
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,6 +72,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 
@@ -83,20 +89,21 @@ import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.ExpressiveAsymmetricShape
-import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
+
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.presentation.filterAndSortFiles
+import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import kotlinx.coroutines.launch
 
 import dev.qtremors.arcile.domain.FileCategories
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -151,6 +158,9 @@ fun FileManagerScreen(
         label = "fabRotation"
     )
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
@@ -171,10 +181,32 @@ fun FileManagerScreen(
         }
     }
 
+    // Show clipboard feedback snackbar
+    LaunchedEffect(state.clipboardState) {
+        state.clipboardState?.let { clipboard ->
+            val action = if (clipboard.operation == ClipboardOperation.COPY) "copied" else "cut"
+            val count = clipboard.sourcePaths.size
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("$count item(s) $action to clipboard")
+            }
+        }
+    }
+
+    // Show error as Snackbar instead of blocking dialog
+    LaunchedEffect(state.error) {
+        state.error?.let { errorMsg ->
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(errorMsg)
+                onClearError()
+            }
+        }
+    }
+
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         topBar = {
             if (showSearchBar) {
                 Column {
@@ -226,19 +258,32 @@ fun FileManagerScreen(
         },
         floatingActionButton = {
             if (state.selectedFiles.isEmpty() && !showSearchBar) {
-                ExpandableFabMenu(
-                    isExpanded = isFabExpanded,
-                    onToggleExpand = { isFabExpanded = !isFabExpanded },
-                    fabIconRotation = fabIconRotation,
-                    onCreateFileClick = { 
-                        isFabExpanded = false
-                        showCreateFileDialog = true 
-                    },
-                    onCreateFolderClick = { 
-                        isFabExpanded = false
-                        showCreateFolderDialog = true 
+                Box {
+                    // Dismiss scrim behind FAB menu
+                    if (isFabExpanded) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.3f))
+                                .clickable { isFabExpanded = false }
+                        )
                     }
-                )
+                    Box(modifier = Modifier.align(Alignment.BottomEnd)) {
+                        ExpandableFabMenu(
+                            isExpanded = isFabExpanded,
+                            onToggleExpand = { isFabExpanded = !isFabExpanded },
+                            fabIconRotation = fabIconRotation,
+                            onCreateFileClick = {
+                                isFabExpanded = false
+                                showCreateFileDialog = true
+                            },
+                            onCreateFolderClick = {
+                                isFabExpanded = false
+                                showCreateFolderDialog = true
+                            }
+                        )
+                    }
+                }
             }
         }
     ) { padding ->
@@ -267,7 +312,7 @@ fun FileManagerScreen(
                                     modifier = Modifier.size(48.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
-                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = "No results for \"${state.browserSearchQuery}\"",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -442,7 +487,7 @@ fun FileManagerScreen(
                             showDeleteConfirmation = false
                             onDeleteSelected()
                         },
-                        colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                        colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )
@@ -493,18 +538,7 @@ fun FileManagerScreen(
             )
         }
 
-        state.error?.let { errorMsg ->
-            AlertDialog(
-                onDismissRequest = onClearError,
-                title = { Text("Error") },
-                text = { Text(errorMsg) },
-                confirmButton = {
-                    TextButton(onClick = onClearError) {
-                        Text("OK")
-                    }
-                }
-            )
-        }
+
     }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -620,18 +654,27 @@ fun FileItemRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val animatedSurfaceColor by androidx.compose.animation.animateColorAsState(
+    val animatedSurfaceColor by animateColorAsState(
         targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         label = "listItemColor"
     )
     
 
 
+    val animatedHorizontalPadding by animateDpAsState(
+        targetValue = if (isSelected) 8.dp else 0.dp,
+        label = "listItemHPadding"
+    )
+    val animatedVerticalPadding by animateDpAsState(
+        targetValue = if (isSelected) 4.dp else 0.dp,
+        label = "listItemVPadding"
+    )
+
     Surface(
         shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
         color = animatedSurfaceColor,
         modifier = modifier
-            .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)
+            .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -779,7 +822,7 @@ fun CreateFolderDialog(
             )
         },
         confirmButton = {
-            androidx.compose.material3.FilledTonalButton(
+            FilledTonalButton(
                 onClick = { onConfirm(folderName) },
                 enabled = folderName.isNotBlank()
             ) {
@@ -814,7 +857,7 @@ fun CreateFileDialog(
             )
         },
         confirmButton = {
-            androidx.compose.material3.FilledTonalButton(
+            FilledTonalButton(
                 onClick = { onConfirm(fileName) },
                 enabled = fileName.isNotBlank()
             ) {
@@ -850,7 +893,7 @@ fun RenameDialog(
             )
         },
         confirmButton = {
-            androidx.compose.material3.FilledTonalButton(
+            FilledTonalButton(
                 onClick = { onConfirm(newName) },
                 enabled = newName.isNotBlank() && newName != currentName
             ) {
@@ -886,14 +929,14 @@ fun ExpandableFabMenu(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                androidx.compose.material3.ExtendedFloatingActionButton(
+                ExtendedFloatingActionButton(
                     onClick = onCreateFileClick,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     shape = ExpressivePillShape,
                     text = { Text("New File") },
                     icon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = "New File") }
                 )
-                androidx.compose.material3.ExtendedFloatingActionButton(
+                ExtendedFloatingActionButton(
                     onClick = onCreateFolderClick,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                     shape = ExpressivePillShape,
@@ -950,12 +993,12 @@ fun ActiveFiltersRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(activeChips) { (label, updatedFilter) ->
-                androidx.compose.material3.InputChip(
+                InputChip(
                     selected = true,
                     onClick = { onClearFilter(updatedFilter) },
-                    label = { Text(label, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
+                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                     trailingIcon = {
-                        androidx.compose.material3.Icon(
+                        Icon(
                             Icons.Default.Clear,
                             contentDescription = "Clear",
                             modifier = Modifier.size(16.dp)

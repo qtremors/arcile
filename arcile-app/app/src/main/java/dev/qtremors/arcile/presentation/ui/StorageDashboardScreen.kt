@@ -42,6 +42,7 @@ import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import androidx.compose.ui.graphics.Color
 import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.utils.getCategoryColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,15 +62,16 @@ fun StorageDashboardScreen(
 
     val sortedCategories = state.categoryStorages.sortedByDescending { it.sizeBytes }
     val displayCategories = sortedCategories.map { cat ->
-        val (icon, color) = when (cat.name) {
-            "Images" -> Icons.Default.Image to categoryColors.images
-            "Videos" -> Icons.Default.VideoFile to categoryColors.videos
-            "Audio" -> Icons.Default.AudioFile to categoryColors.audio
-            "Docs" -> Icons.Default.Description to categoryColors.docs
-            "Archives" -> Icons.Default.FolderZip to categoryColors.archives
-            "APKs" -> Icons.Default.Android to categoryColors.apks
-            else -> Icons.Default.Description to unassignedColor
+        val icon = when (cat.name) {
+            "Images" -> Icons.Default.Image
+            "Videos" -> Icons.Default.VideoFile
+            "Audio" -> Icons.Default.AudioFile
+            "Docs" -> Icons.Default.Description
+            "Archives" -> Icons.Default.FolderZip
+            "APKs" -> Icons.Default.Android
+            else -> Icons.Default.Description
         }
+        val color = getCategoryColor(cat.name, categoryColors, unassignedColor)
         Triple(cat, icon, color)
     }
 

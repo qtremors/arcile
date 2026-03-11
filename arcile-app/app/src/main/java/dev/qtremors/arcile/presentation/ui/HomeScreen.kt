@@ -49,6 +49,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -85,6 +86,7 @@ import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.utils.getCategoryColor
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -117,7 +119,7 @@ fun HomeScreen(
         filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
     }
 
-    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -412,15 +414,7 @@ fun MultiColorStorageBar(
                 sortedCategories.forEach { cat ->
                     if (cat.sizeBytes > 0) {
                         val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
-                        val catColor = when (cat.name) {
-                            "Images" -> categoryColors.images
-                            "Videos" -> categoryColors.videos
-                            "Audio" -> categoryColors.audio
-                            "Docs" -> categoryColors.docs
-                            "Archives" -> categoryColors.archives
-                            "APKs" -> categoryColors.apks
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        }
+                        val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                         Box(
                             modifier = Modifier
                                 .fillMaxHeight()
@@ -466,15 +460,7 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
         val categoryColors = LocalCategoryColors.current
         val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
         sortedCategories.filter { it.sizeBytes > 0 }.forEach { cat ->
-            val catColor = when (cat.name) {
-                "Images" -> categoryColors.images
-                "Videos" -> categoryColors.videos
-                "Audio" -> categoryColors.audio
-                "Docs" -> categoryColors.docs
-                "Archives" -> categoryColors.archives
-                "APKs" -> categoryColors.apks
-                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            }
+            val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)

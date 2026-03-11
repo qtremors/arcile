@@ -75,20 +75,17 @@ class FileManagerViewModel(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+
+            // Fetch all data sequentially, then combine into a single state update
             val recentResult = repository.getRecentFiles(limit = Int.MAX_VALUE, minTimestamp = oneWeekAgo)
             val storageResult = repository.getStorageInfo()
+            val categoryResult = repository.getCategoryStorageSizes()
 
             _state.update { currentState ->
                 currentState.copy(
                     isLoading = false,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
-                    storageInfo = storageResult.getOrNull()
-                )
-            }
-
-            val categoryResult = repository.getCategoryStorageSizes()
-            _state.update { currentState ->
-                currentState.copy(
+                    storageInfo = storageResult.getOrNull(),
                     categoryStorages = categoryResult.getOrNull() ?: emptyList()
                 )
             }
@@ -150,7 +147,7 @@ class FileManagerViewModel(
             return true
         } else {
             _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, selectedFiles = emptySet()) }
-            return false
+            return false  // Let navController.popBackStack() handle route-level navigation
         }
     }
 
@@ -318,11 +315,10 @@ class FileManagerViewModel(
         }
     }
 
-    fun deleteSelectedFiles() {
+    /** Moves selected files to the Trash Bin (recoverable, not permanent deletion). */
+    fun moveSelectedToTrash() {
         val selectedFiles = _state.value.selectedFiles.toList()
         if (selectedFiles.isEmpty()) return
-
-        // New pipeline routes explicit deletions smoothly into the underlying trash protocol
         moveToTrashSelected()
     }
 

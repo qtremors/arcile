@@ -150,7 +150,7 @@ fun ArcileAppShell(
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
                         onCreateFile = { viewModel.createFile(it) },
-                        onDeleteSelected = { viewModel.deleteSelectedFiles() },
+                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
@@ -196,7 +196,7 @@ fun ArcileAppShell(
                         onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
-                        onDeleteSelected = { viewModel.deleteSelectedFiles() },
+                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
                         onShareSelected = { viewModel.shareSelectedFiles(navController.context) }
                     )
                 }

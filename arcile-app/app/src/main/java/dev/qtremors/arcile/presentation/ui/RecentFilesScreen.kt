@@ -45,7 +45,7 @@ fun RecentFilesScreen(
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    val formatter = SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault())
+    val formatter = remember { SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()) }
 
     Scaffold(
         topBar = {
