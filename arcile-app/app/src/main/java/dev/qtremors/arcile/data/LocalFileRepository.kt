@@ -39,8 +39,20 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         return Result.success(Unit)
     }
 
-    override suspend fun getRootDirectory(): File = withContext(Dispatchers.IO) {
-        Environment.getExternalStorageDirectory()
+    private fun File.toFileModel(): FileModel {
+        return FileModel(
+            name = name,
+            absolutePath = absolutePath,
+            size = if (isFile) length() else 0L,
+            lastModified = lastModified(),
+            isDirectory = isDirectory,
+            extension = extension,
+            isHidden = isHidden
+        )
+    }
+
+    override suspend fun getStorageRootPath(): String = withContext(Dispatchers.IO) {
+        Environment.getExternalStorageDirectory().canonicalPath
     }
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
@@ -52,7 +64,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 return@withContext Result.failure(IllegalArgumentException("Path is not a valid directory"))
             }
 
-            val files = directory.listFiles()?.map { FileModel(it) } ?: emptyList()
+            val files = directory.listFiles()?.map { it.toFileModel() } ?: emptyList()
             // sort: directories first, then alphabetically
             val sortedFiles = files.sortedWith(
                 compareBy<FileModel> { !it.isDirectory }
@@ -74,7 +86,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
             }
             if (newDir.mkdirs()) {
-                Result.success(FileModel(newDir))
+                Result.success(newDir.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create directory"))
             }
@@ -93,7 +105,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
             }
             if (newFile.createNewFile()) {
-                Result.success(FileModel(newFile))
+                Result.success(newFile.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create file"))
             }
@@ -126,7 +138,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
              }
              
              if (file.renameTo(newFile)) {
-                 Result.success(FileModel(newFile))
+                 Result.success(newFile.toFileModel())
              } else {
                  Result.failure(Exception("Failed to rename file"))
              }
@@ -171,12 +183,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                         val extension = path.substringAfterLast('.', "")
                         
                         filesList.add(FileModel(
-                            file = null, // don't hold the file ref to prevent implicit I/O later
-                            absolutePath = path,
                             name = name,
+                            absolutePath = path,
                             size = size,
-                            isDirectory = false,
                             lastModified = dateModified,
+                            isDirectory = false,
                             extension = extension,
                             isHidden = false
                         ))
@@ -273,7 +284,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                     if (path != null) {
                         val file = File(path)
                         if (extensions.contains(file.extension.lowercase())) {
-                            filesList.add(FileModel(file))
+                            filesList.add(file.toFileModel())
                         }
                     }
                 }
@@ -308,7 +319,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                         }
                         .forEach { file ->
                             if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
-                                filesList.add(FileModel(file))
+                                filesList.add(file.toFileModel())
                             }
                         }
                 }
@@ -326,7 +337,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                         if (path != null) {
                             val f = File(path)
                             if (!f.name.startsWith(".")) {
-                                filesList.add(FileModel(f))
+                                filesList.add(f.toFileModel())
                             }
                         }
                     }
@@ -622,12 +633,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                                 // Provide a faked FileModel where the literal underlying object is the hash blob, but its name appears as the original
                                 val originalFileContext = File(originalPath)
                                 val spoofedModel = FileModel(
-                                   file = null,
-                                   absolutePath = trashedFile.absolutePath,
                                    name = originalFileContext.name,
+                                   absolutePath = trashedFile.absolutePath,
                                    size = if (trashedFile.isFile) trashedFile.length() else 0L,
-                                   isDirectory = trashedFile.isDirectory,
                                    lastModified = trashedFile.lastModified(),
+                                   isDirectory = trashedFile.isDirectory,
                                    extension = originalFileContext.extension,
                                    isHidden = false
                                 )

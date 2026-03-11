@@ -57,15 +57,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
 import dev.qtremors.arcile.domain.TrashMetadata
-import dev.qtremors.arcile.presentation.FileManagerState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.trash.TrashState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TrashScreen(
-    state: FileManagerState,
+    state: TrashState,
     onNavigateBack: () -> Unit,
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,

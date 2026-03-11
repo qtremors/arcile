@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -91,7 +92,7 @@ import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 
 import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.presentation.FileManagerState
+import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
@@ -121,7 +122,7 @@ import java.util.Locale
  * Supports list and grid views, multi-select with range selection, inline search with filters,
  * file creation, rename, delete (via trash), copy/cut/paste clipboard, share, and pull-to-refresh.
  *
- * @param state Current [FileManagerState] containing file list, selection, search, and clipboard state.
+ * @param state Current [BrowserState] containing file list, selection, search, and clipboard state.
  * @param storageRootPath Absolute path of the storage root — used for breadcrumb display.
  * @param onNavigateBack Called when the user navigates back (hardware back or top bar back button).
  * @param onNavigateTo Called with the target directory path when the user opens a folder.
@@ -148,10 +149,10 @@ import java.util.Locale
  * @param onSearchFiltersChange Updates the active search filters.
  * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun FileManagerScreen(
-    state: FileManagerState,
+    state: BrowserState,
     storageRootPath: String,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,

@@ -37,17 +37,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import androidx.compose.ui.graphics.Color
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
+import dev.qtremors.arcile.presentation.home.HomeState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageDashboardScreen(
-    state: FileManagerState,
+    state: HomeState,
     onNavigateBack: () -> Unit,
     onCategoryClick: (String) -> Unit
 ) {

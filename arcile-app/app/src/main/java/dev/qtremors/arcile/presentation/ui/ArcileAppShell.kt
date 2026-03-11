@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
-import android.os.Environment
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -17,27 +17,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.FileManagerViewModel
+import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.presentation.home.HomeViewModel
+import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.ui.theme.ThemeState
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import java.io.File
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
-    viewModel: FileManagerViewModel,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit
@@ -60,27 +60,25 @@ fun ArcileAppShell(
                     popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
                 ) {
                 composable(AppRoutes.HOME) {
+                    val viewModel = hiltViewModel<HomeViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     HomeScreen(
                         state = state,
                         onOpenFileBrowser = {
-                            viewModel.openFileBrowser()
                             navController.navigate(AppRoutes.EXPLORER) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToPath = { path ->
-                            viewModel.navigateToSpecificFolder(path)
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=$path") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onOpenFile = onOpenFile,
                         onCategoryClick = { categoryName ->
-                            viewModel.navigateToCategory(categoryName)
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?category=$categoryName") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
@@ -95,14 +93,12 @@ fun ArcileAppShell(
                             }
                         },
                         onNavigateToTrash = {
-                            viewModel.navigateToTrash()
                             navController.navigate(AppRoutes.TRASH) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToRecentFiles = {
-                            viewModel.navigateToRecentFiles()
                             navController.navigate(AppRoutes.RECENT_FILES) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
@@ -120,20 +116,34 @@ fun ArcileAppShell(
                     )
                 }
                 composable(AppRoutes.STORAGE_DASHBOARD) {
+                    val viewModel = hiltViewModel<HomeViewModel>() // Shares Home logic
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     StorageDashboardScreen(
                         state = state,
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName ->
-                            viewModel.navigateToCategory(categoryName)
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?category=$categoryName") {
                                 popUpTo(AppRoutes.STORAGE_DASHBOARD) { inclusive = true }
                             }
                         }
                     )
                 }
-                composable(AppRoutes.EXPLORER) {
+                composable(AppRoutes.EXPLORER + "?path={path}&category={category}") { backStackEntry ->
+                    val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
+                    
+                    // Handle deep links from other screens
+                    androidx.compose.runtime.LaunchedEffect(backStackEntry) {
+                        val path = backStackEntry.arguments?.getString("path")
+                        val category = backStackEntry.arguments?.getString("category")
+                        
+                        // We only want to trigger this on initial navigation, not popBackStack
+                        if (path != null) {
+                            viewModel.navigateToSpecificFolder(path)
+                        } else if (category != null) {
+                            viewModel.navigateToCategory(category)
+                        }
+                    }
 
                     FileManagerScreen(
                         state = state,
@@ -169,14 +179,11 @@ fun ArcileAppShell(
                     )
                 }
                 composable(AppRoutes.TRASH) {
+                    val viewModel = hiltViewModel<TrashViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     TrashScreen(
                         state = state,
-                        onNavigateBack = {
-                            if (!viewModel.navigateBack()) {
-                                navController.popBackStack()
-                            }
-                        },
+                        onNavigateBack = { navController.popBackStack() },
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onRestoreSelected = { viewModel.restoreSelectedTrash() },
@@ -185,14 +192,11 @@ fun ArcileAppShell(
                     )
                 }
                 composable(AppRoutes.RECENT_FILES) {
+                    val viewModel = hiltViewModel<RecentFilesViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     RecentFilesScreen(
                         state = state,
-                        onNavigateBack = {
-                            if (!viewModel.navigateBack()) {
-                                navController.popBackStack()
-                            }
-                        },
+                        onNavigateBack = { navController.popBackStack() },
                         onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },

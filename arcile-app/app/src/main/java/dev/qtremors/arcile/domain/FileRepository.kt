@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.domain
 
-import java.io.File
+
 
 /**
  * Repository abstraction for all file system operations.
@@ -77,7 +77,7 @@ interface FileRepository {
      *
      * Equivalent to [android.os.Environment.getExternalStorageDirectory].
      */
-    suspend fun getRootDirectory(): File
+    suspend fun getStorageRootPath(): String
 
     // ─── Queries ─────────────────────────────────────────────────────────────
 

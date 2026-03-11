@@ -6,7 +6,9 @@ import coil.ImageLoaderFactory
 import coil.decode.VideoFrameDecoder
 import dev.qtremors.arcile.image.ApkIconFetcher
 import dev.qtremors.arcile.image.AudioAlbumArtFetcher
+import dagger.hilt.android.HiltAndroidApp
 
+@HiltAndroidApp
 class ArcileApp : Application(), ImageLoaderFactory {
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)

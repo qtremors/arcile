@@ -1,0 +1,117 @@
+package dev.qtremors.arcile.presentation.recentfiles
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FileRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+data class RecentFilesState(
+    val recentFiles: List<FileModel> = emptyList(),
+    val selectedFiles: Set<String> = emptySet(),
+    val isLoading: Boolean = false,
+    val isPullToRefreshing: Boolean = false,
+    val error: String? = null
+)
+
+@HiltViewModel
+class RecentFilesViewModel @Inject constructor(
+    private val repository: FileRepository
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(RecentFilesState())
+    val state: StateFlow<RecentFilesState> = _state.asStateFlow()
+
+    init {
+        loadRecentFiles(false)
+    }
+
+    fun loadRecentFiles(pullToRefresh: Boolean = false) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
+            val result = repository.getRecentFiles(limit = 500)
+            result.onSuccess { files ->
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, recentFiles = files) }
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load recent files") }
+            }
+        }
+    }
+
+    fun toggleSelection(path: String) {
+        _state.update { currentState ->
+            val updatedSelection = if (currentState.selectedFiles.contains(path)) {
+                currentState.selectedFiles - path
+            } else {
+                currentState.selectedFiles + path
+            }
+            currentState.copy(selectedFiles = updatedSelection)
+        }
+    }
+
+    fun clearSelection() {
+        _state.update { it.copy(selectedFiles = emptySet()) }
+    }
+
+    fun moveSelectedToTrash() {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            val result = repository.moveToTrash(selected)
+            result.onSuccess {
+                clearSelection()
+                loadRecentFiles(false)
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                loadRecentFiles(false)
+            }
+        }
+    }
+
+    fun clearError() {
+        _state.update { it.copy(error = null) }
+    }
+
+    fun shareSelectedFiles(context: android.content.Context) {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+
+        try {
+            val uris = java.util.ArrayList<android.net.Uri>()
+            for (path in selected) {
+                val file = java.io.File(path)
+                if (file.exists() && file.isFile) {
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    uris.add(uri)
+                }
+            }
+            if (uris.isEmpty()) return
+
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "*/*"
+                putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
+                flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            }
+            
+            val chooser = android.content.Intent.createChooser(intent, "Share files via")
+            chooser.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+            context.startActivity(chooser)
+            
+            clearSelection()
+        } catch (e: Exception) {
+            _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }
+        }
+    }
+}

@@ -1,124 +1,79 @@
-package dev.qtremors.arcile.presentation
+package dev.qtremors.arcile.presentation.browser
 
-import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Environment
 import androidx.core.content.FileProvider
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dev.qtremors.arcile.data.LocalFileRepository
-import dev.qtremors.arcile.domain.CategoryStorage
+import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.StorageInfo
-import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.presentation.ClipboardOperation
+import dev.qtremors.arcile.presentation.ClipboardState
+import dev.qtremors.arcile.presentation.FileSortOption
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
+import javax.inject.Inject
+import javax.inject.Named
 
-enum class ClipboardOperation { COPY, CUT }
-
-data class ClipboardState(
-    val operation: ClipboardOperation,
-    val sourcePaths: List<String>
-)
-
-data class FileManagerState(
-    val isHomeScreen: Boolean = true,
+data class BrowserState(
     val currentPath: String = "",
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
     val files: List<FileModel> = emptyList(),
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
-    val recentFiles: List<FileModel> = emptyList(),
     val browserSearchQuery: String = "",
     val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
-    val homeSearchQuery: String = "",
-    val homeSortOption: FileSortOption = FileSortOption.DATE_NEWEST,
     val isGridView: Boolean = false,
-    val storageInfo: StorageInfo? = null,
-    val categoryStorages: List<CategoryStorage> = emptyList(),
-    val isLoading: Boolean = false,
-    val isPullToRefreshing: Boolean = false,
-    val error: String? = null,
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
-    val isTrashScreen: Boolean = false,
-    val trashFiles: List<TrashMetadata> = emptyList(),
-    val isRecentFilesScreen: Boolean = false,
     val activeSearchFilters: SearchFilters = SearchFilters(),
-    val isSearchFilterMenuVisible: Boolean = false
+    val isSearchFilterMenuVisible: Boolean = false,
+    val isLoading: Boolean = false,
+    val isPullToRefreshing: Boolean = false,
+    val error: String? = null
 )
 
-class FileManagerViewModel(
-    application: Application
-) : AndroidViewModel(application) {
+@HiltViewModel
+class BrowserViewModel @Inject constructor(
+    private val repository: FileRepository,
+    @Named("storageRootPath") val storageRootPath: String
+) : ViewModel() {
 
-    private val repository: FileRepository = LocalFileRepository(application)
-
-    private val _state = MutableStateFlow(FileManagerState())
-    val state: StateFlow<FileManagerState> = _state.asStateFlow()
+    private val _state = MutableStateFlow(BrowserState())
+    val state: StateFlow<BrowserState> = _state.asStateFlow()
 
     private val pathHistory = ArrayDeque<String>()
-
-    val storageRootPath: String = Environment.getExternalStorageDirectory().absolutePath
-
-    /** Maximum number of recent files shown on the Home screen preview. */
-    private val RECENTS_PREVIEW_LIMIT = 50
+    private var searchJob: Job? = null
 
     init {
-        loadHomeData()
-    }
-
-    fun loadHomeData() {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
-            val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
-
-            // Fetch all data sequentially, then combine into a single state update
-            val recentResult = repository.getRecentFiles(limit = RECENTS_PREVIEW_LIMIT, minTimestamp = oneWeekAgo)
-            val storageResult = repository.getStorageInfo()
-            val categoryResult = repository.getCategoryStorageSizes()
-
-            _state.update { currentState ->
-                currentState.copy(
-                    isLoading = false,
-                    recentFiles = recentResult.getOrNull() ?: emptyList(),
-                    storageInfo = storageResult.getOrNull(),
-                    categoryStorages = categoryResult.getOrNull() ?: emptyList()
-                )
-            }
-        }
-    }
-
-    fun navigateToHome() {
-        _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, selectedFiles = emptySet()) }
-        pathHistory.clear()
-        loadHomeData()
+        openFileBrowser()
     }
 
     fun openFileBrowser() {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false) }
+        _state.update { it.copy(isCategoryScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
         loadDirectory(storageRootPath)
     }
 
     fun navigateToSpecificFolder(path: String) {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false) }
+        _state.update { it.copy(isCategoryScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
         pathHistory.push(storageRootPath)
         loadDirectory(path)
     }
 
     fun navigateToCategory(categoryName: String) {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = false, isCategoryScreen = true, activeCategoryName = categoryName) }
+        _state.update { it.copy(isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet()) }
         pathHistory.clear()
         loadCategory(categoryName)
     }
@@ -131,19 +86,8 @@ class FileManagerViewModel(
     }
 
     fun navigateBack(): Boolean {
-        // If the search query is active, clear the search first before actually going back
-        if (_state.value.browserSearchQuery.isNotEmpty() || _state.value.homeSearchQuery.isNotEmpty()) {
+        if (_state.value.browserSearchQuery.isNotEmpty()) {
             updateBrowserSearchQuery("")
-            updateHomeSearchQuery("")
-            return true
-        }
-
-        if (_state.value.isHomeScreen) {
-            return false
-        }
-        
-        if (_state.value.isTrashScreen || _state.value.isRecentFilesScreen) {
-            navigateToHome()
             return true
         }
 
@@ -151,17 +95,14 @@ class FileManagerViewModel(
             val previousPath = pathHistory.pop()
             loadDirectory(previousPath)
             return true
-        } else {
-            _state.update { it.copy(isHomeScreen = true, isTrashScreen = false, isRecentFilesScreen = false, isCategoryScreen = false, selectedFiles = emptySet()) }
-            return true  // Handled: switched to Home; caller should NOT also pop the nav back stack
         }
+        
+        return false // Let the UI completely back out of the browser
     }
 
     fun refresh(pullToRefresh: Boolean = false) {
+        _state.update { it.copy(isPullToRefreshing = pullToRefresh) }
         when {
-            _state.value.isHomeScreen -> loadHomeData()
-            _state.value.isTrashScreen -> loadTrashFiles()
-            _state.value.isRecentFilesScreen -> loadRecentFilesFull(pullToRefresh)
             _state.value.isCategoryScreen -> loadCategory(_state.value.activeCategoryName)
             _state.value.currentPath.isNotEmpty() -> loadDirectory(_state.value.currentPath)
         }
@@ -174,9 +115,9 @@ class FileManagerViewModel(
             val result = repository.listFiles(path)
 
             result.onSuccess { files ->
-                _state.update { it.copy(isLoading = false, files = files) }
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, files = files) }
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load directory") }
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load directory") }
                 if (pathHistory.isNotEmpty()) {
                     pathHistory.pop()
                 }
@@ -191,9 +132,9 @@ class FileManagerViewModel(
             val result = repository.getFilesByCategory(categoryName)
 
             result.onSuccess { files ->
-                _state.update { it.copy(isLoading = false, files = files) }
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, files = files) }
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load category") }
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load category") }
                 if (pathHistory.isNotEmpty()) {
                     pathHistory.pop()
                 }
@@ -227,21 +168,6 @@ class FileManagerViewModel(
         debouncedSearch(query)
     }
 
-    fun updateBrowserSortOption(sortOption: FileSortOption) {
-        _state.update { it.copy(browserSortOption = sortOption) }
-    }
-
-    fun setGridView(enabled: Boolean) {
-        _state.update { it.copy(isGridView = enabled) }
-    }
-
-    fun updateHomeSearchQuery(query: String) {
-        _state.update { it.copy(homeSearchQuery = query) }
-        debouncedSearch(query)
-    }
-
-    private var searchJob: kotlinx.coroutines.Job? = null
-
     private fun debouncedSearch(query: String) {
         searchJob?.cancel()
         if (query.isBlank()) {
@@ -249,18 +175,11 @@ class FileManagerViewModel(
             return
         }
         searchJob = viewModelScope.launch {
-            // Wait for user to stop typing
-            kotlinx.coroutines.delay(400)
+            delay(400)
             _state.update { it.copy(isSearching = true, error = null) }
 
             val stateVal = _state.value
-            // Use a real filesystem path only for directory-browser screens.
-            // For home, category, and recent screens, search MediaStore-wide (pathScope = null).
-            val pathScope = when {
-                !stateVal.isHomeScreen && !stateVal.isCategoryScreen && !stateVal.isRecentFilesScreen
-                    && stateVal.currentPath.isNotEmpty() -> stateVal.currentPath
-                else -> null
-            }
+            val pathScope = if (!stateVal.isCategoryScreen && stateVal.currentPath.isNotEmpty()) stateVal.currentPath else null
             val filters = stateVal.activeSearchFilters
 
             val result = repository.searchFiles(query, pathScope, filters)
@@ -272,21 +191,24 @@ class FileManagerViewModel(
         }
     }
 
+    fun updateBrowserSortOption(sortOption: FileSortOption) {
+        _state.update { it.copy(browserSortOption = sortOption) }
+    }
+
+    fun setGridView(enabled: Boolean) {
+        _state.update { it.copy(isGridView = enabled) }
+    }
+    
     fun updateSearchFilters(filters: SearchFilters) {
         _state.update { it.copy(activeSearchFilters = filters) }
-        val stateVal = _state.value
-        val currentQuery = if (stateVal.isHomeScreen) stateVal.homeSearchQuery else stateVal.browserSearchQuery
+        val currentQuery = _state.value.browserSearchQuery
         if (currentQuery.isNotBlank()) {
             debouncedSearch(currentQuery)
         }
     }
-    
+
     fun toggleSearchFilterMenu(visible: Boolean) {
         _state.update { it.copy(isSearchFilterMenuVisible = visible) }
-    }
-
-    fun updateHomeSortOption(sortOption: FileSortOption) {
-        _state.update { it.copy(homeSortOption = sortOption) }
     }
 
     fun createFolder(name: String) {
@@ -329,11 +251,21 @@ class FileManagerViewModel(
         }
     }
 
-    /** Moves selected files to the Trash Bin (recoverable, not permanent deletion). */
     fun moveSelectedToTrash() {
         val selectedFiles = _state.value.selectedFiles.toList()
         if (selectedFiles.isEmpty()) return
-        moveToTrashSelected()
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            val result = repository.moveToTrash(selectedFiles)
+            result.onSuccess {
+                clearSelection()
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                refresh()
+            }
+        }
     }
 
     fun renameFile(path: String, newName: String) {
@@ -391,7 +323,7 @@ class FileManagerViewModel(
     fun pasteFromClipboard() {
         val clipboard = _state.value.clipboardState ?: return
         val currentPath = _state.value.currentPath
-        if (currentPath.isEmpty() || _state.value.isHomeScreen || _state.value.isTrashScreen) return
+        if (currentPath.isEmpty()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
@@ -442,92 +374,6 @@ class FileManagerViewModel(
             clearSelection()
         } catch (e: Exception) {
             _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }
-        }
-    }
-
-    // --- Trash Subsystem Implementations ---
-
-    fun navigateToTrash() {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = true, isRecentFilesScreen = false, selectedFiles = emptySet()) }
-        pathHistory.clear()
-        loadTrashFiles()
-    }
-
-    fun navigateToRecentFiles() {
-        _state.update { it.copy(isHomeScreen = false, isTrashScreen = false, isRecentFilesScreen = true, isCategoryScreen = false, selectedFiles = emptySet()) }
-        pathHistory.clear()
-        loadRecentFilesFull()
-    }
-
-    private fun loadRecentFilesFull(pullToRefresh: Boolean = false) {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
-            val result = repository.getRecentFiles(limit = 500)
-            result.onSuccess { files ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, recentFiles = files) }
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load recent files") }
-            }
-        }
-    }
-
-    private fun loadTrashFiles() {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, currentPath = "Trash Bin", selectedFiles = emptySet()) }
-            val result = repository.getTrashFiles()
-            result.onSuccess { trashItems ->
-                _state.update { it.copy(isLoading = false, trashFiles = trashItems) }
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load Trash Bin") }
-            }
-        }
-    }
-
-    fun moveToTrashSelected() {
-        val selected = _state.value.selectedFiles.toList()
-        if (selected.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val result = repository.moveToTrash(selected)
-            result.onSuccess {
-                clearSelection()
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                refresh()
-            }
-        }
-    }
-
-    fun restoreSelectedTrash() {
-        val selectedTrashIds = _state.value.selectedFiles.toList()
-        if (selectedTrashIds.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val result = repository.restoreFromTrash(selectedTrashIds)
-            result.onSuccess {
-                clearSelection()
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
-                refresh()
-            }
-        }
-    }
-
-    fun emptyTrash() {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val result = repository.emptyTrash()
-            result.onSuccess {
-                clearSelection()
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
-                refresh()
-            }
         }
     }
 }

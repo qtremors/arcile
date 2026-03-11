@@ -14,7 +14,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -22,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.qtremors.arcile.presentation.FileManagerViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.ui.theme.FileManagerTheme
@@ -30,10 +28,10 @@ import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
 import kotlinx.coroutines.launch
 import java.io.File
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-    private val viewModel: FileManagerViewModel by viewModels()
 
     // reactive permission state — updated in onResume so Compose recomposes
     private val _hasPermission = mutableStateOf(false)
@@ -43,9 +41,6 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         val granted = permissions.entries.all { it.value }
         _hasPermission.value = granted
-        if (granted) {
-            viewModel.refresh()
-        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,8 +69,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-
-
             val themePreferences = remember { ThemePreferences(applicationContext) }
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val coroutineScope = rememberCoroutineScope()
@@ -89,7 +82,6 @@ class MainActivity : ComponentActivity() {
 
                     if (hasPermission) {
                         ArcileAppShell(
-                            viewModel = viewModel,
                             currentThemeState = themeState,
                             onThemeChange = { newState ->
                                 coroutineScope.launch {
@@ -112,14 +104,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        val hadPermission = _hasPermission.value
-        val hasPermission = checkStoragePermission()
-        _hasPermission.value = hasPermission
-        
-        // Only refresh if we just gained permission, to avoid reloading UI on every screen wake
-        if (!hadPermission && hasPermission) {
-            viewModel.refresh()
-        }
+        _hasPermission.value = checkStoragePermission()
     }
 
     // open a file via Intent.ACTION_VIEW using FileProvider

@@ -33,17 +33,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.presentation.FileManagerState
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun RecentFilesScreen(
-    state: FileManagerState,
+    state: RecentFilesState,
     onNavigateBack: () -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,

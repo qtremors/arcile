@@ -73,7 +73,7 @@ import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.presentation.FileManagerState
+import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.ToolCard
@@ -97,7 +97,7 @@ import androidx.compose.runtime.setValue
  * Displays a storage summary card, per-category storage breakdown, quick-access folder
  * shortcuts, a utilities tray, and a recent-files list.
  *
- * @param state Current [FileManagerState] providing storage info, recent files, and category data.
+ * @param state Current [HomeState] providing storage info, recent files, and category data.
  * @param onOpenFileBrowser Invoked when the user wants to browse all files from the storage root.
  * @param onNavigateToPath Invoked when the user taps a quick-access folder shortcut.
  * @param onOpenFile Invoked when the user taps a recent file to open it externally.
@@ -114,7 +114,7 @@ import androidx.compose.runtime.setValue
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
-    state: FileManagerState,
+    state: HomeState,
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,
     onOpenFile: (String) -> Unit,
@@ -328,7 +328,7 @@ fun HomeScreen(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StorageSummaryCard(
-    state: FileManagerState,
+    state: HomeState,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
