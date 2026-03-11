@@ -1,54 +1,36 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.3.3
+> **Version:** 0.3.4
 > **Last Updated:** 2026-03-11
 
 ---
 
 ### A. Correctness & Reliability
 
-- [ ] [Bug] `FileManagerViewModel` state loss on process death.
-  - **Problem:** ViewModel state (`currentPath`, `isHomeScreen`, `isTrashScreen`, `isRecentFilesScreen`) is not persisted across process deaths.
-  - **Location:** `FileManagerViewModel.kt` — `FileManagerState` data class
+- [x] [Bug] `BrowserViewModel` state loss on process death.
+  - **Problem:** ViewModel state (`currentPath`, `isCategoryScreen`, etc.) is not persisted across process deaths.
+  - **Location:** `BrowserViewModel.kt` — `BrowserState` data class
   - **Impact:** User loses navigation position when system kills app in background.
   - **Fix:** Inject `SavedStateHandle` and persist critical nav state fields.
 
-- [ ] [Bug] `pathHistory` (back-stack) is lost on process death.
+- [x] [Bug] `pathHistory` (back-stack) is lost on process death.
   - **Problem:** `ArrayDeque<String>` for navigation history is an in-memory field with no persistence.
-  - **Location:** `FileManagerViewModel.kt:66`
+  - **Location:** `BrowserViewModel.kt:59`
   - **Impact:** Pressing back after process death does nothing or navigates incorrectly.
   - **Fix:** Serialize `pathHistory` into `SavedStateHandle` or switch to Navigation Compose's built-in stack.
 
-- [ ] [Bug] `navigateBack()` returns `false` when `pathHistory` is empty but not on home screen.
-  - **Problem:** When history is empty, the function sets `isHomeScreen = true` but returns `false`, which causes `ArcileAppShell` to also call `navController.popBackStack()`.
-  - **Location:** `FileManagerViewModel.kt:152-154`
+- [x] [Bug] `navigateBack()` returns `false` when `pathHistory` is empty but not on home screen.
+  - **Problem:** When history is empty, the function returns `false`, which causes `ArcileAppShell` to also call `navController.popBackStack()`. If we were deep linked, history is empty but we shouldn't pop back if we are in a subfolder.
+  - **Location:** `BrowserViewModel.kt:92-105`
   - **Impact:** Double-back navigation; user may unintentionally exit the app.
-  - **Fix:** Return `true` when transitioning to home, or delegate entirely to Navigation Compose.
+  - **Fix:** Return `true` when transitioning to root of storage, or delegate entirely to Navigation Compose.
 
-- [ ] [Bug] Dual navigation state: ViewModel flags vs NavController back stack are unsynchronized.
-  - **Problem:** `isHomeScreen`, `isTrashScreen`, `isRecentFilesScreen` in ViewModel duplicate the route tracked by `NavController`. If either is changed independently, they diverge.
-  - **Location:** `FileManagerViewModel.kt:32-54`, `ArcileAppShell.kt`
+- [x] [Bug] Dual navigation state: ViewModel flags vs NavController back stack are unsynchronized.
+  - **Problem:** `isCategoryScreen` in ViewModel duplicates the route tracked by `NavController` / deep links.
+  - **Location:** `BrowserViewModel.kt`, `ArcileAppShell.kt`
   - **Impact:** Possible inconsistent UI state after configuration changes or deep-linking.
   - **Fix:** Use Navigation Compose route as the single source of truth. Derive the ViewModel flags from the current route, or remove them entirely.
-
-- [x] [Bug] Trash restore data corruption risk: orphaned metadata silently deleted.
-  - **Problem:** In `getTrashFiles()`, orphaned metadata files (where the trashed blob is missing) are deleted without warning or logging.
-  - **Location:** `LocalFileRepository.kt:597-600`
-  - **Impact:** If a trash blob is accidentally missing, user loses all record of the file.
-  - **Fix:** Log a warning instead of silently deleting. Consider exposing a UI indicator for corrupted items.
-
-- [ ] [Bug] `copyFiles()` overwrites destination files without user confirmation.
-  - **Problem:** `sourceFile.copyRecursively(targetFile, overwrite = true)` silently replaces existing files at the destination.
-  - **Location:** `LocalFileRepository.kt:401-404`
-  - **Impact:** Data loss when pasting to a folder that already contains files with the same name.
-  - **Fix:** Check for existence and prompt user (keep both, replace, skip).
-
-- [x] [Bug] `moveFiles()` copy+delete fallback does not revert on partial failure.
-  - **Problem:** If `copyRecursively` succeeds but `deleteRecursively` fails, data exists in two places with no cleanup.
-  - **Location:** `LocalFileRepository.kt:436-442`
-  - **Impact:** Inconsistent file state; user may not realize duplicates exist.
-  - **Fix:** Wrap in try/catch and revert the copy on delete failure, or report a partial-failure error.
 
 ---
 
@@ -66,12 +48,6 @@
   - **Impact:** Credential exposure risk.
   - **Fix:** Use environment variables or a dedicated CI secrets mechanism instead of a local file.
 
-- [x] [Security] Trash directory (`.arcile_trash`) stored on shared external storage with no encryption.
-  - **Problem:** "Deleted" files are simply renamed and moved to `/storage/emulated/0/.arcile_trash/`. Any app with `MANAGE_EXTERNAL_STORAGE` can read them.
-  - **Location:** `LocalFileRepository.kt:453-460`
-  - **Impact:** Sensitive files are accessible after "deletion". The `.nomedia` only hides from gallery, not from other file managers.
-  - **Fix:** Document this limitation. For sensitive data, consider using app-private storage or encryption.
-
 - [ ] [Security] `MANAGE_EXTERNAL_STORAGE` permission has no graceful degradation.
   - **Problem:** The app requests `MANAGE_EXTERNAL_STORAGE` on Android 11+ but provides no fallback if the user denies it.
   - **Location:** `AndroidManifest.xml:7`, `MainActivity.kt:159-178`
@@ -81,12 +57,6 @@
 ---
 
 ### C. Performance & Resource Efficiency
-
-- [x] [Performance] `getRecentFiles()` queries MediaStore with `limit = Int.MAX_VALUE`.
-  - **Problem:** On home screen load, `loadHomeData()` requests `getRecentFiles(limit = Int.MAX_VALUE, minTimestamp = oneWeekAgo)`. On devices with thousands of recent files, this creates a massive list in memory.
-  - **Location:** `FileManagerViewModel.kt:78`
-  - **Impact:** High memory usage and slow home screen load on devices with many files.
-  - **Fix:** Use a reasonable limit (e.g., 100) for the home screen preview. Only fetch all files for the dedicated Recent Files screen.
 
 - [ ] [Performance] `getCategoryStorageSizes()` scans the entire MediaStore without filtering.
   - **Problem:** Queries all files from MediaStore to compute per-category sizes. On devices with 100K+ indexed files, this is very slow.
@@ -105,12 +75,6 @@
   - **Location:** `LocalFileRepository.kt:297-305`
   - **Impact:** Search in the root directory can take 10+ seconds and allocate many `FileModel` objects.
   - **Fix:** Cap results (e.g., first 200 matches), add cancellation checks in the walk, or use MediaStore for scoped search too.
-
-- [x] [Performance] `FileModel` constructor triggers I/O in default parameter expressions.
-  - **Problem:** `val size = if (file != null && file.isFile) file.length() else 0L` and `file?.lastModified()` perform filesystem I/O at construction time.
-  - **Location:** `FileModel.kt:5-14`
-  - **Impact:** Constructing `FileModel(File(...))` anywhere triggers synchronous disk reads.
-  - **Fix:** Remove the `file` parameter and require explicit values, or compute lazily.
 
 - [ ] [Performance] `LazyColumn` / `LazyVerticalGrid` items re-keyed by `absolutePath` may conflict.
   - **Problem:** Multiple files from different directories could have the same `absolutePath` key if the list content changes during recomposition (e.g., during search switching).
@@ -196,24 +160,6 @@
   - **Impact:** Poor screen real estate utilization on tablets and foldables.
   - **Fix:** Implement `WindowSizeClass` checks and use dual-pane layouts for expanded widths.
 
-- [x] [Accessibility] No `contentDescription` on file item rows.
-  - **Problem:** `FileItemRow` and `FileGridItem` have no semantic description for the entire clickable unit.
-  - **Location:** `FileManagerScreen.kt:620-683`, `FileManagerScreen.kt:685-768`
-  - **Impact:** TalkBack users get fragmented information instead of "file name, size, date".
-  - **Fix:** Add `Modifier.semantics { contentDescription = "..." }` or use `ListItem` semantics properly.
-
-- [x] [Accessibility] Category items lack proper touch target sizes.
-  - **Problem:** `CategoryItem` icons are 64dp but the clickable area is not guaranteed to meet the 48dp minimum accessibility guideline in all cases.
-  - **Location:** `HomeScreen.kt:553-614`
-  - **Impact:** Potential touch target issues on high-density screens.
-  - **Fix:** Ensure minimum 48dp clickable area via `Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)`.
-
-- [x] [UX] `ToolsScreen` items are not clickable (except Trash Bin).
-  - **Problem:** All tool cards except "Trash Bin" have no `onClick` handler or show "Coming Soon" but are still visually identical to actionable cards.
-  - **Location:** `ToolsScreen.kt:73-74`, `ToolCard.kt:38`
-  - **Impact:** User taps a tool card and nothing happens — confusing.
-  - **Fix:** Visually distinguish unimplemented tools (e.g., reduce opacity, add a badge) and/or prevent click events.
-
 ---
 
 ### G. Material Design 3 Expressive Implementation
@@ -246,49 +192,6 @@
   - **Location:** `FileManagerViewModel.kt:123-128` (same-route nav), `ArcileAppShell.kt:57-60`
   - **Impact:** Folder-to-folder navigation feels abrupt — content just swaps.
   - **Fix:** Add a crossfade or shared-element transition for the file list when changing directories.
-
----
-
-### I. App Smoothness & Rendering Stability
-
-- [x] [Smoothness] `remember {}` around `SimpleDateFormat` is not keyed — creates a new formatter on each recomposition in some cases.
-  - **Problem:** `RecentFilesScreen.kt:48` uses `val formatter = SimpleDateFormat(...)` outside `remember` — a new instance every recomposition.
-  - **Location:** `RecentFilesScreen.kt:48`
-  - **Impact:** Minor GC pressure during scrolling.
-  - **Fix:** Wrap in `remember { }`.
-
-- [x] [Smoothness] `animateContentSize()` on `StorageSummaryCard` column may cause layout flickering.
-  - **Problem:** `Column(modifier = Modifier.padding(24.dp).animateContentSize())` animates size for content that doesn't change dynamically.
-  - **Location:** `HomeScreen.kt:331`
-  - **Impact:** Unnecessary animation measurement on every composition; potential flicker if storage data arrives asynchronously.
-  - **Fix:** Remove `animateContentSize()` unless needed for dynamic content changes.
-
----
-
-### J. Documentation Quality
-
-- [x] [Docs] `README.md` version is outdated (references v0.2.3, actual version is v0.3.0).
-  - **Location:** `README.md`, `TASKS.md` header
-  - **Impact:** Confusing for contributors checking out the project.
-  - **Fix:** Keep version references consistent with `build.gradle.kts`.
-
-- [x] [Docs] No developer onboarding or build instructions.
-  - **Problem:** `README.md` does not include how to clone, configure signing, or build the app.
-  - **Location:** `README.md`
-  - **Impact:** New contributors cannot build the project without reading Gradle files.
-  - **Fix:** Add a "Getting Started" section with clone, signing config, and build/run commands.
-
-- [x] [Docs] `DEVELOPMENT.md` exists but may not reflect current architecture.
-  - **Problem:** `DEVELOPMENT.md` is 19KB but needs verification against the actual codebase structure.
-  - **Location:** `DEVELOPMENT.md`
-  - **Impact:** Potentially misleading documentation.
-  - **Fix:** Review and update to match current file structure, architecture, and conventions.
-
-- [x] [Docs] No KDoc/documentation on public API surfaces.
-  - **Problem:** `FileRepository`, `FileModel`, `FileManagerViewModel`, and all screen composables have zero documentation comments.
-  - **Location:** All `domain/` and `presentation/` files
-  - **Impact:** Contributors must read implementation to understand contracts.
-  - **Fix:** Add KDoc to all public interfaces, data classes, and top-level composables.
 
 ---
 
@@ -338,12 +241,6 @@
 
 - **File/Folder Properties Dialog**: Display detailed metadata for selected items — size (with recursive calculation for folders), MIME type, permissions, creation/modification dates, and absolute path.
 - **Compress & Extract Archives**: Add support for creating and extracting ZIP, TAR.GZ, and 7z archives directly within the file browser, with progress indication and cancellation.
-- **Smart Paste Conflict Resolution**: When pasting files to a destination that already contains items with the same name, show a conflict resolution dialog with side-by-side comparison of the new and existing files (thumbnail, name, size, date). Options include:
-  - **Keep Both** — auto-rename the incoming file (e.g., `photo (1).jpg`)
-  - **Replace** — overwrite the existing file with the new one
-  - **Skip** — skip this file and continue
-  - **Compare** — open a side-by-side detail view for manual decision
-  - **Remember** — apply the chosen action to all remaining conflicts in this batch
 
 ---
 

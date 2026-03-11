@@ -131,19 +131,6 @@ fun ArcileAppShell(
                 composable(AppRoutes.EXPLORER + "?path={path}&category={category}") { backStackEntry ->
                     val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
-                    
-                    // Handle deep links from other screens
-                    androidx.compose.runtime.LaunchedEffect(backStackEntry) {
-                        val path = backStackEntry.arguments?.getString("path")
-                        val category = backStackEntry.arguments?.getString("category")
-                        
-                        // We only want to trigger this on initial navigation, not popBackStack
-                        if (path != null) {
-                            viewModel.navigateToSpecificFolder(path)
-                        } else if (category != null) {
-                            viewModel.navigateToCategory(category)
-                        }
-                    }
 
                     FileManagerScreen(
                         state = state,
@@ -175,7 +162,10 @@ fun ArcileAppShell(
                         isRefreshing = state.isPullToRefreshing,
                         onRefresh = { viewModel.refresh(pullToRefresh = true) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
+                        onResolvingConflicts = { viewModel.resolveConflicts(it) },
+                        onDismissConflictDialog = { viewModel.dismissConflictDialog() },
+                        onDeletePermanentlySelected = { viewModel.deleteSelectedPermanently() }
                     )
                 }
                 composable(AppRoutes.TRASH) {

@@ -85,6 +85,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
@@ -92,6 +93,8 @@ import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.domain.SearchFilters
@@ -100,6 +103,7 @@ import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
+import dev.qtremors.arcile.presentation.ui.components.PasteConflictDialog
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
@@ -180,7 +184,10 @@ fun FileManagerScreen(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {}
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
+    onResolvingConflicts: (Map<String, ConflictResolution>) -> Unit = {},
+    onDismissConflictDialog: () -> Unit = {},
+    onDeletePermanentlySelected: () -> Unit = {}
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -514,15 +521,38 @@ fun FileManagerScreen(
         }
 
         if (showDeleteConfirmation) {
-            AlertDialog(
+            var isPermanentDelete by remember { mutableStateOf(false) }
+            androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showDeleteConfirmation = false },
                 title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
-                text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
+                text = {
+                    androidx.compose.foundation.layout.Column {
+                        Text(if (isPermanentDelete) "Selected items will be permanently deleted. This action cannot be undone." else "Selected items will be moved to the Trash Bin. You can restore them later.")
+                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clickable { isPermanentDelete = !isPermanentDelete }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            androidx.compose.material3.Checkbox(
+                                checked = isPermanentDelete,
+                                onCheckedChange = { isPermanentDelete = it }
+                            )
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
+                            Text("Delete permanently")
+                        }
+                    }
+                },
                 confirmButton = {
                     androidx.compose.material3.FilledTonalButton(
                         onClick = {
                             showDeleteConfirmation = false
-                            onDeleteSelected()
+                            if (isPermanentDelete) {
+                                onDeletePermanentlySelected()
+                            } else {
+                                onDeleteSelected()
+                            }
                         },
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -572,6 +602,14 @@ fun FileManagerScreen(
                     onSortOptionChange(option)
                     showSortDialog = false
                 }
+            )
+        }
+
+        if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
+            PasteConflictDialog(
+                conflicts = state.pasteConflicts,
+                onResolve = onResolvingConflicts,
+                onDismiss = onDismissConflictDialog
             )
         }
 

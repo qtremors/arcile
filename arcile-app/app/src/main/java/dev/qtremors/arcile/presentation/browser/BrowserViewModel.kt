@@ -4,9 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
@@ -40,12 +43,15 @@ data class BrowserState(
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = false,
     val isPullToRefreshing: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val pasteConflicts: List<FileConflict> = emptyList(),
+    val showConflictDialog: Boolean = false
 )
 
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val repository: FileRepository,
+    private val savedStateHandle: SavedStateHandle,
     @Named("storageRootPath") val storageRootPath: String
 ) : ViewModel() {
 
@@ -56,12 +62,56 @@ class BrowserViewModel @Inject constructor(
     private var searchJob: Job? = null
 
     init {
-        openFileBrowser()
+        val restoredPath = savedStateHandle.get<String>("currentPath")
+        val restoredIsCategory = savedStateHandle.get<Boolean>("isCategoryScreen")
+        val restoredCategoryName = savedStateHandle.get<String>("activeCategoryName")
+        val restoredHistory = savedStateHandle.get<Array<String>>("pathHistory")
+
+        if (restoredHistory != null) {
+            pathHistory.clear()
+            pathHistory.addAll(restoredHistory)
+        }
+
+        if (restoredIsCategory != null) {
+            // Process death recovery
+            if (restoredIsCategory && !restoredCategoryName.isNullOrEmpty()) {
+                _state.update { it.copy(isCategoryScreen = true, activeCategoryName = restoredCategoryName) }
+                loadCategory(restoredCategoryName)
+            } else if (!restoredPath.isNullOrEmpty()) {
+                _state.update { it.copy(currentPath = restoredPath) }
+                loadDirectory(restoredPath)
+            } else {
+                openFileBrowser()
+            }
+        } else {
+            // First time init: check nav arguments from SavedStateHandle
+            val argPath = savedStateHandle.get<String>("path")
+            val argCategory = savedStateHandle.get<String>("category")
+            
+            if (argPath != null) {
+                navigateToSpecificFolder(argPath)
+            } else if (argCategory != null) {
+                navigateToCategory(argCategory)
+            } else {
+                openFileBrowser()
+            }
+        }
+    }
+
+    private fun saveNavState(currentPath: String?, isCategoryScreen: Boolean, activeCategoryName: String?) {
+        savedStateHandle["currentPath"] = currentPath ?: ""
+        savedStateHandle["isCategoryScreen"] = isCategoryScreen
+        savedStateHandle["activeCategoryName"] = activeCategoryName ?: ""
+    }
+
+    private fun savePathHistory() {
+        savedStateHandle["pathHistory"] = pathHistory.toTypedArray()
     }
 
     fun openFileBrowser() {
         _state.update { it.copy(isCategoryScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
+        savePathHistory()
         loadDirectory(storageRootPath)
     }
 
@@ -69,18 +119,21 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(isCategoryScreen = false, selectedFiles = emptySet()) }
         pathHistory.clear()
         pathHistory.push(storageRootPath)
+        savePathHistory()
         loadDirectory(path)
     }
 
     fun navigateToCategory(categoryName: String) {
         _state.update { it.copy(isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet()) }
         pathHistory.clear()
+        savePathHistory()
         loadCategory(categoryName)
     }
 
     fun navigateToFolder(path: String) {
         if (_state.value.currentPath.isNotEmpty() && _state.value.currentPath != path) {
             pathHistory.push(_state.value.currentPath)
+            savePathHistory()
         }
         loadDirectory(path)
     }
@@ -93,6 +146,7 @@ class BrowserViewModel @Inject constructor(
 
         if (pathHistory.isNotEmpty()) {
             val previousPath = pathHistory.pop()
+            savePathHistory()
             loadDirectory(previousPath)
             return true
         }
@@ -109,8 +163,9 @@ class BrowserViewModel @Inject constructor(
     }
 
     private fun loadDirectory(path: String) {
+        saveNavState(path, false, null)
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, currentPath = path, selectedFiles = emptySet()) }
+            _state.update { it.copy(isLoading = true, error = null, currentPath = path, selectedFiles = emptySet(), isCategoryScreen = false) }
 
             val result = repository.listFiles(path)
 
@@ -126,6 +181,7 @@ class BrowserViewModel @Inject constructor(
     }
 
     private fun loadCategory(categoryName: String) {
+        saveNavState(null, true, categoryName)
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null, isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet()) }
 
@@ -268,6 +324,23 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
+    fun deleteSelectedPermanently() {
+        val selectedFiles = _state.value.selectedFiles.toList()
+        if (selectedFiles.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            val result = repository.deletePermanently(selectedFiles)
+            result.onSuccess {
+                clearSelection()
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files") }
+                refresh()
+            }
+        }
+    }
+
     fun renameFile(path: String, newName: String) {
         val invalidChars = listOf('/', '\\', '\u0000')
         if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
@@ -327,18 +400,60 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            val result = if (clipboard.operation == ClipboardOperation.COPY) {
-                repository.copyFiles(clipboard.sourcePaths, currentPath)
-            } else {
-                repository.moveFiles(clipboard.sourcePaths, currentPath)
-            }
 
-            result.onSuccess {
-                _state.update { it.copy(clipboardState = null) }
-                refresh()
+            // Detect conflicts before pasting
+            val conflictResult = repository.detectCopyConflicts(clipboard.sourcePaths, currentPath)
+            conflictResult.onSuccess { conflicts ->
+                if (conflicts.isNotEmpty()) {
+                    // Show the conflict resolution dialog
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            pasteConflicts = conflicts,
+                            showConflictDialog = true
+                        )
+                    }
+                } else {
+                    // No conflicts — paste immediately
+                    executePaste(clipboard, currentPath, emptyMap())
+                }
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to paste files") }
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to check for conflicts") }
             }
+        }
+    }
+
+    fun resolveConflicts(resolutions: Map<String, ConflictResolution>) {
+        val clipboard = _state.value.clipboardState ?: return
+        val currentPath = _state.value.currentPath
+        if (currentPath.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(showConflictDialog = false, pasteConflicts = emptyList(), isLoading = true) }
+            executePaste(clipboard, currentPath, resolutions)
+        }
+    }
+
+    fun dismissConflictDialog() {
+        _state.update { it.copy(showConflictDialog = false, pasteConflicts = emptyList()) }
+    }
+
+    private suspend fun executePaste(
+        clipboard: ClipboardState,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ) {
+        val result = if (clipboard.operation == ClipboardOperation.COPY) {
+            repository.copyFiles(clipboard.sourcePaths, destinationPath, resolutions)
+        } else {
+            repository.moveFiles(clipboard.sourcePaths, destinationPath, resolutions)
+        }
+
+        result.onSuccess {
+            _state.update { it.copy(clipboardState = null) }
+            refresh()
+        }.onFailure { error ->
+            _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to paste files") }
         }
     }
 

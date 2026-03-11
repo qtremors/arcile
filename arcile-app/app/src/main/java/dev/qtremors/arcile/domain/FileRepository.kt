@@ -63,6 +63,16 @@ interface FileRepository {
     suspend fun deleteFile(path: String): Result<Unit>
 
     /**
+     * Permanently deletes the files or directories at [paths].
+     *
+     * Unlike [deleteFile] or [moveToTrash], this bypasses the trash bin and 
+     * immediately removes the files from the filesystem.
+     *
+     * @return [Result.success] if all items were successfully deleted, [Result.failure] otherwise.
+     */
+    suspend fun deletePermanently(paths: List<String>): Result<Unit>
+
+    /**
      * Renames the file or directory at [path] to [newName].
      *
      * [newName] should be a bare name without path separators.
@@ -131,26 +141,42 @@ interface FileRepository {
     // ─── Clipboard operations ─────────────────────────────────────────────────
 
     /**
+     * Detects name conflicts that would occur when pasting [sourcePaths] into [destinationPath].
+     *
+     * Returns a [FileConflict] for every source file whose name already exists at the
+     * destination. Files that would be pasted to themselves (same-folder paste) are excluded
+     * because they are always auto-renamed.
+     *
+     * @param sourcePaths Absolute paths of the files to paste.
+     * @param destinationPath Absolute path of the target directory.
+     */
+    suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>>
+
+    /**
      * Copies files at [sourcePaths] to [destinationPath].
      *
-     * > **Warning:** Existing files at the destination are silently overwritten. See TASKS.md A5.
+     * When [resolutions] is provided, each conflicting file is handled according to its
+     * [ConflictResolution]: KEEP_BOTH auto-renames, REPLACE overwrites, SKIP ignores.
+     * Files without an entry in [resolutions] are copied normally (no overwrite).
      *
      * @param sourcePaths Absolute paths of the files to copy.
      * @param destinationPath Absolute path of the target directory.
+     * @param resolutions Per-file conflict resolutions keyed by source absolute path.
      */
-    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit>
+    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution> = emptyMap()): Result<Unit>
 
     /**
      * Moves files at [sourcePaths] to [destinationPath].
      *
      * Attempts an atomic rename first; falls back to copy-then-delete when crossing
-     * filesystem boundaries. Partial failures on the fallback path are not automatically
-     * reverted. See TASKS.md A6.
+     * filesystem boundaries. When [resolutions] is provided, conflicts are resolved
+     * per [ConflictResolution].
      *
      * @param sourcePaths Absolute paths of the files to move.
      * @param destinationPath Absolute path of the target directory.
+     * @param resolutions Per-file conflict resolutions keyed by source absolute path.
      */
-    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit>
+    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution> = emptyMap()): Result<Unit>
 
     // ─── Trash subsystem ─────────────────────────────────────────────────────
 

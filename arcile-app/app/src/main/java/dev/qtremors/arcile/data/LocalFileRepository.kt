@@ -5,7 +5,9 @@ import android.os.Environment
 import android.os.StatFs
 import android.provider.MediaStore
 import dev.qtremors.arcile.domain.CategoryStorage
+import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileCategories
+import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageInfo
@@ -117,6 +119,25 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
         // Redirection: by default, "deleting" a file now drops it into the Trash Bin seamlessly
         moveToTrash(listOf(path))
+    }
+
+    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            for (path in paths) {
+                val file = File(path)
+                validatePath(file).onFailure { return@withContext Result.failure(it) }
+
+                if (!file.exists()) continue
+
+                val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
+                if (!success) {
+                    return@withContext Result.failure(Exception("Failed to permanently delete file: ${file.name}"))
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(Dispatchers.IO) {
@@ -387,7 +408,91 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     // --- Core Operations ---
 
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun detectCopyConflicts(
+        sourcePaths: List<String>,
+        destinationPath: String
+    ): Result<List<FileConflict>> = withContext(Dispatchers.IO) {
+        try {
+            val destDir = File(destinationPath)
+            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+
+            if (!destDir.exists() || !destDir.isDirectory) {
+                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
+            }
+
+            val conflicts = mutableListOf<FileConflict>()
+            for (path in sourcePaths) {
+                val sourceFile = File(path)
+                if (!sourceFile.exists()) continue
+
+                val targetFile = File(destDir, sourceFile.name)
+
+                // Treat same-folder paste as a conflict, so the user sees the dialog
+                val conflictTarget = if (sourceFile.absolutePath == targetFile.absolutePath) {
+                    targetFile
+                } else {
+                    targetFile
+                }
+
+                if (targetFile.exists()) {
+                    conflicts.add(
+                        FileConflict(
+                            sourcePath = sourceFile.absolutePath,
+                            sourceFile = sourceFile.toFileModel(),
+                            existingFile = targetFile.toFileModel()
+                        )
+                    )
+                }
+            }
+            Result.success(conflicts)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Generates a unique "Keep Both" filename like `photo (1).jpg`, `photo (2).jpg`, etc.
+     */
+    private fun generateKeepBothName(destDir: File, sourceFile: File): File {
+        val originalName = sourceFile.nameWithoutExtension
+        val ext = if (sourceFile.extension.isNotEmpty()) ".${sourceFile.extension}" else ""
+        
+        // Match " (X)" at the end of the filename
+        val copyPattern = Regex("""^(.*?)(?: \((\d+)\))?$""")
+        val matchResult = copyPattern.matchEntire(originalName)
+
+        val baseName: String
+        var copyIndex = 1
+
+        if (matchResult != null) {
+            val matchedBase = matchResult.groupValues[1]
+            val matchedNumber = matchResult.groupValues[2]
+            
+            if (matchedNumber.isNotEmpty()) {
+                baseName = matchedBase
+                copyIndex = matchedNumber.toInt() + 1
+            } else {
+                baseName = originalName
+            }
+        } else {
+            baseName = originalName
+        }
+
+        var target: File
+        do {
+            val suffix = " ($copyIndex)"
+            target = File(destDir, "$baseName$suffix$ext")
+            copyIndex++
+        } while (target.exists())
+        
+        return target
+    }
+
+    override suspend fun copyFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val destDir = File(destinationPath)
             validatePath(destDir).onFailure { return@withContext Result.failure(it) }
@@ -416,22 +521,34 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 var targetFile = File(destDir, sourceFile.name)
                 validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
 
-                // Prevent destructive overwrite when pasting directly into the exact same source folder
-                if (sourceFile.absolutePath == targetFile.absolutePath) {
-                    val nameWithoutExt = sourceFile.nameWithoutExtension
-                    val ext = if (sourceFile.extension.isNotEmpty()) ".${sourceFile.extension}" else ""
-                    var copyIndex = 1
-                    do {
-                        val suffix = if (copyIndex == 1) " - Copy" else " - Copy ($copyIndex)"
-                        targetFile = File(destDir, "$nameWithoutExt$suffix$ext")
-                        copyIndex++
-                    } while (targetFile.exists())
+                if (targetFile.exists() || sourceFile.absolutePath == targetFile.absolutePath) {
+                    // Conflict exists — consult the resolution map
+                    when (resolutions[sourceFile.absolutePath]) {
+                        ConflictResolution.SKIP -> continue
+                        ConflictResolution.KEEP_BOTH -> {
+                            targetFile = generateKeepBothName(destDir, sourceFile)
+                        }
+                        ConflictResolution.REPLACE -> {
+                            // If user tries to REPLACE a file with itself (same-folder paste), it's a no-op.
+                            if (sourceFile.absolutePath == targetFile.absolutePath) {
+                                continue // skip to avoid crashing `copyTo/copyRecursively`
+                            }
+                            // else overwrite happens below
+                        }
+                        null -> {
+                            // No resolution provided? Do not overwrite by default on same-folder.
+                            if (sourceFile.absolutePath == targetFile.absolutePath) {
+                                continue
+                            }
+                        }
+                    }
                 }
 
+                val overwrite = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
                 if (sourceFile.isDirectory) {
-                    sourceFile.copyRecursively(targetFile, overwrite = true)
+                    sourceFile.copyRecursively(targetFile, overwrite = overwrite)
                 } else {
-                    sourceFile.copyTo(targetFile, overwrite = true)
+                    sourceFile.copyTo(targetFile, overwrite = overwrite)
                 }
             }
             Result.success(Unit)
@@ -440,7 +557,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun moveFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val destDir = File(destinationPath)
             validatePath(destDir).onFailure { return@withContext Result.failure(it) }
@@ -466,24 +587,39 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                     }
                 }
 
-                val targetFile = File(destDir, sourceFile.name)
+                var targetFile = File(destDir, sourceFile.name)
                 validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
 
                 if (sourceFile.absolutePath == targetFile.absolutePath) continue // moving to same location
-                
+
+                if (targetFile.exists()) {
+                    when (resolutions[sourceFile.absolutePath]) {
+                        ConflictResolution.SKIP -> continue
+                        ConflictResolution.KEEP_BOTH -> {
+                            targetFile = generateKeepBothName(destDir, sourceFile)
+                        }
+                        ConflictResolution.REPLACE -> {
+                            // Delete the existing file/folder before moving
+                            if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
+                        }
+                        null -> { /* no resolution — attempt move, may fail if target exists */ }
+                    }
+                }
+
                 // Try simple rename first (fast moving on same mount)
                 val success = sourceFile.renameTo(targetFile)
                 if (!success) {
                     // Fallback to copy+delete
+                    val overwrite = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
                     try {
                         if (sourceFile.isDirectory) {
-                            sourceFile.copyRecursively(targetFile, overwrite = true)
+                            sourceFile.copyRecursively(targetFile, overwrite = overwrite)
                             if (!sourceFile.deleteRecursively()) {
                                 targetFile.deleteRecursively() // revert
                                 return@withContext Result.failure(Exception("Failed to delete source directory after copy"))
                             }
                         } else {
-                            sourceFile.copyTo(targetFile, overwrite = true)
+                            sourceFile.copyTo(targetFile, overwrite = overwrite)
                             if (!sourceFile.delete()) {
                                 targetFile.delete() // revert
                                 return@withContext Result.failure(Exception("Failed to delete source file after copy"))
@@ -504,7 +640,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     // --- Trash Subsystem ---
 
     private val trashDir: File by lazy {
-        File(storageRoot, ".arcile_trash").apply {
+        File(storageRoot, ".arcile").apply {
             if (!exists()) {
                 mkdirs()
                 File(this, ".nomedia").createNewFile() // Hide from gallery
@@ -520,7 +656,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     /**
      * Moves the specified files to the trash directory.
-     * Note: The trash directory (`.arcile_trash`) is stored on shared external storage with no encryption.
+     * Note: The trash directory (`.arcile`) is stored on shared external storage with no encryption.
      * Any app with `MANAGE_EXTERNAL_STORAGE` permission can access these "deleted" files.
      */
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {

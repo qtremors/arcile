@@ -1,8 +1,26 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.3
+> **Version:** 0.3.4
 > **Last Updated:** 2026-03-11
+
+---
+
+## [0.3.4] - 2026-03-11
+
+### Added
+- [Feature] Smart Paste Conflict Resolution: Built a robust, step-by-step conflict dialog to handle copy/move filename collisions gracefully instead of silently overwriting user data.
+- [Feature] Smart Paste for Folders: Dynamically restyled conflict UI explicitly for directories, replacing generic "Replace" actions with a precise "Merge" paradigm.
+- [Feature] Contextual Batch Processing: Added intuitive "Do this for all remaining conflicts" checkbox for rapid ingestion of large paste operations.
+- [Feature] Intelligent Auto-Renaming: Resolving a conflict via "Keep Both" now automatically increments file suffixes recursively (e.g., `(1)`, `(2)`) instead of polluting the name with generic words.
+
+### Fixed
+- [Bug] SavedStateHandle: ViewModels now persist navigation stack (`pathHistory`) and current active directory across process death natively, securing user state against sudden OS terminations.
+- [Bug] Corrected `navigateBack()` returning boolean values incorrectly when attempting to traverse backwards up a deeply-linked directory node on a fresh launch process.
+- [Bug] Deprecated duplicate boolean state checking `isCategoryScreen` looping across the `NavController` recompositions. The deep link intent is now cleanly pushed to initialization inside `BrowserViewModel` via `SavedStateHandle` parameters, enforcing a single source of truth.
+- [Bug] `copyFiles()` overwrites destination files without user confirmation; fixed via new Smart Paste flow.
+- [Bug] Infinite Recursion File-System loop: prevented users from pasting a parent directory inside of its own child folder.
+- [Bug] Identical same-folder paste operations triggered duplicates instead of acting gracefully as an atomic no-op.
 
 ---
 
