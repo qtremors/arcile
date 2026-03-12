@@ -6,31 +6,52 @@
 
 ---
 
-### A. Correctness & Reliability
+### 0. Modularity & Manageability
 
-- [x] [Bug] `BrowserViewModel` state loss on process death.
-  - **Problem:** ViewModel state (`currentPath`, `isCategoryScreen`, etc.) is not persisted across process deaths.
-  - **Location:** `BrowserViewModel.kt` — `BrowserState` data class
-  - **Impact:** User loses navigation position when system kills app in background.
-  - **Fix:** Inject `SavedStateHandle` and persist critical nav state fields.
+- [ ] [Refactor] Split `FileManagerScreen.kt` (1046 lines) into modular components.
+  - **Problem:** Massive "God Composable" mixing scaffold, state, lists, grids, and dialogs.
+  - **Location:** `FileManagerScreen.kt`
+  - **Fix:** Extract `CreateFolderDialog`, `CreateFileDialog`, `RenameDialog`, `FileList`, `FileGrid`, `ExpandableFabMenu`, and `ActiveFiltersRow` into specific files under `components/`.
 
-- [x] [Bug] `pathHistory` (back-stack) is lost on process death.
-  - **Problem:** `ArrayDeque<String>` for navigation history is an in-memory field with no persistence.
-  - **Location:** `BrowserViewModel.kt:59`
-  - **Impact:** Pressing back after process death does nothing or navigates incorrectly.
-  - **Fix:** Serialize `pathHistory` into `SavedStateHandle` or switch to Navigation Compose's built-in stack.
+- [ ] [Refactor] De-monolith `LocalFileRepository.kt` (736 lines).
+  - **Problem:** Handles basic CRUD, MediaStore categories, Trash subsystem, and Copy/Move conflict resolution all in one file, violating SRP.
+  - **Location:** `LocalFileRepository.kt`
+  - **Fix:** Extract Trash logic to `TrashRepository`. Extract MediaStore queries to `MediaStoreDataSource` or `CategoryRepository`. Extract copy/move logic to `FileTransferHandler`.
 
-- [x] [Bug] `navigateBack()` returns `false` when `pathHistory` is empty but not on home screen.
-  - **Problem:** When history is empty, the function returns `false`, which causes `ArcileAppShell` to also call `navController.popBackStack()`. If we were deep linked, history is empty but we shouldn't pop back if we are in a subfolder.
-  - **Location:** `BrowserViewModel.kt:92-105`
-  - **Impact:** Double-back navigation; user may unintentionally exit the app.
-  - **Fix:** Return `true` when transitioning to root of storage, or delegate entirely to Navigation Compose.
+- [ ] [Refactor] Modularize `HomeScreen.kt` composables (663 lines).
+  - **Problem:** Embeds local composables for storage UI and category grid.
+  - **Location:** `HomeScreen.kt`
+  - **Fix:** Move `StorageSummaryCard`, `MultiColorStorageBar`, `CategoryLegend`, `CategoryGrid`, and `MainFoldersGrid` to `components/`.
 
-- [x] [Bug] Dual navigation state: ViewModel flags vs NavController back stack are unsynchronized.
-  - **Problem:** `isCategoryScreen` in ViewModel duplicates the route tracked by `NavController` / deep links.
-  - **Location:** `BrowserViewModel.kt`, `ArcileAppShell.kt`
-  - **Impact:** Possible inconsistent UI state after configuration changes or deep-linking.
-  - **Fix:** Use Navigation Compose route as the single source of truth. Derive the ViewModel flags from the current route, or remove them entirely.
+- [ ] [Refactor] Offload logic from `BrowserViewModel.kt` (495 lines).
+  - **Problem:** ViewModel acts as a God object handling navigation, file loading, clipboard, trash, error handling, and search.
+  - **Location:** `BrowserViewModel.kt`
+  - **Fix:** Extract isolated UseCases (e.g., `ExecutePasteUseCase`, `MoveToTrashUseCase`) and move pure state formatting to helper extensions.
+
+- [ ] [Refactor] Split `SettingsScreen.kt` sections (365 lines).
+  - **Problem:** Contains both the main settings layout and the detailed UI for theme mode and accent color selection.
+  - **Location:** `SettingsScreen.kt`
+  - **Fix:** Extract `ThemeModeSelector` and `AccentColorSelector` to `components/settings/`.
+
+- [ ] [Refactor] Extract Navigation from `ArcileAppShell.kt` (244 lines).
+  - **Problem:** Combines the app Shell (Scaffold/SharedTransitionLayout) with the massive `NavHost` definition.
+  - **Location:** `ArcileAppShell.kt`
+  - **Fix:** Move the `NavHost` and its route definitions to a dedicated file like `AppNavigationGraph.kt`.
+
+- [ ] [Refactor] Split `PasteConflictDialog.kt` components (363 lines).
+  - **Problem:** Contains the main dialog scaffolding along with detailed comparison cards and thumbnail helpers.
+  - **Location:** `components/PasteConflictDialog.kt`
+  - **Fix:** Extract `ConflictCard` and `FileInfoColumn` into smaller, reusable pieces if possible, or move to `components/dialogs/`.
+
+- [ ] [Refactor] Modularize Color Themes in `Color.kt` (351 lines).
+  - **Problem:** Contains hardcoded definitions for 10+ distinct dynamic and static color schemes in one massive file.
+  - **Location:** `ui/theme/Color.kt`
+  - **Fix:** Split palettes by core hue (e.g., `theme/colors/BluePalettes.kt`, `theme/colors/MonochromePalettes.kt`) or generate them algorithmically.
+
+- [ ] [Refactor] Clean up `TrashScreen.kt` (257 lines).
+  - **Problem:** Mixes the scaffold, empty state logic, alert dialogs, and the main lazy list.
+  - **Location:** `TrashScreen.kt`
+  - **Fix:** Move `TrashList` and the Empty Trash AlertDialog to separate composables in `components/trash/`.
 
 ---
 
