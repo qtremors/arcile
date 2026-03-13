@@ -91,10 +91,12 @@ import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
 
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
+import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.domain.SearchFilters
@@ -138,7 +140,6 @@ import androidx.compose.ui.semantics.semantics
  * file creation, rename, delete (via trash), copy/cut/paste clipboard, share, and pull-to-refresh.
  *
  * @param state Current [BrowserState] containing file list, selection, search, and clipboard state.
- * @param storageRootPath Absolute path of the storage root — used for breadcrumb display.
  * @param onNavigateBack Called when the user navigates back (hardware back or top bar back button).
  * @param onNavigateTo Called with the target directory path when the user opens a folder.
  * @param onOpenFile Called with the file path when the user opens a non-directory file.
@@ -168,7 +169,6 @@ import androidx.compose.ui.semantics.semantics
 @Composable
 fun FileManagerScreen(
     state: BrowserState,
-    storageRootPath: String,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
@@ -283,6 +283,8 @@ fun FileManagerScreen(
                     selectionCount = state.selectedFiles.size,
                     showBackArrow = true,
                     showGridViewAction = true,
+                    showSortAction = !state.isVolumeRootScreen,
+                    showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
                     isGridView = state.isGridView,
                     hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
@@ -309,7 +311,7 @@ fun FileManagerScreen(
             }
         },
         floatingActionButton = {
-            if (state.selectedFiles.isEmpty() && !showSearchBar) {
+            if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Box {
                     // Dismiss scrim behind FAB menu
                     if (isFabExpanded) {
@@ -407,13 +409,15 @@ fun FileManagerScreen(
                     }
                 } else {
                     // Normal browse content
-                    Breadcrumbs(
-                        path = state.currentPath,
-                        storageRootPath = storageRootPath,
-                        onPathSegmentClick = { path ->
-                            onNavigateTo(path)
-                        }
-                    )
+                    if (!state.isVolumeRootScreen) {
+                        Breadcrumbs(
+                            currentPath = state.currentPath,
+                            storageVolumes = state.storageVolumes,
+                            onPathSegmentClick = { path ->
+                                onNavigateTo(path)
+                            }
+                        )
+                    }
                     
                     val pullRefreshState = rememberPullToRefreshState()
                     
@@ -482,7 +486,7 @@ fun FileManagerScreen(
                                     )
                                 }
                             }
-                        } else if (state.isGridView) {
+                        } else if (state.isGridView && !state.isVolumeRootScreen) {
                             FileGrid(
                                 files = displayedFiles,
                                 selectedFiles = state.selectedFiles,

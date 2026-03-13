@@ -1,8 +1,29 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.6
+> **Version:** 0.3.7
 > **Last Updated:** 2026-03-13
+
+---
+
+## [0.3.7] - 2026-03-13
+
+### Added
+- [Feature] Full multi-volume storage awareness across the app via reactive mounted-volume tracking for internal storage, SD cards, and OTG USB drives.
+- [Feature] Manual pull-to-refresh on the Home screen so storage, categories, and recent files can be reloaded without restarting the app.
+
+### Fixed
+- [Bug] External storage mount and unmount changes now refresh the app live instead of only appearing after a restart.
+- [Bug] Browsing an SD card or OTG volume no longer leaks internal-storage navigation context into breadcrumbs, root browsing, categories, or recent files.
+- [Bug] Storage dashboard calculations are now scoped correctly per volume, including drive labels, occupied space, and category breakdowns.
+- [Bug] "Recent Files" and the "See All" screen now respect storage scope correctly and refresh reliably after returning to the screen.
+- [Bug] Background Home refreshes no longer flash the pull-to-refresh indicator or interfere with top bar expansion behavior.
+
+### Improved
+- [Architecture] Replaced the old single-root storage model with scoped storage queries and richer volume metadata (`id`, mount state, removable flag, path, and display name).
+- [Architecture] Browser, Home, Storage Dashboard, Categories, and Recent Files now share a common volume-aware storage model.
+- [Performance] Reduced repeated per-volume category scans on Home by reusing cached scoped category results until the mounted-volume set changes.
+- [Safety] Trash remains limited to internal storage for now, with removable-volume deletes explicitly blocked from using Trash to avoid inconsistent restore behavior.
 
 ---
 

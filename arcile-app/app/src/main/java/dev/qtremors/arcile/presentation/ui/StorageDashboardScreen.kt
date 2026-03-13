@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -43,24 +44,32 @@ import androidx.compose.ui.graphics.Color
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 import dev.qtremors.arcile.presentation.home.HomeState
+import dev.qtremors.arcile.presentation.ui.MultiColorStorageBar
+import dev.qtremors.arcile.domain.CategoryStorage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageDashboardScreen(
     state: HomeState,
+    selectedVolumeId: String? = null,
     onNavigateBack: () -> Unit,
-    onCategoryClick: (String) -> Unit
+    onCategoryClick: (String, String?) -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    val totalBytes = state.storageInfo?.totalBytes ?: 0L
-    val freeBytes = state.storageInfo?.freeBytes ?: 0L
-    val usedBytes = totalBytes - freeBytes
+    val volumes = if (selectedVolumeId != null) {
+        state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
+    } else {
+        state.storageInfo?.volumes.orEmpty()
+    }
+    val categoryStorages = selectedVolumeId?.let { state.categoryStoragesByVolume[it] } ?: state.categoryStorages
+    val totalBytes = volumes.sumOf { it.totalBytes }
+    val freeBytes = volumes.sumOf { it.freeBytes }
     
     val categoryColors = LocalCategoryColors.current
     val unassignedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
 
-    val sortedCategories = state.categoryStorages.sortedByDescending { it.sizeBytes }
+    val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
     val displayCategories = sortedCategories.map { cat ->
         val icon = when (cat.name) {
             "Images" -> Icons.Default.Image
@@ -94,35 +103,41 @@ fun StorageDashboardScreen(
                 .padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)
         ) {
-            item {
+            items(volumes) { volume ->
+                val used = volume.totalBytes - volume.freeBytes
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(24.dp),
+                        .padding(horizontal = 24.dp, vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Internal Storage",
+                        text = volume.name,
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${formatFileSize(usedBytes)} / ${formatFileSize(totalBytes)}",
-                        style = MaterialTheme.typography.displaySmall,
+                        text = "${formatFileSize(used)} / ${formatFileSize(volume.totalBytes)}",
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
-                    if (totalBytes > 0) {
+                    if (volume.totalBytes > 0) {
                         MultiColorStorageBar(
-                            totalBytes = totalBytes,
-                            freeBytes = freeBytes,
-                            categoryStorages = state.categoryStorages
+                            totalBytes = volume.totalBytes,
+                            freeBytes = volume.freeBytes,
+                            categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList()
                         )
                     }
                 }
+                androidx.compose.material3.HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    thickness = 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
             }
 
             item {
@@ -149,14 +164,13 @@ fun StorageDashboardScreen(
                         percentage = percentage,
                         icon = icon,
                         color = color,
-                        onClick = { onCategoryClick(cat.name) }
+                        onClick = { onCategoryClick(cat.name, selectedVolumeId) }
                     )
                 }
             }
             
             item {
-                // Calculation for "Other / System" storage
-                val categorizedBytes = state.categoryStorages.sumOf { it.sizeBytes }
+                val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
                 val actualUsedBytes = totalBytes - freeBytes
                 val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
                 

@@ -51,6 +51,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -69,6 +71,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.material.icons.filled.SdCard
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
@@ -92,6 +95,7 @@ import dev.qtremors.arcile.utils.getCategoryColor
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 /**
  * Dashboard screen shown when the app first launches.
@@ -125,11 +129,18 @@ fun HomeScreen(
     onNavigateToTools: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToRecentFiles: () -> Unit,
-    onOpenStorageDashboard: () -> Unit,
+    onOpenStorageDashboard: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {}
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
+    onRefresh: () -> Unit = {},
+    onResumeRefresh: () -> Unit = {}
 ) {
+    LifecycleResumeEffect(Unit) {
+        onResumeRefresh()
+        onPauseOrDispose { }
+    }
+
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         val cal = java.util.Calendar.getInstance()
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -183,11 +194,47 @@ fun HomeScreen(
                 LoadingIndicator()
             }
         } else {
+            val pullRefreshState = rememberPullToRefreshState()
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                PullToRefreshBox(
+                    isRefreshing = state.isPullToRefreshing,
+                    onRefresh = onRefresh,
+                    state = pullRefreshState,
+                    modifier = Modifier.fillMaxSize(),
+                    indicator = {
+                        val pullDistance = pullRefreshState.distanceFraction
+                        val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
+
+                        if (state.isPullToRefreshing || pullDistance > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .graphicsLayer {
+                                        translationY = if (state.isPullToRefreshing) 40.dp.toPx() else yOffset.toPx()
+                                        alpha = if (state.isPullToRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
+                                    }
+                                    .padding(top = 8.dp)
+                            ) {
+                                Card(
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.padding(10.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        LoadingIndicator(modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
@@ -195,8 +242,9 @@ fun HomeScreen(
                 item {
                     StorageSummaryCard(
                         state = state,
-                        onClick = onOpenFileBrowser,
-                        onLongClick = onOpenStorageDashboard
+                        onNavigateToPath = onNavigateToPath,
+                        onOpenStorageDashboard = onOpenStorageDashboard,
+                        onOpenFileBrowser = onOpenFileBrowser
                     )
                 }
 
@@ -329,6 +377,7 @@ fun HomeScreen(
         }
         }
         }
+        }
 
         if (showAboutDialog) {
         androidx.compose.material3.AlertDialog(
@@ -352,81 +401,172 @@ fun HomeScreen(
         }
         }
 
-        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)@Composable
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
 fun StorageSummaryCard(
     state: HomeState,
+    onNavigateToPath: (String) -> Unit,
+    onOpenStorageDashboard: (String?) -> Unit,
+    onOpenFileBrowser: () -> Unit
+) {
+    val volumes = state.storageInfo?.volumes ?: emptyList()
+    
+    if (volumes.size > 1) {
+        // Multi-storage layout
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            volumes.forEach { volume ->
+                StorageVolumeCard(
+                    volume = volume,
+                    categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
+                    onClick = { onNavigateToPath(volume.path) },
+                    onLongClick = { onOpenStorageDashboard(volume.id) }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    } else {
+        // Single storage layout (backward compatible UI)
+        val primaryVolume = volumes.find { it.isPrimary } ?: volumes.firstOrNull()
+        val total = primaryVolume?.totalBytes ?: 0L
+        val free = primaryVolume?.freeBytes ?: 0L
+        val used = total - free
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .clip(ExpressiveSquircleShape)
+                    .combinedClickable(
+                        onClick = onOpenFileBrowser,
+                        onLongClick = { onOpenStorageDashboard(primaryVolume?.id) }
+                    ),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ),
+            shape = ExpressiveSquircleShape
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = primaryVolume?.name ?: "Internal Storage",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(Icons.Default.Storage, contentDescription = "Storage")
+                }
+
+                if (total > 0) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    MultiColorStorageBar(
+                        totalBytes = total,
+                        freeBytes = free,
+                        categoryStorages = state.categoryStorages
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${formatFileSize(used)} used",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "${formatFileSize(free)} free",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+
+                    if (state.categoryStorages.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        CategoryLegend(state.categoryStorages)
+                    }
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Tap to browse storage",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun StorageVolumeCard(
+    volume: dev.qtremors.arcile.domain.StorageVolume,
+    categoryStorages: List<CategoryStorage>,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    val total = state.storageInfo?.totalBytes ?: 0L
-    val free = state.storageInfo?.freeBytes ?: 0L
-    val used = total - free
-
+    val used = volume.totalBytes - volume.freeBytes
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp)
             .clip(ExpressiveSquircleShape)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            containerColor = if (volume.isPrimary) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = if (volume.isPrimary) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
         ),
         shape = ExpressiveSquircleShape
     ) {
-        Column(modifier = Modifier.padding(24.dp)) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Internal Storage",
-                    style = MaterialTheme.typography.titleLarge,
+                    text = volume.name,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Icon(Icons.Default.Storage, contentDescription = "Storage")
+                Icon(
+                    imageVector = if (volume.isRemovable) Icons.Default.SdCard else Icons.Default.Storage,
+                    contentDescription = volume.name,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
-            if (total > 0) {
-                Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                MultiColorStorageBar(
-                    totalBytes = total,
-                    freeBytes = free,
-                    categoryStorages = state.categoryStorages
-                )
+            MultiColorStorageBar(
+                totalBytes = volume.totalBytes,
+                freeBytes = volume.freeBytes,
+                categoryStorages = categoryStorages
+            )
 
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "${formatFileSize(used)} used",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "${formatFileSize(free)} free",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-
-                if (state.categoryStorages.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    CategoryLegend(state.categoryStorages)
-                }
-            } else {
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    text = "Tap to browse storage",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    text = "${formatFileSize(used)} / ${formatFileSize(volume.totalBytes)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium
+                )
+                val percent = if (volume.totalBytes > 0) (used * 100 / volume.totalBytes) else 0
+                Text(
+                    text = "$percent%",
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }

@@ -8,9 +8,14 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.presentation.FileSortOption
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +26,7 @@ import javax.inject.Inject
 data class HomeState(
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
+    val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
     val recentFiles: List<FileModel> = emptyList(),
     val searchResults: List<FileModel> = emptyList(),
     val homeSearchQuery: String = "",
@@ -29,8 +35,15 @@ data class HomeState(
     val isSearching: Boolean = false,
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = false,
+    val isPullToRefreshing: Boolean = false,
     val error: String? = null
 )
+
+enum class HomeRefreshMode {
+    INITIAL,
+    MANUAL,
+    SILENT
+}
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -44,24 +57,64 @@ class HomeViewModel @Inject constructor(
     private var searchJob: Job? = null
 
     init {
-        loadHomeData()
+        viewModelScope.launch {
+            repository.observeStorageVolumes().collectLatest {
+                loadHomeData(HomeRefreshMode.SILENT)
+            }
+        }
+        loadHomeData(HomeRefreshMode.INITIAL)
     }
 
-    fun loadHomeData() {
+    fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null) }
+            val hasVisibleContent = _state.value.storageInfo != null ||
+                _state.value.categoryStorages.isNotEmpty() ||
+                _state.value.recentFiles.isNotEmpty()
+
+            _state.update {
+                it.copy(
+                    isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
+                    isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
+                    error = null
+                )
+            }
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
 
-            val recentResult = repository.getRecentFiles(limit = recentsPreviewLimit, minTimestamp = oneWeekAgo)
-            val storageResult = repository.getStorageInfo()
-            val categoryResult = repository.getCategoryStorageSizes()
+            val recentResult = repository.getRecentFiles(
+                scope = StorageScope.AllStorage,
+                limit = recentsPreviewLimit,
+                minTimestamp = oneWeekAgo
+            )
+            val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
+            val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
+            val storageInfo = storageResult.getOrNull()
+            val existingCategoryMap = _state.value.categoryStoragesByVolume
+            val volumeIds = storageInfo?.volumes?.map { it.id }.orEmpty()
+            val needsVolumeRefresh = volumeIds.toSet() != existingCategoryMap.keys
+            val categoryByVolume = if (!needsVolumeRefresh) {
+                existingCategoryMap
+            } else {
+                coroutineScope {
+                    storageInfo?.volumes
+                        ?.map { volume ->
+                            async {
+                                volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                            }
+                        }
+                        ?.awaitAll()
+                        ?.toMap()
+                        ?: emptyMap()
+                }
+            }
 
             _state.update { currentState ->
                 currentState.copy(
                     isLoading = false,
+                    isPullToRefreshing = false,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
-                    storageInfo = storageResult.getOrNull(),
-                    categoryStorages = categoryResult.getOrNull() ?: emptyList()
+                    storageInfo = storageInfo,
+                    categoryStorages = categoryResult.getOrNull() ?: emptyList(),
+                    categoryStoragesByVolume = categoryByVolume
                 )
             }
         }
@@ -84,7 +137,7 @@ class HomeViewModel @Inject constructor(
 
             val filters = _state.value.activeSearchFilters
             // Path scope is null for MediaStore-wide search
-            val result = repository.searchFiles(query, null, filters)
+            val result = repository.searchFiles(query, StorageScope.AllStorage, filters)
             
             result.onSuccess { files ->
                 _state.update { it.copy(isSearching = false, searchResults = files) }

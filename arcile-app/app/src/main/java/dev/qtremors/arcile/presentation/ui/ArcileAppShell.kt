@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
+import android.net.Uri
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -30,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
@@ -65,20 +67,20 @@ fun ArcileAppShell(
                     HomeScreen(
                         state = state,
                         onOpenFileBrowser = {
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=&category=&volumeId=") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.EXPLORER + "?path=$path") {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=${Uri.encode(path)}") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onOpenFile = onOpenFile,
                         onCategoryClick = { categoryName ->
-                            navController.navigate(AppRoutes.EXPLORER + "?category=$categoryName") {
+                            navController.navigate(AppRoutes.EXPLORER + "?category=${Uri.encode(categoryName)}") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
@@ -99,42 +101,59 @@ fun ArcileAppShell(
                             }
                         },
                         onNavigateToRecentFiles = {
-                            navController.navigate(AppRoutes.RECENT_FILES) {
+                            navController.navigate(AppRoutes.RECENT_FILES + "?volumeId=") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
-                        onOpenStorageDashboard = {
-                            navController.navigate(AppRoutes.STORAGE_DASHBOARD) {
+                        onOpenStorageDashboard = { volumeId ->
+                            val route = if (volumeId != null) {
+                                AppRoutes.STORAGE_DASHBOARD + "?volumeId=${Uri.encode(volumeId)}"
+                            } else {
+                                AppRoutes.STORAGE_DASHBOARD + "?volumeId="
+                            }
+                            navController.navigate(route) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
+                        onRefresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
+                        onResumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) }
                     )
                 }
-                composable(AppRoutes.STORAGE_DASHBOARD) {
+                composable(AppRoutes.STORAGE_DASHBOARD + "?volumeId={volumeId}") { backStackEntry ->
                     val viewModel = hiltViewModel<HomeViewModel>() // Shares Home logic
                     val state by viewModel.state.collectAsStateWithLifecycle()
+                    val volumeId = backStackEntry.arguments?.getString("volumeId")?.takeIf { it.isNotBlank() }
                     StorageDashboardScreen(
                         state = state,
+                        selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
-                        onCategoryClick = { categoryName ->
-                            navController.navigate(AppRoutes.EXPLORER + "?category=$categoryName") {
+                        onCategoryClick = { categoryName, scopedVolumeId ->
+                            val route = buildString {
+                                append(AppRoutes.EXPLORER)
+                                append("?category=")
+                                append(Uri.encode(categoryName))
+                                if (scopedVolumeId != null) {
+                                    append("&volumeId=")
+                                    append(Uri.encode(scopedVolumeId))
+                                }
+                            }
+                            navController.navigate(route) {
                                 popUpTo(AppRoutes.STORAGE_DASHBOARD) { inclusive = true }
                             }
                         }
                     )
                 }
-                composable(AppRoutes.EXPLORER + "?path={path}&category={category}") { backStackEntry ->
+                composable(AppRoutes.EXPLORER + "?path={path}&category={category}&volumeId={volumeId}") {
                     val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
 
                     FileManagerScreen(
                         state = state,
-                        storageRootPath = viewModel.storageRootPath,
                         onNavigateBack = {
                             if (!viewModel.navigateBack()) {
                                 navController.popBackStack()
@@ -181,7 +200,7 @@ fun ArcileAppShell(
                         onClearError = { viewModel.clearError() }
                     )
                 }
-                composable(AppRoutes.RECENT_FILES) {
+                composable(AppRoutes.RECENT_FILES + "?volumeId={volumeId}") {
                     val viewModel = hiltViewModel<RecentFilesViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     RecentFilesScreen(
@@ -191,7 +210,8 @@ fun ArcileAppShell(
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onDeleteSelected = { viewModel.moveSelectedToTrash() },
-                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) }
+                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
+                        onRefresh = { viewModel.loadRecentFiles() }
                     )
                 }
                 composable(AppRoutes.TOOLS) {

@@ -1,35 +1,194 @@
 package dev.qtremors.arcile.data
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Environment
 import android.os.StatFs
+import android.os.storage.StorageManager
 import android.provider.MediaStore
+import androidx.core.content.ContextCompat
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.StorageVolume
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 
 class LocalFileRepository(private val context: Context) : FileRepository {
 
-    private val storageRoot: String by lazy {
-        Environment.getExternalStorageDirectory().canonicalPath
+    private val appContext = context.applicationContext
+    private val storageManager = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+    private var activeStorageVolumes: List<StorageVolume> = discoverStorageVolumes()
+    private var activeStorageRoots: List<String> = activeStorageVolumes.map { it.path }
+
+    private fun discoverStorageVolumes(): List<StorageVolume> {
+        val discovered = linkedMapOf<String, StorageVolume>()
+        val primaryPath = Environment.getExternalStorageDirectory().canonicalPath
+
+        fun addVolume(
+            path: String,
+            platformVolume: android.os.storage.StorageVolume? = null
+        ) {
+            runCatching {
+                val canonicalPath = File(path).canonicalPath
+                val rootFile = File(canonicalPath)
+                if (!rootFile.exists()) return
+
+                val stat = StatFs(canonicalPath)
+                val totalBytes = stat.totalBytes
+                val freeBytes = stat.availableBytes
+                val isPrimary = canonicalPath == primaryPath
+                val isRemovable = platformVolume?.isRemovable ?: !isPrimary
+                val preferredName = platformVolume?.getDescription(appContext)
+                val fallbackName = rootFile.name.takeIf { it.isNotBlank() }
+                    ?: canonicalPath.substringAfterLast('/').takeIf { it.isNotBlank() }
+                    ?: if (isPrimary) "Internal Storage" else "External Storage"
+                val id = buildString {
+                    append(if (isPrimary) "primary" else "volume")
+                    append(':')
+                    append(platformVolume?.uuid ?: canonicalPath.lowercase(Locale.US))
+                }
+
+                discovered[id] = StorageVolume(
+                    id = id,
+                    name = preferredName?.takeIf { it.isNotBlank() } ?: fallbackName,
+                    path = canonicalPath,
+                    totalBytes = totalBytes,
+                    freeBytes = freeBytes,
+                    isPrimary = isPrimary,
+                    isRemovable = isRemovable,
+                    mountState = StorageMountState.MOUNTED
+                )
+            }
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            storageManager.storageVolumes.forEach { volume ->
+                val directory = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    volume.directory
+                } else {
+                    null
+                }
+                directory?.let { addVolume(it.absolutePath, volume) }
+            }
+        }
+
+        addVolume(primaryPath, storageManager.getStorageVolume(File(primaryPath)))
+
+        ContextCompat.getExternalFilesDirs(appContext, null).forEach { file ->
+            if (file == null) return@forEach
+            val path = file.absolutePath
+            val androidIndex = path.indexOf("/Android/data/")
+            if (androidIndex == -1) return@forEach
+            val volumeRoot = path.substring(0, androidIndex)
+            addVolume(volumeRoot, storageManager.getStorageVolume(File(volumeRoot)))
+        }
+
+        val volumes = discovered.values.sortedWith(
+            compareBy<StorageVolume> { !it.isPrimary }.thenBy { it.name.lowercase(Locale.US) }
+        )
+        activeStorageVolumes = volumes
+        activeStorageRoots = volumes.map { it.path }
+        return volumes
     }
 
-    // path traversal guard — rejects paths that escape external storage
+    private fun currentVolumes(): List<StorageVolume> = discoverStorageVolumes()
+
+    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = callbackFlow {
+        fun emitVolumes() {
+            trySend(currentVolumes())
+        }
+
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                emitVolumes()
+            }
+        }
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_MEDIA_MOUNTED)
+            addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+            addAction(Intent.ACTION_MEDIA_REMOVED)
+            addAction(Intent.ACTION_MEDIA_EJECT)
+            addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
+            addDataScheme("file")
+        }
+
+        emitVolumes()
+        appContext.registerReceiver(receiver, filter)
+        awaitClose { appContext.unregisterReceiver(receiver) }
+    }.distinctUntilChanged()
+
+    private fun resolveVolumeForPath(path: String, volumes: List<StorageVolume> = currentVolumes()): StorageVolume? {
+        val canonicalPath = runCatching { File(path).canonicalPath }.getOrElse { return null }
+        return volumes
+            .sortedByDescending { it.path.length }
+            .firstOrNull { canonicalPath == it.path || canonicalPath.startsWith(it.path + File.separator) }
+    }
+
+    private fun scopedVolumes(scope: StorageScope, volumes: List<StorageVolume> = currentVolumes()): List<StorageVolume> =
+        when (scope) {
+            StorageScope.AllStorage -> volumes
+            is StorageScope.Volume -> volumes.filter { it.id == scope.volumeId }
+            is StorageScope.Path -> volumes.filter { it.id == scope.volumeId }
+            is StorageScope.Category -> volumes.filter { it.id == scope.volumeId }
+        }
+
+    private fun scopeRoot(scope: StorageScope, volumes: List<StorageVolume>): String? =
+        when (scope) {
+            StorageScope.AllStorage -> null
+            is StorageScope.Volume -> volumes.find { it.id == scope.volumeId }?.path
+            is StorageScope.Path -> scope.absolutePath
+            is StorageScope.Category -> volumes.find { it.id == scope.volumeId }?.path
+        }
+
+    private fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume> = currentVolumes()): Boolean {
+        val canonicalPath = runCatching { File(path).canonicalPath }.getOrNull() ?: return false
+        return when (scope) {
+            StorageScope.AllStorage -> resolveVolumeForPath(canonicalPath, volumes) != null
+            is StorageScope.Volume -> {
+                val volume = volumes.find { it.id == scope.volumeId } ?: return false
+                canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+            }
+            is StorageScope.Path -> {
+                val volume = volumes.find { it.id == scope.volumeId } ?: return false
+                (canonicalPath == scope.absolutePath || canonicalPath.startsWith(scope.absolutePath + File.separator)) &&
+                    (canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator))
+            }
+            is StorageScope.Category -> {
+                val volume = volumes.find { it.id == scope.volumeId } ?: return false
+                canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+            }
+        }
+    }
+
+    // path traversal guard — rejects paths that escape all known storage boundaries
     private fun validatePath(file: File): Result<Unit> {
         val canonical = file.canonicalPath
-        if (canonical != storageRoot && !canonical.startsWith(storageRoot + File.separator)) {
-            return Result.failure(SecurityException("Access denied: path outside storage boundary"))
+        val isAllowed = activeStorageRoots.any { root ->
+            canonical == root || canonical.startsWith(root + File.separator)
+        }
+        
+        if (!isAllowed) {
+            return Result.failure(SecurityException("Access denied: path outside storage boundaries"))
         }
         return Result.success(Unit)
     }
@@ -53,8 +212,12 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         )
     }
 
-    override suspend fun getStorageRootPath(): String = withContext(Dispatchers.IO) {
-        Environment.getExternalStorageDirectory().canonicalPath
+    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = withContext(Dispatchers.IO) {
+        try {
+            Result.success(currentVolumes())
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
@@ -117,7 +280,6 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     }
 
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
-        // Redirection: by default, "deleting" a file now drops it into the Trash Bin seamlessly
         moveToTrash(listOf(path))
     }
 
@@ -168,8 +330,16 @@ class LocalFileRepository(private val context: Context) : FileRepository {
          }
     }
 
-    override suspend fun getRecentFiles(limit: Int, minTimestamp: Long): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun getRecentFiles(
+        scope: StorageScope,
+        limit: Int,
+        minTimestamp: Long
+    ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
+            val volumes = scopedVolumes(scope)
+            if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
+                return@withContext Result.success(emptyList())
+            }
             val filesList = mutableListOf<FileModel>()
             val uri = MediaStore.Files.getContentUri("external")
             val projection = arrayOf(
@@ -181,21 +351,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 MediaStore.Files.FileColumns.MIME_TYPE
             )
 
-            // We can't use MAX(DATE_ADDED, DATE_MODIFIED) directly in MediaStore sorting easily.
-            // But we can fetch more items sorted by either, then manually sort and limit.
-            // Since DATE_ADDED is the most reliable for "newly appeared files" (including copies), 
-            // we'll primarily rely on it, but we'll fetch a larger chunk to ensure we don't miss recently modified files.
             val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
-            // Ensure we are filtering out directories (where MIME_TYPE is null or directory format)
             val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
             val selection = if (minTimestamp > 0) "$baseSelection AND (${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)" else baseSelection
             val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString(), (minTimestamp / 1000).toString()) else null
-
-            // Fetch a bit more than the limit just in case, we will sort manually
             val queryLimit = limit * 2
-
-            // Note: Since Android 10, MediaStore does not support LIMIT clause in sortOrder directly, 
-            // but we can break out of the cursor loop early.
 
             context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
@@ -208,14 +368,14 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                     val path = cursor.getString(dataCol)
                     val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
 
-                    if (path != null && !name.startsWith(".")) {
+                    if (path != null && !name.startsWith(".") && matchesScope(path, scope, volumes)) {
                         var size = cursor.getLong(sizeCol)
                         val dateAdded = cursor.getLong(dateAddedCol) * 1000L
                         val dateModified = cursor.getLong(dateModifiedCol) * 1000L
 
-                        // Natively copied files might take a moment to register their size in MediaStore. Fallback to raw file length.
                         val actualFile = File(path)
-                        if (size == 0L && actualFile.exists()) {
+                        if (!actualFile.exists()) continue
+                        if (size == 0L) {
                             size = actualFile.length()
                         }
 
@@ -233,8 +393,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                     }
                 }
             }
-            
-            // Sort by the max of date added/modified, then take the exact limit requested
+
             val finalSortedList = filesList.sortedByDescending { it.lastModified }.take(limit)
 
             Result.success(finalSortedList)
@@ -242,27 +401,19 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             Result.failure(e)
         }
     }
-    override suspend fun getStorageInfo(): Result<StorageInfo> = withContext(Dispatchers.IO) {
-        try {
-            val path = Environment.getExternalStorageDirectory()
-            val stat = StatFs(path.path)
-            val blockSize = stat.blockSizeLong
-            val totalBlocks = stat.blockCountLong
-            val availableBlocks = stat.availableBlocksLong
 
-            Result.success(
-                StorageInfo(
-                    totalBytes = totalBlocks * blockSize,
-                    freeBytes = availableBlocks * blockSize
-                )
-            )
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = withContext(Dispatchers.IO) {
+        getStorageVolumes().map { volumes -> StorageInfo(scopedVolumes(scope, volumes)) }
     }
 
-    override suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
+    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
         try {
+            val volumes = scopedVolumes(scope)
+            if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
+                return@withContext Result.success(
+                    FileCategories.all.map { CategoryStorage(it.name, 0L, it.extensions) }
+                )
+            }
             val extToCategoryIndex = mutableMapOf<String, Int>()
             FileCategories.all.forEachIndexed { index, cat ->
                 cat.extensions.forEach { ext ->
@@ -282,7 +433,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 while (cursor.moveToNext()) {
                     val path = cursor.getString(dataCol)
                     val size = cursor.getLong(sizeCol)
-                    if (path != null) {
+                    if (path != null && matchesScope(path, scope, volumes)) {
                         val ext = File(path).extension.lowercase()
                         val catIndex = extToCategoryIndex[ext]
                         if (catIndex != null) {
@@ -306,8 +457,12 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
+            val volumes = scopedVolumes(scope)
+            if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
+                return@withContext Result.success(emptyList())
+            }
             val category = FileCategories.all.find { it.name == categoryName }
                 ?: return@withContext Result.failure(IllegalArgumentException("Unknown category: $categoryName"))
             
@@ -322,9 +477,9 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 
                 while (cursor.moveToNext()) {
                     val path = cursor.getString(dataCol)
-                    if (path != null) {
+                    if (path != null && matchesScope(path, scope, volumes)) {
                         val file = File(path)
-                        if (extensions.contains(file.extension.lowercase())) {
+                        if (file.exists() && extensions.contains(file.extension.lowercase())) {
                             filesList.add(file.toFileModel())
                         }
                     }
@@ -338,25 +493,30 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         }
     }
 
-    override suspend fun searchFiles(query: String, pathScope: String?, filters: SearchFilters?): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun searchFiles(
+        query: String,
+        scope: StorageScope,
+        filters: SearchFilters?
+    ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext Result.success(emptyList())
         val searchFilters = filters
 
         try {
+            val volumes = scopedVolumes(scope)
+            if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
+                return@withContext Result.success(emptyList())
+            }
             val filesList = mutableListOf<FileModel>()
             
-            if (pathScope != null) {
-                // Scoped recursive search — validate the scope root before walking
-                val rootDir = File(pathScope)
+            if (scope is StorageScope.Path) {
+                val rootDir = File(scope.absolutePath)
                 validatePath(rootDir).onFailure { return@withContext Result.failure(it) }
-                val storageRootCanonical = File(storageRoot).canonicalPath
+                
                 if (rootDir.exists() && rootDir.isDirectory) {
                     rootDir.walkTopDown()
                         .onEnter { dir ->
-                            // Prune symlinked / out-of-bound directories
                             val dirCanonical = dir.canonicalPath
-                            dirCanonical == storageRootCanonical ||
-                                dirCanonical.startsWith(storageRootCanonical + File.separator)
+                            matchesScope(dirCanonical, scope, volumes)
                         }
                         .forEach { file ->
                             if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
@@ -375,9 +535,9 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                     val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     while (cursor.moveToNext()) {
                         val path = cursor.getString(dataCol)
-                        if (path != null) {
+                        if (path != null && matchesScope(path, scope, volumes)) {
                             val f = File(path)
-                            if (!f.name.startsWith(".")) {
+                            if (f.exists() && !f.name.startsWith(".")) {
                                 filesList.add(f.toFileModel())
                             }
                         }
@@ -660,7 +820,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     // --- Trash Subsystem ---
 
     private val trashDir: File by lazy {
-        File(storageRoot, ".arcile").apply {
+        File(Environment.getExternalStorageDirectory(), ".arcile").apply {
             if (!exists()) {
                 mkdirs()
                 File(this, ".nomedia").createNewFile() // Hide from gallery
@@ -689,6 +849,13 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 validatePath(file).onFailure { return@withContext Result.failure(it) }
 
                 if (!file.exists()) continue
+                val sourceVolume = resolveVolumeForPath(file.absolutePath)
+                    ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
+                if (sourceVolume.isRemovable) {
+                    return@withContext Result.failure(
+                        IllegalStateException("Trash is only supported on internal storage. Use permanent delete for SD card and USB files.")
+                    )
+                }
                 // Don't trash the trash
                 if (file.absolutePath.startsWith(trashDir.absolutePath)) continue
 

@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -50,7 +51,8 @@ fun RecentFilesScreen(
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
     onDeleteSelected: () -> Unit,
-    onShareSelected: () -> Unit
+    onShareSelected: () -> Unit,
+    onRefresh: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
@@ -60,6 +62,11 @@ fun RecentFilesScreen(
     // Intercept system back to clear selection before navigating away
     BackHandler(enabled = isSelectionMode) {
         onClearSelection()
+    }
+
+    LifecycleResumeEffect(Unit) {
+        onRefresh()
+        onPauseOrDispose { }
     }
 
     Scaffold(

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.domain
 
+import kotlinx.coroutines.flow.Flow
 
 
 /**
@@ -82,12 +83,12 @@ interface FileRepository {
      */
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
 
+    fun observeStorageVolumes(): Flow<List<StorageVolume>>
+
     /**
-     * Returns the root directory of the primary external storage volume.
-     *
-     * Equivalent to [android.os.Environment.getExternalStorageDirectory].
+     * Returns a list of all currently available storage volumes.
      */
-    suspend fun getStorageRootPath(): String
+    suspend fun getStorageVolumes(): Result<List<StorageVolume>>
 
     // ─── Queries ─────────────────────────────────────────────────────────────
 
@@ -102,12 +103,16 @@ interface FileRepository {
      *   value. Defaults to `0` (no lower bound).
      * @return [Result.success] with a [List] of [FileModel] sorted by last-modified descending.
      */
-    suspend fun getRecentFiles(limit: Int = 10, minTimestamp: Long = 0L): Result<List<FileModel>>
+    suspend fun getRecentFiles(
+        scope: StorageScope = StorageScope.AllStorage,
+        limit: Int = 10,
+        minTimestamp: Long = 0L
+    ): Result<List<FileModel>>
 
     /**
-     * Returns total and free storage bytes for the primary external storage volume.
+     * Returns storage information including all detected storage volumes.
      */
-    suspend fun getStorageInfo(): Result<StorageInfo>
+    suspend fun getStorageInfo(scope: StorageScope = StorageScope.AllStorage): Result<StorageInfo>
 
     /**
      * Returns per-category storage size information for the storage dashboard.
@@ -116,14 +121,14 @@ interface FileRepository {
      *
      * > **Performance:** This queries the full MediaStore on each call. See TASKS.md C2.
      */
-    suspend fun getCategoryStorageSizes(): Result<List<CategoryStorage>>
+    suspend fun getCategoryStorageSizes(scope: StorageScope = StorageScope.AllStorage): Result<List<CategoryStorage>>
 
     /**
      * Returns all files belonging to [categoryName] from the MediaStore.
      *
      * @param categoryName A category name matching one of the keys in [FileCategories].
      */
-    suspend fun getFilesByCategory(categoryName: String): Result<List<FileModel>>
+    suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>>
 
     /**
      * Searches for files matching [query] and optional [filters].
@@ -136,7 +141,11 @@ interface FileRepository {
      *   `null` means MediaStore-wide search.
      * @param filters Optional [SearchFilters] to restrict results by type, size, or date.
      */
-    suspend fun searchFiles(query: String, pathScope: String? = null, filters: SearchFilters? = null): Result<List<FileModel>>
+    suspend fun searchFiles(
+        query: String,
+        scope: StorageScope = StorageScope.AllStorage,
+        filters: SearchFilters? = null
+    ): Result<List<FileModel>>
 
     // ─── Clipboard operations ─────────────────────────────────────────────────
 

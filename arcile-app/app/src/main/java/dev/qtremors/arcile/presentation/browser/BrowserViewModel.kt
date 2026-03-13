@@ -8,29 +8,33 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.StorageBrowserLocation
+import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
 import javax.inject.Inject
-import javax.inject.Named
 
 data class BrowserState(
     val currentPath: String = "",
+    val currentVolumeId: String? = null,
+    val isVolumeRootScreen: Boolean = false,
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
     val files: List<FileModel> = emptyList(),
@@ -47,15 +51,15 @@ data class BrowserState(
     val isPullToRefreshing: Boolean = false,
     val error: String? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),
-    val showConflictDialog: Boolean = false
+    val showConflictDialog: Boolean = false,
+    val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList()
 )
 
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val repository: FileRepository,
     private val browserPreferencesRepository: BrowserPreferencesRepository,
-    private val savedStateHandle: SavedStateHandle,
-    @Named("storageRootPath") val storageRootPath: String
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BrowserState())
@@ -65,7 +69,40 @@ class BrowserViewModel @Inject constructor(
     private var searchJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            repository.observeStorageVolumes().collectLatest { volumes ->
+                _state.update { it.copy(storageVolumes = volumes) }
+                val currentVolumeId = _state.value.currentVolumeId
+                if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
+                    openVolumeRoots("Selected storage was removed")
+                } else {
+                    when (restoreLocationFromState()) {
+                        StorageBrowserLocation.Roots -> openFileBrowser()
+                        is StorageBrowserLocation.Directory -> refresh()
+                        is StorageBrowserLocation.Category -> refresh()
+                        null -> initializeFromArgs()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun initializeFromArgs() {
+        val argPath = savedStateHandle.get<String>("path")
+        val argCategory = savedStateHandle.get<String>("category")
+        val argVolumeId = savedStateHandle.get<String>("volumeId")
+
+        when {
+            !argPath.isNullOrEmpty() -> navigateToSpecificFolder(argPath)
+            !argCategory.isNullOrEmpty() -> navigateToCategory(argCategory, argVolumeId)
+            else -> openFileBrowser()
+        }
+    }
+
+    private fun restoreLocationFromState(): StorageBrowserLocation? {
+        val isVolumeRootScreen = savedStateHandle.get<Boolean>("isVolumeRootScreen")
         val restoredPath = savedStateHandle.get<String>("currentPath")
+        val restoredVolumeId = savedStateHandle.get<String>("currentVolumeId")
         val restoredIsCategory = savedStateHandle.get<Boolean>("isCategoryScreen")
         val restoredCategoryName = savedStateHandle.get<String>("activeCategoryName")
         val restoredHistory = savedStateHandle.get<Array<String>>("pathHistory")
@@ -75,70 +112,107 @@ class BrowserViewModel @Inject constructor(
             pathHistory.addAll(restoredHistory)
         }
 
-        if (restoredIsCategory != null) {
-            // Process death recovery
-            if (restoredIsCategory && !restoredCategoryName.isNullOrEmpty()) {
-                _state.update { it.copy(isCategoryScreen = true, activeCategoryName = restoredCategoryName, browserSortOption = FileSortOption.DATE_NEWEST) }
-                loadCategory(restoredCategoryName)
-            } else if (!restoredPath.isNullOrEmpty()) {
-                _state.update { it.copy(currentPath = restoredPath) }
-                loadDirectory(restoredPath)
-            } else {
-                openFileBrowser()
-            }
-        } else {
-            // First time init: check nav arguments from SavedStateHandle
-            val argPath = savedStateHandle.get<String>("path")
-            val argCategory = savedStateHandle.get<String>("category")
-            
-            if (argPath != null) {
-                navigateToSpecificFolder(argPath)
-            } else if (argCategory != null) {
-                navigateToCategory(argCategory)
-            } else {
-                openFileBrowser()
-            }
+        return when {
+            isVolumeRootScreen == true -> StorageBrowserLocation.Roots
+            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() && !restoredVolumeId.isNullOrEmpty() ->
+                StorageBrowserLocation.Category(StorageScope.Category(restoredVolumeId, restoredCategoryName))
+            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() ->
+                StorageBrowserLocation.Category(StorageScope.Category("", restoredCategoryName))
+            !restoredPath.isNullOrEmpty() && !restoredVolumeId.isNullOrEmpty() ->
+                StorageBrowserLocation.Directory(StorageScope.Path(restoredVolumeId, restoredPath))
+            else -> null
         }
     }
 
-    private fun saveNavState(currentPath: String?, isCategoryScreen: Boolean, activeCategoryName: String?) {
-        savedStateHandle["currentPath"] = currentPath ?: ""
-        savedStateHandle["isCategoryScreen"] = isCategoryScreen
-        savedStateHandle["activeCategoryName"] = activeCategoryName ?: ""
-    }
-
-    private fun savePathHistory() {
+    private fun saveNavState() {
+        savedStateHandle["currentPath"] = _state.value.currentPath
+        savedStateHandle["currentVolumeId"] = _state.value.currentVolumeId
+        savedStateHandle["isVolumeRootScreen"] = _state.value.isVolumeRootScreen
+        savedStateHandle["isCategoryScreen"] = _state.value.isCategoryScreen
+        savedStateHandle["activeCategoryName"] = _state.value.activeCategoryName
         savedStateHandle["pathHistory"] = pathHistory.toTypedArray()
     }
 
-    fun openFileBrowser() {
-        _state.update { it.copy(isCategoryScreen = false, selectedFiles = emptySet()) }
+    private fun volumeFiles() = _state.value.storageVolumes.map { volume ->
+        FileModel(
+            name = volume.name,
+            absolutePath = volume.path,
+            size = volume.totalBytes - volume.freeBytes,
+            lastModified = 0L,
+            isDirectory = true,
+            extension = "",
+            isHidden = false
+        )
+    }
+
+    private fun findVolumeForPath(path: String) =
+        _state.value.storageVolumes
+            .sortedByDescending { it.path.length }
+            .firstOrNull { path == it.path || path.startsWith(it.path + java.io.File.separator) }
+
+    fun openFileBrowser(errorMessage: String? = null) {
+        val volumes = _state.value.storageVolumes
+        if (volumes.size <= 1) {
+            val onlyVolume = volumes.firstOrNull()
+            if (onlyVolume != null) {
+                loadDirectory(onlyVolume.path, onlyVolume.id, clearHistory = true, errorMessage = errorMessage)
+                return
+            }
+        }
+        openVolumeRoots(errorMessage)
+    }
+
+    private fun openVolumeRoots(errorMessage: String? = null) {
         pathHistory.clear()
-        savePathHistory()
-        loadDirectory(storageRootPath)
+        _state.update {
+            it.copy(
+                currentPath = "",
+                currentVolumeId = null,
+                isVolumeRootScreen = true,
+                isCategoryScreen = false,
+                activeCategoryName = "",
+                files = volumeFiles(),
+                selectedFiles = emptySet(),
+                error = errorMessage,
+                browserSortOption = FileSortOption.NAME_ASC,
+                isLoading = false,
+                isPullToRefreshing = false
+            )
+        }
+        saveNavState()
     }
 
     fun navigateToSpecificFolder(path: String) {
-        _state.update { it.copy(isCategoryScreen = false, selectedFiles = emptySet()) }
+        val volume = findVolumeForPath(path)
+        if (volume == null) {
+            openFileBrowser("Storage for this path is not available")
+            return
+        }
         pathHistory.clear()
-        pathHistory.push(storageRootPath)
-        savePathHistory()
-        loadDirectory(path)
+        if (path != volume.path) {
+            pathHistory.push(volume.path)
+        }
+        loadDirectory(path, volume.id, clearHistory = false)
     }
 
-    fun navigateToCategory(categoryName: String) {
-        _state.update { it.copy(isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet(), browserSortOption = FileSortOption.DATE_NEWEST) }
+    fun navigateToCategory(categoryName: String, volumeId: String? = null) {
         pathHistory.clear()
-        savePathHistory()
-        loadCategory(categoryName)
+        loadCategory(categoryName, volumeId)
     }
 
     fun navigateToFolder(path: String) {
+        if (_state.value.isVolumeRootScreen) {
+            val volume = _state.value.storageVolumes.firstOrNull { it.path == path }
+            if (volume != null) {
+                loadDirectory(volume.path, volume.id, clearHistory = true)
+            }
+            return
+        }
+
         if (_state.value.currentPath.isNotEmpty() && _state.value.currentPath != path) {
             pathHistory.push(_state.value.currentPath)
-            savePathHistory()
         }
-        loadDirectory(path)
+        loadDirectory(path, _state.value.currentVolumeId, clearHistory = false)
     }
 
     fun navigateBack(): Boolean {
@@ -147,64 +221,129 @@ class BrowserViewModel @Inject constructor(
             return true
         }
 
+        if (_state.value.isCategoryScreen) {
+            return false
+        }
+
         if (pathHistory.isNotEmpty()) {
             val previousPath = pathHistory.pop()
-            savePathHistory()
-            loadDirectory(previousPath)
+            val volume = findVolumeForPath(previousPath)
+            if (volume != null) {
+                loadDirectory(previousPath, volume.id, clearHistory = false)
+                return true
+            }
+        }
+
+        if (!_state.value.isVolumeRootScreen && _state.value.storageVolumes.size > 1) {
+            openVolumeRoots()
             return true
         }
-        
-        return false // Let the UI completely back out of the browser
+
+        return false
     }
 
     fun refresh(pullToRefresh: Boolean = false) {
         _state.update { it.copy(isPullToRefreshing = pullToRefresh) }
         when {
-            _state.value.isCategoryScreen -> loadCategory(_state.value.activeCategoryName)
-            _state.value.currentPath.isNotEmpty() -> loadDirectory(_state.value.currentPath)
+            _state.value.isVolumeRootScreen -> openVolumeRoots()
+            _state.value.isCategoryScreen -> loadCategory(_state.value.activeCategoryName, _state.value.currentVolumeId)
+            _state.value.currentPath.isNotEmpty() -> loadDirectory(_state.value.currentPath, _state.value.currentVolumeId, clearHistory = false)
         }
     }
 
-    private fun loadDirectory(path: String) {
-        saveNavState(path, false, null)
+    private fun loadDirectory(
+        path: String,
+        volumeId: String?,
+        clearHistory: Boolean,
+        errorMessage: String? = null
+    ) {
+        val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
+        if (resolvedVolumeId == null) {
+            openFileBrowser("Storage for this path is not available")
+            return
+        }
+        if (clearHistory) {
+            pathHistory.clear()
+        }
+        saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             val sortOptionForPath = prefs.getSortOptionForPath(path)
 
-            _state.update { it.copy(isLoading = true, error = null, currentPath = path, selectedFiles = emptySet(), isCategoryScreen = false, browserSortOption = sortOptionForPath) }
+            _state.update {
+                it.copy(
+                    isLoading = true,
+                    error = errorMessage,
+                    currentPath = path,
+                    currentVolumeId = resolvedVolumeId,
+                    selectedFiles = emptySet(),
+                    isCategoryScreen = false,
+                    isVolumeRootScreen = false,
+                    browserSortOption = sortOptionForPath
+                )
+            }
 
-            val result = repository.listFiles(path)
-
-            result.onSuccess { files ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, files = files) }
+            repository.listFiles(path).onSuccess { files ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        files = files
+                    )
+                }
+                saveNavState()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load directory") }
-                if (pathHistory.isNotEmpty()) {
-                    pathHistory.pop()
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        error = error.message ?: "Failed to load directory"
+                    )
                 }
             }
         }
     }
 
-    private fun loadCategory(categoryName: String) {
-        saveNavState(null, true, categoryName)
+    private fun loadCategory(categoryName: String, volumeId: String?) {
+        saveNavState()
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet()) }
+            _state.update {
+                it.copy(
+                    isLoading = true,
+                    error = null,
+                    isCategoryScreen = true,
+                    isVolumeRootScreen = false,
+                    activeCategoryName = categoryName,
+                    currentVolumeId = volumeId,
+                    selectedFiles = emptySet()
+                )
+            }
 
-            val result = repository.getFilesByCategory(categoryName)
-
-            result.onSuccess { files ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, files = files) }
+            val scope = volumeId?.let { StorageScope.Category(it, categoryName) } ?: StorageScope.AllStorage
+            repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        files = files,
+                        browserSortOption = FileSortOption.DATE_NEWEST
+                    )
+                }
+                saveNavState()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load category") }
-                if (pathHistory.isNotEmpty()) {
-                    pathHistory.pop()
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        error = error.message ?: "Failed to load category"
+                    )
                 }
             }
         }
     }
 
     fun toggleSelection(path: String) {
+        if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
             val updatedSelection = if (currentState.selectedFiles.contains(path)) {
                 currentState.selectedFiles - path
@@ -216,6 +355,7 @@ class BrowserViewModel @Inject constructor(
     }
 
     fun selectMultiple(paths: List<String>) {
+        if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
             currentState.copy(selectedFiles = currentState.selectedFiles + paths)
         }
@@ -241,12 +381,28 @@ class BrowserViewModel @Inject constructor(
             _state.update { it.copy(isSearching = true, error = null) }
 
             val stateVal = _state.value
-            val pathScope = if (!stateVal.isCategoryScreen && stateVal.currentPath.isNotEmpty()) stateVal.currentPath else null
-            val filters = stateVal.activeSearchFilters
+            val scope = when {
+                stateVal.isVolumeRootScreen -> StorageScope.AllStorage
+                stateVal.isCategoryScreen -> stateVal.currentVolumeId?.let {
+                    StorageScope.Category(it, stateVal.activeCategoryName)
+                } ?: StorageScope.AllStorage
+                stateVal.currentVolumeId != null && stateVal.currentPath.isNotEmpty() ->
+                    StorageScope.Path(stateVal.currentVolumeId, stateVal.currentPath)
+                else -> StorageScope.AllStorage
+            }
 
-            val result = repository.searchFiles(query, pathScope, filters)
-            result.onSuccess { files ->
-                _state.update { it.copy(isSearching = false, searchResults = files) }
+            repository.searchFiles(query, scope, stateVal.activeSearchFilters).onSuccess { files ->
+                val filtered = if (stateVal.isCategoryScreen) {
+                    val category = dev.qtremors.arcile.domain.FileCategories.all.find { it.name == stateVal.activeCategoryName }
+                    if (category != null) {
+                        files.filter { file -> category.extensions.contains(file.extension.lowercase()) }
+                    } else {
+                        files
+                    }
+                } else {
+                    files
+                }
+                _state.update { it.copy(isSearching = false, searchResults = filtered) }
             }.onFailure { error ->
                 _state.update { it.copy(isSearching = false, error = error.message ?: "Search failed") }
             }
@@ -254,6 +410,7 @@ class BrowserViewModel @Inject constructor(
     }
 
     fun updateBrowserSortOption(sortOption: FileSortOption, applyToSubfolders: Boolean) {
+        if (_state.value.isVolumeRootScreen) return
         viewModelScope.launch {
             if (applyToSubfolders) {
                 val path = _state.value.currentPath
@@ -270,7 +427,7 @@ class BrowserViewModel @Inject constructor(
     fun setGridView(enabled: Boolean) {
         _state.update { it.copy(isGridView = enabled) }
     }
-    
+
     fun updateSearchFilters(filters: SearchFilters) {
         _state.update { it.copy(activeSearchFilters = filters) }
         val currentQuery = _state.value.browserSearchQuery
@@ -285,7 +442,7 @@ class BrowserViewModel @Inject constructor(
 
     fun createFolder(name: String) {
         val currentPath = _state.value.currentPath
-        if (currentPath.isEmpty()) return
+        if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
 
         val invalidChars = listOf('/', '\\', '\u0000')
         if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
@@ -294,8 +451,7 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val result = repository.createDirectory(currentPath, name)
-            result.onSuccess {
+            repository.createDirectory(currentPath, name).onSuccess {
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message ?: "Failed to create folder") }
@@ -305,7 +461,7 @@ class BrowserViewModel @Inject constructor(
 
     fun createFile(name: String) {
         val currentPath = _state.value.currentPath
-        if (currentPath.isEmpty()) return
+        if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
 
         val invalidChars = listOf('/', '\\', '\u0000')
         if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
@@ -314,8 +470,7 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val result = repository.createFile(currentPath, name)
-            result.onSuccess {
+            repository.createFile(currentPath, name).onSuccess {
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message ?: "Failed to create file") }
@@ -329,8 +484,7 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-            val result = repository.moveToTrash(selectedFiles)
-            result.onSuccess {
+            repository.moveToTrash(selectedFiles).onSuccess {
                 clearSelection()
                 refresh()
             }.onFailure { error ->
@@ -346,8 +500,7 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
-            val result = repository.deletePermanently(selectedFiles)
-            result.onSuccess {
+            repository.deletePermanently(selectedFiles).onSuccess {
                 clearSelection()
                 refresh()
             }.onFailure { error ->
@@ -365,8 +518,7 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val result = repository.renameFile(path, newName)
-            result.onSuccess {
+            repository.renameFile(path, newName).onSuccess {
                 clearSelection()
                 refresh()
             }.onFailure { error ->
@@ -378,8 +530,6 @@ class BrowserViewModel @Inject constructor(
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
-
-    // --- Clipboard & Core Transfer System ---
 
     fun copySelectedToClipboard() {
         val selected = _state.value.selectedFiles.toList()
@@ -417,11 +567,8 @@ class BrowserViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
 
-            // Detect conflicts before pasting
-            val conflictResult = repository.detectCopyConflicts(clipboard.sourcePaths, currentPath)
-            conflictResult.onSuccess { conflicts ->
+            repository.detectCopyConflicts(clipboard.sourcePaths, currentPath).onSuccess { conflicts ->
                 if (conflicts.isNotEmpty()) {
-                    // Show the conflict resolution dialog
                     _state.update {
                         it.copy(
                             isLoading = false,
@@ -430,7 +577,6 @@ class BrowserViewModel @Inject constructor(
                         )
                     }
                 } else {
-                    // No conflicts — paste immediately
                     executePaste(clipboard, currentPath, emptyMap())
                 }
             }.onFailure { error ->
@@ -497,11 +643,11 @@ class BrowserViewModel @Inject constructor(
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
-            
+
             val chooser = Intent.createChooser(intent, "Share files via")
             chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             context.startActivity(chooser)
-            
+
             clearSelection()
         } catch (e: Exception) {
             _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }

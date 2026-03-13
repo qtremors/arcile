@@ -1,10 +1,13 @@
 package dev.qtremors.arcile.presentation.recentfiles
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.StorageScope
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +16,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class RecentFilesState(
+    val currentVolumeId: String? = null,
     val recentFiles: List<FileModel> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = false,
@@ -22,20 +26,28 @@ data class RecentFilesState(
 
 @HiltViewModel
 class RecentFilesViewModel @Inject constructor(
-    private val repository: FileRepository
+    private val repository: FileRepository,
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(RecentFilesState())
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
     init {
+        _state.update { it.copy(currentVolumeId = savedStateHandle.get<String>("volumeId")?.takeIf { value -> value.isNotBlank() }) }
+        viewModelScope.launch {
+            repository.observeStorageVolumes().collectLatest {
+                loadRecentFiles(false)
+            }
+        }
         loadRecentFiles(false)
     }
 
     fun loadRecentFiles(pullToRefresh: Boolean = false) {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
-            val result = repository.getRecentFiles(limit = 500)
+            val scope = _state.value.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
+            val result = repository.getRecentFiles(scope = scope, limit = 500)
             result.onSuccess { files ->
                 _state.update { it.copy(isLoading = false, isPullToRefreshing = false, recentFiles = files) }
             }.onFailure { error ->

@@ -19,8 +19,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 20
-        versionName = "0.3.6"
+        versionCode = 21
+        versionName = "0.3.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -104,6 +104,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
