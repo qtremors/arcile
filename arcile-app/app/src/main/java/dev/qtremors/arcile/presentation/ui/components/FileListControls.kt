@@ -25,13 +25,22 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.presentation.FileSortOption
 
 
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+
 @Composable
 fun SortOptionDialog(
     title: String,
     selectedOption: FileSortOption,
     onDismiss: () -> Unit,
-    onOptionSelected: (FileSortOption) -> Unit
+    onOptionSelected: (FileSortOption, Boolean) -> Unit
 ) {
+    var applyToSubfolders by remember { mutableStateOf(false) }
+    var currentOption by remember { mutableStateOf(selectedOption) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -42,25 +51,45 @@ fun SortOptionDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(MaterialTheme.shapes.small)
-                            .clickable { onOptionSelected(option) }
+                            .clickable { currentOption = option }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         RadioButton(
-                            selected = option == selectedOption,
-                            onClick = { onOptionSelected(option) }
+                            selected = option == currentOption,
+                            onClick = { currentOption = option }
                         )
-                        Column {
-                            Text(option.label, style = MaterialTheme.typography.bodyLarge)
-                        }
+                        Text(option.label, style = MaterialTheme.typography.bodyLarge)
                     }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable { applyToSubfolders = !applyToSubfolders }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Checkbox(
+                        checked = applyToSubfolders,
+                        onCheckedChange = { applyToSubfolders = it }
+                    )
+                    Text("Apply to this folder and subfolders", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { onOptionSelected(currentOption, applyToSubfolders) }) {
                 Text("Done")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
             }
         }
     )

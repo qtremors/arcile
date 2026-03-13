@@ -13,7 +13,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -112,7 +112,7 @@ fun ArcileTopBar(
                     }
                     if (showSortAction) {
                         IconButton(onClick = onSortClick) {
-                            Icon(Icons.Default.SortByAlpha, contentDescription = "Sort")
+                            Icon(Icons.Default.Sort, contentDescription = "Sort")
                         }
                     }
                     if (showSettingsIcon) {

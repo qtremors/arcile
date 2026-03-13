@@ -151,7 +151,7 @@ fun ArcileAppShell(
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
-                        onSortOptionChange = { viewModel.updateBrowserSortOption(it) },
+                        onSortOptionChange = { option, applyToSubfolders -> viewModel.updateBrowserSortOption(option, applyToSubfolders) },
                         onGridViewChange = { viewModel.setGridView(it) },
                         onClearError = { viewModel.clearError() },
                         onCopySelected = { viewModel.copySelectedToClipboard() },

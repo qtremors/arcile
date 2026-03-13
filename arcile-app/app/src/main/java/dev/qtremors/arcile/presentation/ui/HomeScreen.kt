@@ -142,6 +142,8 @@ fun HomeScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    var showAboutDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -162,6 +164,7 @@ fun HomeScreen(
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.Settings -> onSettingsClick()
+                            TopBarAction.About -> showAboutDialog = true
                             else -> {}
                         }
                     }
@@ -322,12 +325,32 @@ fun HomeScreen(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
-    }
-}
-}
+        }
+        }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
+        if (showAboutDialog) {
+        androidx.compose.material3.AlertDialog(
+        onDismissRequest = { showAboutDialog = false },
+        title = { Text("About Arcile") },
+        text = {
+            Column {
+                Text("Version: ${dev.qtremors.arcile.BuildConfig.VERSION_NAME}")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Developer: Tremors (@qtremors)")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Repository: github.com/qtremors/arcile")
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { showAboutDialog = false }) {
+                Text("Close")
+            }
+        }
+        )
+        }
+        }
+
+        @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)@Composable
 fun StorageSummaryCard(
     state: HomeState,
     onClick: () -> Unit,

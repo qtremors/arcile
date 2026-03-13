@@ -1,8 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.4
-> **Last Updated:** 2026-03-11
+> **Version:** 0.3.5
+> **Last Updated:** 2026-03-13
+
+---
+
+## [0.3.5] - 2026-03-13
+
+### Added
+- [Feature] Persistent Sorting Filters: File browsing sorting preferences are now persisted per directory or globally via DataStore.
+- [Feature] Subfolder Sorting Application: Users can now explicitly choose to apply a sorting filter dynamically to a selected folder and all its subfolders directly from the Sort option dialog.
+- [Feature] Category Sort Defaults: The categories on the home screen now automatically configure sorting to "Date Newest" instead of alphabetically by default. 
+
+### Improved
+- [UX] Process death states explicitly re-apply "Date Newest" sort configuration cleanly when recovering active Category screens.
 
 ---
 

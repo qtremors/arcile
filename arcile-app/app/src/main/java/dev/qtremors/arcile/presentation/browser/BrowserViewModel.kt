@@ -16,11 +16,13 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
@@ -51,6 +53,7 @@ data class BrowserState(
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val repository: FileRepository,
+    private val browserPreferencesRepository: BrowserPreferencesRepository,
     private val savedStateHandle: SavedStateHandle,
     @Named("storageRootPath") val storageRootPath: String
 ) : ViewModel() {
@@ -75,7 +78,7 @@ class BrowserViewModel @Inject constructor(
         if (restoredIsCategory != null) {
             // Process death recovery
             if (restoredIsCategory && !restoredCategoryName.isNullOrEmpty()) {
-                _state.update { it.copy(isCategoryScreen = true, activeCategoryName = restoredCategoryName) }
+                _state.update { it.copy(isCategoryScreen = true, activeCategoryName = restoredCategoryName, browserSortOption = FileSortOption.DATE_NEWEST) }
                 loadCategory(restoredCategoryName)
             } else if (!restoredPath.isNullOrEmpty()) {
                 _state.update { it.copy(currentPath = restoredPath) }
@@ -124,7 +127,7 @@ class BrowserViewModel @Inject constructor(
     }
 
     fun navigateToCategory(categoryName: String) {
-        _state.update { it.copy(isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet()) }
+        _state.update { it.copy(isCategoryScreen = true, activeCategoryName = categoryName, selectedFiles = emptySet(), browserSortOption = FileSortOption.DATE_NEWEST) }
         pathHistory.clear()
         savePathHistory()
         loadCategory(categoryName)
@@ -165,7 +168,10 @@ class BrowserViewModel @Inject constructor(
     private fun loadDirectory(path: String) {
         saveNavState(path, false, null)
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, currentPath = path, selectedFiles = emptySet(), isCategoryScreen = false) }
+            val prefs = browserPreferencesRepository.preferencesFlow.first()
+            val sortOptionForPath = prefs.getSortOptionForPath(path)
+
+            _state.update { it.copy(isLoading = true, error = null, currentPath = path, selectedFiles = emptySet(), isCategoryScreen = false, browserSortOption = sortOptionForPath) }
 
             val result = repository.listFiles(path)
 
@@ -247,8 +253,18 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun updateBrowserSortOption(sortOption: FileSortOption) {
-        _state.update { it.copy(browserSortOption = sortOption) }
+    fun updateBrowserSortOption(sortOption: FileSortOption, applyToSubfolders: Boolean) {
+        viewModelScope.launch {
+            if (applyToSubfolders) {
+                val path = _state.value.currentPath
+                if (path.isNotEmpty() && !_state.value.isCategoryScreen) {
+                    browserPreferencesRepository.updatePathSortOption(path, sortOption)
+                }
+            } else {
+                browserPreferencesRepository.updateGlobalSortOption(sortOption)
+            }
+            _state.update { it.copy(browserSortOption = sortOption) }
+        }
     }
 
     fun setGridView(enabled: Boolean) {

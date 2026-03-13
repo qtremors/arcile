@@ -173,7 +173,7 @@ fun FileManagerScreen(
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onSortOptionChange: (FileSortOption) -> Unit,
+    onSortOptionChange: (FileSortOption, Boolean) -> Unit,
     onGridViewChange: (Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
@@ -598,8 +598,8 @@ fun FileManagerScreen(
                 title = "Sort current folder",
                 selectedOption = state.browserSortOption,
                 onDismiss = { showSortDialog = false },
-                onOptionSelected = { option ->
-                    onSortOptionChange(option)
+                onOptionSelected = { option, applyToSubfolders ->
+                    onSortOptionChange(option, applyToSubfolders)
                     showSortDialog = false
                 }
             )

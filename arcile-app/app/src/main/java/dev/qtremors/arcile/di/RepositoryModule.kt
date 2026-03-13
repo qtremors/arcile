@@ -7,6 +7,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.domain.FileRepository
 import javax.inject.Named
@@ -25,8 +26,17 @@ object RepositoryModule {
     }
 
     @Provides
+    @Singleton
+    fun provideBrowserPreferencesRepository(
+        @ApplicationContext context: Context
+    ): BrowserPreferencesRepository {
+        return BrowserPreferencesRepository(context)
+    }
+
+    @Provides
     @Named("storageRootPath")
     fun provideStorageRootPath(): String {
         return Environment.getExternalStorageDirectory().absolutePath
     }
 }
+
