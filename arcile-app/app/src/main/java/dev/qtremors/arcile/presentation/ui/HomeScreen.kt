@@ -72,6 +72,7 @@ import androidx.compose.animation.core.Spring
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.presentation.home.HomeState
@@ -312,6 +313,7 @@ fun HomeScreen(
                 } else {
                     val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                     items(displayedRecentFiles, key = { it.absolutePath }) { file ->
+
                         FileItemRow(
                             file = file,
                             formattedDate = formatter.format(Date(file.lastModified)),

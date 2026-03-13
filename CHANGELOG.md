@@ -1,8 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.5
+> **Version:** 0.3.6
 > **Last Updated:** 2026-03-13
+
+---
+
+## [0.3.6] - 2026-03-13
+
+### Fixed
+- [Bug] "Recent Files" list failed to float newly copied duplicate items to the top; fixed by primarily querying `MediaStore.Files.FileColumns.DATE_ADDED` in `LocalFileRepository.getRecentFiles` with a secondary `DATE_MODIFIED` fallback.
+- [Bug] "Recent Files" list reported 0-bytes for freshly duplicated files because MediaStore asynchronous indexation lagged behind execution; implemented a native `java.io.File(path).length()` bypass.
+
+### Improved
+- [Architecture] Extracted massive `FileManagerScreen.kt` "God Composable" logic into hyper-specific isolated modular components under `presentation/ui/components/` including dialogs, lists, grids, and menus for drastically improved maintainability.
 
 ---
 

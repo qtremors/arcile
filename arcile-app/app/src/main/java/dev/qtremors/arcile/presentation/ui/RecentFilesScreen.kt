@@ -39,6 +39,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
+import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable

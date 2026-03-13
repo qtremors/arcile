@@ -177,37 +177,55 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
                 MediaStore.Files.FileColumns.SIZE,
                 MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.DATE_ADDED,
                 MediaStore.Files.FileColumns.MIME_TYPE
             )
-            
-            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+
+            // We can't use MAX(DATE_ADDED, DATE_MODIFIED) directly in MediaStore sorting easily.
+            // But we can fetch more items sorted by either, then manually sort and limit.
+            // Since DATE_ADDED is the most reliable for "newly appeared files" (including copies), 
+            // we'll primarily rely on it, but we'll fetch a larger chunk to ensure we don't miss recently modified files.
+            val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
             // Ensure we are filtering out directories (where MIME_TYPE is null or directory format)
             val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
-            val selection = if (minTimestamp > 0) "$baseSelection AND ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?" else baseSelection
-            val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString()) else null
-            
+            val selection = if (minTimestamp > 0) "$baseSelection AND (${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)" else baseSelection
+            val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString(), (minTimestamp / 1000).toString()) else null
+
+            // Fetch a bit more than the limit just in case, we will sort manually
+            val queryLimit = limit * 2
+
+            // Note: Since Android 10, MediaStore does not support LIMIT clause in sortOrder directly, 
+            // but we can break out of the cursor loop early.
+
             context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
                 val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                
-                while (cursor.moveToNext() && filesList.size < limit) {
+                val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
+                val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+
+                while (cursor.moveToNext() && filesList.size < queryLimit) {
                     val path = cursor.getString(dataCol)
                     val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
-                    
+
                     if (path != null && !name.startsWith(".")) {
-                        val size = cursor.getLong(sizeCol)
-                        // MediaStore dates are usually in seconds
-                        val dateModified = cursor.getLong(dateCol) * 1000L 
-                        
+                        var size = cursor.getLong(sizeCol)
+                        val dateAdded = cursor.getLong(dateAddedCol) * 1000L
+                        val dateModified = cursor.getLong(dateModifiedCol) * 1000L
+
+                        // Natively copied files might take a moment to register their size in MediaStore. Fallback to raw file length.
+                        val actualFile = File(path)
+                        if (size == 0L && actualFile.exists()) {
+                            size = actualFile.length()
+                        }
+
                         val extension = path.substringAfterLast('.', "")
-                        
+
                         filesList.add(FileModel(
                             name = name,
                             absolutePath = path,
                             size = size,
-                            lastModified = dateModified,
+                            lastModified = maxOf(dateAdded, dateModified), // Prioritize whichever is newer
                             isDirectory = false,
                             extension = extension,
                             isHidden = false
@@ -216,12 +234,14 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 }
             }
             
-            Result.success(filesList)
+            // Sort by the max of date added/modified, then take the exact limit requested
+            val finalSortedList = filesList.sortedByDescending { it.lastModified }.take(limit)
+
+            Result.success(finalSortedList)
         } catch (e: Exception) {
-             Result.failure(e)
+            Result.failure(e)
         }
     }
-
     override suspend fun getStorageInfo(): Result<StorageInfo> = withContext(Dispatchers.IO) {
         try {
             val path = Environment.getExternalStorageDirectory()

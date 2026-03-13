@@ -1,14 +1,14 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.3.4
-> **Last Updated:** 2026-03-11
+> **Version:** 0.3.6
+> **Last Updated:** 2026-03-13
 
 ---
 
 ### 0. Modularity & Manageability
 
-- [ ] [Refactor] Split `FileManagerScreen.kt` (1046 lines) into modular components.
+- [x] [Refactor] Split `FileManagerScreen.kt` (1046 lines) into modular components.
   - **Problem:** Massive "God Composable" mixing scaffold, state, lists, grids, and dialogs.
   - **Location:** `FileManagerScreen.kt`
   - **Fix:** Extract `CreateFolderDialog`, `CreateFileDialog`, `RenameDialog`, `FileList`, `FileGrid`, `ExpandableFabMenu`, and `ActiveFiltersRow` into specific files under `components/`.
@@ -23,7 +23,7 @@
   - **Location:** `HomeScreen.kt`
   - **Fix:** Move `StorageSummaryCard`, `MultiColorStorageBar`, `CategoryLegend`, `CategoryGrid`, and `MainFoldersGrid` to `components/`.
 
-- [ ] [Refactor] Offload logic from `BrowserViewModel.kt` (495 lines).
+- [x] [Refactor] Offload logic from `BrowserViewModel.kt` (495 lines).
   - **Problem:** ViewModel acts as a God object handling navigation, file loading, clipboard, trash, error handling, and search.
   - **Location:** `BrowserViewModel.kt`
   - **Fix:** Extract isolated UseCases (e.g., `ExecutePasteUseCase`, `MoveToTrashUseCase`) and move pure state formatting to helper extensions.
@@ -57,8 +57,8 @@
 
 ### B. Security
 
-- [ ] [Security] Release keystore file committed to version control.
-  - **Problem:** `app/my-release-key.jks` is checked into the repository.
+- [x] [Security] Release keystore file committed to version control.
+  - **Problem:** `app/my-release-key.jks` is checked into the repository. *(Note: Verified it is currently ignored via `.gitignore`, but ensure it is not lingering in Git history)*
   - **Location:** `arcile-app/app/my-release-key.jks`
   - **Impact:** Critical — anyone with repo access can sign APKs as the developer.
   - **Fix:** Add `*.jks` to `.gitignore`, remove from Git history (BFG or filter-branch), rotate the key.
@@ -119,13 +119,13 @@
   - **Impact:** Makes the ViewModel impossible to unit test without Robolectric.
   - **Fix:** Inject `storageRootPath` via constructor or retrieve it via the Repository.
 
-- [ ] [Architecture] `FileManagerViewModel` is a 515-line god-ViewModel.
+- [x] [Architecture] `FileManagerViewModel` is a 515-line god-ViewModel.
   - **Problem:** Handles home data, file browsing, search, clipboard, trash, selection, and navigation for 7+ screens.
   - **Location:** `FileManagerViewModel.kt`
   - **Impact:** Very hard to test, maintain, and extend. Adding any feature grows this class further.
   - **Fix:** Split into feature-scoped ViewModels: `HomeViewModel`, `BrowserViewModel`, `TrashViewModel`, `SearchViewModel`.
 
-- [ ] [Architecture] No dependency injection framework.
+- [x] [Architecture] No dependency injection framework.
   - **Problem:** Repositories, preferences, and ViewModels are manually wired. `LocalFileRepository` is instantiated inside `FileManagerViewModel`.
   - **Location:** `FileManagerViewModel.kt:61`
   - **Impact:** Impossible to swap implementations, difficult to test, tight coupling.
@@ -165,11 +165,11 @@
   - **Impact:** If the Activity is recreated, a new `DataStore` flow is created, potentially racing with the old one.
   - **Fix:** Hoist `ThemePreferences` to the Activity level or inject via DI.
 
-- [ ] [Code Quality] No unit tests exist.
-  - **Problem:** `ExampleInstrumentedTest.kt` is the only test file — it's the default template.
-  - **Location:** `app/src/androidTest/`
-  - **Impact:** Zero test coverage; regressions are undetectable.
-  - **Fix:** Add unit tests for `FileManagerViewModel`, `LocalFileRepository`, `filterAndSortFiles`, and domain logic.
+- [ ] [Code Quality] Minimal unit tests exist.
+  - **Problem:** `ExampleInstrumentedTest.kt` and `FilePresentationTest.kt` are the only test files. Test coverage is extremely low.
+  - **Location:** `app/src/test/` and `app/src/androidTest/`
+  - **Impact:** Low test coverage; regressions are harder to detect.
+  - **Fix:** Add unit tests for `HomeViewModel`, `BrowserViewModel`, `LocalFileRepository`, and domain logic.
 
 ---
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.3.3-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.3.6-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
@@ -66,7 +66,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.3.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.6.apk
 ```
 
 ### Release Signing
@@ -99,7 +99,7 @@ Release builds are signed using credentials stored in `local.properties` (not co
 |-------|------------|
 | **Language** | Kotlin 2.2 |
 | **UI Framework** | Jetpack Compose with Material 3 |
-| **Architecture** | MVVM (ViewModel + StateFlow) |
+| **Architecture** | MVVM (Feature-Scoped ViewModels + StateFlow) with Hilt DI |
 | **Navigation** | Navigation Compose |
 | **Async** | Kotlin Coroutines |
 | **Build System** | Gradle (Kotlin DSL) with Version Catalogs |
@@ -115,10 +115,12 @@ arcile/
 ├── arcile-app/                          # Android project root
 │   ├── app/src/main/
 │   │   ├── java/dev/qtremors/arcile/
-│   │   │   ├── ArcileApp.kt             # Application class (Coil image loader)
+│   │   │   ├── ArcileApp.kt             # Application class (Coil image loader, Hilt app)
 │   │   │   ├── MainActivity.kt          # Entry point, permissions, nav shell
 │   │   │   ├── data/
 │   │   │   │   └── LocalFileRepository.kt
+│   │   │   ├── di/                      # Dependency Injection (Hilt)
+│   │   │   │   └── RepositoryModule.kt
 │   │   │   ├── domain/
 │   │   │   │   ├── FileModel.kt
 │   │   │   │   ├── FileRepository.kt    # Repository interface
@@ -132,7 +134,10 @@ arcile/
 │   │   │   ├── navigation/
 │   │   │   │   └── AppRoutes.kt         # Route string constants
 │   │   │   ├── presentation/
-│   │   │   │   ├── FileManagerViewModel.kt
+│   │   │   │   ├── browser/             # Browser feature ViewModel & state
+│   │   │   │   ├── home/                # Home feature ViewModel & state
+│   │   │   │   ├── recentfiles/         # Recent Files ViewModel & state
+│   │   │   │   ├── trash/               # Trash ViewModel & state
 │   │   │   │   ├── FilePresentation.kt
 │   │   │   │   ├── SearchFilters.kt
 │   │   │   │   └── ui/
@@ -144,7 +149,10 @@ arcile/
 │   │   │   │       ├── StorageDashboardScreen.kt
 │   │   │   │       ├── ToolsScreen.kt
 │   │   │   │       ├── TrashScreen.kt
-│   │   │   │       └── components/      # Reusable UI components
+│   │   │   │       └── components/      # Modular UI components
+│   │   │   │           ├── dialogs/     # Create, rename, paste conflicts
+│   │   │   │           ├── lists/       # Grids, lists, filter rows
+│   │   │   │           └── menus/       # Expandable FAB, top bar actions
 │   │   │   ├── ui/theme/                # Theme, colors, typography, shapes
 │   │   │   └── utils/                   # Formatting & color utilities
 │   │   └── res/                         # Android resources

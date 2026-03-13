@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.3.0 | **Last Updated:** 2026-03-11
+**Version:** 0.3.6 | **Last Updated:** 2026-03-13
 **Scope:** Internal Development, Security, and Style Specification
 
 ---
@@ -32,7 +32,7 @@ Arcile follows a **Clean Architecture / MVVM** pattern with three layers:
 
 ```mermaid
 graph TD
-    A["Presentation Layer<br/>(Compose UI + ViewModel)"] -->|observes StateFlow| B["Domain Layer<br/>(Models + Repository Interface)"]
+    A["Presentation Layer<br/>(Compose UI + Feature-Scoped ViewModels)"] -->|observes StateFlow| B["Domain Layer<br/>(Models + Repository Interface)"]
     B -->|implemented by| C["Data Layer<br/>(LocalFileRepository)"]
     C -->|java.io.File| D["Android File System"]
 ```
@@ -44,7 +44,7 @@ graph TD
 | Single-module project | MVP simplicity — no multi-module overhead for an initial version |
 | `StateFlow` over `LiveData` | Compose-native, null-safe, and better coroutine integration |
 | `java.io.File` API directly | Simple and sufficient for local file operations at this stage |
-| No DI framework | Avoiding Hilt/Koin complexity in MVP (ViewModel refactoring planned to resolve this) |
+| Dependency Injection | Utilizing Hilt for managing Repository and ViewModel lifecycles |
 | `Stack` for path history | Simple LIFO navigation history (flagged for replacement with `ArrayDeque`) |
 | Material 3 dynamic theming | Native Material You support on Android 12+ with manual fallback color schemes |
 
@@ -59,10 +59,12 @@ arcile/
 │   │   ├── src/main/
 │   │   │   ├── AndroidManifest.xml         # Permissions, activity declaration
 │   │   │   ├── java/dev/qtremors/arcile/
-│   │   │   │   ├── ArcileApp.kt            # Application class (Coil image loader)
+│   │   │   │   ├── ArcileApp.kt            # Application class (Coil image loader, Hilt app)
 │   │   │   │   ├── MainActivity.kt         # Activity, permission flow, navigation shell
 │   │   │   │   ├── data/
 │   │   │   │   │   └── LocalFileRepository.kt   # Full file system implementation
+│   │   │   │   ├── di/
+│   │   │   │   │   └── RepositoryModule.kt # Dependency Injection modules
 │   │   │   │   ├── domain/
 │   │   │   │   │   ├── FileModel.kt        # Core file data class
 │   │   │   │   │   ├── FileRepository.kt   # Repository interface (all operations)
@@ -76,26 +78,25 @@ arcile/
 │   │   │   │   ├── navigation/
 │   │   │   │   │   └── AppRoutes.kt        # Centralised route string constants
 │   │   │   │   ├── presentation/
-│   │   │   │   │   ├── FileManagerViewModel.kt  # Shared ViewModel + FileManagerState
+│   │   │   │   │   ├── browser/            # Browser feature ViewModel & state
+│   │   │   │   │   ├── home/               # Home feature ViewModel & state
+│   │   │   │   │   ├── recentfiles/        # Recent Files ViewModel & state
+│   │   │   │   │   ├── trash/              # Trash ViewModel & state
 │   │   │   │   │   ├── FilePresentation.kt      # Presentation-layer file model
 │   │   │   │   │   ├── SearchFilters.kt         # Presentation search filter model
 │   │   │   │   │   └── ui/
 │   │   │   │   │       ├── ArcileAppShell.kt         # Nav host + bottom bar shell
 │   │   │   │   │       ├── HomeScreen.kt             # Dashboard screen
-│   │   │   │   │       ├── FileManagerScreen.kt      # File browser screen (985 lines)
+│   │   │   │   │       ├── FileManagerScreen.kt      # File browser screen
 │   │   │   │   │       ├── RecentFilesScreen.kt      # Recent files list screen
 │   │   │   │   │       ├── SettingsScreen.kt         # Theme/accent settings screen
 │   │   │   │   │       ├── StorageDashboardScreen.kt # Storage breakdown screen
 │   │   │   │   │       ├── ToolsScreen.kt            # Tools grid screen
 │   │   │   │   │       ├── TrashScreen.kt            # Trash management screen
 │   │   │   │   │       └── components/
-│   │   │   │   │           ├── ArcileTopBar.kt           # Reusable contextual top bar
-│   │   │   │   │           ├── Breadcrumbs.kt            # Path breadcrumb bar
-│   │   │   │   │           ├── FileListControls.kt       # Sort/filter/view-mode controls 
-│   │   │   │   │           ├── GlobalSearchBar.kt        # App-wide search bar
-│   │   │   │   │           ├── SearchFiltersBottomSheet.kt # Filter bottom sheet
-│   │   │   │   │           ├── ToolCard.kt               # Tool grid card component
-│   │   │   │   │           └── TopBarAction.kt           # Top bar action model
+│   │   │   │   │           ├── dialogs/              # Create, rename, paste conflicts
+│   │   │   │   │           ├── lists/                # Grids, lists, filter rows
+│   │   │   │   │           └── menus/                # Expandable FAB, top bar actions
 │   │   │   │   ├── ui/theme/
 │   │   │   │   │   ├── CategoryColors.kt   # Per-category color mappings
 │   │   │   │   │   ├── Color.kt            # Color constants + accent schemes
@@ -306,27 +307,16 @@ The data access layer for all file system operations.
 | `emptyTrash()` | Permanently delete all trash contents |
 | `getTrashFiles()` | List all `TrashMetadata` entries |
 
-### FileManagerViewModel
+### Feature-Scoped ViewModels
 
-Shared ViewModel managing state for all current screens (home, explorer, trash, search, clipboard).
+ViewModels manage state and logic tailored to specific application features, reducing coupling and improving testability.
 
-> **Note:** This is a planned refactor target — see [TASKS.md](TASKS.md) section D for context.
-
-| Method | Description |
-|--------|-------------|
-| `loadHomeData()` | Fetch recent files and storage info |
-| `navigateToHome()` | Reset to home screen state |
-| `openFileBrowser()` | Switch to file browser at storage root |
-| `navigateToFolder(path)` | Navigate to a directory with history tracking |
-| `navigateBack()` | Pop history or return to home |
-| `toggleSelection(path)` | Toggle file selection |
-| `createFolder(name)` | Create folder in current directory |
-| `deleteSelectedFiles()` | Move selected files to trash |
-| `copySelectedFiles()` | Stage selected files for copy |
-| `cutSelectedFiles()` | Stage selected files for move |
-| `pasteFiles(destinationPath)` | Execute staged copy or move |
-| `shareSelectedFiles()` | Launch Android share intent for selection |
-| `searchFiles(query)` | Run a file search against the repository |
+| ViewModel | Responsibility |
+|-----------|----------------|
+| `BrowserViewModel` | Core file exploration logic, search, selection, and clipboard operations (copy, cut, paste, rename, trash). |
+| `HomeViewModel` | Dashboard state, including quick-access categories, recent file previews, and top-level storage overview. |
+| `RecentFilesViewModel` | Manages the full list of recently modified files, enabling direct actions and timeline sorting. |
+| `TrashViewModel` | Dedicated logic for browsing the recycle bin, permanent deletion, and metadata-aware restoration. |
 
 ### Navigation
 
@@ -396,7 +386,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 
 | Category | Status |
 |----------|--------|
-| Unit tests | ❌ Not implemented |
+| Unit tests | 🟡 Started (e.g., `FilePresentationTest.kt`) |
 | Integration tests | ❌ Not implemented |
 | UI / Compose tests | ❌ Not implemented |
 
@@ -410,7 +400,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 ./gradlew assembleDebug
 ```
 For standard builds:
-APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk`
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.6.apk`
 
 > **Note:** The output filename is controlled by the `androidComponents` block in `app/build.gradle.kts`, which uses `VariantOutputImpl` (an internal AGP API) to inject the app ID and version into the filename. This is a known anomaly — see [TASKS.md](TASKS.md) general anomalies section for details.
 
@@ -420,7 +410,7 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk`
 ./gradlew assembleRelease
 ```
 
-> **Note:** Release signing is not configured yet. You will need to create a keystore and configure `signingConfigs` in `build.gradle.kts`.
+> **Note:** Release signing is fully configured. It reads credentials from `local.properties` (ignored by Git) inside the `signingConfigs` block in `build.gradle.kts`.
 
 ### Release Checklist
 
@@ -448,12 +438,9 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk`
 
 ### Technical Debt
 
-- [ ] Implement dependency injection (Hilt or Koin)
 - [ ] Remove `java.io.File` from domain `FileModel`
-- [ ] Split `FileManagerViewModel` into per-screen ViewModels
 - [ ] Persist theme preferences with DataStore
 - [ ] Add proper path traversal validation
-- [ ] Replace `java.util.Stack` with `ArrayDeque`
 - [ ] Add comprehensive test suite
 
 ---
