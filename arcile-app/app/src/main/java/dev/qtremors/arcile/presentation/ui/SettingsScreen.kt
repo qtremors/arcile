@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.SettingsSuggest
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Code
@@ -64,7 +65,8 @@ import dev.qtremors.arcile.ui.theme.ThemeState
 fun SettingsScreen(
     currentThemeState: ThemeState,
     onNavigateBack: () -> Unit,
-    onThemeChange: (ThemeState) -> Unit
+    onThemeChange: (ThemeState) -> Unit,
+    onOpenStorageManagement: () -> Unit = {}
 ) {
     val uriHandler = LocalUriHandler.current
 
@@ -106,6 +108,18 @@ fun SettingsScreen(
                         onAccentSelected = {
                             onThemeChange(currentThemeState.copy(accentColor = it))
                         }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Storage") {
+                    ListItem(
+                        headlineContent = { Text("Manage Storage Classification") },
+                        supportingContent = { Text("Classify external volumes as SD card, OTG, or reset them.") },
+                        leadingContent = { Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onOpenStorageManagement)
                     )
                 }
             }

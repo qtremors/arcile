@@ -90,6 +90,11 @@ interface FileRepository {
      */
     suspend fun getStorageVolumes(): Result<List<StorageVolume>>
 
+    /**
+     * Resolves the storage volume that contains the given path.
+     */
+    suspend fun getVolumeForPath(path: String): Result<StorageVolume>
+
     // ─── Queries ─────────────────────────────────────────────────────────────
 
     /**

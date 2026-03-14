@@ -21,25 +21,30 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.domain.supportsTrash
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.Locale
 
-class LocalFileRepository(private val context: Context) : FileRepository {
+class LocalFileRepository(
+    private val context: Context,
+    private val classificationRepo: StorageClassificationRepository
+) : FileRepository {
 
     private val appContext = context.applicationContext
     private val storageManager = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-    private var activeStorageVolumes: List<StorageVolume> = discoverStorageVolumes()
-    private var activeStorageRoots: List<String> = activeStorageVolumes.map { it.path }
+    private var activeStorageRoots: List<String> = discoverPlatformVolumes().map { it.path }
 
-    private fun discoverStorageVolumes(): List<StorageVolume> {
+    private fun discoverPlatformVolumes(): List<StorageVolume> {
         val discovered = linkedMapOf<String, StorageVolume>()
         val primaryPath = Environment.getExternalStorageDirectory().canonicalPath
 
@@ -57,6 +62,13 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                 val freeBytes = stat.availableBytes
                 val isPrimary = canonicalPath == primaryPath
                 val isRemovable = platformVolume?.isRemovable ?: !isPrimary
+                val storageKey = if (isPrimary) {
+                    "primary"
+                } else {
+                    platformVolume?.uuid?.takeIf { it.isNotBlank() }
+                        ?.let { "uuid:${it.lowercase(Locale.US)}" }
+                        ?: "path:${canonicalPath.lowercase(Locale.US)}"
+                }
                 val preferredName = platformVolume?.getDescription(appContext)
                 val fallbackName = rootFile.name.takeIf { it.isNotBlank() }
                     ?: canonicalPath.substringAfterLast('/').takeIf { it.isNotBlank() }
@@ -69,6 +81,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
                 discovered[id] = StorageVolume(
                     id = id,
+                    storageKey = storageKey,
                     name = preferredName?.takeIf { it.isNotBlank() } ?: fallbackName,
                     path = canonicalPath,
                     totalBytes = totalBytes,
@@ -105,46 +118,85 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         val volumes = discovered.values.sortedWith(
             compareBy<StorageVolume> { !it.isPrimary }.thenBy { it.name.lowercase(Locale.US) }
         )
-        activeStorageVolumes = volumes
         activeStorageRoots = volumes.map { it.path }
         return volumes
     }
 
-    private fun currentVolumes(): List<StorageVolume> = discoverStorageVolumes()
-
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = callbackFlow {
-        fun emitVolumes() {
-            trySend(currentVolumes())
-        }
-
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                emitVolumes()
+    private fun mergeClassifications(
+        volumes: List<StorageVolume>,
+        classifications: Map<String, StorageClassification>
+    ): List<StorageVolume> {
+        return volumes.map { vol ->
+            val classification = classifications[vol.storageKey]
+                ?: classifications["path:${vol.path.lowercase(Locale.US)}"]
+                ?: classifications[vol.path]
+            if (classification != null) {
+                vol.copy(kind = classification.assignedKind, isUserClassified = true)
+            } else {
+                vol.copy(
+                    kind = if (vol.isPrimary) dev.qtremors.arcile.domain.StorageKind.INTERNAL else dev.qtremors.arcile.domain.StorageKind.EXTERNAL_UNCLASSIFIED,
+                    isUserClassified = false
+                )
             }
         }
+    }
 
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_MEDIA_MOUNTED)
-            addAction(Intent.ACTION_MEDIA_UNMOUNTED)
-            addAction(Intent.ACTION_MEDIA_REMOVED)
-            addAction(Intent.ACTION_MEDIA_EJECT)
-            addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
-            addDataScheme("file")
-        }
+    override fun observeStorageVolumes(): Flow<List<StorageVolume>> {
+        val platformVolumesFlow = callbackFlow {
+            fun emitVolumes() {
+                trySend(discoverPlatformVolumes())
+            }
 
-        emitVolumes()
-        appContext.registerReceiver(receiver, filter)
-        awaitClose { appContext.unregisterReceiver(receiver) }
-    }.distinctUntilChanged()
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    emitVolumes()
+                }
+            }
 
-    private fun resolveVolumeForPath(path: String, volumes: List<StorageVolume> = currentVolumes()): StorageVolume? {
+            val filter = IntentFilter().apply {
+                addAction(Intent.ACTION_MEDIA_MOUNTED)
+                addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+                addAction(Intent.ACTION_MEDIA_REMOVED)
+                addAction(Intent.ACTION_MEDIA_EJECT)
+                addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
+                addDataScheme("file")
+            }
+
+            emitVolumes()
+            appContext.registerReceiver(receiver, filter)
+            awaitClose { appContext.unregisterReceiver(receiver) }
+        }.distinctUntilChanged()
+
+        return kotlinx.coroutines.flow.combine(
+            platformVolumesFlow,
+            classificationRepo.observeClassifications()
+        ) { volumes, classifications ->
+            mergeClassifications(volumes, classifications)
+        }.distinctUntilChanged()
+    }
+
+    private suspend fun currentVolumes(): List<StorageVolume> =
+        getStorageVolumes().getOrNull().orEmpty()
+
+    private fun browsableVolumes(volumes: List<StorageVolume>): List<StorageVolume> = volumes
+
+    private fun indexedVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
+        volumes.filter { it.kind.isIndexed }
+
+    private fun indexedVolumesForScope(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
+        scopedVolumes(scope, indexedVolumes(volumes))
+
+    private fun trashEnabledVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
+        volumes.filter { it.kind.supportsTrash }
+
+    private fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVolume? {
         val canonicalPath = runCatching { File(path).canonicalPath }.getOrElse { return null }
         return volumes
             .sortedByDescending { it.path.length }
             .firstOrNull { canonicalPath == it.path || canonicalPath.startsWith(it.path + File.separator) }
     }
 
-    private fun scopedVolumes(scope: StorageScope, volumes: List<StorageVolume> = currentVolumes()): List<StorageVolume> =
+    private fun scopedVolumes(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
         when (scope) {
             StorageScope.AllStorage -> volumes
             is StorageScope.Volume -> volumes.filter { it.id == scope.volumeId }
@@ -160,7 +212,7 @@ class LocalFileRepository(private val context: Context) : FileRepository {
             is StorageScope.Category -> volumes.find { it.id == scope.volumeId }?.path
         }
 
-    private fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume> = currentVolumes()): Boolean {
+    private fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
         val canonicalPath = runCatching { File(path).canonicalPath }.getOrNull() ?: return false
         return when (scope) {
             StorageScope.AllStorage -> resolveVolumeForPath(canonicalPath, volumes) != null
@@ -214,7 +266,26 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = withContext(Dispatchers.IO) {
         try {
-            Result.success(currentVolumes())
+            val volumes = discoverPlatformVolumes()
+            val classifications = classificationRepo.observeClassifications().first()
+            Result.success(mergeClassifications(volumes, classifications))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> = withContext(Dispatchers.IO) {
+        try {
+            val volumes = currentVolumes()
+            if (volumes.isEmpty()) {
+                return@withContext Result.failure(Exception("Could not fetch volumes"))
+            }
+            val volume = resolveVolumeForPath(path, volumes)
+            if (volume != null) {
+                Result.success(volume)
+            } else {
+                Result.failure(Exception("No volume found for path"))
+            }
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -280,6 +351,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     }
 
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        val volume = getVolumeForPath(path).getOrNull()
+            ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
+        if (!volume.kind.supportsTrash) {
+            return@withContext deletePermanently(listOf(path))
+        }
         moveToTrash(listOf(path))
     }
 
@@ -336,8 +412,9 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         minTimestamp: Long
     ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
-            val volumes = scopedVolumes(scope)
-            if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
+            val allVolumes = currentVolumes()
+            val volumes = indexedVolumesForScope(scope, allVolumes)
+            if (volumes.isEmpty()) {
                 return@withContext Result.success(emptyList())
             }
             val filesList = mutableListOf<FileModel>()
@@ -403,12 +480,20 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     }
 
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = withContext(Dispatchers.IO) {
-        getStorageVolumes().map { volumes -> StorageInfo(scopedVolumes(scope, volumes)) }
+        getStorageVolumes().map { allVolumes ->
+            val queryVolumes = if (scope is StorageScope.AllStorage) {
+                indexedVolumes(allVolumes)
+            } else {
+                scopedVolumes(scope, allVolumes)
+            }
+            StorageInfo(queryVolumes)
+        }
     }
 
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
         try {
-            val volumes = scopedVolumes(scope)
+            val allVolumes = currentVolumes()
+            val volumes = indexedVolumesForScope(scope, allVolumes)
             if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
                 return@withContext Result.success(
                     FileCategories.all.map { CategoryStorage(it.name, 0L, it.extensions) }
@@ -459,7 +544,8 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
-            val volumes = scopedVolumes(scope)
+            val allVolumes = currentVolumes()
+            val volumes = indexedVolumesForScope(scope, allVolumes)
             if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
                 return@withContext Result.success(emptyList())
             }
@@ -502,7 +588,11 @@ class LocalFileRepository(private val context: Context) : FileRepository {
         val searchFilters = filters
 
         try {
-            val volumes = scopedVolumes(scope)
+            val allVolumes = currentVolumes()
+            val volumes = when (scope) {
+                is StorageScope.Path -> scopedVolumes(scope, browsableVolumes(allVolumes))
+                else -> indexedVolumesForScope(scope, allVolumes)
+            }
             if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
                 return@withContext Result.success(emptyList())
             }
@@ -819,45 +909,55 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     // --- Trash Subsystem ---
 
-    private val trashDir: File by lazy {
-        File(Environment.getExternalStorageDirectory(), ".arcile").apply {
-            if (!exists()) {
-                mkdirs()
-                File(this, ".nomedia").createNewFile() // Hide from gallery
-            }
+    private fun getTrashDirForVolume(volume: StorageVolume): File {
+        val root = File(volume.path)
+        val arcileDir = File(root, ".arcile")
+        val trashDir = File(arcileDir, ".trash")
+        if (!trashDir.exists()) {
+            trashDir.mkdirs()
+            try {
+                File(trashDir, ".nomedia").createNewFile() // Hide from gallery
+            } catch (e: Exception) {}
         }
+        return trashDir
     }
 
-    private val trashMetadataDir: File by lazy {
-        File(trashDir, ".metadata").apply {
-            if (!exists()) mkdirs()
+    private fun getTrashMetadataDirForVolume(volume: StorageVolume): File {
+        val root = File(volume.path)
+        val arcileDir = File(root, ".arcile")
+        val metadataDir = File(arcileDir, ".metadata")
+        if (!metadataDir.exists()) {
+            metadataDir.mkdirs()
         }
+        return metadataDir
     }
 
     /**
-     * Moves the specified files to the trash directory.
-     * Note: The trash directory (`.arcile`) is stored on shared external storage with no encryption.
-     * Any app with `MANAGE_EXTERNAL_STORAGE` permission can access these "deleted" files.
+     * Moves the specified files to the trash directory of their respective volume.
      */
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (!trashDir.exists()) trashDir.mkdirs()
-            if (!trashMetadataDir.exists()) trashMetadataDir.mkdirs()
+            val volumes = currentVolumes()
 
             for (path in paths) {
                 val file = File(path)
                 validatePath(file).onFailure { return@withContext Result.failure(it) }
 
                 if (!file.exists()) continue
-                val sourceVolume = resolveVolumeForPath(file.absolutePath)
+                val sourceVolume = resolveVolumeForPath(file.absolutePath, volumes)
                     ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
-                if (sourceVolume.isRemovable) {
+                if (!sourceVolume.kind.supportsTrash) {
                     return@withContext Result.failure(
-                        IllegalStateException("Trash is only supported on internal storage. Use permanent delete for SD card and USB files.")
+                        IllegalStateException("Trash is not supported on this storage. Use permanent delete instead.")
                     )
                 }
+                
+                val trashDir = getTrashDirForVolume(sourceVolume)
+                val trashMetadataDir = getTrashMetadataDirForVolume(sourceVolume)
+
                 // Don't trash the trash
-                if (file.absolutePath.startsWith(trashDir.absolutePath)) continue
+                val arcileDir = File(sourceVolume.path, ".arcile")
+                if (file.absolutePath.startsWith(arcileDir.absolutePath)) continue
 
                 val trashId = java.util.UUID.randomUUID().toString()
                 val targetTrashFile = File(trashDir, trashId)
@@ -867,6 +967,8 @@ class LocalFileRepository(private val context: Context) : FileRepository {
                     put("id", trashId)
                     put("originalPath", file.absolutePath)
                     put("deletionTime", System.currentTimeMillis())
+                    put("sourceVolumeId", sourceVolume.id)
+                    put("sourceStorageKind", sourceVolume.kind.name)
                 }
                 File(trashMetadataDir, "$trashId.json").writeText(metadataJson.toString())
 
@@ -893,11 +995,28 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val volumes = currentVolumes()
+            
             for (id in trashIds) {
-                val metadataFile = File(trashMetadataDir, "$id.json")
-                val trashedFile = File(trashDir, id)
+                // Find which volume holds this trashId
+                var metadataFile: File? = null
+                var trashedFile: File? = null
                 
-                if (!metadataFile.exists() || !trashedFile.exists()) continue
+                for (volume in trashEnabledVolumes(volumes)) {
+                    val mdDir = getTrashMetadataDirForVolume(volume)
+                    val trDir = getTrashDirForVolume(volume)
+                    
+                    val candidateMd = File(mdDir, "$id.json")
+                    val candidateTr = File(trDir, id)
+                    
+                    if (candidateMd.exists() && candidateTr.exists()) {
+                        metadataFile = candidateMd
+                        trashedFile = candidateTr
+                        break
+                    }
+                }
+                
+                if (metadataFile == null || trashedFile == null) continue
 
                 val json = JSONObject(metadataFile.readText())
                 val originalPath = json.getString("originalPath")
@@ -941,13 +1060,21 @@ class LocalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            if (trashDir.exists()) {
-                trashDir.listFiles()?.forEach { file ->
-                    if (file.name != ".metadata" && file.name != ".nomedia") {
-                        file.deleteRecursively()
+            val volumes = currentVolumes()
+            for (volume in trashEnabledVolumes(volumes)) {
+                val trashDir = getTrashDirForVolume(volume)
+                val metadataDir = getTrashMetadataDirForVolume(volume)
+                
+                if (trashDir.exists()) {
+                    trashDir.listFiles()?.forEach { file ->
+                        if (file.name != ".metadata" && file.name != ".nomedia") {
+                            file.deleteRecursively()
+                        }
                     }
                 }
-                trashMetadataDir.listFiles()?.forEach { it.delete() }
+                if (metadataDir.exists()) {
+                    metadataDir.listFiles()?.forEach { it.delete() }
+                }
             }
             Result.success(Unit)
         } catch (e: Exception) {
@@ -958,38 +1085,48 @@ class LocalFileRepository(private val context: Context) : FileRepository {
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(Dispatchers.IO) {
         try {
             val list = mutableListOf<TrashMetadata>()
-            if (trashDir.exists() && trashMetadataDir.exists()) {
-                trashMetadataDir.listFiles()?.forEach { metadataFile ->
-                    if (metadataFile.isFile && metadataFile.extension == "json") {
-                        try {
-                            val json = JSONObject(metadataFile.readText())
-                            val id = json.getString("id")
-                            val originalPath = json.getString("originalPath")
-                            val deletionTime = json.getLong("deletionTime")
-                            
-                            val trashedFile = File(trashDir, id)
-                            if (trashedFile.exists()) {
-                                // Provide a faked FileModel where the literal underlying object is the hash blob, but its name appears as the original
-                                val originalFileContext = File(originalPath)
-                                val spoofedModel = FileModel(
-                                   name = originalFileContext.name,
-                                   absolutePath = trashedFile.absolutePath,
-                                   size = if (trashedFile.isFile) trashedFile.length() else 0L,
-                                   lastModified = trashedFile.lastModified(),
-                                   isDirectory = trashedFile.isDirectory,
-                                   extension = originalFileContext.extension,
-                                   isHidden = false
-                                )
+            val volumes = currentVolumes()
+            
+            for (volume in trashEnabledVolumes(volumes)) {
+                
+                val trashDir = getTrashDirForVolume(volume)
+                val trashMetadataDir = getTrashMetadataDirForVolume(volume)
+                
+                if (trashDir.exists() && trashMetadataDir.exists()) {
+                    trashMetadataDir.listFiles()?.forEach { metadataFile ->
+                        if (metadataFile.isFile && metadataFile.extension == "json") {
+                            try {
+                                val json = JSONObject(metadataFile.readText())
+                                val id = json.getString("id")
+                                val originalPath = json.getString("originalPath")
+                                val deletionTime = json.getLong("deletionTime")
+                                val sourceVolId = json.optString("sourceVolumeId", volume.id)
+                                val sourceVolKindStr = json.optString("sourceStorageKind", volume.kind.name)
+                                val sourceVolKind = dev.qtremors.arcile.domain.StorageKind.entries.find { it.name == sourceVolKindStr } ?: volume.kind
                                 
-                                list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel))
-                            } else {
-                                // Orphaned metadata
-                                android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for file $originalPath")
-                                metadataFile.delete() 
+                                val trashedFile = File(trashDir, id)
+                                if (trashedFile.exists()) {
+                                    val originalFileContext = File(originalPath)
+                                    val spoofedModel = FileModel(
+                                       name = originalFileContext.name,
+                                       absolutePath = trashedFile.absolutePath,
+                                       size = if (trashedFile.isFile) trashedFile.length() else 0L,
+                                       lastModified = trashedFile.lastModified(),
+                                       isDirectory = trashedFile.isDirectory,
+                                       extension = originalFileContext.extension,
+                                       isHidden = false
+                                    )
+                                    
+                                    list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
+                                } else {
+                                    // Orphaned metadata
+                                    android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for file $originalPath")
+                                    metadataFile.delete() 
 
+                                }
+                            } catch (e: Exception) {
+                                // Skip corrupted metadata
                             }
-                        } catch (e: Exception) {
-                            // Skip corrupted metadata
                         }
                     }
                 }

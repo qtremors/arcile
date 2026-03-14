@@ -1,8 +1,33 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.7
-> **Last Updated:** 2026-03-13
+> **Version:** 0.3.8
+> **Last Updated:** 2026-03-14
+
+---
+
+## [0.3.8] - 2026-03-14
+
+### Added
+- [Feature] External storage classification system with `INTERNAL`, `SD_CARD`, `OTG`, and `EXTERNAL_UNCLASSIFIED` policies persisted in DataStore.
+- [Feature] Dedicated Storage Management screen in Settings for classifying removable volumes as SD card or OTG and resetting user classification.
+- [Feature] Stable `storageKey` identity for mounted volumes using UUID-first and canonical-path fallback matching.
+
+### Changed
+- [Architecture] Centralized indexed, browsable, and trash-enabled volume filtering in `LocalFileRepository` so indexed surfaces no longer infer behavior from `isRemovable`.
+- [Behavior] Removable volumes now default to temporary/unclassified behavior until the user classifies them.
+- [Behavior] Home prompt actions and classification persistence now use stable storage identity instead of transient volume IDs.
+
+### Fixed
+- [Bug] Categories, dashboard totals, recent files, and global search now consistently exclude OTG and unclassified removable storage while still allowing browser/path search access.
+- [Bug] Delete flows in Browser and Recent Files now correctly block mixed permanent-storage and temporary-storage selections and use permanent delete for OTG/unclassified storage.
+- [Bug] Trash routing now rejects temporary storage and keeps trash behavior limited to internal and SD-card policies.
+- [Bug] Home per-volume category loading now respects indexed-volume semantics, with updated tests covering the new default behavior.
+
+### Improved
+- [UX] Browser now shows an informational banner while browsing temporary storage, clarifying that it is not indexed and that deletion is permanent.
+- [UX] Storage dashboard now shows a note when temporary mounted volumes are excluded from indexed insights.
+- [Testing] Updated unit tests and release verification now pass with `./gradlew testDebugUnitTest`.
 
 ---
 

@@ -97,6 +97,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.domain.SearchFilters
@@ -177,7 +178,10 @@ fun FileManagerScreen(
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
-    onDeleteSelected: () -> Unit,
+    onRequestDeleteSelected: () -> Unit,
+    onConfirmTrash: () -> Unit,
+    onConfirmPermanentDelete: () -> Unit,
+    onDismissDeleteConfirmation: () -> Unit,
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
@@ -216,6 +220,9 @@ fun FileManagerScreen(
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
+    }
+    val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
+        state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
     }
 
     LaunchedEffect(state.browserSearchQuery) {
@@ -297,7 +304,7 @@ fun FileManagerScreen(
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
-                            TopBarAction.DeleteSelected -> showDeleteConfirmation = true
+                            TopBarAction.DeleteSelected -> onRequestDeleteSelected()
                             TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
                             TopBarAction.GridView -> onGridViewChange(!state.isGridView)
                             TopBarAction.Copy -> onCopySelected()
@@ -418,6 +425,27 @@ fun FileManagerScreen(
                             }
                         )
                     }
+
+                    if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = ExpressiveSquircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Text(
+                                text = if (currentVolume.kind == StorageKind.OTG) {
+                                    "Browsing temporary USB storage. It is excluded from indexed surfaces and deletion is permanent."
+                                } else {
+                                    "Browsing unclassified external storage. It is treated as temporary until classified, and deletion is permanent."
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
                     
                     val pullRefreshState = rememberPullToRefreshState()
                     
@@ -532,40 +560,14 @@ fun FileManagerScreen(
             )
         }
 
-        if (showDeleteConfirmation) {
-            var isPermanentDelete by remember { mutableStateOf(false) }
+        if (state.showTrashConfirmation) {
             androidx.compose.material3.AlertDialog(
-                onDismissRequest = { showDeleteConfirmation = false },
+                onDismissRequest = onDismissDeleteConfirmation,
                 title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
-                text = {
-                    androidx.compose.foundation.layout.Column {
-                        Text(if (isPermanentDelete) "Selected items will be permanently deleted. This action cannot be undone." else "Selected items will be moved to the Trash Bin. You can restore them later.")
-                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
-                        androidx.compose.foundation.layout.Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .clickable { isPermanentDelete = !isPermanentDelete }
-                                .padding(vertical = 8.dp)
-                        ) {
-                            androidx.compose.material3.Checkbox(
-                                checked = isPermanentDelete,
-                                onCheckedChange = { isPermanentDelete = it }
-                            )
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
-                            Text("Delete permanently")
-                        }
-                    }
-                },
+                text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
                 confirmButton = {
                     androidx.compose.material3.FilledTonalButton(
-                        onClick = {
-                            showDeleteConfirmation = false
-                            if (isPermanentDelete) {
-                                onDeletePermanentlySelected()
-                            } else {
-                                onDeleteSelected()
-                            }
-                        },
+                        onClick = onConfirmTrash,
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -575,7 +577,31 @@ fun FileManagerScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                    TextButton(onClick = onDismissDeleteConfirmation) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (state.showPermanentDeleteConfirmation) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = onDismissDeleteConfirmation,
+                title = { Text("Permanently delete ${state.selectedFiles.size} item(s)?") },
+                text = { Text("Selected items will be permanently deleted. This action cannot be undone.") },
+                confirmButton = {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = onConfirmPermanentDelete,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissDeleteConfirmation) {
                         Text("Cancel")
                     }
                 }

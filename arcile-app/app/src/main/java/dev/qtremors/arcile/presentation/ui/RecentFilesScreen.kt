@@ -50,14 +50,16 @@ fun RecentFilesScreen(
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
-    onDeleteSelected: () -> Unit,
+    onRequestDeleteSelected: () -> Unit,
+    onConfirmTrash: () -> Unit,
+    onConfirmPermanentDelete: () -> Unit,
+    onDismissDeleteConfirmation: () -> Unit,
     onShareSelected: () -> Unit,
     onRefresh: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()) }
-    var showConfirmDelete by remember { mutableStateOf(false) }
 
     // Intercept system back to clear selection before navigating away
     BackHandler(enabled = isSelectionMode) {
@@ -83,7 +85,7 @@ fun RecentFilesScreen(
                         IconButton(onClick = onShareSelected) {
                             Icon(Icons.Default.Share, contentDescription = "Share")
                         }
-                        IconButton(onClick = { showConfirmDelete = true }) {
+                        IconButton(onClick = onRequestDeleteSelected) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete")
                         }
                     },
@@ -181,18 +183,14 @@ fun RecentFilesScreen(
         }
     }
 
-    // Delete confirmation dialog — matches the pattern in FileManagerScreen
-    if (showConfirmDelete) {
+    if (state.showTrashConfirmation) {
         AlertDialog(
-            onDismissRequest = { showConfirmDelete = false },
+            onDismissRequest = onDismissDeleteConfirmation,
             title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
             text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
             confirmButton = {
                 FilledTonalButton(
-                    onClick = {
-                        showConfirmDelete = false
-                        onDeleteSelected()
-                    },
+                    onClick = onConfirmTrash,
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -202,7 +200,31 @@ fun RecentFilesScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmDelete = false }) {
+                TextButton(onClick = onDismissDeleteConfirmation) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (state.showPermanentDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = onDismissDeleteConfirmation,
+            title = { Text("Permanently delete ${state.selectedFiles.size} item(s)?") },
+            text = { Text("Selected items will be permanently deleted. This action cannot be undone.") },
+            confirmButton = {
+                FilledTonalButton(
+                    onClick = onConfirmPermanentDelete,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissDeleteConfirmation) {
                     Text("Cancel")
                 }
             }

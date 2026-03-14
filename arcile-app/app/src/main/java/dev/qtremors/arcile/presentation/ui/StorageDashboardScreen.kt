@@ -46,6 +46,7 @@ import dev.qtremors.arcile.utils.getCategoryColor
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.MultiColorStorageBar
 import dev.qtremors.arcile.domain.CategoryStorage
+import dev.qtremors.arcile.domain.isIndexed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,11 +61,12 @@ fun StorageDashboardScreen(
     val volumes = if (selectedVolumeId != null) {
         state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
     } else {
-        state.storageInfo?.volumes.orEmpty()
+        state.storageInfo?.volumes?.filter { it.kind.isIndexed }.orEmpty()
     }
     val categoryStorages = selectedVolumeId?.let { state.categoryStoragesByVolume[it] } ?: state.categoryStorages
     val totalBytes = volumes.sumOf { it.totalBytes }
     val freeBytes = volumes.sumOf { it.freeBytes }
+    val hasTemporaryMountedVolumes = state.allStorageVolumes.any { !it.kind.isIndexed }
     
     val categoryColors = LocalCategoryColors.current
     val unassignedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -103,6 +105,25 @@ fun StorageDashboardScreen(
                 .padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)
         ) {
+            if (selectedVolumeId == null && hasTemporaryMountedVolumes) {
+                item {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        shape = ExpressiveSquircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Text(
+                            text = "Temporary external storage is mounted but excluded from indexed dashboard insights.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            }
+
             items(volumes) { volume ->
                 val used = volume.totalBytes - volume.freeBytes
                 Column(

@@ -121,7 +121,9 @@ fun ArcileAppShell(
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onRefresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
-                        onResumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) }
+                        onResumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
+                        onSetVolumeClassification = { storageKey, kind -> viewModel.setVolumeClassification(storageKey, kind) },
+                        onHideClassificationPrompt = { storageKey -> viewModel.hideClassificationPrompt(storageKey) }
                     )
                 }
                 composable(AppRoutes.STORAGE_DASHBOARD + "?volumeId={volumeId}") { backStackEntry ->
@@ -166,7 +168,10 @@ fun ArcileAppShell(
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
                         onCreateFile = { viewModel.createFile(it) },
-                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
+                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
+                        onConfirmTrash = { viewModel.moveSelectedToTrash() },
+                        onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
+                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
@@ -209,7 +214,10 @@ fun ArcileAppShell(
                         onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
-                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
+                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
+                        onConfirmTrash = { viewModel.moveSelectedToTrash() },
+                        onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
+                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
                         onRefresh = { viewModel.loadRecentFiles() }
                     )
@@ -223,7 +231,18 @@ fun ArcileAppShell(
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         onNavigateBack = { navController.popBackStack() },
-                        onThemeChange = onThemeChange
+                        onThemeChange = onThemeChange,
+                        onOpenStorageManagement = { navController.navigate(AppRoutes.STORAGE_MANAGEMENT) }
+                    )
+                }
+                composable(AppRoutes.STORAGE_MANAGEMENT) {
+                    val viewModel = hiltViewModel<HomeViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    StorageManagementScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onSetVolumeClassification = { storageKey, kind -> viewModel.setVolumeClassification(storageKey, kind) },
+                        onResetVolumeClassification = { storageKey -> viewModel.resetVolumeClassification(storageKey) }
                     )
                 }
             }

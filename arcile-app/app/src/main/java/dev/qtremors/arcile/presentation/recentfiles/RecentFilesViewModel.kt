@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.domain.supportsTrash
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +22,9 @@ data class RecentFilesState(
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val isPullToRefreshing: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val showTrashConfirmation: Boolean = false,
+    val showPermanentDeleteConfirmation: Boolean = false
 )
 
 @HiltViewModel
@@ -71,18 +74,71 @@ class RecentFilesViewModel @Inject constructor(
         _state.update { it.copy(selectedFiles = emptySet()) }
     }
 
+    fun requestDeleteSelected() {
+        val selectedFiles = _state.value.selectedFiles.toList()
+        if (selectedFiles.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+
+            var supportsTrashCount = 0
+            var permanentDeleteCount = 0
+
+            for (path in selectedFiles) {
+                val volume = repository.getVolumeForPath(path).getOrNull()
+                if (volume != null && volume.kind.supportsTrash) {
+                    supportsTrashCount++
+                } else {
+                    permanentDeleteCount++
+                }
+            }
+
+            if (supportsTrashCount > 0 && permanentDeleteCount > 0) {
+                _state.update { it.copy(isLoading = false, error = "Mixed selection: Please delete permanent-storage and temporary-storage items separately.") }
+                return@launch
+            }
+
+            if (permanentDeleteCount > 0) {
+                _state.update { it.copy(isLoading = false, showPermanentDeleteConfirmation = true) }
+            } else {
+                _state.update { it.copy(isLoading = false, showTrashConfirmation = true) }
+            }
+        }
+    }
+
+    fun dismissDeleteConfirmation() {
+        _state.update { it.copy(showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
+    }
+
     fun moveSelectedToTrash() {
         val selected = _state.value.selectedFiles.toList()
         if (selected.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
+            _state.update { it.copy(isLoading = true, showTrashConfirmation = false) }
             val result = repository.moveToTrash(selected)
             result.onSuccess {
                 clearSelection()
                 loadRecentFiles(false)
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                loadRecentFiles(false)
+            }
+        }
+    }
+
+    fun deleteSelectedPermanently() {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, showPermanentDeleteConfirmation = false) }
+            val result = repository.deletePermanently(selected)
+            result.onSuccess {
+                clearSelection()
+                loadRecentFiles(false)
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files") }
                 loadRecentFiles(false)
             }
         }

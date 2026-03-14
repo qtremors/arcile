@@ -23,7 +23,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.data.StorageClassificationStore
+
 data class HomeState(
+    val allStorageVolumes: List<StorageVolume> = emptyList(),
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
@@ -36,7 +42,9 @@ data class HomeState(
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = false,
     val isPullToRefreshing: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val unclassifiedVolumes: List<StorageVolume> = emptyList(),
+    val showClassificationPrompt: Boolean = false
 )
 
 enum class HomeRefreshMode {
@@ -47,7 +55,8 @@ enum class HomeRefreshMode {
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: FileRepository
+    private val repository: FileRepository,
+    private val classificationRepo: StorageClassificationStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -55,6 +64,7 @@ class HomeViewModel @Inject constructor(
 
     private val recentsPreviewLimit = 50
     private var searchJob: Job? = null
+    private val suppressedVolumeKeys = mutableSetOf<String>()
 
     init {
         viewModelScope.launch {
@@ -85,39 +95,72 @@ class HomeViewModel @Inject constructor(
                 limit = recentsPreviewLimit,
                 minTimestamp = oneWeekAgo
             )
+            val allVolumesResult = repository.getStorageVolumes()
             val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
             val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
             val storageInfo = storageResult.getOrNull()
-            val existingCategoryMap = _state.value.categoryStoragesByVolume
-            val volumeIds = storageInfo?.volumes?.map { it.id }.orEmpty()
-            val needsVolumeRefresh = volumeIds.toSet() != existingCategoryMap.keys
-            val categoryByVolume = if (!needsVolumeRefresh) {
-                existingCategoryMap
-            } else {
-                coroutineScope {
-                    storageInfo?.volumes
-                        ?.map { volume ->
-                            async {
-                                volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
-                            }
+            val allStorageVolumes = allVolumesResult.getOrNull().orEmpty()
+            
+            val categoryByVolume = coroutineScope {
+                storageInfo?.volumes
+                    ?.filter { it.kind.isIndexed }
+                    ?.map { volume ->
+                        async {
+                            volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
                         }
-                        ?.awaitAll()
-                        ?.toMap()
-                        ?: emptyMap()
-                }
+                    }
+                    ?.awaitAll()
+                    ?.toMap()
+                    ?: emptyMap()
+            }
+
+            val unclassified = allStorageVolumes.filter {
+                it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
             }
 
             _state.update { currentState ->
                 currentState.copy(
                     isLoading = false,
                     isPullToRefreshing = false,
+                    allStorageVolumes = allStorageVolumes,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
                     storageInfo = storageInfo,
                     categoryStorages = categoryResult.getOrNull() ?: emptyList(),
-                    categoryStoragesByVolume = categoryByVolume
+                    categoryStoragesByVolume = categoryByVolume,
+                    unclassifiedVolumes = unclassified,
+                    showClassificationPrompt = unclassified.isNotEmpty()
                 )
             }
         }
+    }
+
+    fun setVolumeClassification(storageKey: String, kind: StorageKind) {
+        viewModelScope.launch {
+            val volume = _state.value.storageInfo?.volumes?.firstOrNull { it.storageKey == storageKey }
+            classificationRepo.setClassification(
+                storageKey = storageKey,
+                kind = kind,
+                lastSeenName = volume?.name,
+                lastSeenPath = volume?.path
+            )
+            suppressedVolumeKeys.remove(storageKey)
+        }
+    }
+
+    fun resetVolumeClassification(storageKey: String) {
+        viewModelScope.launch {
+            classificationRepo.resetClassification(storageKey)
+            suppressedVolumeKeys.remove(storageKey)
+        }
+    }
+
+    fun hideClassificationPrompt(storageKey: String) {
+        suppressedVolumeKeys.add(storageKey)
+        val remaining = _state.value.unclassifiedVolumes.filter { it.storageKey != storageKey }
+        _state.update { it.copy(
+            unclassifiedVolumes = remaining,
+            showClassificationPrompt = remaining.isNotEmpty()
+        ) }
     }
 
     fun updateHomeSearchQuery(query: String) {

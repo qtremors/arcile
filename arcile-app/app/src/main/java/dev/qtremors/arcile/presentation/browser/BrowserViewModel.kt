@@ -16,6 +16,7 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.domain.supportsTrash
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
@@ -52,7 +53,9 @@ data class BrowserState(
     val error: String? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),
     val showConflictDialog: Boolean = false,
-    val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList()
+    val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
+    val showTrashConfirmation: Boolean = false,
+    val showPermanentDeleteConfirmation: Boolean = false
 )
 
 @HiltViewModel
@@ -478,12 +481,48 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun moveSelectedToTrash() {
+    fun requestDeleteSelected() {
         val selectedFiles = _state.value.selectedFiles.toList()
         if (selectedFiles.isEmpty()) return
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
+            
+            var supportsTrashCount = 0
+            var permanentDeleteCount = 0
+
+            for (path in selectedFiles) {
+                val volume = repository.getVolumeForPath(path).getOrNull()
+                if (volume != null && volume.kind.supportsTrash) {
+                    supportsTrashCount++
+                } else {
+                    permanentDeleteCount++
+                }
+            }
+
+            if (supportsTrashCount > 0 && permanentDeleteCount > 0) {
+                _state.update { it.copy(isLoading = false, error = "Mixed selection: Please delete permanent-storage and temporary-storage items separately.") }
+                return@launch
+            }
+
+            if (permanentDeleteCount > 0) {
+                _state.update { it.copy(isLoading = false, showPermanentDeleteConfirmation = true) }
+            } else {
+                _state.update { it.copy(isLoading = false, showTrashConfirmation = true) }
+            }
+        }
+    }
+
+    fun dismissDeleteConfirmation() {
+        _state.update { it.copy(showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
+    }
+
+    fun moveSelectedToTrash() {
+        val selectedFiles = _state.value.selectedFiles.toList()
+        if (selectedFiles.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, showTrashConfirmation = false) }
             repository.moveToTrash(selectedFiles).onSuccess {
                 clearSelection()
                 refresh()
@@ -499,7 +538,7 @@ class BrowserViewModel @Inject constructor(
         if (selectedFiles.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
+            _state.update { it.copy(isLoading = true, showPermanentDeleteConfirmation = false) }
             repository.deletePermanently(selectedFiles).onSuccess {
                 clearSelection()
                 refresh()

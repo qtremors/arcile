@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.presentation
 
 import androidx.lifecycle.SavedStateHandle
+import dev.qtremors.arcile.data.StorageClassification
+import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
@@ -9,6 +11,7 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageMountState
+import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -49,7 +52,7 @@ class StorageScopeViewModelTest {
     }
 
     @Test
-    fun `home view model loads global and per-volume storage scopes`() = runTest(dispatcher) {
+    fun `home view model loads global and indexed per-volume storage scopes`() = runTest(dispatcher) {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
         val sd = volume(id = "sd", name = "SD Card", path = "/storage/1234-5678", removable = true)
         val repository = FakeFileRepository(
@@ -61,14 +64,14 @@ class StorageScopeViewModelTest {
             )
         )
 
-        val viewModel = HomeViewModel(repository)
+        val viewModel = HomeViewModel(repository, FakeStorageClassificationStore())
         advanceUntilIdle()
 
         assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("primary")))
-        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("sd")))
-        assertEquals(2, viewModel.state.value.categoryStoragesByVolume.size)
+        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
+        assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)
     }
 
     @Test
@@ -114,6 +117,7 @@ class StorageScopeViewModelTest {
         removable: Boolean = false
     ) = StorageVolume(
         id = id,
+        storageKey = id,
         name = name,
         path = path,
         totalBytes = 100L,
@@ -151,6 +155,13 @@ private class FakeFileRepository(
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes.asSharedFlow()
 
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
+
+    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
+        val volume = observedVolumes.replayCache.lastOrNull()
+            ?.sortedByDescending { it.path.length }
+            ?.firstOrNull { path == it.path || path.startsWith(it.path + "/") }
+        return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
+    }
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(emptyList())
 
@@ -203,4 +214,20 @@ private class FakeFileRepository(
     override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
 
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(emptyList())
+}
+
+private class FakeStorageClassificationStore : StorageClassificationStore {
+    override fun observeClassifications(): Flow<Map<String, StorageClassification>> =
+        MutableStateFlow<Map<String, StorageClassification>>(emptyMap()).asStateFlow()
+
+    override suspend fun getClassification(storageKey: String): StorageClassification? = null
+
+    override suspend fun setClassification(
+        storageKey: String,
+        kind: StorageKind,
+        lastSeenName: String?,
+        lastSeenPath: String?
+    ) = Unit
+
+    override suspend fun resetClassification(storageKey: String) = Unit
 }

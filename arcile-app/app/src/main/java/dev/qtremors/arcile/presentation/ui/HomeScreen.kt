@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -62,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.combinedClickable
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import androidx.compose.ui.unit.dp
@@ -117,6 +119,101 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
  * @param onSearchFiltersChange Propagates updated search filter selections to the ViewModel.
  * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
+import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.domain.showTemporaryStorageBadge
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Info
+
+@Composable
+fun StorageClassificationPrompt(
+    volume: dev.qtremors.arcile.domain.StorageVolume,
+    onClassify: (dev.qtremors.arcile.domain.StorageKind) -> Unit,
+    onDecideLater: () -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        shape = ExpressiveSquircleShape,
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "New Storage Detected",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                text = "How should \"${volume.name}\" be treated?",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Button(
+                        onClick = { onClassify(StorageKind.SD_CARD) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressivePillShape
+                    ) {
+                        Text("SD Card", maxLines = 1)
+                    }
+                    Text(
+                        "Permanent, indexed, supports trash",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                
+                Column(modifier = Modifier.weight(1f)) {
+                    OutlinedButton(
+                        onClick = { onClassify(StorageKind.OTG) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = ExpressivePillShape
+                    ) {
+                        Text("OTG / USB", maxLines = 1)
+                    }
+                    Text(
+                        "Temporary, browsable only, no trash",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(top = 4.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            TextButton(
+                onClick = onDecideLater,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text("Decide later")
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
@@ -134,7 +231,9 @@ fun HomeScreen(
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onRefresh: () -> Unit = {},
-    onResumeRefresh: () -> Unit = {}
+    onResumeRefresh: () -> Unit = {},
+    onSetVolumeClassification: (String, dev.qtremors.arcile.domain.StorageKind) -> Unit = { _, _ -> },
+    onHideClassificationPrompt: (String) -> Unit = {}
 ) {
     LifecycleResumeEffect(Unit) {
         onResumeRefresh()
@@ -238,6 +337,17 @@ fun HomeScreen(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
+
+                if (state.showClassificationPrompt && state.unclassifiedVolumes.isNotEmpty()) {
+                    val volume = state.unclassifiedVolumes.first()
+                    item(key = "classification_prompt_${volume.id}") {
+                        StorageClassificationPrompt(
+                            volume = volume,
+                            onClassify = { kind -> onSetVolumeClassification(volume.storageKey, kind) },
+                            onDecideLater = { onHideClassificationPrompt(volume.storageKey) }
+                        )
+                    }
+                }
 
                 item {
                     StorageSummaryCard(
@@ -409,7 +519,7 @@ fun StorageSummaryCard(
     onOpenStorageDashboard: (String?) -> Unit,
     onOpenFileBrowser: () -> Unit
 ) {
-    val volumes = state.storageInfo?.volumes ?: emptyList()
+    val volumes = state.allStorageVolumes.ifEmpty { state.storageInfo?.volumes ?: emptyList() }
     
     if (volumes.size > 1) {
         // Multi-storage layout
@@ -533,13 +643,46 @@ fun StorageVolumeCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = volume.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = volume.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (volume.kind.showTemporaryStorageBadge) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = CircleShape,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (volume.kind == StorageKind.OTG) Icons.Default.Usb else Icons.Default.Info,
+                                        contentDescription = "Temporary",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (volume.kind.showTemporaryStorageBadge) {
+                        Text(
+                            text = if (volume.kind == StorageKind.OTG) "Temporary USB" else "Unclassified External",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                }
                 Icon(
-                    imageVector = if (volume.isRemovable) Icons.Default.SdCard else Icons.Default.Storage,
+                    imageVector = when (volume.kind) {
+                        StorageKind.INTERNAL -> Icons.Default.Storage
+                        StorageKind.SD_CARD -> Icons.Default.SdCard
+                        StorageKind.OTG -> Icons.Default.Usb
+                        StorageKind.EXTERNAL_UNCLASSIFIED -> Icons.Default.SdCard
+                    },
                     contentDescription = volume.name,
                     modifier = Modifier.size(20.dp)
                 )
