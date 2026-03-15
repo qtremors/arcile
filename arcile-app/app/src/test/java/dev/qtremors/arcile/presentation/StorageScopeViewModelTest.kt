@@ -138,6 +138,37 @@ class StorageScopeViewModelTest {
     }
 
     @Test
+    fun `home view model performs optimistic update when classifying volumes`() = runTest(dispatcher) {
+        val otg = volume(
+            id = "otg",
+            name = "USB Drive",
+            path = "/storage/ABCD-1234",
+            removable = true,
+            kind = StorageKind.EXTERNAL_UNCLASSIFIED
+        )
+        val store = RecordingStorageClassificationStore()
+        val repository = FakeFileRepository(volumes = listOf(otg))
+
+        val viewModel = HomeViewModel(repository, store)
+        advanceUntilIdle()
+
+        // Initially shown
+        assertTrue(viewModel.state.value.showClassificationPrompt)
+        assertEquals(1, viewModel.state.value.unclassifiedVolumes.size)
+
+        // Classify - this should trigger optimistic update
+        viewModel.setVolumeClassification(otg.storageKey, StorageKind.OTG)
+        
+        // CHECK IMMEDIATELY (without advanceUntilIdle)
+        assertFalse("Prompt should be hidden immediately via optimistic update", viewModel.state.value.showClassificationPrompt)
+        assertTrue("Unclassified list should be empty immediately", viewModel.state.value.unclassifiedVolumes.isEmpty())
+
+        advanceUntilIdle()
+        // Still hidden after background work
+        assertFalse(viewModel.state.value.showClassificationPrompt)
+    }
+
+    @Test
     fun `trash view model shows destination picker when restore needs alternate volume`() = runTest(dispatcher) {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
         val repository = FakeFileRepository(

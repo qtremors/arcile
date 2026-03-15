@@ -25,7 +25,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable
@@ -68,7 +67,7 @@ fun VolumeItemRow(
     }
 
     Surface(
-        shape = ExpressiveSquircleShape,
+        shape = MaterialTheme.shapes.extraLarge,
         color = Color.Transparent,
         modifier = modifier
             .clickable(onClick = onClick)

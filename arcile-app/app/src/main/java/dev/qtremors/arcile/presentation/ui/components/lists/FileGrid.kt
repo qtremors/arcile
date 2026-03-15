@@ -40,8 +40,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.SimpleDateFormat
@@ -141,7 +139,7 @@ fun FileGridItem(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
+        shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
         )

@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.3.8 | **Last Updated:** 2026-03-14
+**Version:** 0.4.0 | **Last Updated:** 2026-03-15
 **Scope:** Internal Development, Security, and Style Specification
 
 ---
@@ -222,7 +222,7 @@ fun ExpressiveLoading() {
 | `minSdk` | 24 | `app/build.gradle.kts` |
 | `targetSdk` | 36 | `app/build.gradle.kts` |
 | `versionCode` | 22 | `app/build.gradle.kts` |
-| `versionName` | `0.3.8` | `app/build.gradle.kts` |
+| `versionName` | `0.4.0` | `app/build.gradle.kts` |
 
 ### Permissions
 
@@ -421,7 +421,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 ./gradlew assembleDebug
 ```
 For standard builds:
-APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.8.apk`
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk`
 
 > **Note:** The output filename is controlled by the `androidComponents` block in `app/build.gradle.kts`, which uses `VariantOutputImpl` (an internal AGP API) to inject the app ID and version into the filename. This is a known anomaly — see [TASKS.md](TASKS.md) general anomalies section for details.
 

@@ -54,7 +54,6 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.SimpleDateFormat
@@ -100,7 +99,7 @@ fun PasteConflictDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 24.dp),
-            shape = ExpressiveSquircleShape,
+            shape = MaterialTheme.shapes.extraLarge,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
         ) {
@@ -213,7 +212,7 @@ private fun ConflictCard(
     )
 
     Card(
-        shape = ExpressiveSquircleShape,
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = containerColor),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -303,7 +302,7 @@ private fun FileThumbnail(file: FileModel, size: Int) {
             contentDescription = "Thumbnail",
             modifier = Modifier
                 .size(size.dp)
-                .clip(ExpressiveSquircleShape),
+                .clip(MaterialTheme.shapes.extraLarge),
             contentScale = ContentScale.Crop
         )
     } else {

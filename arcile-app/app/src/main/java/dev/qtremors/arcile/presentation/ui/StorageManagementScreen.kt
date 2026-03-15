@@ -20,9 +20,11 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -37,11 +39,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
+import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.ui.theme.ExpressivePillShape
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StorageManagementScreen(
     state: HomeState,
@@ -65,48 +68,62 @@ fun StorageManagementScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
+        androidx.compose.foundation.layout.Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(padding)
         ) {
-            item {
-                Card(
-                    shape = ExpressiveSquircleShape,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "External storage defaults to temporary until you classify it.",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Card(
+                        shape = MaterialTheme.shapes.extraLarge,
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "External storage defaults to temporary until you classify it.",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "SD card volumes are indexed and use trash. OTG and unclassified volumes stay browsable only and deletions are permanent.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (volumes.isEmpty() && !state.isLoading && !state.isCalculatingStorage) {
+                    item {
+                        EmptyState(
+                            icon = Icons.Default.Storage,
+                            title = "No storage found",
+                            description = "No mounted storage volumes found on this device.",
+                            modifier = Modifier.fillParentMaxSize()
                         )
-                        Text(
-                            text = "SD card volumes are indexed and use trash. OTG and unclassified volumes stay browsable only and use permanent delete.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                } else {
+                    items(volumes, key = { it.id }) { volume ->
+                        StorageManagementCard(
+                            volume = volume,
+                            onSetVolumeClassification = onSetVolumeClassification,
+                            onResetVolumeClassification = onResetVolumeClassification
                         )
                     }
                 }
             }
 
-            if (volumes.isEmpty()) {
-                item {
-                    Text(
-                        text = "No mounted storage volumes found.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            } else {
-                items(volumes, key = { it.id }) { volume ->
-                    StorageManagementCard(
-                        volume = volume,
-                        onSetVolumeClassification = onSetVolumeClassification,
-                        onResetVolumeClassification = onResetVolumeClassification
-                    )
+            if (state.isLoading || state.isCalculatingStorage) {
+                androidx.compose.foundation.layout.Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingIndicator()
                 }
             }
         }
@@ -121,7 +138,7 @@ private fun StorageManagementCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = ExpressiveSquircleShape,
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -148,7 +165,7 @@ private fun StorageManagementCard(
                             contentDescription = null
                         )
                     },
-                    shape = ExpressivePillShape
+                    shape = CircleShape
                 )
             }
 
@@ -156,8 +173,8 @@ private fun StorageManagementCard(
                 text = when (volume.kind) {
                     StorageKind.INTERNAL -> "Permanent device storage. Indexed and trash-enabled."
                     StorageKind.SD_CARD -> "Permanent external storage. Indexed and trash-enabled."
-                    StorageKind.OTG -> "Temporary USB storage. Browsable only and permanently deleted."
-                    StorageKind.EXTERNAL_UNCLASSIFIED -> "Temporary until classified. Browsable only and permanently deleted."
+                    StorageKind.OTG -> "Temporary USB storage. Browsable only and deletions are permanent."
+                    StorageKind.EXTERNAL_UNCLASSIFIED -> "Temporary until classified. Browsable only and deletions are permanent."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -167,14 +184,14 @@ private fun StorageManagementCard(
                 TextButton(
                     onClick = { onSetVolumeClassification(volume.storageKey, StorageKind.SD_CARD) },
                     enabled = !volume.isPrimary && volume.kind != StorageKind.SD_CARD,
-                    shape = ExpressivePillShape
+                    shape = CircleShape
                 ) {
                     Text("Classify as SD")
                 }
                 TextButton(
                     onClick = { onSetVolumeClassification(volume.storageKey, StorageKind.OTG) },
                     enabled = !volume.isPrimary && volume.kind != StorageKind.OTG,
-                    shape = ExpressivePillShape
+                    shape = CircleShape
                 ) {
                     Text("Classify as OTG")
                 }
@@ -182,7 +199,7 @@ private fun StorageManagementCard(
                     TextButton(
                         onClick = { onResetVolumeClassification(volume.storageKey) },
                         enabled = volume.isUserClassified,
-                        shape = ExpressivePillShape
+                        shape = CircleShape
                     ) {
                         Text("Reset")
                     }

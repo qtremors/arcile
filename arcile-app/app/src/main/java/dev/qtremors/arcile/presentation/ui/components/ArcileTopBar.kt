@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -39,6 +40,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.Color
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -67,7 +69,11 @@ fun ArcileTopBar(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
-    val containerColor = if (selectionCount > 0) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent
+    val containerColor = if (selectionCount > 0) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
 
     androidx.compose.material3.LargeTopAppBar(
         scrollBehavior = scrollBehavior,
@@ -129,6 +135,7 @@ fun ArcileTopBar(
                     }
                 }
                 DropdownMenu(
+                    shape = MaterialTheme.shapes.extraLarge,
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false }
                 ) {
@@ -210,9 +217,8 @@ fun ArcileTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.topAppBarColors(
+        colors = TopAppBarDefaults.largeTopAppBarColors(
             containerColor = containerColor,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
     )

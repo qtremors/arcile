@@ -1,8 +1,10 @@
 package dev.qtremors.arcile.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.ColorScheme
 
 // Baseline dynamic fallbacks (default purple base)
 val DarkColorScheme = darkColorScheme(
@@ -30,17 +32,12 @@ val LightColorScheme = lightColorScheme(
     tertiary = Color(0xFF7D5260),
     background = Color(0xFFFEF7FF),
     surface = Color(0xFFFEF7FF),
-    surfaceVariant = Color(0xFFE7E0EC),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF7F2FA),
-    surfaceContainer = Color(0xFFF3EDF7),
-    surfaceContainerHigh = Color(0xFFECE6F0),
-    surfaceContainerHighest = Color(0xFFE6E0E9),
-    onSurface = Color(0xFF1C1B1F),
-    onBackground = Color(0xFF1C1B1F),
-    onSurfaceVariant = Color(0xFF49454F),
-    outline = Color(0xFF79747E),
-    outlineVariant = Color(0xFFCAC4D0)
+    surfaceContainerHighest = Color(0xFFE2E2E6),
+    onSurface = Color(0xFF1B1B1F),
+    onBackground = Color(0xFF1B1B1F),
+    onSurfaceVariant = Color(0xFF44474E),
+    outline = Color(0xFF74777F),
+    outlineVariant = Color(0xFFC4C6D0)
 )
 
 val OledColorScheme = darkColorScheme(
@@ -76,10 +73,9 @@ val BlueLightScheme = lightColorScheme(
     surfaceContainerLow = Color(0xFFF7F9FF),
     surfaceContainer = Color(0xFFF1F4FD),
     surfaceContainerHigh = Color(0xFFEBEFF8),
-    surfaceContainerHighest = Color(0xFFE5E9F3),
-    onSurface = Color(0xFF1A1C1E),
-    onBackground = Color(0xFF1A1C1E),
-    surfaceVariant = Color(0xFFDFE2EB),
+    surfaceContainerHighest = Color(0xFFE2E6EC),
+    onSurface = Color(0xFF1B1B1F),
+    onBackground = Color(0xFF1B1B1F),
     onSurfaceVariant = Color(0xFF43474E),
     outline = Color(0xFF73777F),
     outlineVariant = Color(0xFFC3C7CF)
@@ -127,7 +123,6 @@ val CyanLightScheme = lightColorScheme(
     surfaceContainerHighest = Color(0xFFE2E6E8),
     onSurface = Color(0xFF191C1D),
     onBackground = Color(0xFF191C1D),
-    surfaceVariant = Color(0xFFDBE4E6),
     onSurfaceVariant = Color(0xFF3F484A),
     outline = Color(0xFF6F797A),
     outlineVariant = Color(0xFFBFC8CA)
@@ -172,10 +167,9 @@ val GreenLightScheme = lightColorScheme(
     surfaceContainerLow = Color(0xFFF6F8F0),
     surfaceContainer = Color(0xFFF0F2EB),
     surfaceContainerHigh = Color(0xFFEAECE5),
-    surfaceContainerHighest = Color(0xFFE5E7DF),
+    surfaceContainerHighest = Color(0xFFE2E6E2),
     onSurface = Color(0xFF1A1C19),
     onBackground = Color(0xFF1A1C19),
-    surfaceVariant = Color(0xFFDFE4D7),
     onSurfaceVariant = Color(0xFF43483E),
     outline = Color(0xFF73796D),
     outlineVariant = Color(0xFFC3C8BB)
@@ -220,10 +214,9 @@ val RedLightScheme = lightColorScheme(
     surfaceContainerLow = Color(0xFFFFF1F2),
     surfaceContainer = Color(0xFFFFEAEF),
     surfaceContainerHigh = Color(0xFFFFDDE5),
-    surfaceContainerHighest = Color(0xFFFFD1DB),
+    surfaceContainerHighest = Color(0xFFF9DEDC),
     onSurface = Color(0xFF201A1B),
     onBackground = Color(0xFF201A1B),
-    surfaceVariant = Color(0xFFF4DDDF),
     onSurfaceVariant = Color(0xFF524345),
     outline = Color(0xFF857375),
     outlineVariant = Color(0xFFD7C1C3)
@@ -268,10 +261,9 @@ val PurpleLightScheme = lightColorScheme(
     surfaceContainerLow = Color(0xFFFFF7FA),
     surfaceContainer = Color(0xFFF8EEF5),
     surfaceContainerHigh = Color(0xFFF2E8EF),
-    surfaceContainerHighest = Color(0xFFECE2E9),
+    surfaceContainerHighest = Color(0xFFEADDFF),
     onSurface = Color(0xFF1D1B1E),
     onBackground = Color(0xFF1D1B1E),
-    surfaceVariant = Color(0xFFEEDEE7),
     onSurfaceVariant = Color(0xFF4E444B),
     outline = Color(0xFF7F747C),
     outlineVariant = Color(0xFFD1C2CB)
@@ -317,10 +309,9 @@ val MonochromeLightScheme = lightColorScheme(
     surfaceContainerLow = Color(0xFFF5F5F5),
     surfaceContainer = Color(0xFFEEEEEE),
     surfaceContainerHigh = Color(0xFFE8E8E8),
-    surfaceContainerHighest = Color(0xFFE0E0E0),
+    surfaceContainerHighest = Color(0xFFE1E1E1),
     onSurface = Color(0xFF1C1C1C),
     onBackground = Color(0xFF1C1C1C),
-    surfaceVariant = Color(0xFFE0E0E0),
     onSurfaceVariant = Color(0xFF4A4A4A),
     outline = Color(0xFF757575),
     outlineVariant = Color(0xFFBDBDBD)
@@ -335,10 +326,10 @@ val MonochromeDarkScheme = darkColorScheme(
     onSecondary = Color(0xFF303030),
     secondaryContainer = Color(0xFF3D3D3D),
     onSecondaryContainer = Color(0xFFDDDDDD),
-    background = Color(0xFF1A1A1A),
-    surface = Color(0xFF1A1A1A),
+    background = Color(0xFF1A1C1A),
+    surface = Color(0xFF1A1C1A),
     surfaceContainerLowest = Color(0xFF101010),
-    surfaceContainerLow = Color(0xFF1A1A1A),
+    surfaceContainerLow = Color(0xFF1A1C1A),
     surfaceContainer = Color(0xFF1F1F1F),
     surfaceContainerHigh = Color(0xFF292929),
     surfaceContainerHighest = Color(0xFF333333),
@@ -349,3 +340,134 @@ val MonochromeDarkScheme = darkColorScheme(
     outline = Color(0xFF888888),
     outlineVariant = Color(0xFF444444)
 )
+
+// Black accent palette (High Contrast for Dark/OLED)
+val BlackLightScheme = lightColorScheme(
+    primary = Color(0xFF000000),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE0E0E0),
+    onPrimaryContainer = Color(0xFF000000),
+    secondary = Color(0xFF424242),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFF5F5F5),
+    onSecondaryContainer = Color(0xFF212121),
+    background = Color(0xFFFFFFFF),
+    surface = Color(0xFFFFFFFF),
+    surfaceContainer = Color(0xFFF5F5F5),
+    onSurface = Color(0xFF000000),
+    onBackground = Color(0xFF000000),
+    outline = Color(0xFF757575)
+)
+
+val BlackDarkScheme = darkColorScheme(
+    primary = Color(0xFFE0E0E0), // Light Primary for visibility
+    onPrimary = Color(0xFF000000),
+    primaryContainer = Color(0xFF424242),
+    onPrimaryContainer = Color(0xFFE0E0E0),
+    secondary = Color(0xFFBDBDBD),
+    onSecondary = Color(0xFF000000),
+    secondaryContainer = Color(0xFF333333),
+    onSecondaryContainer = Color(0xFFE0E0E0),
+    background = Color(0xFF1A1C1A),
+    surface = Color(0xFF1A1C1A),
+    surfaceContainer = Color(0xFF212321),
+    onSurface = Color(0xFFFFFFFF),
+    onBackground = Color(0xFFFFFFFF),
+    outline = Color(0xFF9E9E9E)
+)
+
+// Category Colors - Light
+val CatImageLight = Color(0xFF2E6B30)
+val CatVideoLight = Color(0xFFBC004B)
+val CatAudioLight = Color(0xFF8B5000)
+val CatDocLight = Color(0xFF0061A4)
+val CatArchiveLight = Color(0xFF86279E)
+val CatApkLight = Color(0xFF006874)
+
+// Category Colors - Dark
+val CatImageDark = Color(0xFF90D88D)
+val CatVideoDark = Color(0xFFFFB2BF)
+val CatAudioDark = Color(0xFFFFB870)
+val CatDocDark = Color(0xFF9ECAFF)
+val CatArchiveDark = Color(0xFFF3B2FF)
+val CatApkDark = Color(0xFF4FD8EB)
+
+// Accent Colors (Material 500)
+val AccentRed = Color(0xFFF44336)
+val AccentPink = Color(0xFFE91E63)
+val AccentPurple = Color(0xFF9C27B0)
+val AccentDeepPurple = Color(0xFF673AB7)
+val AccentIndigo = Color(0xFF3F51B5)
+val AccentBlue = Color(0xFF2196F3)
+val AccentLightBlue = Color(0xFF03A9F4)
+val AccentCyan = Color(0xFF00BCD4)
+val AccentTeal = Color(0xFF009688)
+val AccentGreen = Color(0xFF4CAF50)
+val AccentLightGreen = Color(0xFF8BC34A)
+val AccentLime = Color(0xFFCDDC39)
+val AccentYellow = Color(0xFFFFEB3B)
+val AccentAmber = Color(0xFFFFC107)
+val AccentOrange = Color(0xFFFF9800)
+val AccentDeepOrange = Color(0xFFFF5722)
+val AccentBrown = Color(0xFF795548)
+val AccentBlueGrey = Color(0xFF607D8B)
+val AccentGrey = Color(0xFF9E9E9E)
+val AccentBlack = Color(0xFF212121)
+val AccentMonochrome = Color.Gray // Keeping as fallback or alias
+
+// OLED Specific
+val OledSurfaceVariant = Color(0xFF121212)
+val OledContainerLow = Color(0xFF0F0D13)
+val OledContainerLowest = Color.Black
+
+/**
+ * Generates a simple Material 3 color scheme from a primary seed color.
+ * Used for the expanded accent colors to avoid excessive boilerplate.
+ */
+fun buildScheme(primary: Color, isDark: Boolean): ColorScheme {
+    return if (isDark) {
+        darkColorScheme(
+            primary = primary,
+            onPrimary = Color.Black,
+            primaryContainer = primary.copy(alpha = 0.3f),
+            onPrimaryContainer = Color.White,
+            secondary = primary,
+            onSecondary = Color.Black,
+            secondaryContainer = primary.copy(alpha = 0.2f),
+            onSecondaryContainer = Color.White,
+            background = Color(0xFF1A1C1E),
+            surface = Color(0xFF1A1C1E),
+            surfaceContainer = Color(0xFF212325),
+            surfaceContainerHigh = Color(0xFF282A2D),
+            surfaceContainerHighest = Color(0xFF333538),
+            onBackground = Color(0xFFE2E2E6),
+            onSurface = Color(0xFFE2E2E6),
+            surfaceVariant = Color(0xFF43474E),
+            onSurfaceVariant = Color(0xFFC3C7CF),
+            outline = Color(0xFF8D9199),
+            outlineVariant = Color(0xFF43474E)
+        )
+    } else {
+        lightColorScheme(
+            primary = primary,
+            onPrimary = Color.White,
+            primaryContainer = primary.copy(alpha = 0.12f).compositeOver(Color.White),
+            onPrimaryContainer = primary, 
+            secondary = primary.copy(alpha = 0.08f).compositeOver(Color.White),
+            onSecondary = Color.White,
+            secondaryContainer = primary.copy(alpha = 0.08f).compositeOver(Color.White),
+            onSecondaryContainer = primary,
+            background = Color(0xFFFDFBFF),
+            surface = Color(0xFFFDFBFF),
+            surfaceContainer = Color(0xFFF1F4FD),
+            surfaceContainerHigh = Color(0xFFEBEFF8),
+            surfaceContainerHighest = Color(0xFFE2E6EC),
+            onSurface = Color(0xFF1B1B1F),
+            onBackground = Color(0xFF1B1B1F),
+            surfaceVariant = Color(0xFFDFE2EB),
+            onSurfaceVariant = Color(0xFF43474E),
+            outline = Color(0xFF73777F),
+            outlineVariant = Color(0xFFC3C7CF)
+        )
+    }
+}

@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -10,6 +11,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -88,11 +90,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
-import dev.qtremors.arcile.ui.theme.ExpressivePillShape
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
-
+import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
@@ -119,6 +117,7 @@ import dev.qtremors.arcile.presentation.ui.components.lists.FileGrid
 import dev.qtremors.arcile.presentation.ui.components.lists.FileList
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import kotlinx.coroutines.launch
 
 import dev.qtremors.arcile.domain.FileCategories
@@ -320,15 +319,6 @@ fun FileManagerScreen(
         floatingActionButton = {
             if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Box {
-                    // Dismiss scrim behind FAB menu
-                    if (isFabExpanded) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.3f))
-                                .clickable { isFabExpanded = false }
-                        )
-                    }
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         ExpandableFabMenu(
                             isExpanded = isFabExpanded,
@@ -357,192 +347,186 @@ fun FileManagerScreen(
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
             Column(modifier = Modifier.fillMaxSize()) {
-                if (searchHasCompleted) {
-                    // Search results in the content area
-                    if (state.searchResults.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.SearchOff,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(48.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                AnimatedContent(
+                    targetState = if (searchHasCompleted) "search" else state.currentPath + state.activeCategoryName + state.isVolumeRootScreen,
+                    transitionSpec = {
+                        fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) togetherWith
+                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow))
+                    },
+                    label = "FolderTransition",
+                    modifier = Modifier.weight(1f)
+                ) { targetKey ->
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (searchHasCompleted) {
+                            // Search results in the content area
+                            if (state.searchResults.isEmpty()) {
+                                EmptyState(
+                                    icon = Icons.Default.SearchOff,
+                                    title = "No results found",
+                                    description = "We couldn't find anything matching \"${state.browserSearchQuery}\". Try a different keyword or filters.",
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "No results for \"${state.browserSearchQuery}\"",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    } else {
-                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                        LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(state.searchResults, key = { it.absolutePath }) { file ->
-                                FileItemRow(
-                                    file = file,
-                                    formattedDate = formatter.format(Date(file.lastModified)),
-                                    isSelected = false,
-                                    onClick = {
-                                        showSearchBar = false
-                                        onClearSearch()
-                                        if (file.isDirectory) {
-                                            onNavigateTo(file.absolutePath)
-                                        } else {
-                                            onOpenFile(file.absolutePath)
-                                        }
-                                    },
-                                    onLongClick = {}
-                                )
-                            }
-                        }
-                    }
-                } else if (showSearchBar && state.isSearching) {
-                    // Loading indicator while search is running
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
-                    }
-                } else {
-                    // Normal browse content
-                    if (!state.isVolumeRootScreen) {
-                        Breadcrumbs(
-                            currentPath = state.currentPath,
-                            storageVolumes = state.storageVolumes,
-                            onPathSegmentClick = { path ->
-                                onNavigateTo(path)
-                            }
-                        )
-                    }
-
-                    if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            shape = ExpressiveSquircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh
-                        ) {
-                            Text(
-                                text = if (currentVolume.kind == StorageKind.OTG) {
-                                    "Browsing temporary USB storage. It is excluded from indexed surfaces and deletion is permanent."
-                                } else {
-                                    "Browsing unclassified external storage. It is treated as temporary until classified, and deletion is permanent."
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(16.dp)
-                            )
-                        }
-                    }
-                    
-                    val pullRefreshState = rememberPullToRefreshState()
-                    
-                    PullToRefreshBox(
-                        isRefreshing = isRefreshing,
-                        onRefresh = onRefresh,
-                        state = pullRefreshState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        indicator = {
-                            val pullDistance = pullRefreshState.distanceFraction
-                            val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
-                            
-                            if (isRefreshing || pullDistance > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopCenter)
-                                        .graphicsLayer {
-                                            translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
-                                            alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
-                                        }
-                                        .padding(top = 8.dp)
-                                ) {
-                                    Card(
-                                        shape = androidx.compose.foundation.shape.CircleShape,
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.padding(10.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            LoadingIndicator(modifier = Modifier.size(24.dp))
-                                        }
+                            } else {
+                                val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                LazyColumn(modifier = Modifier.weight(1f)) {
+                                    items(state.searchResults, key = { it.absolutePath }) { file ->
+                                        FileItemRow(
+                                            file = file,
+                                            formattedDate = formatter.format(Date(file.lastModified)),
+                                            isSelected = false,
+                                            onClick = {
+                                                showSearchBar = false
+                                                onClearSearch()
+                                                if (file.isDirectory) {
+                                                    onNavigateTo(file.absolutePath)
+                                                } else {
+                                                    onOpenFile(file.absolutePath)
+                                                }
+                                            },
+                                            onLongClick = {}
+                                        )
                                     }
                                 }
                             }
-                        }
-                    ) {
-                        if (state.isLoading && !isRefreshing) {
+                        } else if (showSearchBar && state.isSearching) {
+                            // Loading indicator while search is running
                             Box(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
                                 contentAlignment = Alignment.Center
                             ) {
                                 LoadingIndicator()
                             }
-                        } else if (displayedFiles.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.FolderOff,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                        } else {
+                            // Normal browse content
+                            if (!state.isVolumeRootScreen) {
+                                Breadcrumbs(
+                                    currentPath = state.currentPath,
+                                    storageVolumes = state.storageVolumes,
+                                    onPathSegmentClick = { path ->
+                                        onNavigateTo(path)
+                                    }
+                                )
+                            }
+
+                            if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    shape = MaterialTheme.shapes.extraLarge,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ) {
                                     Text(
-                                        text = "Empty Directory",
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        text = if (currentVolume.kind == StorageKind.OTG) {
+                                            "Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent."
+                                        } else {
+                                            "Browsing unclassified external storage. It is treated as temporary until classified, and deletions are permanent."
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
+                                        modifier = Modifier.padding(16.dp)
                                     )
                                 }
                             }
-                        } else if (state.isVolumeRootScreen) {
-                            dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
-                                volumes = state.storageVolumes,
-                                onNavigateTo = onNavigateTo,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else if (state.isGridView && !state.isVolumeRootScreen) {
-                            FileGrid(
-                                files = displayedFiles,
-                                selectedFiles = state.selectedFiles,
-                                onNavigateTo = onNavigateTo,
-                                onOpenFile = onOpenFile,
-                                onToggleSelection = onToggleSelection,
-                                onSelectMultiple = onSelectMultiple,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            FileList(
-                                files = displayedFiles,
-                                selectedFiles = state.selectedFiles,
-                                onNavigateTo = onNavigateTo,
-                                onOpenFile = onOpenFile,
-                                onToggleSelection = onToggleSelection,
-                                onSelectMultiple = onSelectMultiple,
-                                modifier = Modifier.fillMaxSize()
-                            )
+
+                            val pullRefreshState = rememberPullToRefreshState()
+
+                            PullToRefreshBox(
+                                isRefreshing = isRefreshing,
+                                onRefresh = onRefresh,
+                                state = pullRefreshState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                indicator = {
+                                    val pullDistance = pullRefreshState.distanceFraction
+                                    val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
+
+                                    if (isRefreshing || pullDistance > 0f) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopCenter)
+                                                .graphicsLayer {
+                                                    translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
+                                                    alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
+                                                }
+                                                .padding(top = 8.dp)
+                                        ) {
+                                            Card(
+                                                shape = androidx.compose.foundation.shape.CircleShape,
+                                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.padding(10.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    LoadingIndicator(modifier = Modifier.size(24.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ) {
+                                if (state.isLoading && !isRefreshing) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        LoadingIndicator()
+                                    }
+                                } else if (displayedFiles.isEmpty()) {
+                                    EmptyState(
+                                        icon = Icons.Default.FolderOff,
+                                        title = "Empty Directory",
+                                        description = "This folder doesn't have any files yet. You can create one using the + button.",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else if (state.isVolumeRootScreen) {
+                                    dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
+                                        volumes = state.storageVolumes,
+                                        onNavigateTo = onNavigateTo,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else if (state.isGridView && !state.isVolumeRootScreen) {
+                                    FileGrid(
+                                        files = displayedFiles,
+                                        selectedFiles = state.selectedFiles,
+                                        onNavigateTo = onNavigateTo,
+                                        onOpenFile = onOpenFile,
+                                        onToggleSelection = onToggleSelection,
+                                        onSelectMultiple = onSelectMultiple,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    FileList(
+                                        files = displayedFiles,
+                                        selectedFiles = state.selectedFiles,
+                                        onNavigateTo = onNavigateTo,
+                                        onOpenFile = onOpenFile,
+                                        onToggleSelection = onToggleSelection,
+                                        onSelectMultiple = onSelectMultiple,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+            }
+
+            if (isFabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { isFabExpanded = false }
+                        )
+                )
             }
         }
     }

@@ -1,7 +1,11 @@
 package dev.qtremors.arcile.presentation.ui
 
 import android.os.Environment
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -40,6 +45,10 @@ import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.WifiTethering
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -61,6 +70,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,12 +82,21 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.material.icons.filled.SdCard
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
-import dev.qtremors.arcile.ui.theme.ExpressivePillShape
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.ui.theme.titleLargeBold
+import dev.qtremors.arcile.ui.theme.titleMediumBold
+import dev.qtremors.arcile.ui.theme.bodyMediumMedium
+import dev.qtremors.arcile.ui.theme.bodySmallMedium
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
@@ -89,7 +109,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import dev.qtremors.arcile.presentation.ui.components.shimmer
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
@@ -138,13 +160,13 @@ fun StorageClassificationPrompt(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = ExpressiveSquircleShape,
+            .padding(MaterialTheme.spacing.medium),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(MaterialTheme.spacing.space20)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Default.Info,
@@ -152,11 +174,10 @@ fun StorageClassificationPrompt(
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(MaterialTheme.spacing.space12))
                 Text(
                     text = "New Storage Detected",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.titleMediumBold
                 )
             }
             
@@ -167,21 +188,21 @@ fun StorageClassificationPrompt(
                 style = MaterialTheme.typography.bodyMedium
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
             
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small)) {
                 Column(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = { onClassify(StorageKind.SD_CARD) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = ExpressivePillShape
+                        shape = CircleShape
                     ) {
                         Text("SD Card", maxLines = 1)
                     }
                     Text(
                         "Permanent, indexed, supports trash",
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = MaterialTheme.spacing.extraSmall),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -190,7 +211,7 @@ fun StorageClassificationPrompt(
                     OutlinedButton(
                         onClick = { onClassify(StorageKind.OTG) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = ExpressivePillShape
+                        shape = CircleShape
                     ) {
                         Text("OTG / USB", maxLines = 1)
                     }
@@ -203,7 +224,7 @@ fun StorageClassificationPrompt(
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
             
             TextButton(
                 onClick = onDecideLater,
@@ -361,9 +382,8 @@ fun HomeScreen(
                 item {
                     Text(
                         text = "Categories",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp)
+                        style = MaterialTheme.typography.titleMediumBold,
+                        modifier = Modifier.padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.medium, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small)
                     )
                 }
                 item { CategoryGrid(state.categoryStorages, onCategoryClick) }
@@ -371,9 +391,8 @@ fun HomeScreen(
                 item {
                     Text(
                         text = "Folders",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
+                        style = MaterialTheme.typography.titleMediumBold,
+                        modifier = Modifier.padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small)
                     )
                 }
                 item {
@@ -387,14 +406,13 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp),
+                            .padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Utilities",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMediumBold
                         )
                         TextButton(onClick = onNavigateToTools) {
                             Text("Show All")
@@ -403,32 +421,30 @@ fun HomeScreen(
                 }
 
                 item {
-                    Column(
+                    androidx.compose.foundation.lazy.LazyRow(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
+                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
                     ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
+                        item {
+                            Box(modifier = Modifier.width(140.dp)) {
                                 ToolCard(ToolItem("Trash Bin", Icons.Default.Delete, isImplemented = true), onClick = onNavigateToTrash)
                             }
-                            Box(modifier = Modifier.weight(1f)) {
-                                ToolCard(ToolItem("Analyze Storage", Icons.Default.PieChart, isImplemented = false))
+                        }
+                        item {
+                            Box(modifier = Modifier.width(140.dp)) {
+                                ToolCard(ToolItem("OnlyFiles", Icons.Default.Lock, isImplemented = false))
                             }
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering, isImplemented = false))
+                        item {
+                            Box(modifier = Modifier.width(140.dp)) {
+                                ToolCard(ToolItem("Large Files", Icons.Default.ZoomIn, isImplemented = false))
                             }
-                            Box(modifier = Modifier.weight(1f)) {
-                                ToolCard(ToolItem("Clean Junk", Icons.Default.CleaningServices, isImplemented = false))
+                        }
+                        item {
+                            Box(modifier = Modifier.width(140.dp)) {
+                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering, isImplemented = false))
                             }
                         }
                     }
@@ -438,14 +454,13 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp),
+                            .padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = "Recent Files",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMediumBold
                         )
                         TextButton(onClick = onNavigateToRecentFiles) {
                             Text("See All")
@@ -455,18 +470,12 @@ fun HomeScreen(
 
                 if (displayedRecentFiles.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No recent files",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        EmptyState(
+                            icon = Icons.Default.History,
+                            title = "No recent files",
+                            description = "Files you open recently will appear here for quick access.",
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 } else {
                     val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
@@ -502,7 +511,7 @@ fun StorageSummaryCard(
     
     if (volumes.size > 1) {
         // Multi-storage layout
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small)) {
             volumes.forEach { volume ->
                 StorageVolumeCard(
                     volume = volume,
@@ -514,7 +523,7 @@ fun StorageSummaryCard(
                         }
                     }
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
             }
         }
     } else {
@@ -527,8 +536,8 @@ fun StorageSummaryCard(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .clip(ExpressiveSquircleShape)
+                .padding(MaterialTheme.spacing.medium)
+                .clip(MaterialTheme.shapes.extraLarge)
                     .combinedClickable(
                         onClick = onOpenFileBrowser,
                         onLongClick = { onOpenStorageDashboard(primaryVolume?.id) }
@@ -537,9 +546,9 @@ fun StorageSummaryCard(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
             ),
-            shape = ExpressiveSquircleShape
+            shape = MaterialTheme.shapes.extraLarge
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(modifier = Modifier.padding(MaterialTheme.spacing.large)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -547,19 +556,19 @@ fun StorageSummaryCard(
                 ) {
                     Text(
                         text = primaryVolume?.name ?: "Internal Storage",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleLargeBold
                     )
                     Icon(Icons.Default.Storage, contentDescription = "Storage")
                 }
 
-                if (total > 0) {
+                if (total > 0 || state.isCalculatingStorage) {
                     Spacer(modifier = Modifier.height(16.dp))
 
                     MultiColorStorageBar(
                         totalBytes = total,
                         freeBytes = free,
-                        categoryStorages = state.categoryStorages
+                        categoryStorages = state.categoryStorages,
+                        isCalculating = state.isCalculatingStorage
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -569,8 +578,7 @@ fun StorageSummaryCard(
                     ) {
                         Text(
                             text = "${formatFileSize(used)} used",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
+                            style = MaterialTheme.typography.bodyMediumMedium
                         )
                         Text(
                             text = "${formatFileSize(free)} free",
@@ -580,11 +588,11 @@ fun StorageSummaryCard(
                     }
 
                     if (state.categoryStorages.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
                         CategoryLegend(state.categoryStorages)
                     }
                 } else {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
                     Text(
                         text = "Tap to browse storage",
                         style = MaterialTheme.typography.bodyMedium,
@@ -609,7 +617,7 @@ fun StorageVolumeCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(ExpressiveSquircleShape)
+            .clip(MaterialTheme.shapes.extraLarge)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -618,7 +626,7 @@ fun StorageVolumeCard(
             containerColor = if (volume.isPrimary) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
             contentColor = if (volume.isPrimary) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
         ),
-        shape = ExpressiveSquircleShape
+        shape = MaterialTheme.shapes.extraLarge
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -630,11 +638,10 @@ fun StorageVolumeCard(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = volume.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            style = MaterialTheme.typography.titleMediumBold
                         )
                         if (volume.kind.showTemporaryStorageBadge) {
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant,
                                 shape = CircleShape,
@@ -676,7 +683,8 @@ fun StorageVolumeCard(
             MultiColorStorageBar(
                 totalBytes = volume.totalBytes,
                 freeBytes = volume.freeBytes,
-                categoryStorages = categoryStorages
+                categoryStorages = categoryStorages,
+                isCalculating = false // Individual volume status can be secondary or tied to global
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -686,8 +694,7 @@ fun StorageVolumeCard(
             ) {
                 Text(
                     text = "${formatFileSize(used)} / ${formatFileSize(volume.totalBytes)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium
+                    style = MaterialTheme.typography.bodySmallMedium
                 )
                 val percent = if (volume.totalBytes > 0) (used * 100 / volume.totalBytes) else 0
                 Text(
@@ -703,10 +710,20 @@ fun StorageVolumeCard(
 fun MultiColorStorageBar(
     totalBytes: Long,
     freeBytes: Long,
-    categoryStorages: List<CategoryStorage>
+    categoryStorages: List<CategoryStorage>,
+    isCalculating: Boolean = false
 ) {
     val barHeight = 10.dp
-    val barShape = ExpressivePillShape
+    val barShape = CircleShape
+
+    val hasData = totalBytes > 0
+    
+    // Global progress for the "revealing" animation when data first appears
+    val revealProgress by animateFloatAsState(
+        targetValue = if (hasData) 1f else 0f,
+        animationSpec = tween(1000, easing = LinearEasing),
+        label = "storageBarReveal"
+    )
 
     Box(
         modifier = Modifier
@@ -714,46 +731,126 @@ fun MultiColorStorageBar(
             .height(barHeight)
             .clip(barShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .shimmer(visible = isCalculating && !hasData, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
     ) {
-        if (totalBytes > 0 && categoryStorages.isNotEmpty()) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
-                val actualUsedBytes = totalBytes - freeBytes
-                val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
+        if (hasData || isCalculating) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Indeterminate Layer (Flowing colors)
+                AnimatedVisibility(
+                    visible = isCalculating && !hasData,
+                    enter = fadeIn(),
+                    exit = fadeOut(animationSpec = tween(1000))
+                ) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "placeholderFlow")
+                    val offset by infiniteTransition.animateFloat(
+                        initialValue = 0f,
+                        targetValue = 1000f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(3000, easing = LinearEasing),
+                            repeatMode = RepeatMode.Restart
+                        ),
+                        label = "offset"
+                    )
+                    
+                    val placeholderColors = listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
+                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f),
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                    )
+                    
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.linearGradient(
+                                    colors = placeholderColors,
+                                    start = Offset(offset, 0f),
+                                    end = Offset(offset + 500f, 0f),
+                                    tileMode = androidx.compose.ui.graphics.TileMode.Repeated
+                                )
+                            )
+                    )
+                }
 
-                val categoryColors = LocalCategoryColors.current
-                val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
-                sortedCategories.forEach { cat ->
-                    if (cat.sizeBytes > 0) {
-                        val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
-                        val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .weight(fraction.coerceAtLeast(0.005f))
-                                .background(catColor)
-                        )
+                // Data Layer (Segments)
+                if (hasData) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
+                        val actualUsedBytes = totalBytes - freeBytes
+                        val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
+
+                        val categoryColors = LocalCategoryColors.current
+                        val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
+                        
+                        sortedCategories.forEach { cat ->
+                            if (cat.sizeBytes > 0) {
+                                val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
+                                val animatedFraction by animateFloatAsState(
+                                    targetValue = fraction * revealProgress,
+                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+                                    label = "cat_${cat.name}_animation"
+                                )
+                                val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .weight(animatedFraction.coerceAtLeast(0.005f)) // Minimum 0.5% weight for visibility
+                                        .padding(horizontal = 0.1.dp) // Even smaller gap
+                                        .clip(CircleShape)
+                                        .background(catColor)
+                                )
+                            }
+                        }
+
+                        if (otherUsedBytes > 0) {
+                            val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
+                            val animatedOtherFraction by animateFloatAsState(
+                                targetValue = otherFraction * revealProgress,
+                                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+                                label = "other_bytes_animation"
+                            )
+                            
+                            // Dynamic color logic for unindexed volumes (no categories)
+                            val otherColor = if (categoryStorages.isEmpty()) {
+                                val usedPercent = (actualUsedBytes * 100) / totalBytes
+                                when {
+                                    usedPercent >= 90 -> Color(0xFFF44336) // Red
+                                    usedPercent >= 70 -> Color(0xFFFF9800) // Orange
+                                    else -> Color(0xFF4CAF50) // Green
+                                }
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .weight(animatedOtherFraction.coerceAtLeast(0.005f))
+                                    .padding(horizontal = 0.1.dp)
+                                    .clip(CircleShape)
+                                    .background(otherColor)
+                            )
+                        }
+
+                        if (freeBytes > 0) {
+                            val freeFraction = freeBytes.toFloat() / totalBytes.toFloat()
+                            // Free fraction grows oppositely if we want the bar to fill, 
+                            // but since it's a Row, if Used parts grow, Free part will naturally shrink.
+                            // We need used + free to always = 1.0 weight in the Row.
+                            // So we explicitly animate the free fraction to maintain the 1.0 sum.
+                            val currentUsedFractions = (categoryStorages.sumOf { it.sizeBytes }.toFloat() + otherUsedBytes.toFloat()) / totalBytes.toFloat()
+                            val animatedUsedFractions = currentUsedFractions * revealProgress
+                            val animatedFreeFraction = 1f - animatedUsedFractions
+                            
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .weight(animatedFreeFraction.coerceAtLeast(0.0001f))
+                                    .background(Color.Transparent)
+                            )
+                        }
                     }
-                }
-
-                if (otherUsedBytes > 0) {
-                    val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(otherFraction.coerceAtLeast(0.005f))
-                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                    )
-                }
-
-                if (freeBytes > 0) {
-                    val freeFraction = freeBytes.toFloat() / totalBytes.toFloat()
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .weight(freeFraction.coerceAtLeast(0.01f))
-                            .background(Color.Transparent)
-                    )
                 }
             }
         }
@@ -767,7 +864,7 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
         modifier = Modifier
             .horizontalScroll(scrollState)
             .fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
     ) {
         val categoryColors = LocalCategoryColors.current
         val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
@@ -775,7 +872,7 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
             val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall)
             ) {
                 Box(
                     modifier = Modifier
@@ -886,7 +983,7 @@ fun CategoryItem(
             .padding(8.dp)
     ) {
         Surface(
-            shape = ExpressiveSquircleShape,
+            shape = MaterialTheme.shapes.extraLarge,
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(64.dp)
         ) {
@@ -951,7 +1048,7 @@ fun MainFoldersGrid(
             ) {
                 rowFolders.forEach { folder ->
                     Surface(
-                        shape = ExpressivePillShape,
+                        shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainer,
                         onClick = {
                             if (folder.path != null) {

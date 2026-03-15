@@ -54,8 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
-import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
+import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.isIndexed
 import androidx.compose.foundation.clickable
@@ -63,6 +62,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.trash.TrashState
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -144,25 +144,12 @@ fun TrashScreen(
                     LoadingIndicator()
                 }
             } else if (state.trashFiles.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.DeleteSweep,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
-                        Text(
-                            text = "Trash is empty",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                 EmptyState(
+                    icon = Icons.Default.DeleteSweep,
+                    title = "Trash is empty",
+                    description = "When you delete files from permanent storage, they'll stay here for 30 days before being deleted forever.",
+                    modifier = Modifier.fillMaxSize()
+                )
             } else {
                 TrashList(
                     files = state.trashFiles,
@@ -177,7 +164,7 @@ fun TrashScreen(
                 onDismissRequest = { showEmptyTrashConfirmation = false },
                 icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 title = { Text("Empty Trash?") },
-                shape = ExpressiveSquircleShape,
+                shape = MaterialTheme.shapes.extraLarge,
                 text = { Text("All items in the trash will be permanently deleted. This action cannot be undone.") },
                 confirmButton = {
                     FilledTonalButton(
@@ -254,10 +241,8 @@ private fun TrashList(
                 label = "trashListItemColor"
             )
             
-            
-
             Surface(
-                shape = if (isSelected) dev.qtremors.arcile.ui.theme.ExpressiveShapes.large else ExpressiveSquircleShape,
+                shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
                 color = animatedSurfaceColor,
                 modifier = Modifier
                     .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)

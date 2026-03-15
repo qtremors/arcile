@@ -51,11 +51,7 @@ fun ToolsScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         }
     ) { padding ->
@@ -66,7 +62,7 @@ fun ToolsScreen(
             ToolItem("Duplicates", Icons.Default.FilterNone),
             ToolItem("Large Files", Icons.Default.ZoomIn),
             ToolItem("App Manager", Icons.Default.Apps),
-            ToolItem("Secure Vault", Icons.Default.Lock),
+            ToolItem("OnlyFiles", Icons.Default.Lock),
             ToolItem("Network Share", Icons.Default.Dns)
         )
 

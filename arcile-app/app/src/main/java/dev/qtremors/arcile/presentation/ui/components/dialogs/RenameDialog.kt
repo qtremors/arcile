@@ -10,7 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun RenameDialog(
@@ -23,7 +23,7 @@ fun RenameDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Rename") },
-        shape = ExpressiveSquircleShape,
+        shape = MaterialTheme.shapes.extraLarge,
         text = {
             OutlinedTextField(
                 value = newName,

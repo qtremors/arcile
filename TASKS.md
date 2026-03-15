@@ -1,81 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.3.6
+> **Version:** 0.4.0
 > **Last Updated:** 2026-03-14
-
----
-
-## 1. UI & UX Improvements (Prioritized)
-
-- [ ] [UI/UX] Hardcoded Colors & Theme Compliance.
-  - **Problem:** Components use hardcoded colors (`Color(0xFF...)`, `Color.Black.copy(...)`) instead of semantic `MaterialTheme.colorScheme`.
-  - **Location:** `FileManagerScreen.kt`, `CategoryColors.kt`, `Color.kt`
-  - **Fix:** Centralize and use semantic color tokens.
-
-- [ ] [UI/UX] Typography Overrides.
-  - **Problem:** Inline overrides of `fontWeight = FontWeight.Bold` bypassing the centralized typography system.
-  - **Location:** `HomeScreen.kt`, `StorageDashboardScreen.kt`
-  - **Fix:** Update `Type.kt` and use semantic styles.
-
-- [ ] [UI/UX] Spacing Inconsistencies.
-  - **Problem:** Fluctuating padding values (16.dp vs 20.dp vs 24.dp) breaking pixel-perfect alignment.
-  - **Location:** `HomeScreen.kt`
-  - **Fix:** Define and adhere to a standard spacing scale (e.g. 4dp/8dp grid).
-
-- [ ] [UI/UX] Component Unification (Selection States).
-  - **Problem:** `ArcileTopBar` uses `surfaceContainerHigh` for selection, while lists use `primaryContainer`.
-  - **Location:** `ArcileTopBar.kt`, `GlobalSearchBar.kt`
-  - **Fix:** Unify selection color across components.
-
-- [ ] [UI/UX] The "Expressive" vs. Default Material 3 Clash.
-  - **Problem:** Highly rounded custom themes (up to 32dp) clash with standard M3 `DropdownMenu` defaults (4dp).
-  - **Location:** `ArcileTopBar.kt`
-  - **Fix:** Apply custom rounded shapes to Dropdown Menus and Context Menus.
-
-- [ ] [UI/UX] Bypassing the Theme Shape System.
-  - **Problem:** Direct hardcoding of `ExpressiveSquircleShape` instead of using `MaterialTheme.shapes`.
-  - **Location:** `Shape.kt`, `HomeScreen.kt`, `RenameDialog.kt`, `CreateFileDialog.kt`
-  - **Fix:** Map custom shapes to `MaterialTheme.shapes` and use `Modifier.clip(MaterialTheme.shapes.extraLarge)`.
-
-- [ ] [UI/UX] Mixed Shape Systems in Complex Components.
-  - **Problem:** Mix-and-match of custom squircle shapes and standard theme medium shapes causes visual misalignment.
-  - **Location:** `PasteConflictDialog.kt`
-  - **Fix:** Standardize internal and external radiuses for clean nesting.
-
-- [ ] [UI/UX] Bottom Sheets & Overlays.
-  - **Problem:** Heavy reliance on Dialogs rather than standard `ModalBottomSheet` for mobile.
-  - **Fix:** Evaluate migrating some context menus/dialogs to bottom sheets.
-
-- [ ] [UI/UX] `MultiColorStorageBar` Animation.
-  - **Problem:** Uses static weights; lacks animation for segments and lacks a shimmer/loading visual when calculating.
-  - **Location:** `HomeScreen.kt`, `StorageDashboardScreen.kt`
-  - **Fix:** Wrap fractions in `animateFloatAsState` and add shimmer.
-
-- [ ] [UI/UX] Loading State Inconsistency.
-  - **Problem:** `RecentFilesScreen` ignores `isLoading` flag, looking frozen during fetches.
-  - **Location:** `RecentFilesScreen.kt`
-  - **Fix:** Display `LoadingIndicator` when state is loading.
-
-- [ ] [UI/UX] Empty State Inconsistency.
-  - **Problem:** `RecentFilesScreen` has minimal text-only empty state, lacking an icon compared to other screens.
-  - **Location:** `RecentFilesScreen.kt`
-  - **Fix:** Add a consistent icon (e.g. `Icons.Default.History`) matching other empty states.
-
-- [ ] [UX] Missing adaptive layouts for large screens.
-  - **Problem:** Root composables force narrow vertical lists regardless of window width.
-  - **Location:** `HomeScreen.kt`, `FileManagerScreen.kt`
-  - **Fix:** Implement `WindowSizeClass` checks and use dual-pane layouts for expanded widths.
-
-- [ ] [Motion] No loading/skeleton states — content jumps in after load.
-  - **Problem:** Home screen shows a centered `LoadingIndicator` then snaps to full content. No progressive loading or shimmer.
-  - **Location:** `HomeScreen.kt:148-157`
-  - **Fix:** Add shimmer/skeleton placeholders for the storage card, categories, and recent files sections.
-
-- [ ] [Motion] Navigation between Explorer and sub-folders has no folder-specific transition.
-  - **Problem:** Global slide-in transitions are used. Folder-to-folder navigation within the same route has no transition.
-  - **Location:** `ArcileAppShell.kt`, ViewModels
-  - **Fix:** Add a crossfade or shared-element transition for the file list when changing directories.
 
 ---
 
@@ -239,16 +166,6 @@
   - **Problem:** `StorageScopeViewModelTest` uses `runBlocking { emit(volumes) }` in a test fake's init block. This violates coroutine testing best practices and can lead to deadlocks or flaky tests.
   - **Location:** `app/src/test/.../StorageScopeViewModelTest.kt`
   - **Fix:** Remove `runBlocking`, initialize state flows directly with the initial value, or emit inside a properly scoped test coroutine.
-
----
-
-## 5. Completed Tasks
-
-- [x] [Refactor] Split `FileManagerScreen.kt` into modular components. *(File length reduced from ~1000 to ~655 lines)*
-- [x] [Architecture] `FileManagerViewModel` god-ViewModel was split. *(Now broken into Home, Browser, RecentFiles, and Trash ViewModels)*
-- [x] [Architecture] No dependency injection framework. *(Hilt implemented via `di/RepositoryModule.kt`)*
-- [x] [Refactor] Offload logic from `BrowserViewModel.kt`.
-- [x] [Security] Release keystore file committed to version control. *(Verified `app/my-release-key.jks` is ignored in `.gitignore`)*
 
 ---
 

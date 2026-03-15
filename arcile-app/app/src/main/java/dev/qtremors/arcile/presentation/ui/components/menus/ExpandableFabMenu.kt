@@ -22,9 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.ui.theme.ExpressivePillShape
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import androidx.compose.foundation.shape.CircleShape
 
 @Composable
 fun ExpandableFabMenu(
@@ -34,7 +32,7 @@ fun ExpandableFabMenu(
     onCreateFileClick: () -> Unit,
     onCreateFolderClick: () -> Unit
 ) {
-    val fabShape = if (isExpanded) ExpressiveSquircleShape else ExpressiveShapes.large
+    val fabShape = if (isExpanded) MaterialTheme.shapes.extraLarge else MaterialTheme.shapes.large
 
     Column(horizontalAlignment = Alignment.End) {
         AnimatedVisibility(
@@ -50,16 +48,28 @@ fun ExpandableFabMenu(
                 ExtendedFloatingActionButton(
                     onClick = onCreateFileClick,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = ExpressivePillShape,
-                    text = { Text("New File") },
-                    icon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = "New File") }
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 2.dp,
+                        pressedElevation = 4.dp
+                    ),
+                    text = { Text("New File", style = MaterialTheme.typography.labelLarge) },
+                    icon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null) },
+                    modifier = androidx.compose.ui.Modifier.padding(end = 2.dp)
                 )
                 ExtendedFloatingActionButton(
                     onClick = onCreateFolderClick,
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = ExpressivePillShape,
-                    text = { Text("New Folder") },
-                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = "New Folder") }
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 2.dp,
+                        pressedElevation = 4.dp
+                    ),
+                    text = { Text("New Folder", style = MaterialTheme.typography.labelLarge) },
+                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                    modifier = androidx.compose.ui.Modifier.padding(end = 2.dp)
                 )
             }
         }

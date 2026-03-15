@@ -10,7 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
+import androidx.compose.material3.MaterialTheme
 
 @Composable
 fun CreateFileDialog(
@@ -22,7 +22,7 @@ fun CreateFileDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Create File") },
-        shape = ExpressiveSquircleShape,
+        shape = MaterialTheme.shapes.extraLarge,
         text = {
             OutlinedTextField(
                 value = fileName,

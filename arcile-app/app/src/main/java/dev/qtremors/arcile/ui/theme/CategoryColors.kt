@@ -13,21 +13,23 @@ data class CategoryColors(
 )
 
 val LightCategoryColors = CategoryColors(
-    images = Color(0xFF2E6B30),
-    videos = Color(0xFFBC004B),
-    audio = Color(0xFF8B5000),
-    docs = Color(0xFF0061A4),
-    archives = Color(0xFF86279E),
-    apks = Color(0xFF006874)
+    images = CatImageLight,
+    videos = CatVideoLight,
+    audio = CatAudioLight,
+    docs = CatDocLight,
+    archives = CatArchiveLight,
+    apks = CatApkLight
 )
 
+
 val DarkCategoryColors = CategoryColors(
-    images = Color(0xFF90D88D),
-    videos = Color(0xFFFFB2BF),
-    audio = Color(0xFFFFB870),
-    docs = Color(0xFF9ECAFF),
-    archives = Color(0xFFF3B2FF),
-    apks = Color(0xFF4FD8EB)
+    images = CatImageDark,
+    videos = CatVideoDark,
+    audio = CatAudioDark,
+    docs = CatDocDark,
+    archives = CatArchiveDark,
+    apks = CatApkDark
 )
+
 
 val LocalCategoryColors = staticCompositionLocalOf { LightCategoryColors }

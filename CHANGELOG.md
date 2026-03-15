@@ -1,8 +1,54 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.9
-> **Last Updated:** 2026-03-15
+> **Version:** 0.4.0
+> **Last Updated:** 2026-03-16
+
+
+---
+
+## [0.4.0] - 2026-03-15
+
+### Added
+- [Feature] Expanded accent colors to 20 Material Design presets with dynamic Material 3 color scheme generation.
+- [Feature] Centralized `EmptyState` component with smooth animations and decorative background elements.
+- [Feature] Full-screen soft overlay (scrim) for the Expandable FAB menu with refined fade animations.
+- [Theme] Unified shape system using Material Design 3 `extraLarge` tokens for expressive squircles (28dp).
+- [Feature] Enhanced `MultiColorStorageBar` with liquid fill animations, smooth segment transitions, and indeterminate "flowing colors" shimmer.
+- [Feature] Dynamic usage-based colors (Green/Orange/Red) for OTG and unindexed storage bars to provide immediate visual feedback on capacity.
+- [Feature] Refined storage segment visibility with a 0.5% minimum width for small categories and subtle 0.1dp pill-gaps.
+- [Theme] Implemented Jetpack SplashScreen API with native Light/Dark mode support using DayNight resource resolution.
+- [Motion] Implemented smooth folder-to-folder crossfade transitions in the file explorer using `AnimatedContent`.
+
+
+### Changed
+- [UI/UX] Redesigned Utilities section with a modern horizontal carousel and adaptive squircle ToolCards.
+- [UI/UX] Renamed 'Secure Vault' to 'OnlyFiles' across the entire application for better clarity.
+- [UI/UX] Improved 'Black' accent color contrast in Dark and OLED modes using light gray highlights.
+- [UI/UX] Swapped accent selector layout to position color previews at the trailing edge for better ergonomics.
+- [Theme] Audited and refined contrast across all light color schemes, ensuring dark "on-surface" text for better readability.
+- [Theme] Re-enabled `surfaceTint` and fixed dynamic color generation to ensure proper Material 3 tonal elevation and accent tones across all surfaces.
+- [UI/UX] Corrected `ArcileTopBar` background and scroll behavior to properly support Material 3 tonal elevation.
+- [UI/UX] Grounded the folder shortcuts and card surface tokens for better contrast.
+- [UI/UX] Improved FAB sub-item alignment, shapes, and contrast using `onSecondaryContainer` tokens.
+- [Architecture] Migrated all cards, dialogs, and surfaces to the unified MD3 themed shape system and cleaned up legacy constants.
+- [Architecture] Replaced high shadow elevations in components like `EmptyState` with cleaner Material 3 `tonalElevation` logic.
+
+### Fixed
+- [Bug] Fixed FAB menu overlay only covering a partial area by moving the scrim to the main full-screen content layer.
+- [Bug] Standardized UI spacing and resolved expressive menu clashes between `HomeScreen` and `ArcileTopBar`.
+- [Bug] Resolved storage bar "Other" category overlap by ensuring distinct segment weights and clipping.
+- [UI/UX] Standardized `EmptyState` and `LoadingIndicator` (Material 3 Expressive) usage across all main screens.
+- [UI/UX] Implemented non-blocking, centered loading overlays for Storage Management and Dashboard to ensure internal storage remains visible during background calculations.
+- [UI/UX] Fixed loading and empty state inconsistencies in `HomeScreen` and `StorageManagementScreen`.
+- [UI/UX] Added dedicated `EmptyState` handling for Storage Dashboard when indexed volumes are unavailable.
+- [Bug] Fixed regression where `BackHandler` import was missing in `FileManagerScreen.kt`.
+- [Bug] Fixed FAB menu dismissal failing when tapping outside the menu; moved the scrim to the top of the Z-order.
+- [Bug] Resolved OTG classification prompt getting stuck after user interaction via synchronous optimistic state updates.
+- [Bug] Improved background reload job management in `HomeViewModel` to prevent redundant or out-of-order state updates.
+
+### Improved
+- [Testing] Added unit test verification for optimistic storage classification updates in `HomeViewModel`.
 
 ---
 

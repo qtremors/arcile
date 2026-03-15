@@ -19,8 +19,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 24
         targetSdk = 36
-        versionCode = 23
-        versionName = "0.3.9"
+        versionCode = 24
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -91,6 +91,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.splashscreen)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

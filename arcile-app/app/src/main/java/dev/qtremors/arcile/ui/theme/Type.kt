@@ -108,10 +108,34 @@ val Typography = Typography(
         letterSpacing = 0.5.sp
     ),
     labelSmall = TextStyle(
-
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp
     )
-)
+)
+
+// Semantic Typography Extensions
+val Typography.titleLargeBold: TextStyle
+    get() = titleLarge.copy(fontWeight = FontWeight.Bold)
+
+val Typography.titleMediumBold: TextStyle
+    get() = titleMedium.copy(fontWeight = FontWeight.Bold)
+
+val Typography.titleMediumSemiBold: TextStyle
+    get() = titleMedium.copy(fontWeight = FontWeight.SemiBold)
+
+val Typography.titleSmallSemiBold: TextStyle
+    get() = titleSmall.copy(fontWeight = FontWeight.SemiBold)
+
+val Typography.bodyLargeMedium: TextStyle
+    get() = bodyLarge.copy(fontWeight = FontWeight.Medium)
+
+val Typography.bodyMediumBold: TextStyle
+    get() = bodyMedium.copy(fontWeight = FontWeight.Bold)
+
+val Typography.bodyMediumMedium: TextStyle
+    get() = bodyMedium.copy(fontWeight = FontWeight.Medium)
+
+val Typography.bodySmallMedium: TextStyle
+    get() = bodySmall.copy(fontWeight = FontWeight.Medium)

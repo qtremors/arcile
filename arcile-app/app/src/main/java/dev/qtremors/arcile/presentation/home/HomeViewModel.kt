@@ -42,6 +42,7 @@ data class HomeState(
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = false,
     val isPullToRefreshing: Boolean = false,
+    val isCalculatingStorage: Boolean = false,
     val error: String? = null,
     val unclassifiedVolumes: List<StorageVolume> = emptyList(),
     val showClassificationPrompt: Boolean = false
@@ -64,6 +65,7 @@ class HomeViewModel @Inject constructor(
 
     private val recentsPreviewLimit = 50
     private var searchJob: Job? = null
+    private var refreshJob: Job? = null
     private val suppressedVolumeKeys = mutableSetOf<String>()
 
     init {
@@ -76,7 +78,8 @@ class HomeViewModel @Inject constructor(
     }
 
     fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL) {
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             val hasVisibleContent = _state.value.storageInfo != null ||
                 _state.value.categoryStorages.isNotEmpty() ||
                 _state.value.recentFiles.isNotEmpty()
@@ -85,6 +88,7 @@ class HomeViewModel @Inject constructor(
                 it.copy(
                     isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
                     isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
+                    isCalculatingStorage = true,
                     error = null
                 )
             }
@@ -122,6 +126,7 @@ class HomeViewModel @Inject constructor(
                 currentState.copy(
                     isLoading = false,
                     isPullToRefreshing = false,
+                    isCalculatingStorage = false,
                     allStorageVolumes = allStorageVolumes,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
                     storageInfo = storageInfo,
@@ -135,6 +140,15 @@ class HomeViewModel @Inject constructor(
     }
 
     fun setVolumeClassification(storageKey: String, kind: StorageKind) {
+        // Optimistic update: hide the prompt for this volume immediately
+        _state.update { currentState ->
+            val remaining = currentState.unclassifiedVolumes.filter { v -> v.storageKey != storageKey }
+            currentState.copy(
+                unclassifiedVolumes = remaining,
+                showClassificationPrompt = remaining.isNotEmpty()
+            )
+        }
+
         viewModelScope.launch {
             val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
             classificationRepo.setClassification(
@@ -144,6 +158,7 @@ class HomeViewModel @Inject constructor(
                 lastSeenPath = volume?.path
             )
             suppressedVolumeKeys.remove(storageKey)
+            // No need to manually reload; observeStorageVolumes will trigger it
         }
     }
 

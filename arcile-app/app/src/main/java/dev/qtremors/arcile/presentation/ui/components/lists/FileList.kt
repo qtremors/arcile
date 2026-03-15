@@ -36,8 +36,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.SimpleDateFormat
@@ -122,7 +120,7 @@ fun FileItemRow(
     val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else formatFileSize(file.size)}, Modified $formattedDate"
 
     Surface(
-        shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
+        shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
         color = animatedSurfaceColor,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
@@ -145,7 +143,7 @@ fun FileItemRow(
                         contentDescription = "Thumbnail",
                         modifier = Modifier
                             .size(40.dp)
-                            .clip(ExpressiveSquircleShape),
+                            .clip(MaterialTheme.shapes.extraLarge),
                         contentScale = ContentScale.Crop
                     )
                 } else {
