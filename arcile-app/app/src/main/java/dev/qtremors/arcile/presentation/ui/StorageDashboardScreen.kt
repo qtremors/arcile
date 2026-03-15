@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Description
@@ -47,6 +47,7 @@ import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.MultiColorStorageBar
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.domain.StorageVolume
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,13 +58,30 @@ fun StorageDashboardScreen(
     onCategoryClick: (String, String?) -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val allVolumes = state.allStorageVolumes
+    val selectedVolume = selectedVolumeId?.let { requestedId ->
+        allVolumes.firstOrNull { it.id == requestedId }
+    }
+    val isTemporarySelection = selectedVolume != null && !selectedVolume.kind.isIndexed
 
     val volumes = if (selectedVolumeId != null) {
-        state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
+        if (isTemporarySelection) {
+            emptyList()
+        } else {
+            state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
+        }
     } else {
         state.storageInfo?.volumes?.filter { it.kind.isIndexed }.orEmpty()
     }
-    val categoryStorages = selectedVolumeId?.let { state.categoryStoragesByVolume[it] } ?: state.categoryStorages
+    val categoryStorages = if (selectedVolumeId != null) {
+        if (isTemporarySelection) {
+            emptyList()
+        } else {
+            state.categoryStoragesByVolume[selectedVolumeId].orEmpty()
+        }
+    } else {
+        state.categoryStorages
+    }
     val totalBytes = volumes.sumOf { it.totalBytes }
     val freeBytes = volumes.sumOf { it.freeBytes }
     val hasTemporaryMountedVolumes = state.allStorageVolumes.any { !it.kind.isIndexed }
@@ -92,7 +110,7 @@ fun StorageDashboardScreen(
                 title = { Text("Storage Dashboard") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -105,6 +123,12 @@ fun StorageDashboardScreen(
                 .padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)
         ) {
+            if (isTemporarySelection) {
+                item {
+                    TemporaryDashboardUnavailableCard(requireNotNull(selectedVolume))
+                }
+            }
+
             if (selectedVolumeId == null && hasTemporaryMountedVolumes) {
                 item {
                     Surface(
@@ -212,6 +236,31 @@ fun StorageDashboardScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TemporaryDashboardUnavailableCard(volume: StorageVolume) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = ExpressiveSquircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = volume.name,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

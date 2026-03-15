@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.3.6-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.3.9-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
@@ -25,15 +25,14 @@
 
 | Feature | Description |
 |---------|-------------|
-| 📂 **File Browsing** | Navigate internal storage with sorted directory listings (folders first, alphabetical) |
+| 📂 **Multi-Volume Support** | Seamlessly manage Internal Storage, SD Cards, and USB OTG devices |
 | 🗂️ **Breadcrumb Navigation** | Visual path breadcrumbs with auto-scroll and tap-to-navigate |
-| ✅ **Multi-Select** | Long-press to select files, batch operations with contextual top bar |
-| 📁 **Create Folders** | Create new directories via FAB or overflow menu |
-| 🗑️ **Delete Files** | Delete selected files and directories (recursive) |
-| 🏠 **Home Dashboard** | Storage summary card, category shortcuts, folder quick-access, and recent files |
+| ✅ **Batch Operations** | Multi-select files for copy, cut, move, or permanent delete |
+| 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
+| 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
-| 🔧 **Tools Screen** | Planned utilities: FTP Server, Storage Analyzer, Junk Cleaner, and more |
-| ⚙️ **Settings** | Theme mode and accent color selector with bottom sheet pickers |
+| 🗑️ **Trash Subsystem** | Safely remove files with metadata-aware restoration |
+| ⚙️ **Settings & About** | Theme customization and comprehensive app information |
 
 ---
 
@@ -66,7 +65,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.6.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.9.apk
 ```
 
 ### Release Signing
@@ -117,42 +116,18 @@ arcile/
 │   │   ├── java/dev/qtremors/arcile/
 │   │   │   ├── ArcileApp.kt             # Application class (Coil image loader, Hilt app)
 │   │   │   ├── MainActivity.kt          # Entry point, permissions, nav shell
-│   │   │   ├── data/
-│   │   │   │   └── LocalFileRepository.kt
+│   │   │   ├── data/                    # Repository Implementations
 │   │   │   ├── di/                      # Dependency Injection (Hilt)
-│   │   │   │   └── RepositoryModule.kt
-│   │   │   ├── domain/
-│   │   │   │   ├── FileModel.kt
-│   │   │   │   ├── FileRepository.kt    # Repository interface
-│   │   │   │   ├── FileCategories.kt
-│   │   │   │   ├── SearchFilters.kt
-│   │   │   │   ├── StorageInfo.kt
-│   │   │   │   └── TrashMetadata.kt
+│   │   │   ├── domain/                  # Core Models & Repository Interfaces
 │   │   │   ├── image/                   # Coil custom fetchers
-│   │   │   │   ├── ApkIconFetcher.kt
-│   │   │   │   └── AudioAlbumArtFetcher.kt
-│   │   │   ├── navigation/
-│   │   │   │   └── AppRoutes.kt         # Route string constants
-│   │   │   ├── presentation/
-│   │   │   │   ├── browser/             # Browser feature ViewModel & state
-│   │   │   │   ├── home/                # Home feature ViewModel & state
-│   │   │   │   ├── recentfiles/         # Recent Files ViewModel & state
-│   │   │   │   ├── trash/               # Trash ViewModel & state
-│   │   │   │   ├── FilePresentation.kt
-│   │   │   │   ├── SearchFilters.kt
-│   │   │   │   └── ui/
-│   │   │   │       ├── ArcileAppShell.kt
-│   │   │   │       ├── HomeScreen.kt
-│   │   │   │       ├── FileManagerScreen.kt
-│   │   │   │       ├── RecentFilesScreen.kt
-│   │   │   │       ├── SettingsScreen.kt
-│   │   │   │       ├── StorageDashboardScreen.kt
-│   │   │   │       ├── ToolsScreen.kt
-│   │   │   │       ├── TrashScreen.kt
-│   │   │   │       └── components/      # Modular UI components
-│   │   │   │           ├── dialogs/     # Create, rename, paste conflicts
-│   │   │   │           ├── lists/       # Grids, lists, filter rows
-│   │   │   │           └── menus/       # Expandable FAB, top bar actions
+│   │   │   ├── navigation/              # Route string constants
+│   │   │   ├── presentation/            # Feature-Scoped ViewModels & UI
+│   │   │   │   ├── browser/
+│   │   │   │   ├── home/
+│   │   │   │   ├── recentfiles/
+│   │   │   │   ├── settings/
+│   │   │   │   ├── trash/
+│   │   │   │   └── ui/                  # Compose UI Screens & Components
 │   │   │   ├── ui/theme/                # Theme, colors, typography, shapes
 │   │   │   └── utils/                   # Formatting & color utilities
 │   │   └── res/                         # Android resources

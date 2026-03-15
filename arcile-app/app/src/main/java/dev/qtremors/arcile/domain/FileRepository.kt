@@ -206,11 +206,13 @@ interface FileRepository {
     suspend fun moveToTrash(paths: List<String>): Result<Unit>
 
     /**
-     * Restores trashed items identified by [trashIds] to their original paths.
+     * Restores trashed items identified by [trashIds] to their original paths, or to
+     * [destinationPath] if provided.
      *
      * @param trashIds List of [TrashMetadata.id] values identifying items to restore.
+     * @param destinationPath Optional absolute path of the target directory. If not provided, items are restored to their original paths.
      */
-    suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit>
+    suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String? = null): Result<Unit>
 
     /**
      * Permanently deletes all items currently in the trash.

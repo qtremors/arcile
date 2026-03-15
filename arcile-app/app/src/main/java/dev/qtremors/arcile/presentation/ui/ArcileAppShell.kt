@@ -94,6 +94,9 @@ fun ArcileAppShell(
                                 launchSingleTop = true
                             }
                         },
+                        onNavigateToAbout = {
+                            navController.navigate(AppRoutes.ABOUT)
+                        },
                         onNavigateToTrash = {
                             navController.navigate(AppRoutes.TRASH) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
@@ -202,7 +205,9 @@ fun ArcileAppShell(
                         onClearSelection = { viewModel.clearSelection() },
                         onRestoreSelected = { viewModel.restoreSelectedTrash() },
                         onEmptyTrash = { viewModel.emptyTrash() },
-                        onClearError = { viewModel.clearError() }
+                        onClearError = { viewModel.clearError() },
+                        onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
+                        onRestoreToDestination = { viewModel.restoreToDestination(it) }
                     )
                 }
                 composable(AppRoutes.RECENT_FILES + "?volumeId={volumeId}") {
@@ -232,7 +237,8 @@ fun ArcileAppShell(
                         currentThemeState = currentThemeState,
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
-                        onOpenStorageManagement = { navController.navigate(AppRoutes.STORAGE_MANAGEMENT) }
+                        onOpenStorageManagement = { navController.navigate(AppRoutes.STORAGE_MANAGEMENT) },
+                        onNavigateToAbout = { navController.navigate(AppRoutes.ABOUT) }
                     )
                 }
                 composable(AppRoutes.STORAGE_MANAGEMENT) {
@@ -243,6 +249,11 @@ fun ArcileAppShell(
                         onNavigateBack = { navController.popBackStack() },
                         onSetVolumeClassification = { storageKey, kind -> viewModel.setVolumeClassification(storageKey, kind) },
                         onResetVolumeClassification = { storageKey -> viewModel.resetVolumeClassification(storageKey) }
+                    )
+                }
+                composable(AppRoutes.ABOUT) {
+                    AboutScreen(
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
             }

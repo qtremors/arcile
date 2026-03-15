@@ -94,10 +94,18 @@ import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.domain.showTemporaryStorageBadge
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.Info
 
 /**
  * Dashboard screen shown when the app first launches.
@@ -112,6 +120,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
  * @param onCategoryClick Invoked with the category name when the user taps a category tile.
  * @param onSettingsClick Navigates to the Settings screen.
  * @param onNavigateToTools Navigates to the Tools screen.
+ * @param onNavigateToAbout Navigates to the About screen.
  * @param onNavigateToTrash Navigates to the Trash screen.
  * @param onNavigateToRecentFiles Navigates to the full Recent Files screen.
  * @param onOpenStorageDashboard Navigates to the Storage Dashboard screen.
@@ -119,14 +128,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
  * @param onSearchFiltersChange Propagates updated search filter selections to the ViewModel.
  * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.showTemporaryStorageBadge
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material.icons.filled.Usb
-import androidx.compose.material.icons.filled.Info
 
 @Composable
 fun StorageClassificationPrompt(
@@ -224,6 +225,7 @@ fun HomeScreen(
     onCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
     onNavigateToTools: () -> Unit,
+    onNavigateToAbout: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToRecentFiles: () -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
@@ -253,8 +255,6 @@ fun HomeScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    var showAboutDialog by remember { mutableStateOf(false) }
-
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -275,7 +275,7 @@ fun HomeScreen(
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.Settings -> onSettingsClick()
-                            TopBarAction.About -> showAboutDialog = true
+                            TopBarAction.About -> onNavigateToAbout()
                             else -> {}
                         }
                     }
@@ -488,28 +488,7 @@ fun HomeScreen(
         }
         }
         }
-
-        if (showAboutDialog) {
-        androidx.compose.material3.AlertDialog(
-        onDismissRequest = { showAboutDialog = false },
-        title = { Text("About Arcile") },
-        text = {
-            Column {
-                Text("Version: ${dev.qtremors.arcile.BuildConfig.VERSION_NAME}")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Developer: Tremors (@qtremors)")
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Repository: github.com/qtremors/arcile")
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { showAboutDialog = false }) {
-                Text("Close")
-            }
-        }
-        )
-        }
-        }
+}
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -529,7 +508,11 @@ fun StorageSummaryCard(
                     volume = volume,
                     categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
                     onClick = { onNavigateToPath(volume.path) },
-                    onLongClick = { onOpenStorageDashboard(volume.id) }
+                    onLongClick = {
+                        if (volume.kind.isIndexed) {
+                            onOpenStorageDashboard(volume.id)
+                        }
+                    }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }

@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -78,7 +78,7 @@ fun RecentFilesScreen(
                     title = { Text("${state.selectedFiles.size} selected") },
                     navigationIcon = {
                         IconButton(onClick = onClearSelection) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Clear Selection")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Clear Selection")
                         }
                     },
                     actions = {
@@ -101,7 +101,7 @@ fun RecentFilesScreen(
                     title = { Text("Recent Files (Past Week)") },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     },
                     scrollBehavior = scrollBehavior
@@ -226,6 +226,19 @@ fun RecentFilesScreen(
             dismissButton = {
                 TextButton(onClick = onDismissDeleteConfirmation) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (state.showMixedDeleteExplanation) {
+        AlertDialog(
+            onDismissRequest = onDismissDeleteConfirmation,
+            title = { Text("Mixed Selection Blocked") },
+            text = { Text("Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.") },
+            confirmButton = {
+                TextButton(onClick = onDismissDeleteConfirmation) {
+                    Text("OK")
                 }
             }
         )

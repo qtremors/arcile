@@ -18,14 +18,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Contrast
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.PhoneAndroid
-import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.*
@@ -34,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -54,11 +50,12 @@ import dev.qtremors.arcile.ui.theme.ThemeState
  *
  * Displays a theme mode selector (System / Light / Dark / OLED) and an accent color picker.
  * Theme state is persisted via [dev.qtremors.arcile.ui.theme.ThemePreferences] (DataStore).
- * Also includes an About section with app version, developer, repository, and device info.
+ * Also includes a link to the About page with app version, developer, privacy policy, and changelogs.
  *
  * @param currentThemeState Current [ThemeState] reflecting the active theme mode and accent color.
  * @param onNavigateBack Called when the user navigates back.
  * @param onThemeChange Called with the updated [ThemeState] whenever the user changes a setting.
+ * @param onNavigateToAbout Called when the user wants to navigate to the About page.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -66,10 +63,9 @@ fun SettingsScreen(
     currentThemeState: ThemeState,
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit,
-    onOpenStorageManagement: () -> Unit = {}
+    onOpenStorageManagement: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {}
 ) {
-    val uriHandler = LocalUriHandler.current
-
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -125,35 +121,13 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = "About") {
+                SettingsSection(title = "Info") {
                     ListItem(
-                        headlineContent = { Text("App Version") },
-                        supportingContent = { Text(dev.qtremors.arcile.BuildConfig.VERSION_NAME) },
+                        headlineContent = { Text("About") },
+                        supportingContent = { Text("App info, privacy policy, and changelogs") },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    ListItem(
-                        headlineContent = { Text("Developer") },
-                        supportingContent = { Text("Tremors (@qtremors)") },
-                        leadingContent = { Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors") }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    ListItem(
-                        headlineContent = { Text("Repository") },
-                        supportingContent = { Text("github.com/qtremors/arcile") },
-                        leadingContent = { Icon(Icons.Default.Source, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors/arcile") }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                    ListItem(
-                        headlineContent = { Text("Device") },
-                        supportingContent = { Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})") },
-                        leadingContent = { Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                        modifier = Modifier.padding(horizontal = 4.dp).clip(MaterialTheme.shapes.medium).clickable(onClick = onNavigateToAbout)
                     )
                 }
             }

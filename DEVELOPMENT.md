@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.3.6 | **Last Updated:** 2026-03-13
+**Version:** 0.3.8 | **Last Updated:** 2026-03-14
 **Scope:** Internal Development, Security, and Style Specification
 
 ---
@@ -62,15 +62,21 @@ arcile/
 │   │   │   │   ├── ArcileApp.kt            # Application class (Coil image loader, Hilt app)
 │   │   │   │   ├── MainActivity.kt         # Activity, permission flow, navigation shell
 │   │   │   │   ├── data/
-│   │   │   │   │   └── LocalFileRepository.kt   # Full file system implementation
+│   │   │   │   │   ├── BrowserPreferencesRepository.kt  # Repository for user browser preferences
+│   │   │   │   │   ├── LocalFileRepository.kt           # Full file system implementation
+│   │   │   │   │   └── StorageClassificationRepository.kt # Classifies storage volume types
 │   │   │   │   ├── di/
 │   │   │   │   │   └── RepositoryModule.kt # Dependency Injection modules
 │   │   │   │   ├── domain/
+│   │   │   │   │   ├── BrowserPreferences.kt # Model for view/sort preferences
+│   │   │   │   │   ├── ConflictModels.kt   # Conflict detection & resolution models
+│   │   │   │   │   ├── FileCategories.kt   # Category definitions & MIME mappings
 │   │   │   │   │   ├── FileModel.kt        # Core file data class
 │   │   │   │   │   ├── FileRepository.kt   # Repository interface (all operations)
-│   │   │   │   │   ├── FileCategories.kt   # Category definitions & MIME mappings
 │   │   │   │   │   ├── SearchFilters.kt    # Filter criteria for file search
+│   │   │   │   │   ├── StorageBrowserLocation.kt # Current location within browser
 │   │   │   │   │   ├── StorageInfo.kt      # Storage total/free byte model
+│   │   │   │   │   ├── StorageScope.kt     # Scoping mechanism for file operations
 │   │   │   │   │   └── TrashMetadata.kt    # Trash entry model (id, originalPath, time)
 │   │   │   │   ├── image/
 │   │   │   │   │   ├── ApkIconFetcher.kt   # Coil fetcher for APK file icons
@@ -81,16 +87,20 @@ arcile/
 │   │   │   │   │   ├── browser/            # Browser feature ViewModel & state
 │   │   │   │   │   ├── home/               # Home feature ViewModel & state
 │   │   │   │   │   ├── recentfiles/        # Recent Files ViewModel & state
+│   │   │   │   │   ├── settings/           # Settings feature ViewModel & state
 │   │   │   │   │   ├── trash/              # Trash ViewModel & state
+│   │   │   │   │   ├── ClipboardState.kt        # Copy/cut clipboard state management
 │   │   │   │   │   ├── FilePresentation.kt      # Presentation-layer file model
 │   │   │   │   │   ├── SearchFilters.kt         # Presentation search filter model
 │   │   │   │   │   └── ui/
+│   │   │   │   │       ├── AboutScreen.kt            # App info & credits screen
 │   │   │   │   │       ├── ArcileAppShell.kt         # Nav host + bottom bar shell
 │   │   │   │   │       ├── HomeScreen.kt             # Dashboard screen
 │   │   │   │   │       ├── FileManagerScreen.kt      # File browser screen
 │   │   │   │   │       ├── RecentFilesScreen.kt      # Recent files list screen
 │   │   │   │   │       ├── SettingsScreen.kt         # Theme/accent settings screen
 │   │   │   │   │       ├── StorageDashboardScreen.kt # Storage breakdown screen
+│   │   │   │   │       ├── StorageManagementScreen.kt # Volume management screen
 │   │   │   │   │       ├── ToolsScreen.kt            # Tools grid screen
 │   │   │   │   │       ├── TrashScreen.kt            # Trash management screen
 │   │   │   │   │       └── components/
@@ -211,8 +221,8 @@ fun ExpressiveLoading() {
 | `compileSdk` | 36 (minor API level 1) | `app/build.gradle.kts` |
 | `minSdk` | 24 | `app/build.gradle.kts` |
 | `targetSdk` | 36 | `app/build.gradle.kts` |
-| `versionCode` | 1 | `app/build.gradle.kts` |
-| `versionName` | `1.0` | `app/build.gradle.kts` |
+| `versionCode` | 22 | `app/build.gradle.kts` |
+| `versionName` | `0.3.8` | `app/build.gradle.kts` |
 
 ### Permissions
 
@@ -280,6 +290,19 @@ If you discover a security vulnerability, please open a private issue or contact
 
 The data access layer for all file system operations.
 
+**Storage Volume & Info operations:**
+
+| Method | Description |
+|--------|-------------|
+| `observeStorageVolumes()` | Emit real-time flow of available storage volumes |
+| `getStorageVolumes()` | Retrieve all mounted storage volumes |
+| `getVolumeForPath(path)` | Find the storage volume that contains the given path |
+| `getStorageInfo(scope)` | Get total/free bytes for a given StorageScope |
+| `getCategoryStorageSizes(scope)` | Per-category storage breakdown for a given scope via MediaStore |
+| `getRecentFiles(scope, limit, minTimestamp)` | Recent files within a given scope via MediaStore |
+| `getFilesByCategory(scope, categoryName)` | All files in a category within a given scope via MediaStore |
+| `searchFiles(query, scope, filters)` | Search with filters scoped to a volume or globally |
+
 **File operations:**
 
 | Method | Description |
@@ -288,15 +311,11 @@ The data access layer for all file system operations.
 | `createDirectory(parentPath, name)` | Create a new directory |
 | `createFile(parentPath, name)` | Create a new empty file |
 | `deleteFile(path)` | Delete a file or directory recursively |
+| `deletePermanently(paths)` | Permanently delete multiple paths |
 | `renameFile(path, newName)` | Rename a file |
-| `copyFiles(sourcePaths, destinationPath)` | Copy files to destination (overwrites) |
-| `moveFiles(sourcePaths, destinationPath)` | Move files (atomic rename or copy+delete) |
-| `getRootDirectory()` | Get external storage root |
-| `getRecentFiles(limit, minTimestamp)` | Recent files via MediaStore |
-| `getStorageInfo()` | Get total/free bytes via `StatFs` |
-| `getCategoryStorageSizes()` | Per-category storage breakdown via MediaStore |
-| `getFilesByCategory(categoryName)` | All files in a category via MediaStore |
-| `searchFiles(query, pathScope, filters)` | MediaStore + filesystem search with filters |
+| `detectCopyConflicts(sourcePaths, destinationPath)` | Detect and return conflicts before moving/copying |
+| `copyFiles(sourcePaths, destinationPath, resolutions)` | Copy files with advanced conflict resolution map |
+| `moveFiles(sourcePaths, destinationPath, resolutions)` | Move files with advanced conflict resolution map |
 
 **Trash subsystem:**
 
@@ -314,8 +333,8 @@ ViewModels manage state and logic tailored to specific application features, red
 | ViewModel | Responsibility |
 |-----------|----------------|
 | `BrowserViewModel` | Core file exploration logic, search, selection, and clipboard operations (copy, cut, paste, rename, trash). |
-| `HomeViewModel` | Dashboard state, including quick-access categories, recent file previews, and top-level storage overview. |
-| `RecentFilesViewModel` | Manages the full list of recently modified files, enabling direct actions and timeline sorting. |
+| `HomeViewModel` | Dashboard state, including quick-access categories, recent file previews, and scoped storage overview. |
+| `RecentFilesViewModel` | Manages the full list of recently modified files, scoped to volumes, enabling direct actions and timeline sorting. |
 | `TrashViewModel` | Dedicated logic for browsing the recycle bin, permanent deletion, and metadata-aware restoration. |
 
 ### Navigation
@@ -331,6 +350,8 @@ All route strings are centralised in `AppRoutes` in the `navigation/` package:
 | `TRASH` | `"trash"` |
 | `RECENT_FILES` | `"recent_files"` |
 | `STORAGE_DASHBOARD` | `"storage_dashboard"` |
+| `STORAGE_MANAGEMENT` | `"storage_management"` |
+| `ABOUT` | `"about"` |
 
 ### Image Loading
 
@@ -386,7 +407,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 
 | Category | Status |
 |----------|--------|
-| Unit tests | 🟡 Started (e.g., `FilePresentationTest.kt`) |
+| Unit tests | 🟡 Started (e.g., `FilePresentationTest.kt`, `StorageScopeViewModelTest.kt`) |
 | Integration tests | ❌ Not implemented |
 | UI / Compose tests | ❌ Not implemented |
 
@@ -400,7 +421,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 ./gradlew assembleDebug
 ```
 For standard builds:
-APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.6.apk`
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.8.apk`
 
 > **Note:** The output filename is controlled by the `androidComponents` block in `app/build.gradle.kts`, which uses `VariantOutputImpl` (an internal AGP API) to inject the app ID and version into the filename. This is a known anomaly — see [TASKS.md](TASKS.md) general anomalies section for details.
 
@@ -432,7 +453,6 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.6.apk`
 |---------------------|----------------------|-----------------|
 | `compileSdk` block syntax | Uses `release(36) { minorApiLevel = 1 }` instead of `compileSdk = 36` | Required for AGP 9.x structured SDK versioning |
 | `requestLegacyExternalStorage` in manifest | Deprecated attribute | Still needed for Android 10 (API 29) backward compatibility |
-| Single ViewModel for all screens | Unusual for multi-screen apps | Intentional MVP simplification; refactoring planned (see TASKS.md D) |
 | `VariantOutputImpl` cast in `androidComponents` | Internal AGP API | No stable public API for `outputFileName` exists yet in AGP 9.x — see TASKS.md anomalies |
 | `.arcile_trash/` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
 

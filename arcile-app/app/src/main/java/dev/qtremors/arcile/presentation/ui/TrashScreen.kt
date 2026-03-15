@@ -57,6 +57,8 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
 import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.isIndexed
+import androidx.compose.foundation.clickable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -71,7 +73,9 @@ fun TrashScreen(
     onClearSelection: () -> Unit,
     onRestoreSelected: () -> Unit,
     onEmptyTrash: () -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onDismissDestinationPicker: () -> Unit = {},
+    onRestoreToDestination: (String) -> Unit = {}
 ) {
     var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
 
@@ -119,7 +123,7 @@ fun TrashScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -197,6 +201,37 @@ fun TrashScreen(
             )
         }
 
+        if (state.showDestinationPicker) {
+            val indexedVolumes = state.availableVolumes.filter { it.kind.isIndexed }
+            AlertDialog(
+                onDismissRequest = onDismissDestinationPicker,
+                title = { Text("Select Restore Destination") },
+                text = {
+                    Column {
+                        Text("The original storage volume is unavailable. Where would you like to restore the file(s)?")
+                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                        LazyColumn {
+                            items(indexedVolumes) { volume ->
+                                ListItem(
+                                    headlineContent = { Text(volume.name) },
+                                    supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    modifier = Modifier.clickable {
+                                        onRestoreToDestination(volume.path)
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = onDismissDestinationPicker) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
         // Error shown via snackbar in parent Scaffold
     }
 }
@@ -240,8 +275,13 @@ private fun TrashList(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
+                            val sourceVolumeStr = when (trashItem.sourceStorageKind) {
+                                dev.qtremors.arcile.domain.StorageKind.INTERNAL -> "Internal Storage"
+                                dev.qtremors.arcile.domain.StorageKind.SD_CARD -> "SD Card"
+                                else -> "External Storage"
+                            }
                             Text(
-                                text = "From: ${trashItem.originalPath.substringBeforeLast("/")}/",
+                                text = "From $sourceVolumeStr: ${trashItem.originalPath.substringBeforeLast("/")}/",
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

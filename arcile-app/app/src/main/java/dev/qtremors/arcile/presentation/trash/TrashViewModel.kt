@@ -16,7 +16,9 @@ data class TrashState(
     val trashFiles: List<TrashMetadata> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val showDestinationPicker: Boolean = false,
+    val availableVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList()
 )
 
 @HiltViewModel
@@ -29,6 +31,11 @@ class TrashViewModel @Inject constructor(
 
     init {
         loadTrashFiles()
+        viewModelScope.launch {
+            repository.observeStorageVolumes().collect { volumes ->
+                _state.update { it.copy(availableVolumes = volumes) }
+            }
+        }
     }
 
     fun loadTrashFiles() {
@@ -65,6 +72,32 @@ class TrashViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             val result = repository.restoreFromTrash(selectedTrashIds)
+            result.onSuccess {
+                clearSelection()
+                loadTrashFiles()
+            }.onFailure { error ->
+                val msg = error.message ?: ""
+                if (msg.startsWith("DESTINATION_REQUIRED")) {
+                    _state.update { it.copy(isLoading = false, showDestinationPicker = true) }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = msg.ifEmpty { "Failed to restore files" }) }
+                    loadTrashFiles()
+                }
+            }
+        }
+    }
+
+    fun dismissDestinationPicker() {
+        _state.update { it.copy(showDestinationPicker = false) }
+    }
+
+    fun restoreToDestination(destinationPath: String) {
+        val selectedTrashIds = _state.value.selectedFiles.toList()
+        if (selectedTrashIds.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, showDestinationPicker = false) }
+            val result = repository.restoreFromTrash(selectedTrashIds, destinationPath)
             result.onSuccess {
                 clearSelection()
                 loadTrashFiles()

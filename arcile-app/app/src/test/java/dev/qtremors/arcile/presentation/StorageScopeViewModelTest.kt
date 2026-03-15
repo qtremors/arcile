@@ -17,6 +17,7 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +33,8 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -110,11 +113,55 @@ class StorageScopeViewModelTest {
         assertEquals(1, viewModel.state.value.recentFiles.size)
     }
 
+    @Test
+    fun `home view model persists last seen metadata for unindexed removable volume classification`() = runTest(dispatcher) {
+        val otg = volume(
+            id = "otg",
+            name = "USB Drive",
+            path = "/storage/ABCD-1234",
+            removable = true,
+            kind = StorageKind.EXTERNAL_UNCLASSIFIED
+        )
+        val store = RecordingStorageClassificationStore()
+        val repository = FakeFileRepository(volumes = listOf(otg))
+
+        val viewModel = HomeViewModel(repository, store)
+        advanceUntilIdle()
+
+        viewModel.setVolumeClassification(otg.storageKey, StorageKind.OTG)
+        advanceUntilIdle()
+
+        assertEquals(otg.storageKey, store.lastStorageKey)
+        assertEquals(StorageKind.OTG, store.lastKind)
+        assertEquals("USB Drive", store.lastSeenName)
+        assertEquals("/storage/ABCD-1234", store.lastSeenPath)
+    }
+
+    @Test
+    fun `trash view model shows destination picker when restore needs alternate volume`() = runTest(dispatcher) {
+        val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
+        val repository = FakeFileRepository(
+            volumes = listOf(internal),
+            restoreFromTrashResult = Result.failure(Exception("DESTINATION_REQUIRED:trash-1"))
+        )
+        val viewModel = TrashViewModel(repository)
+
+        advanceUntilIdle()
+        viewModel.toggleSelection("trash-1")
+        viewModel.restoreSelectedTrash()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.showDestinationPicker)
+        assertNull(viewModel.state.value.error)
+        assertFalse(viewModel.state.value.isLoading)
+    }
+
     private fun volume(
         id: String,
         name: String,
         path: String,
-        removable: Boolean = false
+        removable: Boolean = false,
+        kind: StorageKind = if (removable) StorageKind.EXTERNAL_UNCLASSIFIED else StorageKind.INTERNAL
     ) = StorageVolume(
         id = id,
         storageKey = id,
@@ -124,7 +171,9 @@ class StorageScopeViewModelTest {
         freeBytes = 40L,
         isPrimary = !removable,
         isRemovable = removable,
-        mountState = StorageMountState.MOUNTED
+        mountState = StorageMountState.MOUNTED,
+        kind = kind,
+        isUserClassified = removable
     )
 
     private fun file(name: String, path: String) = FileModel(
@@ -141,7 +190,8 @@ class StorageScopeViewModelTest {
 private class FakeFileRepository(
     volumes: List<StorageVolume> = emptyList(),
     private val recentFilesByScope: Map<StorageScope, List<FileModel>> = emptyMap(),
-    private val categorySizesByScope: Map<StorageScope, List<CategoryStorage>> = emptyMap()
+    private val categorySizesByScope: Map<StorageScope, List<CategoryStorage>> = emptyMap(),
+    private val restoreFromTrashResult: Result<Unit> = Result.success(Unit)
 ) : FileRepository {
 
     private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
@@ -209,7 +259,7 @@ private class FakeFileRepository(
 
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = Result.success(Unit)
 
-    override suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit> = Result.success(Unit)
+    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = restoreFromTrashResult
 
     override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
 
@@ -228,6 +278,32 @@ private class FakeStorageClassificationStore : StorageClassificationStore {
         lastSeenName: String?,
         lastSeenPath: String?
     ) = Unit
+
+    override suspend fun resetClassification(storageKey: String) = Unit
+}
+
+private class RecordingStorageClassificationStore : StorageClassificationStore {
+    var lastStorageKey: String? = null
+    var lastKind: StorageKind? = null
+    var lastSeenName: String? = null
+    var lastSeenPath: String? = null
+
+    override fun observeClassifications(): Flow<Map<String, StorageClassification>> =
+        MutableStateFlow<Map<String, StorageClassification>>(emptyMap()).asStateFlow()
+
+    override suspend fun getClassification(storageKey: String): StorageClassification? = null
+
+    override suspend fun setClassification(
+        storageKey: String,
+        kind: StorageKind,
+        lastSeenName: String?,
+        lastSeenPath: String?
+    ) {
+        lastStorageKey = storageKey
+        lastKind = kind
+        this.lastSeenName = lastSeenName
+        this.lastSeenPath = lastSeenPath
+    }
 
     override suspend fun resetClassification(storageKey: String) = Unit
 }

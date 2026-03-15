@@ -55,7 +55,8 @@ data class BrowserState(
     val showConflictDialog: Boolean = false,
     val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
     val showTrashConfirmation: Boolean = false,
-    val showPermanentDeleteConfirmation: Boolean = false
+    val showPermanentDeleteConfirmation: Boolean = false,
+    val showMixedDeleteExplanation: Boolean = false
 )
 
 @HiltViewModel
@@ -488,33 +489,24 @@ class BrowserViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true) }
             
-            var supportsTrashCount = 0
-            var permanentDeleteCount = 0
+            val policyResult = dev.qtremors.arcile.domain.evaluateDeletePolicy(selectedFiles, repository)
 
-            for (path in selectedFiles) {
-                val volume = repository.getVolumeForPath(path).getOrNull()
-                if (volume != null && volume.kind.supportsTrash) {
-                    supportsTrashCount++
-                } else {
-                    permanentDeleteCount++
+            when (policyResult) {
+                is dev.qtremors.arcile.domain.DeletePolicyResult.MixedSelection -> {
+                    _state.update { it.copy(isLoading = false, showMixedDeleteExplanation = true) }
                 }
-            }
-
-            if (supportsTrashCount > 0 && permanentDeleteCount > 0) {
-                _state.update { it.copy(isLoading = false, error = "Mixed selection: Please delete permanent-storage and temporary-storage items separately.") }
-                return@launch
-            }
-
-            if (permanentDeleteCount > 0) {
-                _state.update { it.copy(isLoading = false, showPermanentDeleteConfirmation = true) }
-            } else {
-                _state.update { it.copy(isLoading = false, showTrashConfirmation = true) }
+                is dev.qtremors.arcile.domain.DeletePolicyResult.PermanentDelete -> {
+                    _state.update { it.copy(isLoading = false, showPermanentDeleteConfirmation = true) }
+                }
+                is dev.qtremors.arcile.domain.DeletePolicyResult.Trash -> {
+                    _state.update { it.copy(isLoading = false, showTrashConfirmation = true) }
+                }
             }
         }
     }
 
     fun dismissDeleteConfirmation() {
-        _state.update { it.copy(showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
+        _state.update { it.copy(showTrashConfirmation = false, showPermanentDeleteConfirmation = false, showMixedDeleteExplanation = false) }
     }
 
     fun moveSelectedToTrash() {

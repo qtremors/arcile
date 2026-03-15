@@ -12,4 +12,5 @@ object AppRoutes {
     const val RECENT_FILES = "recent_files"
     const val STORAGE_DASHBOARD = "storage_dashboard"
     const val STORAGE_MANAGEMENT = "storage_management"
+    const val ABOUT = "about"
 }

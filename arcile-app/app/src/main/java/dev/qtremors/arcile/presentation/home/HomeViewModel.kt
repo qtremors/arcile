@@ -136,7 +136,7 @@ class HomeViewModel @Inject constructor(
 
     fun setVolumeClassification(storageKey: String, kind: StorageKind) {
         viewModelScope.launch {
-            val volume = _state.value.storageInfo?.volumes?.firstOrNull { it.storageKey == storageKey }
+            val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
             classificationRepo.setClassification(
                 storageKey = storageKey,
                 kind = kind,

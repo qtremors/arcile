@@ -35,6 +35,71 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 
+internal fun mergeStorageClassifications(
+    volumes: List<StorageVolume>,
+    classifications: Map<String, StorageClassification>
+): List<StorageVolume> {
+    return volumes.map { vol ->
+        val classification = classifications[vol.storageKey]
+            ?: classifications["path:${vol.path.lowercase(Locale.US)}"]
+            ?: classifications[vol.path]
+        if (classification != null) {
+            vol.copy(kind = classification.assignedKind, isUserClassified = true)
+        } else {
+            vol.copy(
+                kind = if (vol.isPrimary) dev.qtremors.arcile.domain.StorageKind.INTERNAL else dev.qtremors.arcile.domain.StorageKind.EXTERNAL_UNCLASSIFIED,
+                isUserClassified = false
+            )
+        }
+    }
+}
+
+internal fun browsableVolumes(volumes: List<StorageVolume>): List<StorageVolume> = volumes
+
+internal fun indexedVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
+    volumes.filter { it.kind.isIndexed }
+
+internal fun scopedVolumes(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
+    when (scope) {
+        StorageScope.AllStorage -> volumes
+        is StorageScope.Volume -> volumes.filter { it.id == scope.volumeId }
+        is StorageScope.Path -> volumes.filter { it.id == scope.volumeId }
+        is StorageScope.Category -> volumes.filter { it.id == scope.volumeId }
+    }
+
+internal fun indexedVolumesForScope(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
+    scopedVolumes(scope, indexedVolumes(volumes))
+
+internal fun trashEnabledVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
+    volumes.filter { it.kind.supportsTrash }
+
+internal fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVolume? {
+    val canonicalPath = runCatching { File(path).canonicalPath }.getOrElse { return null }
+    return volumes
+        .sortedByDescending { it.path.length }
+        .firstOrNull { canonicalPath == it.path || canonicalPath.startsWith(it.path + File.separator) }
+}
+
+internal fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
+    val canonicalPath = runCatching { File(path).canonicalPath }.getOrNull() ?: return false
+    return when (scope) {
+        StorageScope.AllStorage -> resolveVolumeForPath(canonicalPath, volumes) != null
+        is StorageScope.Volume -> {
+            val volume = volumes.find { it.id == scope.volumeId } ?: return false
+            canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+        }
+        is StorageScope.Path -> {
+            val volume = volumes.find { it.id == scope.volumeId } ?: return false
+            (canonicalPath == scope.absolutePath || canonicalPath.startsWith(scope.absolutePath + File.separator)) &&
+                (canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator))
+        }
+        is StorageScope.Category -> {
+            val volume = volumes.find { it.id == scope.volumeId } ?: return false
+            canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+        }
+    }
+}
+
 class LocalFileRepository(
     private val context: Context,
     private val classificationRepo: StorageClassificationRepository
@@ -106,7 +171,7 @@ class LocalFileRepository(
 
         addVolume(primaryPath, storageManager.getStorageVolume(File(primaryPath)))
 
-        ContextCompat.getExternalFilesDirs(appContext, null).forEach { file ->
+        appContext.getExternalFilesDirs(null).forEach { file ->
             if (file == null) return@forEach
             val path = file.absolutePath
             val androidIndex = path.indexOf("/Android/data/")
@@ -122,7 +187,7 @@ class LocalFileRepository(
         return volumes
     }
 
-    private fun mergeClassifications(
+    internal fun mergeClassifications(
         volumes: List<StorageVolume>,
         classifications: Map<String, StorageClassification>
     ): List<StorageVolume> {
@@ -264,6 +329,11 @@ class LocalFileRepository(
         )
     }
 
+    private fun scanMediaFiles(vararg paths: String) {
+        if (paths.isEmpty()) return
+        android.media.MediaScannerConnection.scanFile(appContext, paths, null, null)
+    }
+
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = withContext(Dispatchers.IO) {
         try {
             val volumes = discoverPlatformVolumes()
@@ -322,6 +392,7 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
             }
             if (newDir.mkdirs()) {
+                scanMediaFiles(newDir.absolutePath)
                 Result.success(newDir.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create directory"))
@@ -341,6 +412,7 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
             }
             if (newFile.createNewFile()) {
+                scanMediaFiles(newFile.absolutePath)
                 Result.success(newFile.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create file"))
@@ -361,6 +433,7 @@ class LocalFileRepository(
 
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
+            val scannedPaths = mutableListOf<String>()
             for (path in paths) {
                 val file = File(path)
                 validatePath(file).onFailure { return@withContext Result.failure(it) }
@@ -371,7 +444,9 @@ class LocalFileRepository(
                 if (!success) {
                     return@withContext Result.failure(Exception("Failed to permanently delete file: ${file.name}"))
                 }
+                scannedPaths.add(path)
             }
+            scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -397,6 +472,7 @@ class LocalFileRepository(
              }
              
              if (file.renameTo(newFile)) {
+                 scanMediaFiles(file.absolutePath, newFile.absolutePath)
                  Result.success(newFile.toFileModel())
              } else {
                  Result.failure(Exception("Failed to rename file"))
@@ -771,6 +847,7 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
             }
 
+            val scannedPaths = mutableListOf<String>()
             for (path in sourcePaths) {
                 val sourceFile = File(path)
                 validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
@@ -820,7 +897,9 @@ class LocalFileRepository(
                 } else {
                     sourceFile.copyTo(targetFile, overwrite = overwrite)
                 }
+                scannedPaths.add(targetFile.absolutePath)
             }
+            scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -840,6 +919,7 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
             }
 
+            val scannedPaths = mutableListOf<String>()
             for (path in sourcePaths) {
                 val sourceFile = File(path)
                 validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
@@ -900,7 +980,10 @@ class LocalFileRepository(
                         return@withContext Result.failure(e)
                     }
                 }
+                scannedPaths.add(sourceFile.absolutePath)
+                scannedPaths.add(targetFile.absolutePath)
             }
+            scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -938,6 +1021,7 @@ class LocalFileRepository(
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val volumes = currentVolumes()
+            val scannedPaths = mutableListOf<String>()
 
             for (path in paths) {
                 val file = File(path)
@@ -986,16 +1070,19 @@ class LocalFileRepository(
                         file.delete()
                     }
                 }
+                scannedPaths.add(file.absolutePath)
             }
+            scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    override suspend fun restoreFromTrash(trashIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val volumes = currentVolumes()
+            val scannedPaths = mutableListOf<String>()
             
             for (id in trashIds) {
                 // Find which volume holds this trashId
@@ -1021,37 +1108,52 @@ class LocalFileRepository(
                 val json = JSONObject(metadataFile.readText())
                 val originalPath = json.getString("originalPath")
                 
-                var originalFile = File(originalPath)
-                validatePath(originalFile).onFailure { continue } // Skip invalid restores
+                val originalFileContext = File(originalPath)
+                var targetFile = if (destinationPath != null) {
+                    File(destinationPath, originalFileContext.name)
+                } else {
+                    originalFileContext
+                }
+
+                if (destinationPath == null) {
+                    val validationResult = validatePath(targetFile)
+                    if (validationResult.isFailure) {
+                        return@withContext Result.failure(Exception("DESTINATION_REQUIRED:$id"))
+                    }
+                } else {
+                    validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
+                }
 
                 // Non-destructive restore: if the target already exists, use a conflict name
-                if (originalFile.exists()) {
+                if (targetFile.exists()) {
                     val timestamp = System.currentTimeMillis()
-                    val conflictName = "${originalFile.nameWithoutExtension}.restore-conflict-$timestamp" +
-                        (if (originalFile.extension.isNotEmpty()) ".${originalFile.extension}" else "")
-                    originalFile = File(originalFile.parentFile, conflictName)
+                    val conflictName = "${targetFile.nameWithoutExtension}.restore-conflict-$timestamp" +
+                        (if (targetFile.extension.isNotEmpty()) ".${targetFile.extension}" else "")
+                    targetFile = File(targetFile.parentFile, conflictName)
                 }
 
                 // Ensure target parent directory exists
-                originalFile.parentFile?.mkdirs()
+                targetFile.parentFile?.mkdirs()
 
                 // Restore
-                val success = trashedFile.renameTo(originalFile)
+                val success = trashedFile.renameTo(targetFile)
                 if (!success) {
                     if (trashedFile.isDirectory) {
-                        trashedFile.copyRecursively(originalFile, overwrite = true)
+                        trashedFile.copyRecursively(targetFile, overwrite = true)
                         trashedFile.deleteRecursively()
                     } else {
-                        trashedFile.copyTo(originalFile, overwrite = true)
+                        trashedFile.copyTo(targetFile, overwrite = true)
                         trashedFile.delete()
                     }
                 }
 
                 // Clean up metadata only once the file was actually created by this restore
-                if (originalFile.exists()) {
+                if (targetFile.exists()) {
                     metadataFile.delete()
+                    scannedPaths.add(targetFile.absolutePath)
                 }
             }
+            scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

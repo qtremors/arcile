@@ -514,6 +514,12 @@ fun FileManagerScreen(
                                     )
                                 }
                             }
+                        } else if (state.isVolumeRootScreen) {
+                            dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
+                                volumes = state.storageVolumes,
+                                onNavigateTo = onNavigateTo,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         } else if (state.isGridView && !state.isVolumeRootScreen) {
                             FileGrid(
                                 files = displayedFiles,
@@ -603,6 +609,19 @@ fun FileManagerScreen(
                 dismissButton = {
                     TextButton(onClick = onDismissDeleteConfirmation) {
                         Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (state.showMixedDeleteExplanation) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = onDismissDeleteConfirmation,
+                title = { Text("Mixed Selection Blocked") },
+                text = { Text("Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.") },
+                confirmButton = {
+                    TextButton(onClick = onDismissDeleteConfirmation) {
+                        Text("OK")
                     }
                 }
             )

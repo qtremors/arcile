@@ -1,8 +1,35 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.8
-> **Last Updated:** 2026-03-14
+> **Version:** 0.3.9
+> **Last Updated:** 2026-03-15
+
+---
+
+## [0.3.9] - 2026-03-15
+
+### Added
+- [Feature] Full SD-card-vs-OTG storage classification workflow, including removable-volume prompting, persistent classification overrides, and Settings-based storage management.
+- [Feature] Per-volume trash support for internal storage and SD cards using dedicated `.arcile/.trash` and `.arcile/.metadata` roots on each permanent volume.
+- [Feature] Explicit restore destination fallback when a trashed item's original permanent volume is unavailable.
+- [Feature] Refreshed About screen with a more complete and polished product overview.
+
+### Changed
+- [Architecture] Consolidated external storage behavior around `StorageKind` and policy-driven filtering instead of inferring behavior from raw removability.
+- [Architecture] Unified browser, recents, categories, dashboard, search, and trash around indexed-vs-browsable volume policy helpers in `LocalFileRepository`.
+- [Behavior] SD cards now behave as first-class permanent storage across indexed surfaces, while OTG and unclassified removable storage remain browsable-only and permanently deleted.
+- [Behavior] Release readiness for SD-card secondary-storage use is now backed by targeted fixes and updated unit coverage.
+
+### Fixed
+- [Bug] Temporary storage no longer leaks into indexed dashboard flows or opens misleading per-volume dashboard states.
+- [Bug] First-time classification of newly detected removable storage now persists `lastSeenName` and `lastSeenPath` correctly.
+- [Bug] Delete flows now consistently split trash-enabled permanent storage from permanent-delete-only temporary storage across Browser and Recent Files.
+- [Bug] Global search, categories, dashboard totals, and recent files now consistently exclude OTG and unclassified removable volumes while keeping path browsing/search available.
+- [Bug] Trash restore fallback now exposes a destination picker instead of failing silently when the original permanent volume is unavailable.
+
+### Improved
+- [UX] Browser root lists, Home cards, and in-browser messaging now better communicate whether a volume is an SD card, temporary USB storage, or unclassified external storage.
+- [Testing] Added focused test coverage for delete-policy behavior, first-time removable classification persistence, and restore-destination fallback, with `./gradlew testDebugUnitTest` passing for the release state.
 
 ---
 

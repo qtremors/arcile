@@ -2,18 +2,22 @@ package dev.qtremors.arcile.presentation.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -112,7 +116,7 @@ fun ArcileTopBar(
                     }
                     if (showSortAction) {
                         IconButton(onClick = onSortClick) {
-                            Icon(Icons.Default.Sort, contentDescription = "Sort")
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
                         }
                     }
                     if (showSettingsIcon) {
@@ -131,6 +135,7 @@ fun ArcileTopBar(
                     if (showNewFolderAction) {
                         DropdownMenuItem(
                             text = { Text("New Folder") },
+                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
                             onClick = {
                                 showMenu = false
                                 onActionSelected(TopBarAction.NewFolder)
@@ -140,6 +145,7 @@ fun ArcileTopBar(
                     if (showSettingsMenuAction) {
                         DropdownMenuItem(
                             text = { Text("Settings") },
+                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                             onClick = {
                                 showMenu = false
                                 onActionSelected(TopBarAction.Settings)
@@ -149,6 +155,7 @@ fun ArcileTopBar(
                     if (showAboutAction) {
                         DropdownMenuItem(
                             text = { Text("About") },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                             onClick = {
                                 showMenu = false
                                 onActionSelected(TopBarAction.About)
@@ -158,6 +165,12 @@ fun ArcileTopBar(
                     if (showGridViewAction) {
                         DropdownMenuItem(
                             text = { Text(if (isGridView) "List View" else "Grid View") },
+                            leadingIcon = {
+                                Icon(
+                                    if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                                    contentDescription = null
+                                )
+                            },
                             onClick = {
                                 showMenu = false
                                 onActionSelected(TopBarAction.GridView)
@@ -197,7 +210,7 @@ fun ArcileTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.largeTopAppBarColors(
+        colors = TopAppBarDefaults.topAppBarColors(
             containerColor = containerColor,
             scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
             titleContentColor = MaterialTheme.colorScheme.onSurface
