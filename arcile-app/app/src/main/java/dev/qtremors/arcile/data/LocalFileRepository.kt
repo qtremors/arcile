@@ -504,7 +504,7 @@ class LocalFileRepository(
                 MediaStore.Files.FileColumns.MIME_TYPE
             )
 
-            val sortOrder = "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
+            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
             val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
             val selection = if (minTimestamp > 0) "$baseSelection AND (${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)" else baseSelection
             val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString(), (minTimestamp / 1000).toString()) else null
@@ -788,6 +788,24 @@ class LocalFileRepository(
                             existingFile = targetFile.toFileModel()
                         )
                     )
+                    
+                    if (sourceFile.isDirectory && targetFile.isDirectory) {
+                        sourceFile.walkTopDown().forEach { descendant ->
+                            if (descendant.absolutePath != sourceFile.absolutePath) {
+                                val relativePath = descendant.relativeTo(sourceFile).path
+                                val targetDescendant = File(targetFile, relativePath)
+                                if (targetDescendant.exists()) {
+                                    conflicts.add(
+                                        FileConflict(
+                                            sourcePath = descendant.absolutePath,
+                                            sourceFile = descendant.toFileModel(),
+                                            existingFile = targetDescendant.toFileModel()
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Result.success(conflicts)
@@ -952,7 +970,9 @@ class LocalFileRepository(
                             // Delete the existing file/folder before moving
                             if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
                         }
-                        null -> { /* no resolution — attempt move, may fail if target exists */ }
+                        null -> {
+                            return@withContext Result.failure(Exception("Move conflict: no resolution for existing target"))
+                        }
                     }
                 }
 
@@ -1222,7 +1242,7 @@ class LocalFileRepository(
                                     list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
                                 } else {
                                     // Orphaned metadata
-                                    android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for file $originalPath")
+                                    android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for id: $id")
                                     metadataFile.delete() 
 
                                 }

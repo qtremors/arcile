@@ -10,7 +10,7 @@
 
 <p align="center">
 <img src="https://img.shields.io/badge/Version-0.4.0-blueviolet" alt="Version">
-  <img src="https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin" alt="Kotlin">
+  <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
@@ -96,7 +96,7 @@ Release builds are signed using credentials stored in `local.properties` (not co
 
 | Layer | Technology |
 |-------|------------|
-| **Language** | Kotlin 2.2 |
+| **Language** | Kotlin 2.2.10 |
 | **UI Framework** | Jetpack Compose with Material 3 |
 | **Architecture** | MVVM (Feature-Scoped ViewModels + StateFlow) with Hilt DI |
 | **Navigation** | Navigation Compose |
@@ -152,7 +152,7 @@ arcile/
 ./gradlew connectedAndroidTest
 ```
 
-> **Note:** Test infrastructure is currently minimal — see [TASKS.md](TASKS.md) section H4.
+> **Note:** Test infrastructure is currently minimal — see [TASKS.md](TASKS.md) section 4.
 
 ---
 

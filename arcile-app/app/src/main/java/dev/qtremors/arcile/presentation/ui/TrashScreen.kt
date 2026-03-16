@@ -190,33 +190,46 @@ fun TrashScreen(
 
         if (state.showDestinationPicker) {
             val indexedVolumes = state.availableVolumes.filter { it.kind.isIndexed }
-            AlertDialog(
-                onDismissRequest = onDismissDestinationPicker,
-                title = { Text("Select Restore Destination") },
-                text = {
-                    Column {
-                        Text("The original storage volume is unavailable. Where would you like to restore the file(s)?")
-                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
-                        LazyColumn {
-                            items(indexedVolumes) { volume ->
-                                ListItem(
-                                    headlineContent = { Text(volume.name) },
-                                    supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                    modifier = Modifier.clickable {
-                                        onRestoreToDestination(volume.path)
-                                    },
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                                )
-                            }
+            if (indexedVolumes.isEmpty()) {
+                AlertDialog(
+                    onDismissRequest = onDismissDestinationPicker,
+                    title = { Text("No Restore Destination") },
+                    text = { Text("There are no indexed volumes available to restore the files to. Please check your storage management settings.") },
+                    confirmButton = {
+                        TextButton(onClick = onDismissDestinationPicker) {
+                            Text("Dismiss")
                         }
                     }
-                },
-                confirmButton = {
-                    TextButton(onClick = onDismissDestinationPicker) {
-                        Text("Cancel")
+                )
+            } else {
+                AlertDialog(
+                    onDismissRequest = onDismissDestinationPicker,
+                    title = { Text("Select Restore Destination") },
+                    text = {
+                        Column {
+                            Text("The original storage volume is unavailable. Where would you like to restore the file(s)?")
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                            LazyColumn {
+                                items(indexedVolumes) { volume ->
+                                    ListItem(
+                                        headlineContent = { Text(volume.name) },
+                                        supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                        modifier = Modifier.clickable {
+                                            onRestoreToDestination(volume.path)
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = onDismissDestinationPicker) {
+                            Text("Cancel")
+                        }
                     }
-                }
-            )
+                )
+            }
         }
 
         // Error shown via snackbar in parent Scaffold

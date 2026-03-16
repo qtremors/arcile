@@ -5,13 +5,18 @@ sealed class DeletePolicyResult {
     data object PermanentDelete : DeletePolicyResult()
     data object Trash : DeletePolicyResult()
 }
-
 suspend fun evaluateDeletePolicy(paths: List<String>, repository: FileRepository): DeletePolicyResult {
     var supportsTrashCount = 0
     var permanentDeleteCount = 0
+    var errorCount = 0
 
     for (path in paths) {
-        val volume = repository.getVolumeForPath(path).getOrNull()
+        val result = repository.getVolumeForPath(path)
+        if (result.isFailure) {
+            errorCount++
+            continue
+        }
+        val volume = result.getOrNull()
         if (volume != null && volume.kind.supportsTrash) {
             supportsTrashCount++
         } else {
@@ -20,8 +25,10 @@ suspend fun evaluateDeletePolicy(paths: List<String>, repository: FileRepository
     }
 
     return when {
+        errorCount > 0 -> DeletePolicyResult.MixedSelection
         supportsTrashCount > 0 && permanentDeleteCount > 0 -> DeletePolicyResult.MixedSelection
         permanentDeleteCount > 0 -> DeletePolicyResult.PermanentDelete
-        else -> DeletePolicyResult.Trash
+        supportsTrashCount > 0 -> DeletePolicyResult.Trash
+        else -> DeletePolicyResult.PermanentDelete
     }
 }

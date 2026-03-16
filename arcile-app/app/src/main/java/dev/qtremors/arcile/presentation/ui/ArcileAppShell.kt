@@ -36,6 +36,8 @@ import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.ui.theme.ThemeState
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -47,6 +49,7 @@ fun ArcileAppShell(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
+    val context = LocalContext.current
 
     androidx.compose.animation.SharedTransitionLayout {
         Scaffold(
@@ -185,7 +188,7 @@ fun ArcileAppShell(
                         onCutSelected = { viewModel.cutSelectedToClipboard() },
                         onPasteFromClipboard = { viewModel.pasteFromClipboard() },
                         onCancelClipboard = { viewModel.cancelClipboard() },
-                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
+                        onShareSelected = { viewModel.shareSelectedFiles(context) },
                         isRefreshing = state.isPullToRefreshing,
                         onRefresh = { viewModel.refresh(pullToRefresh = true) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
@@ -223,7 +226,7 @@ fun ArcileAppShell(
                         onConfirmTrash = { viewModel.moveSelectedToTrash() },
                         onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
                         onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
-                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
+                        onShareSelected = { viewModel.shareSelectedFiles(context) },
                         onRefresh = { viewModel.loadRecentFiles() }
                     )
                 }

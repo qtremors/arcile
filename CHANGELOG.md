@@ -47,6 +47,21 @@
 - [Bug] Resolved OTG classification prompt getting stuck after user interaction via synchronous optimistic state updates.
 - [Bug] Improved background reload job management in `HomeViewModel` to prevent redundant or out-of-order state updates.
 
+### Hotfixes (Beta Release Blockers)
+- [Security] **Data Privacy:** Fixed sensitive file paths being written to system logs during orphaned metadata deletion in `LocalFileRepository`.
+- [Bug] **Recent Files Accuracy:** Fixed a query sorting bug where older files modified recently were pushed off the Recents list.
+- [Bug] **DataStore Crash Prevention:** Handled read errors in `BrowserPreferencesRepository` using a `.catch` operator to emit a safe fallback.
+- [Bug] **JSON Parsing Safety:** Fixed swallowed parsing exceptions in `StorageClassificationRepository` to log and safely drop corrupted data.
+- [Bug] **Error Surfacing:** Repository failures in `HomeViewModel` are properly propagated to the UI state rather than silently ignored.
+- [Bug] **Trash State Reliability:** Preserved transient UI states (selected files and errors) when `TrashViewModel` initiates a load instead of wiping them.
+- [Build] **KSP Alignment:** Resolved Kotlin Symbol Processing plugin mapping mismatch, successfully matching version `2.2.10-2.0.2` for build stability.
+- [Bug] **Smart Paste Overwrite Safety:** Added a fail-fast mechanism to prevent `LocalFileRepository` from silently deleting pre-existing target files when an explicit conflict resolution is missing.
+- [Bug] **Deep Directory Conflict Scans:** Upgraded `detectCopyConflicts` to intelligently recurse through directory trees, flagging nested file collisions instead of only checking the top-level folder names.
+- [Bug] **State Persistence:** Fixed an initialization gap where restored UI states (path, volume, category) from process death were loaded from state but not explicitly written back to the ViewModel state, leaving the explorer uninitialized.
+- [Bug] **Delete Policy Fallbacks:** Modified the `evaluateDeletePolicy` engine to inspect volume lookup failures directly and default to safe mixed-deletion states, rather than implicitly assuming no-volume and permanently deleting files.
+- [Bug] **Trash Restore Traps:** Patched an empty-state lock-in when a user tried to restore a file from a removed drive; the app now displays a dismissible message instead of an un-closable, broken list if no valid destinations exist.
+- [Bug] **Intent Sharing Crashes:** Fixed a Jetpack Compose lifecycle context lookup failure (`navController.context` nullability) that crashed the app when sharing multiple files; updated to explicitly use `LocalContext.current`.
+
 ### Improved
 - [Testing] Added unit test verification for optimistic storage classification updates in `HomeViewModel`.
 

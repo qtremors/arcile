@@ -80,10 +80,32 @@ class BrowserViewModel @Inject constructor(
                 if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
                     openVolumeRoots("Selected storage was removed")
                 } else {
-                    when (restoreLocationFromState()) {
+                    when (val location = restoreLocationFromState()) {
                         StorageBrowserLocation.Roots -> openFileBrowser()
-                        is StorageBrowserLocation.Directory -> refresh()
-                        is StorageBrowserLocation.Category -> refresh()
+                        is StorageBrowserLocation.Directory -> {
+                            _state.update {
+                                it.copy(
+                                    currentPath = location.pathScope.absolutePath,
+                                    currentVolumeId = location.pathScope.volumeId,
+                                    isVolumeRootScreen = false,
+                                    isCategoryScreen = false,
+                                    activeCategoryName = ""
+                                )
+                            }
+                            refresh()
+                        }
+                        is StorageBrowserLocation.Category -> {
+                            _state.update {
+                                it.copy(
+                                    currentPath = "",
+                                    currentVolumeId = location.categoryScope.volumeId,
+                                    isVolumeRootScreen = false,
+                                    isCategoryScreen = true,
+                                    activeCategoryName = location.categoryScope.categoryName
+                                )
+                            }
+                            refresh()
+                        }
                         null -> initializeFromArgs()
                     }
                 }

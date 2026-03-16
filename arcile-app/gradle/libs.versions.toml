@@ -16,7 +16,7 @@ coil = "2.6.0"
 composeMaterial3 = "1.4.0-alpha08"
 hilt = "2.59.2"
 hiltNavigationCompose = "1.2.0"
-ksp = "2.0.21-1.0.25"
+ksp = "2.2.10-2.0.2"
 coreSplashScreen = "1.0.1"
 
 

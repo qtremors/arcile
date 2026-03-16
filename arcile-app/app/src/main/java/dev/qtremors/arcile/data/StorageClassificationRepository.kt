@@ -8,6 +8,9 @@ import dev.qtremors.arcile.domain.StorageKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 private val Context.classificationDataStore by preferencesDataStore(name = "storage_classifications_prefs")
@@ -54,7 +57,10 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
                             )
                         }
                     } catch (e: Exception) {
-                        // Ignore parse errors
+                        android.util.Log.e("StorageClassification", "Failed to parse classification for key: ${key.name}", e)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            resetClassification(key.name)
+                        }
                     }
                 }
             }
@@ -79,6 +85,8 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
                 )
             } else null
         } catch (e: Exception) {
+            android.util.Log.e("StorageClassification", "Failed to parse classification for key: $storageKey", e)
+            resetClassification(storageKey)
             null
         }
     }

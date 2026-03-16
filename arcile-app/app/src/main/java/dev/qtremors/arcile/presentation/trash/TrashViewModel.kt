@@ -40,10 +40,17 @@ class TrashViewModel @Inject constructor(
 
     fun loadTrashFiles() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, error = null, selectedFiles = emptySet()) }
+            _state.update { it.copy(isLoading = true) }
             val result = repository.getTrashFiles()
             result.onSuccess { trashItems ->
-                _state.update { it.copy(isLoading = false, trashFiles = trashItems) }
+                _state.update { currentState -> 
+                    currentState.copy(
+                        isLoading = false, 
+                        trashFiles = trashItems, 
+                        error = null,
+                        selectedFiles = currentState.selectedFiles.filter { path -> trashItems.any { it.id == path } }.toSet()
+                    )
+                }
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load Trash Bin") }
             }

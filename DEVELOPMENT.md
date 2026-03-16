@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.4.0 | **Last Updated:** 2026-03-15
+**Version:** 0.4.0 | **Last Updated:** 2026-03-16
 **Scope:** Internal Development, Security, and Style Specification
 
 ---
@@ -407,7 +407,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 
 | Category | Status |
 |----------|--------|
-| Unit tests | 🟡 Started (e.g., `FilePresentationTest.kt`, `StorageScopeViewModelTest.kt`) |
+| Unit tests | 🟡 Started (e.g., `HomeViewModelTest`, `DeletePolicyTest`, `StorageScopeViewModelTest`) |
 | Integration tests | ❌ Not implemented |
 | UI / Compose tests | ❌ Not implemented |
 
@@ -452,15 +452,14 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk`
 | Component / Feature | Deliberate Weirdness | Rationalization |
 |---------------------|----------------------|-----------------|
 | `compileSdk` block syntax | Uses `release(36) { minorApiLevel = 1 }` instead of `compileSdk = 36` | Required for AGP 9.x structured SDK versioning |
-| `requestLegacyExternalStorage` in manifest | Deprecated attribute | Still needed for Android 10 (API 29) backward compatibility |
 | `VariantOutputImpl` cast in `androidComponents` | Internal AGP API | No stable public API for `outputFileName` exists yet in AGP 9.x — see TASKS.md anomalies |
 | `.arcile_trash/` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
 
 ### Technical Debt
 
-- [ ] Remove `java.io.File` from domain `FileModel`
-- [ ] Persist theme preferences with DataStore
-- [ ] Add proper path traversal validation
+- [x] Remove `java.io.File` from domain `FileModel`
+- [x] Persist theme preferences with DataStore
+- [x] Add proper path traversal validation
 - [ ] Add comprehensive test suite
 
 ---

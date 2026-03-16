@@ -2,7 +2,106 @@
 
 > **Project:** Arcile
 > **Version:** 0.4.0
-> **Last Updated:** 2026-03-14
+> **Last Updated:** 2026-03-16
+
+---
+
+## 1. PR Review Findings (Beta Blockers & Polish)
+
+- [x] [Bug] Apply restored browser location before calling refresh
+  - **Problem:** When saved navigation state exists, this branch calls refresh() based on restoreLocationFromState() but never writes the restored path/category/volume back into `_state` first.
+  - **Location:** `BrowserViewModel.kt`
+  - **Fix:** Update `_state` with restored values before calling `refresh()`.
+
+- [x] [Bug] `detectCopyConflicts` misses nested child collisions
+  - **Problem:** Only flags top-level name collisions and misses nested child collisions when both source and target are directories.
+  - **Location:** `LocalFileRepository.kt` (lines 757 - 797)
+  - **Fix:** Update `detectCopyConflicts` to recurse into directory trees so descendant conflicts are discovered.
+
+- [x] [Bug] Missing conflict resolution handling for pre-existing target
+  - **Problem:** When a destination exists but `resolutions[sourceFile.absolutePath]` is null, code attempts rename/copy that can erase pre-existing target.
+  - **Location:** `LocalFileRepository.kt` (lines 945 - 980)
+  - **Fix:** Fail fast and return `Result.failure` when target exists but has no resolution.
+
+- [x] [Bug] Transient lookup failures mask permanent deletes in `DeletePolicy`
+  - **Problem:** Uses `repository.getVolumeForPath(path).getOrNull()`, which masks lookup failures as "no volume" and defaults to permanent delete.
+  - **Location:** `DeletePolicy.kt` (lines 14 - 25)
+  - **Fix:** Inspect the `Result` for failure explicitly instead of `getOrNull()`.
+
+- [x] [Bug] Invalid context access via `navController.context`
+  - **Problem:** `NavController` has no `context` property in Compose.
+  - **Location:** `ArcileAppShell.kt` (line 188)
+  - **Fix:** Obtain `Context` via `LocalContext.current` and pass it to the ViewModel.
+
+- [x] [UI/UX] Dead-end destination picker when no indexed volumes
+  - **Problem:** Dialog shown for restore but `indexedVolumes` is empty, trapping user.
+  - **Location:** `TrashScreen.kt` (lines 191 - 220)
+  - **Fix:** Handle empty `indexedVolumes` by showing a clear message and dismiss action.
+
+- [x] [Bug] Sort MediaStore recents by modified time before limiting
+  - **Problem:** Query orders by DATE_ADDED, caps at limit * 2, then sorts by max(dateAdded, dateModified), causing older files that were recently modified to be missed.
+  - **Location:** `LocalFileRepository.kt` (getRecentFiles)
+  - **Fix:** Sort by modified time before limiting.
+
+- [x] [Bug] Unhandled DataStore read errors in `BrowserPreferencesRepository`
+  - **Problem:** `preferencesFlow` maps `context.browserDataStore.data` without handling DataStore read errors.
+  - **Location:** `BrowserPreferencesRepository.kt` (lines 17 - 32)
+  - **Fix:** Wrap the data flow with a `.catch` operator to intercept `IOException` and emit a safe fallback `BrowserPreferences`.
+
+- [x] [Security] Sensitive path logged in `LocalFileRepository`
+  - **Problem:** Warning log writes an absolute path that may contain sensitive info.
+  - **Location:** `LocalFileRepository.kt` (lines 1224 - 1226)
+  - **Fix:** Log only non-sensitive identifiers (e.g., trash id) or gate the full path behind a debug-only check.
+
+- [x] [Bug] Swallowed JSON parsing exceptions in `StorageClassificationRepository`
+  - **Problem:** Exceptions in `JSONObject(value)` parsing are silently swallowed.
+  - **Location:** `StorageClassificationRepository.kt` (lines 44 - 58, 69 - 82)
+  - **Fix:** Log the failing key/exception and clear or move the bad record instead of silently ignoring it.
+
+- [x] [Bug] Swallowed repository failures in `HomeViewModel`
+  - **Problem:** `getOrNull()` is used for repository calls, silently updating `_state` with empty lists on failure.
+  - **Location:** `HomeViewModel.kt` (lines 97 - 137)
+  - **Fix:** Detect failures and surface them in the UI state by setting an error field.
+
+- [x] [Bug] Unconditional transient UI state reset in `TrashViewModel`
+  - **Problem:** `loadTrashFiles()` unconditionally clears `error` and `selectedFiles` on initiation.
+  - **Location:** `TrashViewModel.kt` (lines 41 - 49)
+  - **Fix:** Only set `isLoading = true` initially, and clear/preserve other transient state appropriately based on success/failure.
+
+- [ ] [Architecture] String matching used for restore failures
+  - **Problem:** `TrashViewModel` checks `error.message.startsWith("DESTINATION_REQUIRED")` to show destination picker.
+  - **Location:** `TrashViewModel.kt` (lines 79 - 81)
+  - **Fix:** Change the restore API to surface a typed failure instead of string matching.
+
+- [ ] [Accessibility] Missing selection state for TalkBack
+  - **Problem:** `FileList` item sets merged `contentDescription` but doesn't expose selection state.
+  - **Location:** `FileList.kt` (lines 122 - 131)
+  - **Fix:** Set `selected = isSelected` in the `semantics` block.
+
+- [ ] [UI/UX] Shimmer animation captures range at zero size
+  - **Problem:** Animation range is captured while `size == IntSize.Zero`, so `startOffsetX` stays `0`.
+  - **Location:** `ShimmerModifier.kt` (lines 41 - 51)
+  - **Fix:** Use a normalized range (e.g., `0f..1f`) and compute concrete pixel offset during render using latest size.
+
+- [ ] [UI/UX] Wrong UI rendered for empty root screens
+  - **Problem:** `EmptyState` branch is evaluated before `volume-root` branch.
+  - **Location:** `FileManagerScreen.kt` (lines 480 - 493)
+  - **Fix:** Reorder checks so `state.isVolumeRootScreen` is tested first.
+
+- [ ] [Design] Unreadable secondary colors in light theme
+  - **Problem:** `buildScheme` light theme produces nearly-white secondary colors on `Color.White`.
+  - **Location:** `Color.kt` (lines 427 - 473)
+  - **Fix:** Increase opacity of secondary or composite stronger tint over white.
+
+- [ ] [Design] Material2 theme bases used instead of Material3
+  - **Problem:** XML theme bases still use Material2 components (`Theme.Material.Light.NoActionBar`).
+  - **Location:** `themes.xml` (lines 6 - 11)
+  - **Fix:** Update parent styles to `Theme.Material3.*`.
+
+- [x] [Build] KSP version mismatch with Kotlin 2.2.10
+  - **Problem:** KSP pinned to "2.0.21-1.0.25" while project uses Kotlin 2.2.10.
+  - **Location:** `libs.versions.toml` (line 19)
+  - **Fix:** Update KSP version to align with Kotlin 2.2.10.
 
 ---
 
@@ -133,7 +232,7 @@
   - **Location:** `app/build.gradle.kts`
   - **Fix:** Check if a stable API for `outputFileName` exists in AGP 9.x.
 
-- [ ] [Anomaly] `Kotlin 2.2.10` version may be unreleased/preview.
+- [x] [Anomaly] `Kotlin 2.2.10` version may be unreleased/preview.
   - **Location:** `libs.versions.toml:9`
   - **Fix:** Verify this is an official release and document any special repository requirements.
 

@@ -102,11 +102,15 @@ class HomeViewModel @Inject constructor(
             val allVolumesResult = repository.getStorageVolumes()
             val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
             val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
+            val errorMsg = storageResult.exceptionOrNull()?.message 
+                ?: allVolumesResult.exceptionOrNull()?.message 
+                ?: recentResult.exceptionOrNull()?.message 
+                ?: categoryResult.exceptionOrNull()?.message
+
             val storageInfo = storageResult.getOrNull()
             val allStorageVolumes = allVolumesResult.getOrNull().orEmpty()
-            
-            val categoryByVolume = coroutineScope {
-                storageInfo?.volumes
+
+            val categoryByVolume = coroutineScope {                storageInfo?.volumes
                     ?.filter { it.kind.isIndexed }
                     ?.map { volume ->
                         async {
@@ -127,6 +131,7 @@ class HomeViewModel @Inject constructor(
                     isLoading = false,
                     isPullToRefreshing = false,
                     isCalculatingStorage = false,
+                    error = errorMsg,
                     allStorageVolumes = allStorageVolumes,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
                     storageInfo = storageInfo,
