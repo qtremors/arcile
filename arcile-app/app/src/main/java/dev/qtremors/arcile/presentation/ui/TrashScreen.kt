@@ -54,24 +54,28 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
-import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
+import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.TrashMetadata
-import dev.qtremors.arcile.presentation.FileManagerState
+import dev.qtremors.arcile.domain.isIndexed
+import androidx.compose.foundation.clickable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.trash.TrashState
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TrashScreen(
-    state: FileManagerState,
+    state: TrashState,
     onNavigateBack: () -> Unit,
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
     onRestoreSelected: () -> Unit,
     onEmptyTrash: () -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onDismissDestinationPicker: () -> Unit = {},
+    onRestoreToDestination: (String) -> Unit = {}
 ) {
     var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
 
@@ -119,7 +123,7 @@ fun TrashScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
                     scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
@@ -140,25 +144,12 @@ fun TrashScreen(
                     LoadingIndicator()
                 }
             } else if (state.trashFiles.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.DeleteSweep,
-                            contentDescription = null,
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        )
-                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
-                        Text(
-                            text = "Trash is empty",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                 EmptyState(
+                    icon = Icons.Default.DeleteSweep,
+                    title = "Trash is empty",
+                    description = "When you delete files from permanent storage, they'll stay here for 30 days before being deleted forever.",
+                    modifier = Modifier.fillMaxSize()
+                )
             } else {
                 TrashList(
                     files = state.trashFiles,
@@ -173,7 +164,7 @@ fun TrashScreen(
                 onDismissRequest = { showEmptyTrashConfirmation = false },
                 icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                 title = { Text("Empty Trash?") },
-                shape = ExpressiveSquircleShape,
+                shape = MaterialTheme.shapes.extraLarge,
                 text = { Text("All items in the trash will be permanently deleted. This action cannot be undone.") },
                 confirmButton = {
                     FilledTonalButton(
@@ -195,6 +186,50 @@ fun TrashScreen(
                     }
                 }
             )
+        }
+
+        if (state.showDestinationPicker) {
+            val indexedVolumes = state.availableVolumes.filter { it.kind.isIndexed }
+            if (indexedVolumes.isEmpty()) {
+                AlertDialog(
+                    onDismissRequest = onDismissDestinationPicker,
+                    title = { Text("No Restore Destination") },
+                    text = { Text("There are no indexed volumes available to restore the files to. Please check your storage management settings.") },
+                    confirmButton = {
+                        TextButton(onClick = onDismissDestinationPicker) {
+                            Text("Dismiss")
+                        }
+                    }
+                )
+            } else {
+                AlertDialog(
+                    onDismissRequest = onDismissDestinationPicker,
+                    title = { Text("Select Restore Destination") },
+                    text = {
+                        Column {
+                            Text("The original storage volume is unavailable. Where would you like to restore the file(s)?")
+                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                            LazyColumn {
+                                items(indexedVolumes) { volume ->
+                                    ListItem(
+                                        headlineContent = { Text(volume.name) },
+                                        supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                        modifier = Modifier.clickable {
+                                            onRestoreToDestination(volume.path)
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = onDismissDestinationPicker) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
 
         // Error shown via snackbar in parent Scaffold
@@ -219,10 +254,8 @@ private fun TrashList(
                 label = "trashListItemColor"
             )
             
-            
-
             Surface(
-                shape = if (isSelected) dev.qtremors.arcile.ui.theme.ExpressiveShapes.large else ExpressiveSquircleShape,
+                shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
                 color = animatedSurfaceColor,
                 modifier = Modifier
                     .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)
@@ -240,8 +273,13 @@ private fun TrashList(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
+                            val sourceVolumeStr = when (trashItem.sourceStorageKind) {
+                                dev.qtremors.arcile.domain.StorageKind.INTERNAL -> "Internal Storage"
+                                dev.qtremors.arcile.domain.StorageKind.SD_CARD -> "SD Card"
+                                else -> "External Storage"
+                            }
                             Text(
-                                text = "From: ${trashItem.originalPath.substringBeforeLast("/")}/",
+                                text = "From $sourceVolumeStr: ${trashItem.originalPath.substringBeforeLast("/")}/",
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

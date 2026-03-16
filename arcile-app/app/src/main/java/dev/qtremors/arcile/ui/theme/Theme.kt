@@ -43,7 +43,7 @@ fun FileManagerTheme(
                      dynamicDarkColorScheme(context).copy(
                          background = Color.Black,
                          surface = Color.Black,
-                         surfaceVariant = Color(0xFF121212)
+                         surfaceVariant = OledSurfaceVariant
                      )
                 } else {
                     dynamicDarkColorScheme(context)
@@ -55,23 +55,32 @@ fun FileManagerTheme(
         
         // 2. Custom Seed Color chosen
         themeState.accentColor != AccentColor.DYNAMIC -> {
-            val scheme = when (themeState.accentColor) {
-                AccentColor.BLUE -> if (effectivelyDark) BlueDarkScheme else BlueLightScheme
-                AccentColor.CYAN -> if (effectivelyDark) CyanDarkScheme else CyanLightScheme
-                AccentColor.GREEN -> if (effectivelyDark) GreenDarkScheme else GreenLightScheme
-                AccentColor.RED -> if (effectivelyDark) RedDarkScheme else RedLightScheme
-                AccentColor.PURPLE -> if (effectivelyDark) PurpleDarkScheme else PurpleLightScheme
-                else -> if (effectivelyDark) DarkColorScheme else LightColorScheme // Monochrome / Fallback
+            val isDark = effectivelyDark
+            val accent = themeState.accentColor
+            val scheme = when (accent) {
+                AccentColor.BLUE -> if (isDark) BlueDarkScheme else BlueLightScheme
+                AccentColor.CYAN -> if (isDark) CyanDarkScheme else CyanLightScheme
+                AccentColor.GREEN -> if (isDark) GreenDarkScheme else GreenLightScheme
+                AccentColor.RED -> if (isDark) RedDarkScheme else RedLightScheme
+                AccentColor.PURPLE -> if (isDark) PurpleDarkScheme else PurpleLightScheme
+                AccentColor.MONOCHROME -> if (isDark) MonochromeDarkScheme else MonochromeLightScheme
+                AccentColor.BLACK -> if (isDark) BlackDarkScheme else BlackLightScheme
+                else -> {
+                    // Optimized: Use buildScheme helper for all new/other colors
+                    val primaryColor = accent.color ?: AccentBlue
+                    buildScheme(primaryColor, isDark)
+                }
             }
-            if (themeState.themeMode == ThemeMode.OLED) {
-                 scheme.copy(
-                     background = Color.Black,
-                     surface = Color.Black,
-                     surfaceVariant = Color(0xFF121212),
-                     surfaceContainerLowest = Color.Black,
-                     surfaceContainerLow = Color(0xFF0F0D13)
-                 )
-            } else {
+
+             if (themeState.themeMode == ThemeMode.OLED) {
+                  scheme.copy(
+                      background = Color.Black,
+                      surface = Color.Black,
+                      surfaceVariant = OledSurfaceVariant,
+                      surfaceContainerLowest = OledContainerLowest,
+                      surfaceContainerLow = OledContainerLow
+                  )
+             } else {
                 scheme
             }
         }
@@ -94,7 +103,8 @@ fun FileManagerTheme(
     }
 
     CompositionLocalProvider(
-        LocalCategoryColors provides categoryColors
+        LocalCategoryColors provides categoryColors,
+        LocalSpacing provides Spacing()
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

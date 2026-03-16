@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -10,8 +11,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -84,14 +87,16 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
-import dev.qtremors.arcile.ui.theme.ExpressiveSquircleShape
-import dev.qtremors.arcile.ui.theme.ExpressivePillShape
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-
+import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.presentation.FileManagerState
+import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.FileConflict
+import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
@@ -99,10 +104,20 @@ import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
+import dev.qtremors.arcile.presentation.ui.components.PasteConflictDialog
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
+import dev.qtremors.arcile.presentation.ui.components.lists.ActiveFiltersRow
+import dev.qtremors.arcile.presentation.ui.components.lists.FileGrid
+import dev.qtremors.arcile.presentation.ui.components.lists.FileList
+import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
+import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import kotlinx.coroutines.launch
 
 import dev.qtremors.arcile.domain.FileCategories
@@ -115,14 +130,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+
 /**
  * Full-featured file browser screen.
  *
  * Supports list and grid views, multi-select with range selection, inline search with filters,
  * file creation, rename, delete (via trash), copy/cut/paste clipboard, share, and pull-to-refresh.
  *
- * @param state Current [FileManagerState] containing file list, selection, search, and clipboard state.
- * @param storageRootPath Absolute path of the storage root — used for breadcrumb display.
+ * @param state Current [BrowserState] containing file list, selection, search, and clipboard state.
  * @param onNavigateBack Called when the user navigates back (hardware back or top bar back button).
  * @param onNavigateTo Called with the target directory path when the user opens a folder.
  * @param onOpenFile Called with the file path when the user opens a non-directory file.
@@ -148,11 +165,10 @@ import java.util.Locale
  * @param onSearchFiltersChange Updates the active search filters.
  * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun FileManagerScreen(
-    state: FileManagerState,
-    storageRootPath: String,
+    state: BrowserState,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
@@ -161,11 +177,14 @@ fun FileManagerScreen(
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
-    onDeleteSelected: () -> Unit,
+    onRequestDeleteSelected: () -> Unit,
+    onConfirmTrash: () -> Unit,
+    onConfirmPermanentDelete: () -> Unit,
+    onDismissDeleteConfirmation: () -> Unit,
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onSortOptionChange: (FileSortOption) -> Unit,
+    onSortOptionChange: (FileSortOption, Boolean) -> Unit,
     onGridViewChange: (Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
@@ -176,7 +195,10 @@ fun FileManagerScreen(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {}
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
+    onResolvingConflicts: (Map<String, ConflictResolution>) -> Unit = {},
+    onDismissConflictDialog: () -> Unit = {},
+    onDeletePermanentlySelected: () -> Unit = {}
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -197,6 +219,9 @@ fun FileManagerScreen(
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
+    }
+    val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
+        state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
     }
 
     LaunchedEffect(state.browserSearchQuery) {
@@ -264,6 +289,8 @@ fun FileManagerScreen(
                     selectionCount = state.selectedFiles.size,
                     showBackArrow = true,
                     showGridViewAction = true,
+                    showSortAction = !state.isVolumeRootScreen,
+                    showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
                     isGridView = state.isGridView,
                     hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
@@ -276,7 +303,7 @@ fun FileManagerScreen(
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
-                            TopBarAction.DeleteSelected -> showDeleteConfirmation = true
+                            TopBarAction.DeleteSelected -> onRequestDeleteSelected()
                             TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
                             TopBarAction.GridView -> onGridViewChange(!state.isGridView)
                             TopBarAction.Copy -> onCopySelected()
@@ -290,17 +317,8 @@ fun FileManagerScreen(
             }
         },
         floatingActionButton = {
-            if (state.selectedFiles.isEmpty() && !showSearchBar) {
+            if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Box {
-                    // Dismiss scrim behind FAB menu
-                    if (isFabExpanded) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color.Black.copy(alpha = 0.3f))
-                                .clickable { isFabExpanded = false }
-                        )
-                    }
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         ExpandableFabMenu(
                             isExpanded = isFabExpanded,
@@ -329,163 +347,186 @@ fun FileManagerScreen(
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
             Column(modifier = Modifier.fillMaxSize()) {
-                if (searchHasCompleted) {
-                    // Search results in the content area
-                    if (state.searchResults.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Default.SearchOff,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(48.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                AnimatedContent(
+                    targetState = if (searchHasCompleted) "search" else state.currentPath + state.activeCategoryName + state.isVolumeRootScreen,
+                    transitionSpec = {
+                        fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) togetherWith
+                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow))
+                    },
+                    label = "FolderTransition",
+                    modifier = Modifier.weight(1f)
+                ) { targetKey ->
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        if (searchHasCompleted) {
+                            // Search results in the content area
+                            if (state.searchResults.isEmpty()) {
+                                EmptyState(
+                                    icon = Icons.Default.SearchOff,
+                                    title = "No results found",
+                                    description = "We couldn't find anything matching \"${state.browserSearchQuery}\". Try a different keyword or filters.",
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "No results for \"${state.browserSearchQuery}\"",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    } else {
-                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                        LazyColumn(modifier = Modifier.weight(1f)) {
-                            items(state.searchResults, key = { it.absolutePath }) { file ->
-                                FileItemRow(
-                                    file = file,
-                                    formattedDate = formatter.format(Date(file.lastModified)),
-                                    isSelected = false,
-                                    onClick = {
-                                        showSearchBar = false
-                                        onClearSearch()
-                                        if (file.isDirectory) {
-                                            onNavigateTo(file.absolutePath)
-                                        } else {
-                                            onOpenFile(file.absolutePath)
-                                        }
-                                    },
-                                    onLongClick = {}
-                                )
-                            }
-                        }
-                    }
-                } else if (showSearchBar && state.isSearching) {
-                    // Loading indicator while search is running
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
-                    }
-                } else {
-                    // Normal browse content
-                    Breadcrumbs(
-                        path = state.currentPath,
-                        storageRootPath = storageRootPath,
-                        onPathSegmentClick = { path ->
-                            onNavigateTo(path)
-                        }
-                    )
-                    
-                    val pullRefreshState = rememberPullToRefreshState()
-                    
-                    PullToRefreshBox(
-                        isRefreshing = isRefreshing,
-                        onRefresh = onRefresh,
-                        state = pullRefreshState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        indicator = {
-                            val pullDistance = pullRefreshState.distanceFraction
-                            val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
-                            
-                            if (isRefreshing || pullDistance > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopCenter)
-                                        .graphicsLayer {
-                                            translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
-                                            alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
-                                        }
-                                        .padding(top = 8.dp)
-                                ) {
-                                    Card(
-                                        shape = androidx.compose.foundation.shape.CircleShape,
-                                        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier.padding(10.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            LoadingIndicator(modifier = Modifier.size(24.dp))
-                                        }
+                            } else {
+                                val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                LazyColumn(modifier = Modifier.weight(1f)) {
+                                    items(state.searchResults, key = { it.absolutePath }) { file ->
+                                        FileItemRow(
+                                            file = file,
+                                            formattedDate = formatter.format(Date(file.lastModified)),
+                                            isSelected = false,
+                                            onClick = {
+                                                showSearchBar = false
+                                                onClearSearch()
+                                                if (file.isDirectory) {
+                                                    onNavigateTo(file.absolutePath)
+                                                } else {
+                                                    onOpenFile(file.absolutePath)
+                                                }
+                                            },
+                                            onLongClick = {}
+                                        )
                                     }
                                 }
                             }
-                        }
-                    ) {
-                        if (state.isLoading && !isRefreshing) {
+                        } else if (showSearchBar && state.isSearching) {
+                            // Loading indicator while search is running
                             Box(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
                                 contentAlignment = Alignment.Center
                             ) {
                                 LoadingIndicator()
                             }
-                        } else if (displayedFiles.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.FolderOff,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                    )
-                                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+                        } else {
+                            // Normal browse content
+                            if (!state.isVolumeRootScreen) {
+                                Breadcrumbs(
+                                    currentPath = state.currentPath,
+                                    storageVolumes = state.storageVolumes,
+                                    onPathSegmentClick = { path ->
+                                        onNavigateTo(path)
+                                    }
+                                )
+                            }
+
+                            if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    shape = MaterialTheme.shapes.extraLarge,
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ) {
                                     Text(
-                                        text = "Empty Directory",
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        text = if (currentVolume.kind == StorageKind.OTG) {
+                                            "Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent."
+                                        } else {
+                                            "Browsing unclassified external storage. It is treated as temporary until classified, and deletions are permanent."
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        textAlign = TextAlign.Center
+                                        modifier = Modifier.padding(16.dp)
                                     )
                                 }
                             }
-                        } else if (state.isGridView) {
-                            FileGrid(
-                                files = displayedFiles,
-                                selectedFiles = state.selectedFiles,
-                                onNavigateTo = onNavigateTo,
-                                onOpenFile = onOpenFile,
-                                onToggleSelection = onToggleSelection,
-                                onSelectMultiple = onSelectMultiple,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            FileList(
-                                files = displayedFiles,
-                                selectedFiles = state.selectedFiles,
-                                onNavigateTo = onNavigateTo,
-                                onOpenFile = onOpenFile,
-                                onToggleSelection = onToggleSelection,
-                                onSelectMultiple = onSelectMultiple,
-                                modifier = Modifier.fillMaxSize()
-                            )
+
+                            val pullRefreshState = rememberPullToRefreshState()
+
+                            PullToRefreshBox(
+                                isRefreshing = isRefreshing,
+                                onRefresh = onRefresh,
+                                state = pullRefreshState,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                indicator = {
+                                    val pullDistance = pullRefreshState.distanceFraction
+                                    val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
+
+                                    if (isRefreshing || pullDistance > 0f) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopCenter)
+                                                .graphicsLayer {
+                                                    translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
+                                                    alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
+                                                }
+                                                .padding(top = 8.dp)
+                                        ) {
+                                            Card(
+                                                shape = androidx.compose.foundation.shape.CircleShape,
+                                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier.padding(10.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    LoadingIndicator(modifier = Modifier.size(24.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            ) {
+                                if (state.isLoading && !isRefreshing) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        LoadingIndicator()
+                                    }
+                                } else if (displayedFiles.isEmpty()) {
+                                    EmptyState(
+                                        icon = Icons.Default.FolderOff,
+                                        title = "Empty Directory",
+                                        description = "This folder doesn't have any files yet. You can create one using the + button.",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else if (state.isVolumeRootScreen) {
+                                    dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
+                                        volumes = state.storageVolumes,
+                                        onNavigateTo = onNavigateTo,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else if (state.isGridView && !state.isVolumeRootScreen) {
+                                    FileGrid(
+                                        files = displayedFiles,
+                                        selectedFiles = state.selectedFiles,
+                                        onNavigateTo = onNavigateTo,
+                                        onOpenFile = onOpenFile,
+                                        onToggleSelection = onToggleSelection,
+                                        onSelectMultiple = onSelectMultiple,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    FileList(
+                                        files = displayedFiles,
+                                        selectedFiles = state.selectedFiles,
+                                        onNavigateTo = onNavigateTo,
+                                        onOpenFile = onOpenFile,
+                                        onToggleSelection = onToggleSelection,
+                                        onSelectMultiple = onSelectMultiple,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+            }
+
+            if (isFabExpanded) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { isFabExpanded = false }
+                        )
+                )
             }
         }
     }
@@ -509,17 +550,14 @@ fun FileManagerScreen(
             )
         }
 
-        if (showDeleteConfirmation) {
-            AlertDialog(
-                onDismissRequest = { showDeleteConfirmation = false },
+        if (state.showTrashConfirmation) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = onDismissDeleteConfirmation,
                 title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
                 text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
                 confirmButton = {
                     androidx.compose.material3.FilledTonalButton(
-                        onClick = {
-                            showDeleteConfirmation = false
-                            onDeleteSelected()
-                        },
+                        onClick = onConfirmTrash,
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = MaterialTheme.colorScheme.errorContainer,
                             contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -529,8 +567,45 @@ fun FileManagerScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteConfirmation = false }) {
+                    TextButton(onClick = onDismissDeleteConfirmation) {
                         Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (state.showPermanentDeleteConfirmation) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = onDismissDeleteConfirmation,
+                title = { Text("Permanently delete ${state.selectedFiles.size} item(s)?") },
+                text = { Text("Selected items will be permanently deleted. This action cannot be undone.") },
+                confirmButton = {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = onConfirmPermanentDelete,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissDeleteConfirmation) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (state.showMixedDeleteExplanation) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = onDismissDeleteConfirmation,
+                title = { Text("Mixed Selection Blocked") },
+                text = { Text("Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.") },
+                confirmButton = {
+                    TextButton(onClick = onDismissDeleteConfirmation) {
+                        Text("OK")
                     }
                 }
             )
@@ -564,481 +639,20 @@ fun FileManagerScreen(
                 title = "Sort current folder",
                 selectedOption = state.browserSortOption,
                 onDismiss = { showSortDialog = false },
-                onOptionSelected = { option ->
-                    onSortOptionChange(option)
+                onOptionSelected = { option, applyToSubfolders ->
+                    onSortOptionChange(option, applyToSubfolders)
                     showSortDialog = false
                 }
             )
         }
 
-
-    }
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FileList(
-    files: List<FileModel>,
-    selectedFiles: Set<String>,
-    onNavigateTo: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onSelectMultiple: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-    var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
-
-    LazyColumn(modifier = modifier.fillMaxWidth()) {
-        items(files.size, key = { index -> files[index].absolutePath }) { index ->
-            val file = files[index]
-            FileItemRow(
-                modifier = Modifier.animateItem(),
-                file = file,
-                formattedDate = formatter.format(Date(file.lastModified)),
-                isSelected = selectedFiles.contains(file.absolutePath),
-                onClick = {
-                    if (selectedFiles.isNotEmpty()) {
-                        lastInteractedIndex = index
-                        onToggleSelection(file.absolutePath)
-                    } else if (file.isDirectory) {
-                        onNavigateTo(file.absolutePath)
-                    } else {
-                        onOpenFile(file.absolutePath)
-                    }
-                },
-                onLongClick = {
-                    if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
-                        val start = minOf(lastInteractedIndex!!, index)
-                        val end = maxOf(lastInteractedIndex!!, index)
-                        val rangePaths = files.subList(start, end + 1).map { it.absolutePath }
-                        onSelectMultiple(rangePaths)
-                        lastInteractedIndex = index
-                    } else {
-                        lastInteractedIndex = index
-                        onToggleSelection(file.absolutePath)
-                    }
-                }
+        if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
+            PasteConflictDialog(
+                conflicts = state.pasteConflicts,
+                onResolve = onResolvingConflicts,
+                onDismiss = onDismissConflictDialog
             )
         }
+
+
     }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FileGrid(
-    files: List<FileModel>,
-    selectedFiles: Set<String>,
-    onNavigateTo: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onSelectMultiple: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
-    var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
-
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(files.size, key = { index -> files[index].absolutePath }) { index ->
-            val file = files[index]
-            FileGridItem(
-                file = file,
-                formattedDate = formatter.format(Date(file.lastModified)),
-                isSelected = selectedFiles.contains(file.absolutePath),
-                onClick = {
-                    if (selectedFiles.isNotEmpty()) {
-                        lastInteractedIndex = index
-                        onToggleSelection(file.absolutePath)
-                    } else if (file.isDirectory) {
-                        onNavigateTo(file.absolutePath)
-                    } else {
-                        onOpenFile(file.absolutePath)
-                    }
-                },
-                onLongClick = { 
-                    if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
-                        val start = minOf(lastInteractedIndex!!, index)
-                        val end = maxOf(lastInteractedIndex!!, index)
-                        val rangePaths = files.subList(start, end + 1).map { it.absolutePath }
-                        onSelectMultiple(rangePaths)
-                        lastInteractedIndex = index
-                    } else {
-                        lastInteractedIndex = index
-                        onToggleSelection(file.absolutePath)
-                    }
-                }
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun FileItemRow(
-    file: FileModel,
-    formattedDate: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val animatedSurfaceColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-        label = "listItemColor"
-    )
-    
-
-
-    val animatedHorizontalPadding by animateDpAsState(
-        targetValue = if (isSelected) 8.dp else 0.dp,
-        label = "listItemHPadding"
-    )
-    val animatedVerticalPadding by animateDpAsState(
-        targetValue = if (isSelected) 4.dp else 0.dp,
-        label = "listItemVPadding"
-    )
-
-    Surface(
-        shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
-        color = animatedSurfaceColor,
-        modifier = modifier
-            .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-    ) {
-        ListItem(
-            leadingContent = {
-                if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
-                    FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                    FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                    FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))) {
-                    AsyncImage(
-                        model = File(file.absolutePath),
-                        contentDescription = "Thumbnail",
-                        modifier = Modifier.size(40.dp).clip(ExpressiveSquircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(
-                        imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                        contentDescription = if (file.isDirectory) "Folder" else "File",
-                        tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(40.dp)
-                    )
-                }
-            },
-            headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            supportingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(formattedDate)
-                    if (!file.isDirectory) {
-                        Text(formatFileSize(file.size))
-                    }
-                }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun FileGridItem(
-    file: FileModel,
-    formattedDate: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.8f,
-            stiffness = 380f
-        ),
-        label = "gridItemScale"
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .combinedClickable(
-                interactionSource = interactionSource,
-                indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        shape = if (isSelected) ExpressiveShapes.large else ExpressiveSquircleShape,
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .animateContentSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) || 
-                FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))) {
-                AsyncImage(
-                    model = File(file.absolutePath),
-                    contentDescription = "Thumbnail",
-                    modifier = Modifier.fillMaxWidth().height(100.dp),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                    contentDescription = if (file.isDirectory) "Folder" else "File",
-                    tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = buildString {
-                    append(formattedDate)
-                    if (!file.isDirectory) {
-                        append(" | ")
-                        append(formatFileSize(file.size))
-                    }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-
-
-@Composable
-fun CreateFolderDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var folderName by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Create Folder") },
-        shape = ExpressiveSquircleShape,
-        text = {
-            OutlinedTextField(
-                value = folderName,
-                onValueChange = { folderName = it },
-                label = { Text("Folder Name") },
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            FilledTonalButton(
-                onClick = { onConfirm(folderName) },
-                enabled = folderName.isNotBlank()
-            ) {
-                Text("Create")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-fun CreateFileDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var fileName by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Create File") },
-        shape = ExpressiveSquircleShape,
-        text = {
-            OutlinedTextField(
-                value = fileName,
-                onValueChange = { fileName = it },
-                label = { Text("File Name (e.g., text.txt)") },
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            FilledTonalButton(
-                onClick = { onConfirm(fileName) },
-                enabled = fileName.isNotBlank()
-            ) {
-                Text("Create")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-fun RenameDialog(
-    currentName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var newName by remember { mutableStateOf(currentName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename") },
-        shape = ExpressiveSquircleShape,
-        text = {
-            OutlinedTextField(
-                value = newName,
-                onValueChange = { newName = it },
-                label = { Text("New Name") },
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            FilledTonalButton(
-                onClick = { onConfirm(newName) },
-                enabled = newName.isNotBlank() && newName != currentName
-            ) {
-                Text("Rename")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-fun ExpandableFabMenu(
-    isExpanded: Boolean,
-    onToggleExpand: () -> Unit,
-    fabIconRotation: Float,
-    onCreateFileClick: () -> Unit,
-    onCreateFolderClick: () -> Unit
-) {
-    val fabShape = if (isExpanded) ExpressiveSquircleShape else ExpressiveShapes.large
-
-    Column(horizontalAlignment = Alignment.End) {
-        AnimatedVisibility(
-            visible = isExpanded,
-            enter = fadeIn() + slideInVertically(initialOffsetY = { 50 }),
-            exit = fadeOut() + slideOutVertically(targetOffsetY = { 50 })
-        ) {
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
-                ExtendedFloatingActionButton(
-                    onClick = onCreateFileClick,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = ExpressivePillShape,
-                    text = { Text("New File") },
-                    icon = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = "New File") }
-                )
-                ExtendedFloatingActionButton(
-                    onClick = onCreateFolderClick,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = ExpressivePillShape,
-                    text = { Text("New Folder") },
-                    icon = { Icon(Icons.Default.CreateNewFolder, contentDescription = "New Folder") }
-                )
-            }
-        }
-        FloatingActionButton(
-            onClick = onToggleExpand,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            shape = fabShape
-        ) {
-            Icon(
-                Icons.Default.Add, 
-                contentDescription = "Create new",
-                modifier = Modifier.rotate(fabIconRotation)
-            )
-        }
-    }
-}
-
-@Composable
-fun ActiveFiltersRow(
-    filters: SearchFilters,
-    onClearFilter: (SearchFilters) -> Unit
-) {
-    val activeChips = mutableListOf<Pair<String, SearchFilters>>()
-    
-    if (filters.itemType != null && filters.itemType != "Any") {
-        activeChips.add(Pair(filters.itemType, filters.copy(itemType = null)))
-    }
-    
-    if (filters.fileType != null) {
-        activeChips.add(Pair(filters.fileType, filters.copy(fileType = null)))
-    }
-    if (filters.minSize != null || filters.maxSize != null) {
-        val label = when {
-            filters.minSize != null && filters.maxSize != null -> "Size: ${filters.minSize / (1024*1024)}MB - ${filters.maxSize / (1024*1024)}MB"
-            filters.minSize != null -> "Size: >${filters.minSize / (1024*1024)}MB"
-            else -> "Size: <${filters.maxSize!! / (1024*1024)}MB"
-        }
-        activeChips.add(Pair(label, filters.copy(minSize = null, maxSize = null)))
-    }
-    if (filters.minDateMillis != null || filters.maxDateMillis != null) {
-        activeChips.add(Pair("Date Filter", filters.copy(minDateMillis = null, maxDateMillis = null)))
-    }
-
-    if (activeChips.isNotEmpty()) {
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(activeChips) { (label, updatedFilter) ->
-                InputChip(
-                    selected = true,
-                    onClick = { onClearFilter(updatedFilter) },
-                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                    trailingIcon = {
-                        Icon(
-                            Icons.Default.Clear,
-                            contentDescription = "Clear",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                )
-            }
-        }
-    }
-}

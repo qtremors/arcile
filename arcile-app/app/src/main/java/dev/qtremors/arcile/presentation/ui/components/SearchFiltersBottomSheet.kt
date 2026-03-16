@@ -115,7 +115,6 @@ fun SearchFiltersBottomSheet(
             }
 
             Text("Date Modified", style = MaterialTheme.typography.titleMedium)
-            val now = remember { System.currentTimeMillis() }
             val dayMillis = 24L * 60 * 60 * 1000
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -127,18 +126,24 @@ fun SearchFiltersBottomSheet(
                     label = { Text("Any time") }
                 )
                 FilterChip(
-                    selected = currentFilters.minDateMillis != null && currentFilters.minDateMillis == now - dayMillis,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = now - dayMillis, maxDateMillis = null)) },
+                    selected = currentFilters.minDateMillis != null &&
+                        currentFilters.minDateMillis >= System.currentTimeMillis() - 2 * dayMillis &&
+                        currentFilters.minDateMillis < System.currentTimeMillis() - 0,
+                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = System.currentTimeMillis() - dayMillis, maxDateMillis = null)) },
                     label = { Text("Today") }
                 )
                 FilterChip(
-                    selected = currentFilters.minDateMillis != null && currentFilters.minDateMillis == now - 7 * dayMillis,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = now - 7 * dayMillis, maxDateMillis = null)) },
+                    selected = currentFilters.minDateMillis != null &&
+                        currentFilters.minDateMillis >= System.currentTimeMillis() - 8 * dayMillis &&
+                        currentFilters.minDateMillis < System.currentTimeMillis() - 2 * dayMillis,
+                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = System.currentTimeMillis() - 7 * dayMillis, maxDateMillis = null)) },
                     label = { Text("Last 7 days") }
                 )
-                  FilterChip(
-                    selected = currentFilters.minDateMillis != null && currentFilters.minDateMillis == now - 30 * dayMillis,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = now - 30 * dayMillis, maxDateMillis = null)) },
+                FilterChip(
+                    selected = currentFilters.minDateMillis != null &&
+                        currentFilters.minDateMillis >= System.currentTimeMillis() - 31 * dayMillis &&
+                        currentFilters.minDateMillis < System.currentTimeMillis() - 8 * dayMillis,
+                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = System.currentTimeMillis() - 30 * dayMillis, maxDateMillis = null)) },
                     label = { Text("Last 30 days") }
                 )
             }

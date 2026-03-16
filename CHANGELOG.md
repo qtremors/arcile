@@ -1,8 +1,247 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.3.0
-> **Last Updated:** 2026-03-11
+> **Version:** 0.4.0
+> **Last Updated:** 2026-03-16
+
+
+---
+
+## [0.4.0] - 2026-03-15
+
+### Added
+- [Feature] Expanded accent colors to 20 Material Design presets with dynamic Material 3 color scheme generation.
+- [Feature] Centralized `EmptyState` component with smooth animations and decorative background elements.
+- [Feature] Full-screen soft overlay (scrim) for the Expandable FAB menu with refined fade animations.
+- [Theme] Unified shape system using Material Design 3 `extraLarge` tokens for expressive squircles (28dp).
+- [Feature] Enhanced `MultiColorStorageBar` with liquid fill animations, smooth segment transitions, and indeterminate "flowing colors" shimmer.
+- [Feature] Dynamic usage-based colors (Green/Orange/Red) for OTG and unindexed storage bars to provide immediate visual feedback on capacity.
+- [Feature] Refined storage segment visibility with a 0.5% minimum width for small categories and subtle 0.1dp pill-gaps.
+- [Theme] Implemented Jetpack SplashScreen API with native Light/Dark mode support using DayNight resource resolution.
+- [Motion] Implemented smooth folder-to-folder crossfade transitions in the file explorer using `AnimatedContent`.
+
+
+### Changed
+- [UI/UX] Redesigned Utilities section with a modern horizontal carousel and adaptive squircle ToolCards.
+- [UI/UX] Renamed 'Secure Vault' to 'OnlyFiles' across the entire application for better clarity.
+- [UI/UX] Improved 'Black' accent color contrast in Dark and OLED modes using light gray highlights.
+- [UI/UX] Swapped accent selector layout to position color previews at the trailing edge for better ergonomics.
+- [Theme] Audited and refined contrast across all light color schemes, ensuring dark "on-surface" text for better readability.
+- [Theme] Re-enabled `surfaceTint` and fixed dynamic color generation to ensure proper Material 3 tonal elevation and accent tones across all surfaces.
+- [UI/UX] Corrected `ArcileTopBar` background and scroll behavior to properly support Material 3 tonal elevation.
+- [UI/UX] Grounded the folder shortcuts and card surface tokens for better contrast.
+- [UI/UX] Improved FAB sub-item alignment, shapes, and contrast using `onSecondaryContainer` tokens.
+- [Architecture] Migrated all cards, dialogs, and surfaces to the unified MD3 themed shape system and cleaned up legacy constants.
+- [Architecture] Replaced high shadow elevations in components like `EmptyState` with cleaner Material 3 `tonalElevation` logic.
+
+### Fixed
+- [Bug] Fixed FAB menu overlay only covering a partial area by moving the scrim to the main full-screen content layer.
+- [Bug] Standardized UI spacing and resolved expressive menu clashes between `HomeScreen` and `ArcileTopBar`.
+- [Bug] Resolved storage bar "Other" category overlap by ensuring distinct segment weights and clipping.
+- [UI/UX] Standardized `EmptyState` and `LoadingIndicator` (Material 3 Expressive) usage across all main screens.
+- [UI/UX] Implemented non-blocking, centered loading overlays for Storage Management and Dashboard to ensure internal storage remains visible during background calculations.
+- [UI/UX] Fixed loading and empty state inconsistencies in `HomeScreen` and `StorageManagementScreen`.
+- [UI/UX] Added dedicated `EmptyState` handling for Storage Dashboard when indexed volumes are unavailable.
+- [Bug] Fixed regression where `BackHandler` import was missing in `FileManagerScreen.kt`.
+- [Bug] Fixed FAB menu dismissal failing when tapping outside the menu; moved the scrim to the top of the Z-order.
+- [Bug] Resolved OTG classification prompt getting stuck after user interaction via synchronous optimistic state updates.
+- [Bug] Improved background reload job management in `HomeViewModel` to prevent redundant or out-of-order state updates.
+
+### Hotfixes (Beta Release Blockers)
+- [Security] **Data Privacy:** Fixed sensitive file paths being written to system logs during orphaned metadata deletion in `LocalFileRepository`.
+- [Bug] **Recent Files Accuracy:** Fixed a query sorting bug where older files modified recently were pushed off the Recents list.
+- [Bug] **DataStore Crash Prevention:** Handled read errors in `BrowserPreferencesRepository` using a `.catch` operator to emit a safe fallback.
+- [Bug] **JSON Parsing Safety:** Fixed swallowed parsing exceptions in `StorageClassificationRepository` to log and safely drop corrupted data.
+- [Bug] **Error Surfacing:** Repository failures in `HomeViewModel` are properly propagated to the UI state rather than silently ignored.
+- [Bug] **Trash State Reliability:** Preserved transient UI states (selected files and errors) when `TrashViewModel` initiates a load instead of wiping them.
+- [Build] **KSP Alignment:** Resolved Kotlin Symbol Processing plugin mapping mismatch, successfully matching version `2.2.10-2.0.2` for build stability.
+- [Bug] **Smart Paste Overwrite Safety:** Added a fail-fast mechanism to prevent `LocalFileRepository` from silently deleting pre-existing target files when an explicit conflict resolution is missing.
+- [Bug] **Deep Directory Conflict Scans:** Upgraded `detectCopyConflicts` to intelligently recurse through directory trees, flagging nested file collisions instead of only checking the top-level folder names.
+- [Bug] **State Persistence:** Fixed an initialization gap where restored UI states (path, volume, category) from process death were loaded from state but not explicitly written back to the ViewModel state, leaving the explorer uninitialized.
+- [Bug] **Delete Policy Fallbacks:** Modified the `evaluateDeletePolicy` engine to inspect volume lookup failures directly and default to safe mixed-deletion states, rather than implicitly assuming no-volume and permanently deleting files.
+- [Bug] **Trash Restore Traps:** Patched an empty-state lock-in when a user tried to restore a file from a removed drive; the app now displays a dismissible message instead of an un-closable, broken list if no valid destinations exist.
+- [Bug] **Intent Sharing Crashes:** Fixed a Jetpack Compose lifecycle context lookup failure (`navController.context` nullability) that crashed the app when sharing multiple files; updated to explicitly use `LocalContext.current`.
+
+### Improved
+- [Testing] Added unit test verification for optimistic storage classification updates in `HomeViewModel`.
+
+---
+
+## [0.3.9] - 2026-03-15
+
+### Added
+- [Feature] Full SD-card-vs-OTG storage classification workflow, including removable-volume prompting, persistent classification overrides, and Settings-based storage management.
+- [Feature] Per-volume trash support for internal storage and SD cards using dedicated `.arcile/.trash` and `.arcile/.metadata` roots on each permanent volume.
+- [Feature] Explicit restore destination fallback when a trashed item's original permanent volume is unavailable.
+- [Feature] Refreshed About screen with a more complete and polished product overview.
+
+### Changed
+- [Architecture] Consolidated external storage behavior around `StorageKind` and policy-driven filtering instead of inferring behavior from raw removability.
+- [Architecture] Unified browser, recents, categories, dashboard, search, and trash around indexed-vs-browsable volume policy helpers in `LocalFileRepository`.
+- [Behavior] SD cards now behave as first-class permanent storage across indexed surfaces, while OTG and unclassified removable storage remain browsable-only and permanently deleted.
+- [Behavior] Release readiness for SD-card secondary-storage use is now backed by targeted fixes and updated unit coverage.
+
+### Fixed
+- [Bug] Temporary storage no longer leaks into indexed dashboard flows or opens misleading per-volume dashboard states.
+- [Bug] First-time classification of newly detected removable storage now persists `lastSeenName` and `lastSeenPath` correctly.
+- [Bug] Delete flows now consistently split trash-enabled permanent storage from permanent-delete-only temporary storage across Browser and Recent Files.
+- [Bug] Global search, categories, dashboard totals, and recent files now consistently exclude OTG and unclassified removable volumes while keeping path browsing/search available.
+- [Bug] Trash restore fallback now exposes a destination picker instead of failing silently when the original permanent volume is unavailable.
+
+### Improved
+- [UX] Browser root lists, Home cards, and in-browser messaging now better communicate whether a volume is an SD card, temporary USB storage, or unclassified external storage.
+- [Testing] Added focused test coverage for delete-policy behavior, first-time removable classification persistence, and restore-destination fallback, with `./gradlew testDebugUnitTest` passing for the release state.
+
+---
+
+## [0.3.8] - 2026-03-14
+
+### Added
+- [Feature] External storage classification system with `INTERNAL`, `SD_CARD`, `OTG`, and `EXTERNAL_UNCLASSIFIED` policies persisted in DataStore.
+- [Feature] Dedicated Storage Management screen in Settings for classifying removable volumes as SD card or OTG and resetting user classification.
+- [Feature] Stable `storageKey` identity for mounted volumes using UUID-first and canonical-path fallback matching.
+
+### Changed
+- [Architecture] Centralized indexed, browsable, and trash-enabled volume filtering in `LocalFileRepository` so indexed surfaces no longer infer behavior from `isRemovable`.
+- [Behavior] Removable volumes now default to temporary/unclassified behavior until the user classifies them.
+- [Behavior] Home prompt actions and classification persistence now use stable storage identity instead of transient volume IDs.
+
+### Fixed
+- [Bug] Categories, dashboard totals, recent files, and global search now consistently exclude OTG and unclassified removable storage while still allowing browser/path search access.
+- [Bug] Delete flows in Browser and Recent Files now correctly block mixed permanent-storage and temporary-storage selections and use permanent delete for OTG/unclassified storage.
+- [Bug] Trash routing now rejects temporary storage and keeps trash behavior limited to internal and SD-card policies.
+- [Bug] Home per-volume category loading now respects indexed-volume semantics, with updated tests covering the new default behavior.
+
+### Improved
+- [UX] Browser now shows an informational banner while browsing temporary storage, clarifying that it is not indexed and that deletion is permanent.
+- [UX] Storage dashboard now shows a note when temporary mounted volumes are excluded from indexed insights.
+- [Testing] Updated unit tests and release verification now pass with `./gradlew testDebugUnitTest`.
+
+---
+
+## [0.3.7] - 2026-03-13
+
+### Added
+- [Feature] Full multi-volume storage awareness across the app via reactive mounted-volume tracking for internal storage, SD cards, and OTG USB drives.
+- [Feature] Manual pull-to-refresh on the Home screen so storage, categories, and recent files can be reloaded without restarting the app.
+
+### Fixed
+- [Bug] External storage mount and unmount changes now refresh the app live instead of only appearing after a restart.
+- [Bug] Browsing an SD card or OTG volume no longer leaks internal-storage navigation context into breadcrumbs, root browsing, categories, or recent files.
+- [Bug] Storage dashboard calculations are now scoped correctly per volume, including drive labels, occupied space, and category breakdowns.
+- [Bug] "Recent Files" and the "See All" screen now respect storage scope correctly and refresh reliably after returning to the screen.
+- [Bug] Background Home refreshes no longer flash the pull-to-refresh indicator or interfere with top bar expansion behavior.
+
+### Improved
+- [Architecture] Replaced the old single-root storage model with scoped storage queries and richer volume metadata (`id`, mount state, removable flag, path, and display name).
+- [Architecture] Browser, Home, Storage Dashboard, Categories, and Recent Files now share a common volume-aware storage model.
+- [Performance] Reduced repeated per-volume category scans on Home by reusing cached scoped category results until the mounted-volume set changes.
+- [Safety] Trash remains limited to internal storage for now, with removable-volume deletes explicitly blocked from using Trash to avoid inconsistent restore behavior.
+
+---
+
+## [0.3.6] - 2026-03-13
+
+### Fixed
+- [Bug] "Recent Files" list failed to float newly copied duplicate items to the top; fixed by primarily querying `MediaStore.Files.FileColumns.DATE_ADDED` in `LocalFileRepository.getRecentFiles` with a secondary `DATE_MODIFIED` fallback.
+- [Bug] "Recent Files" list reported 0-bytes for freshly duplicated files because MediaStore asynchronous indexation lagged behind execution; implemented a native `java.io.File(path).length()` bypass.
+
+### Improved
+- [Architecture] Extracted massive `FileManagerScreen.kt` "God Composable" logic into hyper-specific isolated modular components under `presentation/ui/components/` including dialogs, lists, grids, and menus for drastically improved maintainability.
+
+---
+
+## [0.3.5] - 2026-03-13
+
+### Added
+- [Feature] Persistent Sorting Filters: File browsing sorting preferences are now persisted per directory or globally via DataStore.
+- [Feature] Subfolder Sorting Application: Users can now explicitly choose to apply a sorting filter dynamically to a selected folder and all its subfolders directly from the Sort option dialog.
+- [Feature] Category Sort Defaults: The categories on the home screen now automatically configure sorting to "Date Newest" instead of alphabetically by default. 
+
+### Improved
+- [UX] Process death states explicitly re-apply "Date Newest" sort configuration cleanly when recovering active Category screens.
+
+---
+
+## [0.3.4] - 2026-03-11
+
+### Added
+- [Feature] Smart Paste Conflict Resolution: Built a robust, step-by-step conflict dialog to handle copy/move filename collisions gracefully instead of silently overwriting user data.
+- [Feature] Smart Paste for Folders: Dynamically restyled conflict UI explicitly for directories, replacing generic "Replace" actions with a precise "Merge" paradigm.
+- [Feature] Contextual Batch Processing: Added intuitive "Do this for all remaining conflicts" checkbox for rapid ingestion of large paste operations.
+- [Feature] Intelligent Auto-Renaming: Resolving a conflict via "Keep Both" now automatically increments file suffixes recursively (e.g., `(1)`, `(2)`) instead of polluting the name with generic words.
+
+### Fixed
+- [Bug] SavedStateHandle: ViewModels now persist navigation stack (`pathHistory`) and current active directory across process death natively, securing user state against sudden OS terminations.
+- [Bug] Corrected `navigateBack()` returning boolean values incorrectly when attempting to traverse backwards up a deeply-linked directory node on a fresh launch process.
+- [Bug] Deprecated duplicate boolean state checking `isCategoryScreen` looping across the `NavController` recompositions. The deep link intent is now cleanly pushed to initialization inside `BrowserViewModel` via `SavedStateHandle` parameters, enforcing a single source of truth.
+- [Bug] `copyFiles()` overwrites destination files without user confirmation; fixed via new Smart Paste flow.
+- [Bug] Infinite Recursion File-System loop: prevented users from pasting a parent directory inside of its own child folder.
+- [Bug] Identical same-folder paste operations triggered duplicates instead of acting gracefully as an atomic no-op.
+
+---
+
+## [0.3.3] - 2026-03-11
+
+### Fixed
+- [Bug] Trash restore data corruption risk: orphaned metadata implicitly handled and skipped gracefully.
+- [Bug] `moveFiles()` copy+delete fallback is now atomic and triggers a complete rollback on partial failure.
+
+### Improved
+- [Security] Added internal KDoc highlighting that the `.arcile_trash` vault on shared external storage natively lacks encryption.
+- [Performance] Verified `FileModel` constructor skips inherently expensive disk I/O operations natively via default values.
+- [Performance] `getRecentFiles()` stops blindly querying the MediaStore unconditionally by instituting hard limits per feature view.
+- [Accessibility] Added rich `contentDescription` semantics to both `FileItemRow` and `FileGridItem` allowing precise TalkBack announcements.
+- [Accessibility] Adjusted Home Screen categorized shortcut elements to universally respect minimal 48dp interaction touch targets.
+- [UX] `ToolsScreen` and identical components now properly restrict click behaviors and dynamically dim opacity for uninitialized capabilities.
+- [Smoothness] Removed redundant `SimpleDateFormat` recreations triggering costly UI Thread Garbage Collection sweeps in `RecentFilesScreen`.
+- [Smoothness] Stripped problematic layout shifting flags (`animateContentSize`) off the `StorageSummaryCard` stopping native redraw jittering.
+
+---
+
+## [0.3.2] - 2026-03-11
+
+### Refactored
+- [Architecture] `FileModel` domain model decoupled from `java.io.File`, preventing implicit I/O operations and allowing proper serialization/parceling without leaking data layer concerns.
+- [Architecture] Introduced Hilt Dependency Injection framework. Replaced direct instantiation of `LocalFileRepository` inside ViewModels with constructor injection, massively improving testability.
+- [Architecture] Split monolith `FileManagerViewModel` into four feature-scoped view models: `HomeViewModel`, `BrowserViewModel`, `TrashViewModel`, and `RecentFilesViewModel` to enhance performance and code maintainability.
+
+### Fixed
+- [Bug] Clipboard operations failed or behaved unreliably due to UI recompositions; states are now correctly hoisted within a dedicated `ClipboardState` tied uniquely to `BrowserViewModel`.
+- [Bug] Share operations failed out-of-context for `RecentFilesScreen`; added `shareSelectedFiles` capability directly to the `RecentFilesViewModel` to fix intent drops.
+- [Bug] `FileManagerScreen` crashed due to missing Opt-In annotations for modern Compose 1.4+ Shared Transitions.
+
+### Improved
+- [Component] Removed monolithic `FileManagerState`. Each feature screen (`HomeScreen`, `StorageDashboardScreen`, etc.) now strictly binds to precisely tailored isolated states (`HomeState`, `TrashState`, etc.).
+
+---
+
+## [0.3.1] - 2026-03-11
+
+### Fixed
+- [Bug] `SearchFiltersBottomSheet`: Date filter chip selected-state checks now use live time-window range comparison instead of exact equality against a stale `remember { System.currentTimeMillis() }` — chips correctly highlight after the sheet is closed and reopened.
+- [Bug] `FileManagerScreen`: Long-press range-selection anchor `lastInteractedIndex` is now reset to `null` whenever the file list changes (directory navigation, sort change), preventing stale-index out-of-bounds errors and incorrect batch selections in both list and grid views.
+- [Bug] `RecentFilesScreen`: System back gesture now clears selection mode (via `BackHandler`) instead of navigating away with `selectedFiles` still populated.
+- [Bug] `RecentFilesScreen`: Delete action now shows a confirmation `AlertDialog` ("items will be moved to Trash Bin") before invoking `onDeleteSelected()`, matching the behavior in `FileManagerScreen`.
+- [Bug] `AudioAlbumArtFetcher`: `return@try null` replaced with `return null` — `try` is not a valid label target in Kotlin; the `finally { retriever.release() }` block still executes correctly.
+- [Bug] `FileManagerViewModel`: `isPullToRefreshing` state now exclusively drives the pull-to-refresh indicator; general `isLoading` no longer conflated with the swipe gesture.
+- [Bug] `FileManagerViewModel`: `navigateBack()` now returns `true` after switching state to `isHomeScreen`, preventing the `NavController` from also popping the back stack (double-navigation).
+- [Bug] `FileManagerViewModel`: `refresh()` now routes to the correct loader for each screen type (home, trash, recent files, category, directory browser).
+- [Bug] `FileManagerViewModel`: `debouncedSearch()` uses `pathScope = null` (MediaStore-wide) on home, category, and recent screens; scopes to `currentPath` only when inside a directory browser.
+- [Bug] `LocalFileRepository`: Copy/move operations now reject ancestor targets, preventing infinite filesystem loops.
+- [Bug] `LocalFileRepository`: `restoreFromTrash` is non-destructive — if the restore target already exists a conflict-safe filename is generated instead of overwriting.
+- [Bug] `LocalFileRepository`: `searchFiles` validates `pathScope` and prunes directories outside the storage root during recursive walks.
+
+### Improved
+- [A11y] `SettingsScreen`: Theme mode card rows now use `Modifier.selectableGroup()` and each card exposes `Modifier.selectable(role = Role.RadioButton)`, allowing TalkBack to announce them as an exclusive radio group.
+- [A11y] `SettingsScreen`: Accent color label replaced `currentAccent.name` (raw enum constant) with a friendly `accentLabel()` helper returning "Dynamic", "Monochrome", "Blue", etc.
+
+### Added
+- [Theme] `AccentColor.MONOCHROME` now resolves to dedicated `MonochromeLightScheme` / `MonochromeDarkScheme` grayscale color schemes instead of falling through to the purple default.
+- [Security] `file_provider_paths.xml`: Added root `external-path path="/"` entry so `FileProvider.getUriForFile()` succeeds for any file on external storage, not just the ten named standard folders.
+
+### Docs
+- [KDoc] `FileRepository.deleteFile` KDoc corrected to describe soft-delete (trash) behavior rather than permanent deletion.
 
 ---
 

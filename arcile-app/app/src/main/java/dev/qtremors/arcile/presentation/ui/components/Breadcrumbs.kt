@@ -14,29 +14,40 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.io.File
 
 @Composable
 fun Breadcrumbs(
-    path: String,
-    storageRootPath: String,
+    currentPath: String,
+    storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume>,
     onPathSegmentClick: (String) -> Unit
 ) {
     val scrollState = rememberScrollState()
 
-    LaunchedEffect(path) {
+    LaunchedEffect(currentPath) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
+    val currentVolume = remember(currentPath, storageVolumes) {
+        storageVolumes.find { volume ->
+            currentPath == volume.path || currentPath.startsWith(volume.path + java.io.File.separator)
+        }
+    }
+
+    val volumeRootPath = currentVolume?.path ?: ""
+    val volumeName = currentVolume?.name ?: "Storage"
+
     // strip the storage root prefix to get relative segments
-    val relativePath = if (path.startsWith(storageRootPath)) {
-        path.removePrefix(storageRootPath)
+    val relativePath = if (volumeRootPath.isNotEmpty() && currentPath.startsWith(volumeRootPath)) {
+        currentPath.removePrefix(volumeRootPath)
     } else {
-        path
+        currentPath
     }
 
     val segments = relativePath.split("/").filter { it.isNotEmpty() }
@@ -47,21 +58,21 @@ fun Breadcrumbs(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // root segment
-        val isAtRoot = segments.isEmpty()
+        // volume root segment
+        val isAtRoot = segments.isEmpty() && volumeRootPath.isNotEmpty()
         Text(
-            text = "Internal Storage",
+            text = volumeName,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isAtRoot) FontWeight.Bold else FontWeight.Normal,
             color = if (isAtRoot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.clickable(enabled = !isAtRoot) {
-                onPathSegmentClick(storageRootPath)
+            modifier = Modifier.clickable(enabled = !isAtRoot && volumeRootPath.isNotEmpty()) {
+                onPathSegmentClick(volumeRootPath)
             }
         )
 
-        var currentBuiltPath = storageRootPath
+        var currentBuiltPath = volumeRootPath
         segments.forEachIndexed { index, segment ->
-            currentBuiltPath += "/$segment"
+            currentBuiltPath += if (currentBuiltPath.endsWith("/")) segment else "/$segment"
             val isLast = index == segments.size - 1
             val segmentPath = currentBuiltPath
 

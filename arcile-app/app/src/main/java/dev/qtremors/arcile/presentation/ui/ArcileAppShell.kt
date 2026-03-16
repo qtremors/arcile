@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
-import android.os.Environment
+import android.net.Uri
+import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -17,27 +18,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.FileManagerViewModel
+import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.presentation.home.HomeRefreshMode
+import dev.qtremors.arcile.presentation.home.HomeViewModel
+import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.ui.theme.ThemeState
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import java.io.File
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
-    viewModel: FileManagerViewModel,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit
@@ -45,6 +49,7 @@ fun ArcileAppShell(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
+    val context = LocalContext.current
 
     androidx.compose.animation.SharedTransitionLayout {
         Scaffold(
@@ -60,27 +65,25 @@ fun ArcileAppShell(
                     popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
                 ) {
                 composable(AppRoutes.HOME) {
+                    val viewModel = hiltViewModel<HomeViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     HomeScreen(
                         state = state,
                         onOpenFileBrowser = {
-                            viewModel.openFileBrowser()
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=&category=&volumeId=") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToPath = { path ->
-                            viewModel.navigateToSpecificFolder(path)
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=${Uri.encode(path)}") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onOpenFile = onOpenFile,
                         onCategoryClick = { categoryName ->
-                            viewModel.navigateToCategory(categoryName)
-                            navController.navigate(AppRoutes.EXPLORER) {
+                            navController.navigate(AppRoutes.EXPLORER + "?category=${Uri.encode(categoryName)}") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
@@ -94,50 +97,71 @@ fun ArcileAppShell(
                                 launchSingleTop = true
                             }
                         },
+                        onNavigateToAbout = {
+                            navController.navigate(AppRoutes.ABOUT)
+                        },
                         onNavigateToTrash = {
-                            viewModel.navigateToTrash()
                             navController.navigate(AppRoutes.TRASH) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToRecentFiles = {
-                            viewModel.navigateToRecentFiles()
-                            navController.navigate(AppRoutes.RECENT_FILES) {
+                            navController.navigate(AppRoutes.RECENT_FILES + "?volumeId=") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
-                        onOpenStorageDashboard = {
-                            navController.navigate(AppRoutes.STORAGE_DASHBOARD) {
+                        onOpenStorageDashboard = { volumeId ->
+                            val route = if (volumeId != null) {
+                                AppRoutes.STORAGE_DASHBOARD + "?volumeId=${Uri.encode(volumeId)}"
+                            } else {
+                                AppRoutes.STORAGE_DASHBOARD + "?volumeId="
+                            }
+                            navController.navigate(route) {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
+                        onRefresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
+                        onResumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
+                        onSetVolumeClassification = { storageKey, kind -> viewModel.setVolumeClassification(storageKey, kind) },
+                        onHideClassificationPrompt = { storageKey -> viewModel.hideClassificationPrompt(storageKey) }
                     )
                 }
-                composable(AppRoutes.STORAGE_DASHBOARD) {
+                composable(AppRoutes.STORAGE_DASHBOARD + "?volumeId={volumeId}") { backStackEntry ->
+                    val viewModel = hiltViewModel<HomeViewModel>() // Shares Home logic
                     val state by viewModel.state.collectAsStateWithLifecycle()
+                    val volumeId = backStackEntry.arguments?.getString("volumeId")?.takeIf { it.isNotBlank() }
                     StorageDashboardScreen(
                         state = state,
+                        selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
-                        onCategoryClick = { categoryName ->
-                            viewModel.navigateToCategory(categoryName)
-                            navController.navigate(AppRoutes.EXPLORER) {
+                        onCategoryClick = { categoryName, scopedVolumeId ->
+                            val route = buildString {
+                                append(AppRoutes.EXPLORER)
+                                append("?category=")
+                                append(Uri.encode(categoryName))
+                                if (scopedVolumeId != null) {
+                                    append("&volumeId=")
+                                    append(Uri.encode(scopedVolumeId))
+                                }
+                            }
+                            navController.navigate(route) {
                                 popUpTo(AppRoutes.STORAGE_DASHBOARD) { inclusive = true }
                             }
                         }
                     )
                 }
-                composable(AppRoutes.EXPLORER) {
+                composable(AppRoutes.EXPLORER + "?path={path}&category={category}&volumeId={volumeId}") {
+                    val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
 
                     FileManagerScreen(
                         state = state,
-                        storageRootPath = viewModel.storageRootPath,
                         onNavigateBack = {
                             if (!viewModel.navigateBack()) {
                                 navController.popBackStack()
@@ -150,54 +174,60 @@ fun ArcileAppShell(
                         onClearSelection = { viewModel.clearSelection() },
                         onCreateFolder = { viewModel.createFolder(it) },
                         onCreateFile = { viewModel.createFile(it) },
-                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
+                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
+                        onConfirmTrash = { viewModel.moveSelectedToTrash() },
+                        onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
+                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
-                        onSortOptionChange = { viewModel.updateBrowserSortOption(it) },
+                        onSortOptionChange = { option, applyToSubfolders -> viewModel.updateBrowserSortOption(option, applyToSubfolders) },
                         onGridViewChange = { viewModel.setGridView(it) },
                         onClearError = { viewModel.clearError() },
                         onCopySelected = { viewModel.copySelectedToClipboard() },
                         onCutSelected = { viewModel.cutSelectedToClipboard() },
                         onPasteFromClipboard = { viewModel.pasteFromClipboard() },
                         onCancelClipboard = { viewModel.cancelClipboard() },
-                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) },
-                        isRefreshing = state.isLoading,
-                        onRefresh = { viewModel.refresh() },
+                        onShareSelected = { viewModel.shareSelectedFiles(context) },
+                        isRefreshing = state.isPullToRefreshing,
+                        onRefresh = { viewModel.refresh(pullToRefresh = true) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) }
+                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
+                        onResolvingConflicts = { viewModel.resolveConflicts(it) },
+                        onDismissConflictDialog = { viewModel.dismissConflictDialog() },
+                        onDeletePermanentlySelected = { viewModel.deleteSelectedPermanently() }
                     )
                 }
                 composable(AppRoutes.TRASH) {
+                    val viewModel = hiltViewModel<TrashViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     TrashScreen(
                         state = state,
-                        onNavigateBack = {
-                            if (!viewModel.navigateBack()) {
-                                navController.popBackStack()
-                            }
-                        },
+                        onNavigateBack = { navController.popBackStack() },
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onRestoreSelected = { viewModel.restoreSelectedTrash() },
                         onEmptyTrash = { viewModel.emptyTrash() },
-                        onClearError = { viewModel.clearError() }
+                        onClearError = { viewModel.clearError() },
+                        onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
+                        onRestoreToDestination = { viewModel.restoreToDestination(it) }
                     )
                 }
-                composable(AppRoutes.RECENT_FILES) {
+                composable(AppRoutes.RECENT_FILES + "?volumeId={volumeId}") {
+                    val viewModel = hiltViewModel<RecentFilesViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     RecentFilesScreen(
                         state = state,
-                        onNavigateBack = {
-                            if (!viewModel.navigateBack()) {
-                                navController.popBackStack()
-                            }
-                        },
+                        onNavigateBack = { navController.popBackStack() },
                         onOpenFile = onOpenFile,
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
-                        onDeleteSelected = { viewModel.moveSelectedToTrash() },
-                        onShareSelected = { viewModel.shareSelectedFiles(navController.context) }
+                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
+                        onConfirmTrash = { viewModel.moveSelectedToTrash() },
+                        onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
+                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
+                        onShareSelected = { viewModel.shareSelectedFiles(context) },
+                        onRefresh = { viewModel.loadRecentFiles() }
                     )
                 }
                 composable(AppRoutes.TOOLS) {
@@ -209,7 +239,24 @@ fun ArcileAppShell(
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         onNavigateBack = { navController.popBackStack() },
-                        onThemeChange = onThemeChange
+                        onThemeChange = onThemeChange,
+                        onOpenStorageManagement = { navController.navigate(AppRoutes.STORAGE_MANAGEMENT) },
+                        onNavigateToAbout = { navController.navigate(AppRoutes.ABOUT) }
+                    )
+                }
+                composable(AppRoutes.STORAGE_MANAGEMENT) {
+                    val viewModel = hiltViewModel<HomeViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    StorageManagementScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onSetVolumeClassification = { storageKey, kind -> viewModel.setVolumeClassification(storageKey, kind) },
+                        onResetVolumeClassification = { storageKey -> viewModel.resetVolumeClassification(storageKey) }
+                    )
+                }
+                composable(AppRoutes.ABOUT) {
+                    AboutScreen(
+                        onNavigateBack = { navController.popBackStack() }
                     )
                 }
             }

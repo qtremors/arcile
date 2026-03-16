@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.3.0-blueviolet" alt="Version">
-  <img src="https://img.shields.io/badge/Kotlin-2.2-7F52FF?logo=kotlin" alt="Kotlin">
+<img src="https://img.shields.io/badge/Version-0.4.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
@@ -25,15 +25,14 @@
 
 | Feature | Description |
 |---------|-------------|
-| 📂 **File Browsing** | Navigate internal storage with sorted directory listings (folders first, alphabetical) |
+| 📂 **Multi-Volume Support** | Seamlessly manage Internal Storage, SD Cards, and USB OTG devices |
 | 🗂️ **Breadcrumb Navigation** | Visual path breadcrumbs with auto-scroll and tap-to-navigate |
-| ✅ **Multi-Select** | Long-press to select files, batch operations with contextual top bar |
-| 📁 **Create Folders** | Create new directories via FAB or overflow menu |
-| 🗑️ **Delete Files** | Delete selected files and directories (recursive) |
-| 🏠 **Home Dashboard** | Storage summary card, category shortcuts, folder quick-access, and recent files |
+| ✅ **Batch Operations** | Multi-select files for copy, cut, move, or permanent delete |
+| 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
+| 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
-| 🔧 **Tools Screen** | Planned utilities: FTP Server, Storage Analyzer, Junk Cleaner, and more |
-| ⚙️ **Settings** | Theme mode and accent color selector with bottom sheet pickers |
+| 🗑️ **Trash Subsystem** | Safely remove files with metadata-aware restoration |
+| ⚙️ **Settings & About** | Theme customization and comprehensive app information |
 
 ---
 
@@ -66,7 +65,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.3.0.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk
 ```
 
 ### Release Signing
@@ -97,9 +96,9 @@ Release builds are signed using credentials stored in `local.properties` (not co
 
 | Layer | Technology |
 |-------|------------|
-| **Language** | Kotlin 2.2 |
+| **Language** | Kotlin 2.2.10 |
 | **UI Framework** | Jetpack Compose with Material 3 |
-| **Architecture** | MVVM (ViewModel + StateFlow) |
+| **Architecture** | MVVM (Feature-Scoped ViewModels + StateFlow) with Hilt DI |
 | **Navigation** | Navigation Compose |
 | **Async** | Kotlin Coroutines |
 | **Build System** | Gradle (Kotlin DSL) with Version Catalogs |
@@ -115,36 +114,20 @@ arcile/
 ├── arcile-app/                          # Android project root
 │   ├── app/src/main/
 │   │   ├── java/dev/qtremors/arcile/
-│   │   │   ├── ArcileApp.kt             # Application class (Coil image loader)
+│   │   │   ├── ArcileApp.kt             # Application class (Coil image loader, Hilt app)
 │   │   │   ├── MainActivity.kt          # Entry point, permissions, nav shell
-│   │   │   ├── data/
-│   │   │   │   └── LocalFileRepository.kt
-│   │   │   ├── domain/
-│   │   │   │   ├── FileModel.kt
-│   │   │   │   ├── FileRepository.kt    # Repository interface
-│   │   │   │   ├── FileCategories.kt
-│   │   │   │   ├── SearchFilters.kt
-│   │   │   │   ├── StorageInfo.kt
-│   │   │   │   └── TrashMetadata.kt
+│   │   │   ├── data/                    # Repository Implementations
+│   │   │   ├── di/                      # Dependency Injection (Hilt)
+│   │   │   ├── domain/                  # Core Models & Repository Interfaces
 │   │   │   ├── image/                   # Coil custom fetchers
-│   │   │   │   ├── ApkIconFetcher.kt
-│   │   │   │   └── AudioAlbumArtFetcher.kt
-│   │   │   ├── navigation/
-│   │   │   │   └── AppRoutes.kt         # Route string constants
-│   │   │   ├── presentation/
-│   │   │   │   ├── FileManagerViewModel.kt
-│   │   │   │   ├── FilePresentation.kt
-│   │   │   │   ├── SearchFilters.kt
-│   │   │   │   └── ui/
-│   │   │   │       ├── ArcileAppShell.kt
-│   │   │   │       ├── HomeScreen.kt
-│   │   │   │       ├── FileManagerScreen.kt
-│   │   │   │       ├── RecentFilesScreen.kt
-│   │   │   │       ├── SettingsScreen.kt
-│   │   │   │       ├── StorageDashboardScreen.kt
-│   │   │   │       ├── ToolsScreen.kt
-│   │   │   │       ├── TrashScreen.kt
-│   │   │   │       └── components/      # Reusable UI components
+│   │   │   ├── navigation/              # Route string constants
+│   │   │   ├── presentation/            # Feature-Scoped ViewModels & UI
+│   │   │   │   ├── browser/
+│   │   │   │   ├── home/
+│   │   │   │   ├── recentfiles/
+│   │   │   │   ├── settings/
+│   │   │   │   ├── trash/
+│   │   │   │   └── ui/                  # Compose UI Screens & Components
 │   │   │   ├── ui/theme/                # Theme, colors, typography, shapes
 │   │   │   └── utils/                   # Formatting & color utilities
 │   │   └── res/                         # Android resources
@@ -169,7 +152,7 @@ arcile/
 ./gradlew connectedAndroidTest
 ```
 
-> **Note:** Test infrastructure is currently minimal — see [TASKS.md](TASKS.md) section H4.
+> **Note:** Test infrastructure is currently minimal — see [TASKS.md](TASKS.md) section 4.
 
 ---
 

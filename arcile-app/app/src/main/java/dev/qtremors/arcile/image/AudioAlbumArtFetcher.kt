@@ -43,6 +43,7 @@ class AudioAlbumArtFetcher(
                 }
                 
                 val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size, decodeOptions)
+                    ?: return null // decodeByteArray failed; let Coil use its fallback (finally still runs)
                 DrawableResult(
                     drawable = BitmapDrawable(options.context.resources, bitmap),
                     isSampled = true,

@@ -11,13 +11,41 @@ enum class ThemeMode {
 
 enum class AccentColor(val color: Color?) {
     DYNAMIC(null), // Handled by Material3 dynamic colors
-    MONOCHROME(Color.Gray),
-    BLUE(Color(0xFF2196F3)),
-    CYAN(Color(0xFF00BCD4)),
-    GREEN(Color(0xFF4CAF50)),
-    RED(Color(0xFFF44336)),
-    PURPLE(Color(0xFF9C27B0))
+    
+    // Row 1
+    RED(AccentRed),
+    PINK(AccentPink),
+    PURPLE(AccentPurple),
+    DEEP_PURPLE(AccentDeepPurple),
+    
+    // Row 2
+    CYAN(AccentCyan),
+    LIGHT_BLUE(AccentLightBlue),
+    BLUE(AccentBlue),
+    INDIGO(AccentIndigo),
+    
+    // Row 3
+    TEAL(AccentTeal),
+    GREEN(AccentGreen),
+    LIGHT_GREEN(AccentLightGreen),
+    LIME(AccentLime),
+    
+    // Row 4
+    DEEP_ORANGE(AccentDeepOrange),
+    ORANGE(AccentOrange),
+    AMBER(AccentAmber),
+    YELLOW(AccentYellow),
+    
+    // Row 5
+    BROWN(AccentBrown),
+    BLUE_GREY(AccentBlueGrey),
+    GREY(AccentGrey),
+    BLACK(AccentBlack),
+
+    MONOCHROME(AccentMonochrome) // Keep as fallback or special case
 }
+
+
 
 data class ThemeState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
