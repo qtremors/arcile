@@ -195,7 +195,8 @@ fun ArcileAppShell(
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onResolvingConflicts = { viewModel.resolveConflicts(it) },
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
-                        onDeletePermanentlySelected = { viewModel.deleteSelectedPermanently() }
+                        onDeletePermanentlySelected = { viewModel.deleteSelectedPermanently() },
+                        onClearNativeRequest = { viewModel.clearNativeRequest() }
                     )
                 }
                 composable(AppRoutes.TRASH) {
@@ -210,7 +211,8 @@ fun ArcileAppShell(
                         onEmptyTrash = { viewModel.emptyTrash() },
                         onClearError = { viewModel.clearError() },
                         onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
-                        onRestoreToDestination = { viewModel.restoreToDestination(it) }
+                        onRestoreToDestination = { ids, path -> viewModel.restoreToDestination(ids, path) },
+                        onClearNativeRequest = { viewModel.clearNativeRequest() }
                     )
                 }
                 composable(AppRoutes.RECENT_FILES + "?volumeId={volumeId}") {
@@ -227,7 +229,8 @@ fun ArcileAppShell(
                         onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
                         onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onShareSelected = { viewModel.shareSelectedFiles(context) },
-                        onRefresh = { viewModel.loadRecentFiles() }
+                        onRefresh = { viewModel.loadRecentFiles() },
+                        onClearNativeRequest = { viewModel.clearNativeRequest() }
                     )
                 }
                 composable(AppRoutes.TOOLS) {

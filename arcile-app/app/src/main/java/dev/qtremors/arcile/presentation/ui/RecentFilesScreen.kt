@@ -59,11 +59,30 @@ fun RecentFilesScreen(
     onConfirmPermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
     onShareSelected: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onClearNativeRequest: () -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()) }
+
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            when (state.pendingNativeAction) {
+                dev.qtremors.arcile.presentation.recentfiles.RecentNativeAction.TRASH -> onConfirmTrash()
+                null -> {}
+            }
+        }
+        onClearNativeRequest()
+    }
+
+    androidx.compose.runtime.LaunchedEffect(state.nativeRequest) {
+        state.nativeRequest?.let { sender ->
+            launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+        }
+    }
 
     // Intercept system back to clear selection before navigating away
     BackHandler(enabled = isSelectionMode) {

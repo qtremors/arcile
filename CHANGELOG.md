@@ -1,9 +1,30 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.0
-> **Last Updated:** 2026-03-16
+> **Version:** 0.4.1
+> **Last Updated:** 2026-03-17
 
+
+---
+
+## [0.4.1] - 2026-03-17
+
+### Added
+- [Performance] Implemented a persistent caching layer for storage analytics in `Context.cacheDir/analytics/`, providing zero-latency loading for the Home screen and Storage Dashboard.
+- [Architecture] Introduced `DestinationRequiredException` for typed error handling during file restoration operations.
+
+### Changed
+- [Performance] Replaced manual filesystem scanning for category sizes with `StorageStatsManager` (API 26+) combined with a highly optimized `MediaStore` fallback. This ensures completely accurate storage size calculations while omitting redundant MIME type queries.
+- [Performance] Optimized `MediaStore` queries to perform SQL-level filtering by MIME type, significantly reducing CPU and memory overhead during file discovery.
+- [Performance] Transitioned file categorization from hardcoded extensions to native `MimeTypeMap` and `MediaStore` MIME type columns for improved accuracy and future-proofing.
+- [Performance] Confirmed `AudioAlbumArtFetcher` correctly utilizes `ContentResolver.loadThumbnail()` (API 29+) with a fallback to `MediaMetadataRetriever` on `Dispatchers.IO`.
+
+### Fixed
+- [Bug] Custom trash directories (`/.arcile`) are now aggressively filtered from all search, category, and recent file queries, and trashed files are explicitly deleted from the `MediaStore` index to prevent them from incorrectly appearing in the UI.
+- [Bug] Enhanced `moveToTrash` fallback logic to safely retain JSON metadata when file rename operations fail, guaranteeing files can always be correctly restored.
+- [Bug] Implemented proactive logging and cleanup of invalid JSON metadata files to prevent corrupted trash metadata from causing parsing crashes.
+- [Architecture] Eliminated string-based error matching in `TrashViewModel` by migrating to a robust, typed exception system for all trash operations.
+- [UX] Refined cache invalidation logic to only clear the specific affected volume's cache during file operations (create, rename, delete, copy, move), preventing unnecessary global dashboard recalculations.
 
 ---
 

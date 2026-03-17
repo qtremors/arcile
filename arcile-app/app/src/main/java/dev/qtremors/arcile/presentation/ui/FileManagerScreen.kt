@@ -198,7 +198,8 @@ fun FileManagerScreen(
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onResolvingConflicts: (Map<String, ConflictResolution>) -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
-    onDeletePermanentlySelected: () -> Unit = {}
+    onDeletePermanentlySelected: () -> Unit = {},
+    onClearNativeRequest: () -> Unit = {}
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -212,6 +213,24 @@ fun FileManagerScreen(
         targetValue = if (isFabExpanded) 45f else 0f,
         label = "fabRotation"
     )
+
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            when (state.pendingNativeAction) {
+                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmTrash()
+                null -> {}
+            }
+        }
+        onClearNativeRequest()
+    }
+
+    LaunchedEffect(state.nativeRequest) {
+        state.nativeRequest?.let { sender ->
+            launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()

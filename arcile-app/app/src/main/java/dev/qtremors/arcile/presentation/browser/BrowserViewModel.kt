@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 import java.util.ArrayDeque
 import javax.inject.Inject
 
+enum class BrowserNativeAction { TRASH }
+
 data class BrowserState(
     val currentPath: String = "",
     val currentVolumeId: String? = null,
@@ -56,7 +58,9 @@ data class BrowserState(
     val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
-    val showMixedDeleteExplanation: Boolean = false
+    val showMixedDeleteExplanation: Boolean = false,
+    val nativeRequest: android.content.IntentSender? = null,
+    val pendingNativeAction: BrowserNativeAction? = null
 )
 
 @HiltViewModel
@@ -541,10 +545,18 @@ class BrowserViewModel @Inject constructor(
                 clearSelection()
                 refresh()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                refresh()
+                if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
+                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = BrowserNativeAction.TRASH) }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                    refresh()
+                }
             }
         }
+    }
+
+    fun clearNativeRequest() {
+        _state.update { it.copy(nativeRequest = null) }
     }
 
     fun deleteSelectedPermanently() {

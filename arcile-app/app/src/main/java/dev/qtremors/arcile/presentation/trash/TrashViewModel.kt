@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.TrashMetadata
+import android.content.IntentSender
+import dev.qtremors.arcile.domain.DestinationRequiredException
+import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,12 +15,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class NativeAction { RESTORE, EMPTY }
+
 data class TrashState(
     val trashFiles: List<TrashMetadata> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val error: String? = null,
     val showDestinationPicker: Boolean = false,
+    val selectedTrashIdsForDestination: List<String> = emptyList(),
+    val nativeRequest: IntentSender? = null,
+    val pendingNativeAction: NativeAction? = null,
     val availableVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList()
 )
 
@@ -76,55 +84,74 @@ class TrashViewModel @Inject constructor(
         val selectedTrashIds = _state.value.selectedFiles.toList()
         if (selectedTrashIds.isEmpty()) return
 
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val result = repository.restoreFromTrash(selectedTrashIds)
-            result.onSuccess {
+            repository.restoreFromTrash(selectedTrashIds).onSuccess {
                 clearSelection()
                 loadTrashFiles()
             }.onFailure { error ->
-                val msg = error.message ?: ""
-                if (msg.startsWith("DESTINATION_REQUIRED")) {
-                    _state.update { it.copy(isLoading = false, showDestinationPicker = true) }
-                } else {
-                    _state.update { it.copy(isLoading = false, error = msg.ifEmpty { "Failed to restore files" }) }
-                    loadTrashFiles()
+                when (error) {
+                    is DestinationRequiredException -> {
+                        _state.update { 
+                            it.copy(
+                                isLoading = false, 
+                                showDestinationPicker = true,
+                                selectedTrashIdsForDestination = error.trashIds
+                            )
+                        }
+                    }
+                    is NativeConfirmationRequiredException -> {
+                        _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.RESTORE) }
+                    }
+                    else -> {
+                        _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                        loadTrashFiles()
+                    }
                 }
             }
         }
     }
 
     fun dismissDestinationPicker() {
-        _state.update { it.copy(showDestinationPicker = false) }
+        _state.update { it.copy(showDestinationPicker = false, selectedTrashIdsForDestination = emptyList()) }
     }
 
-    fun restoreToDestination(destinationPath: String) {
-        val selectedTrashIds = _state.value.selectedFiles.toList()
-        if (selectedTrashIds.isEmpty()) return
+    fun restoreToDestination(trashIds: List<String>, destinationPath: String) {
+        if (trashIds.isEmpty()) return
 
+        _state.update { it.copy(isLoading = true, error = null, showDestinationPicker = false) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showDestinationPicker = false) }
-            val result = repository.restoreFromTrash(selectedTrashIds, destinationPath)
-            result.onSuccess {
-                clearSelection()
+            repository.restoreFromTrash(trashIds, destinationPath).onSuccess {
+                _state.update { it.copy(selectedFiles = it.selectedFiles - trashIds.toSet(), selectedTrashIdsForDestination = emptyList()) }
                 loadTrashFiles()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
-                loadTrashFiles()
+                if (error is NativeConfirmationRequiredException) {
+                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.RESTORE) }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                    loadTrashFiles()
+                }
             }
         }
     }
 
+    fun clearNativeRequest() {
+        _state.update { it.copy(nativeRequest = null) }
+    }
+
     fun emptyTrash() {
+        _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            val result = repository.emptyTrash()
-            result.onSuccess {
+            repository.emptyTrash().onSuccess {
                 clearSelection()
                 loadTrashFiles()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
-                loadTrashFiles()
+                if (error is NativeConfirmationRequiredException) {
+                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.EMPTY) }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
+                    loadTrashFiles()
+                }
             }
         }
     }

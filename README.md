@@ -89,7 +89,7 @@ Release builds are signed using credentials stored in `local.properties` (not co
    ./gradlew assembleRelease
    ```
 
-> **Note:** The app requires **All Files Access** permission (Android 11+) or **READ/WRITE_EXTERNAL_STORAGE** (Android 10 and below) to function.
+> **Note:** The app requires **All Files Access** permission (Android 11+) or **READ/WRITE_EXTERNAL_STORAGE** (Android 9 and below) to function globally. **Android 10 (API 29) is fundamentally unsupported** because it enforces Scoped Storage but lacks the `MANAGE_EXTERNAL_STORAGE` permission, breaking global file system access via `java.io.File`.
 
 ---
 
