@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class RecentNativeAction { TRASH }
+
 data class RecentFilesState(
     val currentVolumeId: String? = null,
     val recentFiles: List<FileModel> = emptyList(),
@@ -25,7 +27,9 @@ data class RecentFilesState(
     val error: String? = null,
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
-    val showMixedDeleteExplanation: Boolean = false
+    val showMixedDeleteExplanation: Boolean = false,
+    val nativeRequest: android.content.IntentSender? = null,
+    val pendingNativeAction: RecentNativeAction? = null
 )
 
 @HiltViewModel
@@ -113,10 +117,18 @@ class RecentFilesViewModel @Inject constructor(
                 clearSelection()
                 loadRecentFiles(false)
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                loadRecentFiles(false)
+                if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
+                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = RecentNativeAction.TRASH) }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                    loadRecentFiles(false)
+                }
             }
         }
+    }
+
+    fun clearNativeRequest() {
+        _state.update { it.copy(nativeRequest = null) }
     }
 
     fun deleteSelectedPermanently() {

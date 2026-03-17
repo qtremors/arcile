@@ -228,9 +228,12 @@ fun ExpressiveLoading() {
 
 | Permission | Purpose | Scope |
 |------------|---------|-------|
-| `READ_EXTERNAL_STORAGE` | Read files on storage | Pre-Android 11 |
-| `WRITE_EXTERNAL_STORAGE` | Write files on storage | Pre-Android 10 (`maxSdkVersion=29`) |
+| `READ_EXTERNAL_STORAGE` | Read files on storage | Android 9 and below |
+| `WRITE_EXTERNAL_STORAGE` | Write files on storage | Android 9 and below (`maxSdkVersion=29`) |
 | `MANAGE_EXTERNAL_STORAGE` | Full file access | Android 11+ |
+
+> **Warning: Android 10 (API 29) Support**
+> Because Arcile relies entirely on direct `java.io.File` APIs for robust and fast file management, **Android 10 is fundamentally unsupported**. The `android:requestLegacyExternalStorage="true"` flag was removed for modern security compliance. Without it, Android 10 devices are forced into Scoped Storage but cannot be granted `MANAGE_EXTERNAL_STORAGE` (which was introduced in Android 11), leaving the app unable to browse or manage files globally.
 
 ### Theme Configuration
 

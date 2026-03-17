@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.4.0
-> **Last Updated:** 2026-03-16
+> **Version:** 0.4.1
+> **Last Updated:** 2026-03-17
 
 ---
 
@@ -19,11 +19,6 @@
 ---
 
 ## 1. PR Review Findings (Beta Blockers & Polish)
-
-- [ ] [Architecture] String matching used for restore failures
-  - **Problem:** `TrashViewModel` checks `error.message.startsWith("DESTINATION_REQUIRED")` to show destination picker.
-  - **Location:** `TrashViewModel.kt` (lines 79 - 81)
-  - **Fix:** Change the restore API to surface a typed failure instead of string matching.
 
 - [ ] [Accessibility] Missing selection state for TalkBack
   - **Problem:** `FileList` item sets merged `contentDescription` but doesn't expose selection state.
@@ -49,16 +44,6 @@
   - **Problem:** XML theme bases still use Material2 components (`Theme.Material.Light.NoActionBar`).
   - **Location:** `themes.xml` (lines 6 - 11)
   - **Fix:** Update parent styles to `Theme.Material3.*`.
-
-- [ ] [Architecture] Typed errors for restore failures.
-  - **Problem:** `LocalFileRepository` returns string-based exception `DESTINATION_REQUIRED:$id` for control flow.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Replace with a typed failure (e.g., `DestinationRequiredException`).
-
-- [ ] [Bug] Swallowed exception parsing trash metadata.
-  - **Problem:** Catch block silently hides metadata parsing failures.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Log the exception and remove/rename corrupted metadata file to prevent repeated parsing.
 
 - [ ] [Bug] Detached coroutines in flow mapper.
   - **Problem:** Spawns detached `CoroutineScope(Dispatchers.IO).launch` inside a flow mapper.
@@ -163,20 +148,40 @@
 
 ## 3. Performance & Efficiency
 
-- [ ] [Performance] `getCategoryStorageSizes()` scans the entire MediaStore without filtering.
+- [~] [Performance] Migrate custom Trash system to Native MediaStore Trash (API 30+).
+  - **Problem:** App uses custom `.arcile/.trash` directory and JSON metadata, duplicating OS functionality.
+  - **Location:** `LocalFileRepository.kt`, `TrashMetadata.kt`
+  - **Fix:** *Abandoned.* Attempting to use `MediaStore.createTrashRequest()` on Android 11+ caused intrusive permission prompt loops and double-trashing bugs. Retained and optimized the custom `.arcile/.trash` fallback globally instead.
+
+- [x] [Performance] Replace manual category size calculation with `StorageStatsManager` (API 26+).
+  - **Problem:** `getCategoryStorageSizes` iterates through thousands of `MediaStore` files to sum sizes manually.
+  - **Location:** `LocalFileRepository.kt`
+  - **Fix:** Use `StorageStatsManager` for instant category metrics on API 26+. Keep manual summation as a fallback for older versions.
+
+- [x] [Performance] Replace hardcoded file extensions with native `MimeTypeMap`.
+  - **Problem:** `FileCategories.kt` uses a hardcoded map of extensions to determine file types instead of OS definitions.
+  - **Location:** `FileCategories.kt`, `FileModel.kt`
+  - **Fix:** Utilize `MimeTypeMap.getSingleton().getMimeTypeFromExtension()` and MediaStore `MIME_TYPE` columns.
+
+- [x] [Performance] Use `ContentResolver.loadThumbnail()` for image/audio extraction (API 29+).
+  - **Problem:** `AudioAlbumArtFetcher` manually uses `MediaMetadataRetriever` and `BitmapFactory`, missing out on OS-level optimizations.
+  - **Location:** `AudioAlbumArtFetcher.kt`
+  - **Fix:** Switch to `ContentResolver.loadThumbnail()` on Android 10+. Retain manual extraction as a fallback for older versions.
+
+- [x] [Performance] `getCategoryStorageSizes()` scans the entire MediaStore without filtering.
   - **Problem:** Queries all files from MediaStore to compute per-category sizes. On devices with 100K+ indexed files, this is very slow.
   - **Location:** `LocalFileRepository.kt`
   - **Fix:** Use `GROUP BY` SQL aggregation on MIME types in the ContentResolver query, or cache results with a time-based invalidation.
 
-- [ ] [Performance] `getFilesByCategory()` loads all MediaStore entries then filters client-side.
+- [x] [Performance] `getFilesByCategory()` loads all MediaStore entries then filters client-side.
   - **Problem:** `SELECT DATA FROM files` with no selection clause, then filtering by extension in Kotlin.
   - **Location:** `LocalFileRepository.kt`
   - **Fix:** Use a `LIKE` or `IN` clause on `MIME_TYPE` in the MediaStore query.
 
-- [ ] [Performance] Scoped `searchFiles()` uses `File.walkTopDown()` — recursive filesystem traversal on the main thread.
-  - **Problem:** Although wrapped in `Dispatchers.IO`, walking the entire filesystem tree for a scoped search is inherently slow and produces an unbounded list.
+- [~] [Performance] Scoped `searchFiles()` uses `File.walkTopDown()` — recursive filesystem traversal on the main thread.
+  - **Problem:** Although wrapped in `Dispatchers.IO`, walking the entire filesystem tree for a scoped search is inherently slow.
   - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Cap results (e.g., first 200 matches), add cancellation checks in the walk, or use MediaStore for scoped search too.
+  - **Fix:** *Abandoned.* Attempting to replace direct disk I/O with MediaStore queries hides hidden files and `.nomedia` directories from the user. Retain `File.walkTopDown()` (or migrate to `java.nio.file.Files.walk`) as it is the most accurate representation of the disk for a file manager.
 
 - [ ] [Performance] `LazyColumn` / `LazyVerticalGrid` items re-keyed by `absolutePath` may conflict.
   - **Problem:** Multiple files from different directories could have the same `absolutePath` key if the list content changes during recomposition.
@@ -197,10 +202,10 @@
   - **Location:** `app/build.gradle.kts`
   - **Fix:** Use environment variables or a dedicated CI secrets mechanism instead of a local file.
 
-- [ ] [Security] `MANAGE_EXTERNAL_STORAGE` permission has no graceful degradation.
+- [~] [Security] `MANAGE_EXTERNAL_STORAGE` permission has no graceful degradation.
   - **Problem:** The app requests `MANAGE_EXTERNAL_STORAGE` on Android 11+ but provides no fallback if the user denies it.
   - **Location:** `AndroidManifest.xml`, `MainActivity.kt`
-  - **Fix:** Implement SAF fallback for granular per-folder access.
+  - **Fix:** *Abandoned.* Implementing an SAF fallback massively bloats the codebase and introduces severe performance penalties for bulk file operations. Arcile is a dedicated File Manager; requiring full storage access is a hard, necessary requirement.
 
 - [ ] [Code Quality] `ThemePreferences` instantiated inside `setContent{}` with `remember`.
   - **Problem:** `val themePreferences = remember { ThemePreferences(applicationContext) }` creates a non-lifecycle-aware instance inside composition.
@@ -273,7 +278,6 @@
 > A repository for future ideas, enhancements, and unprioritized features.
 
 ### Storage & Access
-- **SAF (Storage Access Framework) Fallback**: Integrate SAF as a fallback when `MANAGE_EXTERNAL_STORAGE` is denied, enabling granular per-folder access on Android 11+ without requiring the all-files permission.
 - **Root Access Mode**: Offer an opt-in root shell for power users, enabling access to system directories, permission changes, and operations beyond standard Android file APIs.
 
 ### File Operations
@@ -300,7 +304,10 @@
 
 ## 7. Completed Tasks
 
-### PR Review Findings
+### Beta Release Blockers (PR Review)
+- [x] [Architecture] String matching used for restore failures
+- [x] [Architecture] Typed errors for restore failures (DestinationRequiredException)
+- [x] [Bug] Swallowed exception parsing trash metadata (Cleanup implemented)
 - [x] [Bug] Apply restored browser location before calling refresh
 - [x] [Bug] `detectCopyConflicts` misses nested child collisions
 - [x] [Bug] Missing conflict resolution handling for pre-existing target

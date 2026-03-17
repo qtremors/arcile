@@ -64,6 +64,12 @@ import java.util.Locale
 import dev.qtremors.arcile.presentation.trash.TrashState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun TrashScreen(
@@ -75,8 +81,28 @@ fun TrashScreen(
     onEmptyTrash: () -> Unit,
     onClearError: () -> Unit,
     onDismissDestinationPicker: () -> Unit = {},
-    onRestoreToDestination: (String) -> Unit = {}
+    onRestoreToDestination: (List<String>, String) -> Unit,
+    onClearNativeRequest: () -> Unit = {}
 ) {
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            when (state.pendingNativeAction) {
+                dev.qtremors.arcile.presentation.trash.NativeAction.RESTORE -> onRestoreSelected()
+                dev.qtremors.arcile.presentation.trash.NativeAction.EMPTY -> onEmptyTrash()
+                null -> {}
+            }
+        }
+        onClearNativeRequest()
+    }
+
+    LaunchedEffect(state.nativeRequest) {
+        state.nativeRequest?.let { sender ->
+            launcher.launch(IntentSenderRequest.Builder(sender).build())
+        }
+    }
+
     var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
 
     BackHandler {
@@ -215,7 +241,7 @@ fun TrashScreen(
                                         headlineContent = { Text(volume.name) },
                                         supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         modifier = Modifier.clickable {
-                                            onRestoreToDestination(volume.path)
+                                            onRestoreToDestination(state.selectedTrashIdsForDestination, volume.path)
                                         },
                                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                     )
