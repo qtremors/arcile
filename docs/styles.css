@@ -1,0 +1,50 @@
+body {
+    background-color: #141218;
+    color: #E6E0E9;
+    overflow-x: hidden;
+}
+
+/* Abstract Phone UI */
+.phone-mockup {
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.05);
+}
+
+/* FAQ Accordion Transitions */
+.faq-content {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s ease-in-out;
+}
+.faq-content.open {
+    grid-template-rows: 1fr;
+}
+.faq-inner {
+    overflow: hidden;
+    padding-bottom: 0 !important;
+}
+.faq-inner > p {
+    padding-bottom: 1.25rem;
+}
+.faq-icon {
+    transition: transform 0.3s ease-in-out;
+}
+.faq-icon.rotate {
+    transform: rotate(180deg);
+}
+
+/* Hide Scrollbar for Gallery */
+.hide-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+.hide-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 0,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24;
+}

@@ -6,67 +6,19 @@
 
 ---
 
+## Table of Contents
+
+1. [PR Review Findings (Beta Blockers & Polish)](#1-pr-review-findings-beta-blockers--polish)
+2. [Architecture & Refactoring](#2-architecture--refactoring)
+3. [Performance & Efficiency](#3-performance--efficiency)
+4. [General & Code Quality](#4-general--code-quality)
+5. [Comprehensive Audit Findings](#5-comprehensive-audit-findings)
+6. [Backlog / Ideas](#6-backlog--ideas)
+7. [Completed Tasks](#7-completed-tasks)
+
+---
+
 ## 1. PR Review Findings (Beta Blockers & Polish)
-
-- [x] [Bug] Apply restored browser location before calling refresh
-  - **Problem:** When saved navigation state exists, this branch calls refresh() based on restoreLocationFromState() but never writes the restored path/category/volume back into `_state` first.
-  - **Location:** `BrowserViewModel.kt`
-  - **Fix:** Update `_state` with restored values before calling `refresh()`.
-
-- [x] [Bug] `detectCopyConflicts` misses nested child collisions
-  - **Problem:** Only flags top-level name collisions and misses nested child collisions when both source and target are directories.
-  - **Location:** `LocalFileRepository.kt` (lines 757 - 797)
-  - **Fix:** Update `detectCopyConflicts` to recurse into directory trees so descendant conflicts are discovered.
-
-- [x] [Bug] Missing conflict resolution handling for pre-existing target
-  - **Problem:** When a destination exists but `resolutions[sourceFile.absolutePath]` is null, code attempts rename/copy that can erase pre-existing target.
-  - **Location:** `LocalFileRepository.kt` (lines 945 - 980)
-  - **Fix:** Fail fast and return `Result.failure` when target exists but has no resolution.
-
-- [x] [Bug] Transient lookup failures mask permanent deletes in `DeletePolicy`
-  - **Problem:** Uses `repository.getVolumeForPath(path).getOrNull()`, which masks lookup failures as "no volume" and defaults to permanent delete.
-  - **Location:** `DeletePolicy.kt` (lines 14 - 25)
-  - **Fix:** Inspect the `Result` for failure explicitly instead of `getOrNull()`.
-
-- [x] [Bug] Invalid context access via `navController.context`
-  - **Problem:** `NavController` has no `context` property in Compose.
-  - **Location:** `ArcileAppShell.kt` (line 188)
-  - **Fix:** Obtain `Context` via `LocalContext.current` and pass it to the ViewModel.
-
-- [x] [UI/UX] Dead-end destination picker when no indexed volumes
-  - **Problem:** Dialog shown for restore but `indexedVolumes` is empty, trapping user.
-  - **Location:** `TrashScreen.kt` (lines 191 - 220)
-  - **Fix:** Handle empty `indexedVolumes` by showing a clear message and dismiss action.
-
-- [x] [Bug] Sort MediaStore recents by modified time before limiting
-  - **Problem:** Query orders by DATE_ADDED, caps at limit * 2, then sorts by max(dateAdded, dateModified), causing older files that were recently modified to be missed.
-  - **Location:** `LocalFileRepository.kt` (getRecentFiles)
-  - **Fix:** Sort by modified time before limiting.
-
-- [x] [Bug] Unhandled DataStore read errors in `BrowserPreferencesRepository`
-  - **Problem:** `preferencesFlow` maps `context.browserDataStore.data` without handling DataStore read errors.
-  - **Location:** `BrowserPreferencesRepository.kt` (lines 17 - 32)
-  - **Fix:** Wrap the data flow with a `.catch` operator to intercept `IOException` and emit a safe fallback `BrowserPreferences`.
-
-- [x] [Security] Sensitive path logged in `LocalFileRepository`
-  - **Problem:** Warning log writes an absolute path that may contain sensitive info.
-  - **Location:** `LocalFileRepository.kt` (lines 1224 - 1226)
-  - **Fix:** Log only non-sensitive identifiers (e.g., trash id) or gate the full path behind a debug-only check.
-
-- [x] [Bug] Swallowed JSON parsing exceptions in `StorageClassificationRepository`
-  - **Problem:** Exceptions in `JSONObject(value)` parsing are silently swallowed.
-  - **Location:** `StorageClassificationRepository.kt` (lines 44 - 58, 69 - 82)
-  - **Fix:** Log the failing key/exception and clear or move the bad record instead of silently ignoring it.
-
-- [x] [Bug] Swallowed repository failures in `HomeViewModel`
-  - **Problem:** `getOrNull()` is used for repository calls, silently updating `_state` with empty lists on failure.
-  - **Location:** `HomeViewModel.kt` (lines 97 - 137)
-  - **Fix:** Detect failures and surface them in the UI state by setting an error field.
-
-- [x] [Bug] Unconditional transient UI state reset in `TrashViewModel`
-  - **Problem:** `loadTrashFiles()` unconditionally clears `error` and `selectedFiles` on initiation.
-  - **Location:** `TrashViewModel.kt` (lines 41 - 49)
-  - **Fix:** Only set `isLoading = true` initially, and clear/preserve other transient state appropriately based on success/failure.
 
 - [ ] [Architecture] String matching used for restore failures
   - **Problem:** `TrashViewModel` checks `error.message.startsWith("DESTINATION_REQUIRED")` to show destination picker.
@@ -98,10 +50,60 @@
   - **Location:** `themes.xml` (lines 6 - 11)
   - **Fix:** Update parent styles to `Theme.Material3.*`.
 
-- [x] [Build] KSP version mismatch with Kotlin 2.2.10
-  - **Problem:** KSP pinned to "2.0.21-1.0.25" while project uses Kotlin 2.2.10.
-  - **Location:** `libs.versions.toml` (line 19)
-  - **Fix:** Update KSP version to align with Kotlin 2.2.10.
+- [ ] [Architecture] Typed errors for restore failures.
+  - **Problem:** `LocalFileRepository` returns string-based exception `DESTINATION_REQUIRED:$id` for control flow.
+  - **Location:** `LocalFileRepository.kt`
+  - **Fix:** Replace with a typed failure (e.g., `DestinationRequiredException`).
+
+- [ ] [Bug] Swallowed exception parsing trash metadata.
+  - **Problem:** Catch block silently hides metadata parsing failures.
+  - **Location:** `LocalFileRepository.kt`
+  - **Fix:** Log the exception and remove/rename corrupted metadata file to prevent repeated parsing.
+
+- [ ] [Bug] Detached coroutines in flow mapper.
+  - **Problem:** Spawns detached `CoroutineScope(Dispatchers.IO).launch` inside a flow mapper.
+  - **Location:** `StorageClassificationRepository.kt`
+  - **Fix:** Call `resetClassification` synchronously or collect bad keys for a single dataStore edit.
+
+- [ ] [Bug] Invalid empty volumeId in Category restore.
+  - **Problem:** `StorageBrowserLocation.Category` restores with an invalid/empty `volumeId`.
+  - **Location:** `BrowserViewModel.kt`
+  - **Fix:** Fallback to `StorageScope.AllStorage` with `restoredCategoryName` when `restoredVolumeId` is empty.
+
+- [ ] [Bug] Error message wiped immediately by refresh().
+  - **Problem:** Failure handlers set an error and immediately call `refresh()`, wiping the error before UI can show it.
+  - **Location:** `BrowserViewModel.kt`
+  - **Fix:** Preserve the error through the `refresh()` call or remove the immediate `refresh()`.
+
+- [ ] [Bug] Optimistic dismissal silent failure.
+  - **Problem:** Optimistic dismissal removes prompt before `setClassification` completes, leaving UI silent on failure.
+  - **Location:** `HomeViewModel.kt`
+  - **Fix:** Wrap call in try/catch, only remove `suppressedVolumeKeys` on success, and restore prompt state/set error on failure.
+
+- [ ] [Navigation] Missing query parameters in EXPLORER routes.
+  - **Problem:** Navigations missing full query set (`path`, `category`, `volumeId`) breaking state restoration.
+  - **Location:** `ArcileAppShell.kt`
+  - **Fix:** Always append `?path={encodedPath}&category={encodedCategory}&volumeId={encodedVolumeId}` passing empty strings for missing values.
+
+- [ ] [Architecture] Default no-op lambdas hide missing wiring.
+  - **Problem:** Callback parameters `onDismissDestinationPicker` and `onRestoreToDestination` default to `{}`.
+  - **Location:** `TrashScreen.kt`
+  - **Fix:** Remove default values to enforce required implementation at call sites.
+
+- [ ] [UI/UX] Destination picker doesn't close immediately.
+  - **Problem:** Clickable handler relies on slow upstream state to close picker.
+  - **Location:** `TrashScreen.kt`
+  - **Fix:** Invoke dialog dismissal callback immediately inside the `clickable` lambda alongside the restore call.
+
+- [ ] [Documentation] Missing StorageScope concept definition.
+  - **Problem:** `StorageScope` concept and mapping to classification system is undocumented.
+  - **Location:** `DEVELOPMENT.md`
+  - **Fix:** Add a new subsection under "Core Modules" explaining `StorageScope` allowed values and usage.
+
+- [ ] [Documentation] Stale test coverage claim.
+  - **Problem:** `TASKS.md` claims only minimal tests exist, ignoring newly added test suites.
+  - **Location:** `TASKS.md`
+  - **Fix:** Update checklist entry to reflect current test coverage.
 
 ---
 
@@ -232,11 +234,9 @@
   - **Location:** `app/build.gradle.kts`
   - **Fix:** Check if a stable API for `outputFileName` exists in AGP 9.x.
 
-- [x] [Anomaly] `Kotlin 2.2.10` version may be unreleased/preview.
-  - **Location:** `libs.versions.toml:9`
-  - **Fix:** Verify this is an official release and document any special repository requirements.
+---
 
-## 6. Comprehensive Audit Findings (New)
+## 5. Comprehensive Audit Findings
 
 ### A. UI, UX & Accessibility
 - [ ] [i18n] Hardcoded UI Strings (No Localization).
@@ -268,7 +268,7 @@
 
 ---
 
-## Backlog / Ideas
+## 6. Backlog / Ideas
 
 > A repository for future ideas, enhancements, and unprioritized features.
 
@@ -284,7 +284,6 @@
 - **Recent Media Carousel**: Replace the current recent files list on the Home screen with a horizontally-scrollable carousel of the 10 most recently modified images and videos.
 - **Customizable Quick Access Folders**: Allow users to pin/unpin folders to the Quick Access section on the Home screen.
 
-
 ### Browsing & Organization
 - **Starred / Favorited Files**: Add a "Starred" section to the Home screen and a star toggle on individual files/folders.
 - **Enhanced Category Browsing**: When opening a file category, display all related folders containing matching files with a tabbed or segmented navigation bar.
@@ -296,3 +295,23 @@
 
 ### Security & Privacy
 - **"OnlyFiles" Encrypted Vault**: A secure, encrypted vault for storing sensitive files and folders using AES-256 encryption.
+
+---
+
+## 7. Completed Tasks
+
+### PR Review Findings
+- [x] [Bug] Apply restored browser location before calling refresh
+- [x] [Bug] `detectCopyConflicts` misses nested child collisions
+- [x] [Bug] Missing conflict resolution handling for pre-existing target
+- [x] [Bug] Transient lookup failures mask permanent deletes in `DeletePolicy`
+- [x] [Bug] Invalid context access via `navController.context`
+- [x] [UI/UX] Dead-end destination picker when no indexed volumes
+- [x] [Bug] Sort MediaStore recents by modified time before limiting
+- [x] [Bug] Unhandled DataStore read errors in `BrowserPreferencesRepository`
+- [x] [Security] Sensitive path logged in `LocalFileRepository`
+- [x] [Bug] Swallowed JSON parsing exceptions in `StorageClassificationRepository`
+- [x] [Bug] Swallowed repository failures in `HomeViewModel`
+- [x] [Bug] Unconditional transient UI state reset in `TrashViewModel`
+- [x] [Build] KSP version mismatch with Kotlin 2.2.10
+- [x] [Anomaly] `Kotlin 2.2.10` version may be unreleased/preview.

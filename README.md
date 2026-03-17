@@ -2,10 +2,11 @@
   <img src="assets/Arcile.png" alt="Arcile Logo" width="120"/>
 </p>
 
-<h1 align="center">Arcile</h1>
+<h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>
 
 <p align="center">
-  An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.
+  An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.<br><br>
+  <strong><a href="https://qtremors.github.io/arcile/">🌐 Visit the Official Website</a></strong>
 </p>
 
 <p align="center">
