@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcile | The Modern Android File Manager</title>
+    
+    <!-- SEO & Open Graph Meta Tags -->
+    <meta name="description" content="A fast, clean, and private Android file manager. Offline-by-design with zero ads and an expressive Material You interface.">
+    <meta property="og:title" content="Arcile | The Modern Android File Manager">
+    <meta property="og:description" content="A fast, clean, and private Android file manager featuring offline-only architecture, Multi-Volume Support, and an expressive Material You design.">
+    <meta property="og:image" content="assets/homepage.jpeg">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/Arcile.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- Using Roboto for a more native Android M3 feel, with Outfit as fallback -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=android" />
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="antialiased selection:bg-m3-primary selection:text-m3-onPrimary">
+
+    <!-- Navigation (M3 Top App Bar style) -->
+    <nav class="fixed top-0 w-full z-50 transition-all duration-300 bg-m3-bg" id="navbar">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-20">
+                <div class="flex items-center gap-3">
+                    <img src="assets/Arcile.png" alt="Arcile Logo" class="w-10 h-10 object-contain">
+                    <span class="text-xl font-medium tracking-tight text-m3-onSurface font-display">Arcile</span>
+                </div>
+                <div class="hidden md:flex items-center gap-6 lg:gap-8">
+                    <a href="#features" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Features</a>
+                    <!-- <a href="#gallery" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Gallery</a> -->
+                    <a href="#design" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Design</a>
+                    <a href="#tech" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Tech</a>
+                    <a href="#developers" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Developer</a>
+                    <a href="#faq" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">FAQ</a>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <a href="https://github.com/qtremors/arcile" target="_blank" class="hidden sm:flex items-center gap-2 text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">
+                        <i data-lucide="github" class="w-5 h-5"></i>
+                        Source
+                    </a>
+                    <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="hidden sm:flex px-6 py-2.5 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-sm hover:bg-m3-primaryContainer hover:text-m3-onPrimaryContainer transition-colors items-center gap-2">
+                        Download v0.4.0 <span class="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold">Beta</span>
+                    </a>
+                    <!-- Mobile Menu Button -->
+                    <button id="mobile-menu-btn" class="md:hidden p-2 text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors rounded-lg hover:bg-m3-surfaceContainerHighest flex items-center justify-center" aria-label="Toggle menu">
+                        <i data-lucide="menu" id="mobile-menu-icon" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mobile Menu Overlay -->
+    <div id="mobile-menu" class="fixed inset-0 bg-m3-bg z-40 md:hidden pt-24 pb-8 px-4 transform translate-x-full transition-transform duration-300 ease-in-out overflow-y-auto">
+        <div class="flex flex-col items-center gap-8">
+            <a href="#features" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Features</a>
+            <a href="#design" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Design</a>
+            <a href="#tech" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Tech</a>
+            <a href="#developers" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Developer</a>
+            <a href="#faq" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">FAQ</a>
+            <div class="w-16 h-px bg-m3-surfaceContainerHighest my-2"></div>
+            <a href="https://github.com/qtremors/arcile" target="_blank" class="mobile-link flex items-center gap-2 text-lg font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">
+                <i data-lucide="github" class="w-5 h-5"></i>
+                Source
+            </a>
+            <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="mobile-link px-8 py-3 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-base hover:bg-m3-primaryContainer transition-colors flex items-center gap-2">
+                Download v0.4.0 Beta
+            </a>
+        </div>
+    </div>
+
+    <!-- Hero Section -->
+    <main class="relative z-10 pt-28 pb-12 sm:pt-36 sm:pb-20 lg:h-screen lg:min-h-[700px] flex items-center">
+        <div class="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full flex flex-col lg:flex-row items-center gap-12 lg:gap-8">
+            
+            <!-- Text Content -->
+            <div class="flex-1 text-center lg:text-left space-y-8 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-m3-secondaryContainer text-m3-onSecondaryContainer text-sm font-medium tracking-wide">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    Introducing Arcile 0.4.0 <span class="bg-m3-onSecondaryContainer/10 px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold">Beta</span>
+                </div>
+                
+                <h1 class="text-5xl sm:text-6xl lg:text-7xl font-display font-medium tracking-tight text-m3-onSurface leading-[1.1]">
+                    Manage Your Files <br/>
+                    <span class="text-m3-primary">Beautifully.</span>
+                </h1>
+                
+                <p class="text-lg text-m3-onSurfaceVariant max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed">
+                    A fast, clean, and private Android file manager. Experience a fluid Material You interface backed by an uncompromising offline-only architecture.
+                </p>
+
+                <!-- Live GitHub Stats Pill -->
+                <div class="flex justify-center lg:justify-start">
+                    <a href="https://github.com/qtremors/arcile" target="_blank" class="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-m3-surfaceContainerHigh border border-m3-outlineVariant text-sm font-medium hover:bg-m3-surfaceContainerHighest transition-colors">
+                        <i data-lucide="github" class="w-4 h-4 text-m3-onSurface"></i>
+                        <span class="text-m3-onSurface">Star on GitHub</span>
+                        <div class="flex items-center gap-1.5 text-m3-onSurfaceVariant border-l border-m3-outlineVariant pl-3">
+                            <i data-lucide="star" class="w-3.5 h-3.5"></i> <span id="gh-stars">--</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-m3-onSurfaceVariant">
+                            <i data-lucide="git-fork" class="w-3.5 h-3.5"></i> <span id="gh-forks">--</span>
+                        </div>
+                    </a>
+                </div>
+                
+                <div class="flex flex-col sm:flex-row items-center gap-4 justify-center lg:justify-start pt-2">
+                    <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="w-full sm:w-auto px-8 py-4 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-lg hover:bg-[#EADDFF] transition-colors flex items-center justify-center gap-3">
+                        <i data-lucide="download" class="w-5 h-5"></i>
+                        Download Beta APK
+                    </a>
+                    <a href="#features" class="w-full sm:w-auto px-8 py-4 rounded-full bg-m3-surfaceContainerHigh text-m3-primary font-medium text-lg hover:bg-m3-surfaceContainerHighest transition-colors flex items-center justify-center gap-3">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                        Explore Features
+                    </a>
+                    <!-- <a href="#gallery" class="px-4 py-3 rounded-2xl hover:bg-m3-surfaceContainerHigh transition-colors flex items-center gap-3">
+                        <i data-lucide="image" class="w-5 h-5"></i>
+                        Gallery
+                    </a> -->
+                </div>
+                
+                <div class="flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-m3-onSurfaceVariant font-medium pt-4">
+                    <span class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-m3-primary"></i> Zero Internet Permission</span>
+                    <span class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-m3-primary"></i> No Ads</span>
+                    <span class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-m3-primary"></i> Source-Available</span>
+                    <span class="flex items-center gap-2"><i data-lucide="check" class="w-4 h-4 text-m3-primary"></i> 120fps Smooth</span>
+                </div>
+            </div>
+
+            <!-- Authentic App Mockup -->
+            <div class="flex-1 w-full flex justify-center lg:justify-end perspective-1000 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-200">
+                <div class="relative box-content aspect-[1080/2412] w-[280px] sm:w-[320px] lg:w-auto lg:h-[80vh] max-h-[850px] rounded-[1.5rem] sm:rounded-[2rem] bg-black phone-mockup border-[3px] sm:border-[4px] border-[#36343B] animate-float overflow-hidden shrink-0">
+                    <!-- Commented out for now - missing assets 
+                    <video autoplay loop muted playsinline poster="assets/homepage.jpeg" class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none">
+                        <source src="assets/arcile-demo.mp4" type="video/mp4">
+                        <img src="assets/homepage.jpeg" alt="Arcile App Screenshot" class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none">
+                    </video>
+                    -->
+                    <img src="assets/homepage.jpeg" alt="Arcile App Screenshot" class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none">
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Social Proof / Open Source Banner -->
+    <div class="w-full bg-m3-surfaceContainer py-8 border-y border-m3-surfaceContainerHighest reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center">
+                    <i data-lucide="wifi-off" class="w-6 h-6 text-emerald-400"></i>
+                </div>
+                <div>
+                    <h4 class="text-m3-onSurface font-medium">Offline & Ad-Free</h4>
+                    <p class="text-sm text-m3-onSurfaceVariant">No internet permission requested. Zero ads, trackers, or telemetry.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center">
+                    <i data-lucide="code" class="w-6 h-6 text-[#7F52FF]"></i>
+                </div>
+                <div>
+                    <h4 class="text-m3-onSurface font-medium">100% Kotlin</h4>
+                    <p class="text-sm text-m3-onSurfaceVariant">Built natively from the ground up for modern Android.</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center">
+                    <i data-lucide="smartphone" class="w-6 h-6 text-[#4285F4]"></i>
+                </div>
+                <div>
+                    <h4 class="text-m3-onSurface font-medium">Android 7.0+</h4>
+                    <p class="text-sm text-m3-onSurfaceVariant">Backwards compatible, optimized for Android 14+.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Features Bento Box -->
+    <section id="features" class="relative z-10 py-24 bg-m3-surface">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                <h2 class="text-3xl md:text-5xl font-display font-medium text-m3-onSurface mb-4">Powerful capability.<br/>Beautiful simplicity.</h2>
+                <p class="text-m3-onSurfaceVariant text-lg max-w-2xl mx-auto">Arcile combines deep system-level storage intelligence with a playful, expressive Material Design 3 interface.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <!-- Bento Item 1: Absolute Privacy (Full Width) -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group hover:bg-m3-surfaceContainerHigh transition-colors duration-300 flex flex-col sm:flex-row items-start sm:items-center gap-8 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out md:col-span-2 lg:col-span-3">
+                    <div class="flex-1">
+                        <!-- Part 1: Header (Icon + Chips) -->
+                        <div class="w-full flex items-center gap-4 mb-6">
+                            <div class="w-14 h-14 rounded-full bg-emerald-400/20 flex items-center justify-center shrink-0">
+                                <i data-lucide="shield-check" class="w-7 h-7 text-emerald-400"></i>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">No Internet Permission</div>
+                                <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">Offline By Design</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Part 2: Title -->
+                        <h3 class="text-3xl sm:text-4xl font-medium text-m3-onSurface mb-4">Absolute Privacy. Guaranteed.</h3>
+                        
+                        <!-- Part 3: Description -->
+                        <p class="text-m3-onSurfaceVariant text-lg leading-relaxed max-w-4xl">Peace of mind shouldn't be a premium feature. Arcile operates completely offline and explicitly does not request the Android network permission. This provides a hard technical guarantee: zero ads, zero tracking, zero telemetry, and absolutely no possibility of your personal files ever leaving your device.</p>
+                    </div>
+                </div>
+
+                <!-- Bento Item 2: Multi-Volume -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group hover:bg-m3-surfaceContainerHigh transition-colors duration-300 flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                    <!-- Part 1: Header (Icon + Chips) -->
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-[#4285F4]/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="hard-drive" class="w-7 h-7 text-[#4285F4]"></i>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">SD Card</div>
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">USB OTG</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Part 2: Title -->
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3">Manage All Your Storage</h3>
+                    
+                    <!-- Part 3: Description -->
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Seamlessly access your Internal Storage, physical SD Cards, and external USB drives all from a single unified interface.</p>
+                </div>
+
+                <!-- Bento Item 3: Conflict Resolution -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group hover:bg-m3-surfaceContainerHigh transition-colors duration-300 flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                    <!-- Part 1: Header (Icon) -->
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-orange-400/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="copy-check" class="w-7 h-7 text-orange-400"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Part 2: Title -->
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3">Conflict Resolution</h3>
+                    
+                    <!-- Part 3: Description -->
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Intelligent handling of file conflicts. Seamlessly skip, overwrite, or rename files to prevent accidental data loss during copy and move operations.</p>
+                </div>
+
+                <!-- Bento Item 4: Safe Trash System -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group hover:bg-m3-surfaceContainerHigh transition-colors duration-300 flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                    <!-- Part 1: Header (Icon) -->
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-emerald-400/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="trash-2" class="w-7 h-7 text-emerald-400"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Part 2: Title -->
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3">Safe Trash System</h3>
+                    
+                    <!-- Part 3: Description -->
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Safely delete files without losing them forever. Easily restore accidentally deleted items back to exactly where they were.</p>
+                </div>
+
+                <!-- Bento Item 5: Batch Operations -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group hover:bg-m3-surfaceContainerHigh transition-colors duration-300 flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                    <!-- Part 1: Header (Icon + Chips) -->
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-purple-400/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="layers" class="w-7 h-7 text-purple-400"></i>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">Select All</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Part 2: Title -->
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3">Batch Operations</h3>
+                    
+                    <!-- Part 3: Description -->
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Efficiently manage your data. Multi-select files and folders for batch copy, cut, move, or permanent delete operations.</p>
+                </div>
+
+                <!-- Bento Item 6: Deep Search & Filters -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group flex flex-col items-start hover:bg-m3-surfaceContainerHigh transition-colors duration-300 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                    <!-- Part 1: Header (Icon) -->
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-m3-primary/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="search" class="w-7 h-7 text-m3-primary"></i>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">Filters</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Part 2: Title -->
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3">Deep Search</h3>
+                    
+                    <!-- Part 3: Description -->
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Instantly locate your files. Use powerful filters to quickly find exactly what you're looking for across all your folders.</p>
+                </div>
+
+                <!-- Bento Item 7: Home Dashboard -->
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 relative overflow-hidden group hover:bg-m3-surfaceContainerHigh transition-colors duration-300 flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-200">
+                    <!-- Part 1: Header (Icon + Chips) -->
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-blue-400/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="layout-dashboard" class="w-7 h-7 text-blue-400"></i>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">Categories</div>
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant leading-none">Recent</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Part 2: Title -->
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3">Home Dashboard</h3>
+                    
+                    <!-- Part 3: Description -->
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Get a quick overview of your storage space, instantly access category shortcuts, and jump right back into your recent files.</p>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Commented out for now - missing assets 
+    <section id="gallery" class="relative z-10 py-24 bg-m3-bg border-y border-m3-surfaceContainerHighest overflow-hidden">
+        ...
+    </section>
+    -->
+
+    <!-- Design Section -->
+    <section id="design" class="relative z-10 py-24 bg-m3-bg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex flex-col lg:flex-row items-center gap-16">
+                <div class="flex-1 space-y-8 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                    <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-m3-primaryContainer text-m3-onPrimaryContainer text-sm font-medium tracking-wide">
+                        Material You
+                    </div>
+                    <h2 class="text-4xl lg:text-5xl font-display font-medium text-m3-onSurface">A file manager that<br/>feels alive.</h2>
+                    <p class="text-m3-onSurfaceVariant text-lg">
+                        Arcile embraces the latest Android design language to deliver an interface that isn't just functional—it's beautifully yours. Enjoy a playful layout that adapts perfectly to your personal style.
+                    </p>
+                    <ul class="space-y-4">
+                        <li class="flex items-center gap-4 text-m3-onSurface font-medium">
+                            <div class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center">
+                                <i data-lucide="palette" class="w-5 h-5 text-[#FF52A3]"></i>
+                            </div>
+                            Dynamic Custom Theming
+                        </li>
+                        <li class="flex items-center gap-4 text-m3-onSurface font-medium">
+                            <div class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center">
+                                <i data-lucide="moon" class="w-5 h-5 text-[#7F52FF]"></i>
+                            </div>
+                            True OLED Dark Mode
+                        </li>
+                        <li class="flex items-center gap-4 text-m3-onSurface font-medium">
+                            <div class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center">
+                                <i data-lucide="zap" class="w-5 h-5 text-[#81c784]"></i>
+                            </div>
+                            Buttery Smooth Animations
+                        </li>
+                    </ul>
+                </div>
+                
+                <!-- Color palette visualization (M3 Tonal Palette) -->
+                <div class="flex-1 w-full grid grid-cols-2 gap-4 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-200">
+                    <div class="aspect-square rounded-[32px] bg-m3-primary p-6 flex flex-col justify-between transform hover:scale-[1.02] transition-transform cursor-pointer">
+                        <span class="text-m3-onPrimary font-medium">Primary</span>
+                        <div class="w-12 h-12 rounded-full bg-m3-onPrimary/10"></div>
+                    </div>
+                    <div class="aspect-square rounded-[32px] bg-m3-surfaceContainerHigh p-6 flex flex-col justify-between transform hover:scale-[1.02] transition-transform cursor-pointer mt-8">
+                        <span class="text-m3-onSurface font-medium">Surface Elevated</span>
+                        <div class="flex gap-2">
+                            <div class="w-8 h-8 rounded-full bg-[#81c784]"></div>
+                            <div class="w-8 h-8 rounded-full bg-[#FF52A3]"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tech Stack (For Devs) -->
+    <section id="tech" class="relative z-10 py-24 bg-m3-surface">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-3xl font-display font-medium text-m3-onSurface mb-12 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">Built on modern Android architecture</h2>
+            
+            <div class="flex flex-wrap justify-center gap-4 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                <div class="px-6 py-4 bg-m3-surfaceContainerHigh rounded-full flex items-center gap-3">
+                    <i data-lucide="code-2" class="w-5 h-5 text-[#7F52FF]"></i>
+                    <span class="text-m3-onSurface font-medium">Kotlin 2.2</span>
+                </div>
+                <div class="px-6 py-4 bg-m3-surfaceContainerHigh rounded-full flex items-center gap-3">
+                    <i data-lucide="layers" class="w-5 h-5 text-[#4285F4]"></i>
+                    <span class="text-m3-onSurface font-medium">Jetpack Compose</span>
+                </div>
+                <div class="px-6 py-4 bg-m3-surfaceContainerHigh rounded-full flex items-center gap-3">
+                    <i data-lucide="box" class="w-5 h-5 text-[#81c784]"></i>
+                    <span class="text-m3-onSurface font-medium">Clean Architecture</span>
+                </div>
+                <div class="px-6 py-4 bg-m3-surfaceContainerHigh rounded-full flex items-center gap-3">
+                    <i data-lucide="cpu" class="w-5 h-5 text-[#ffb74d]"></i>
+                    <span class="text-m3-onSurface font-medium">Coroutines & StateFlow</span>
+                </div>
+            </div>
+            
+            <p class="mt-10 text-m3-onSurfaceVariant text-base max-w-3xl mx-auto leading-relaxed reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-200">
+                Engineered with a robust Clean Architecture and MVVM pattern. Features feature-scoped view models, Hilt Dependency Injection, and utilizes Kotlin Coroutines and StateFlow for reactive, non-blocking UI states.
+            </p>
+        </div>
+    </section>
+
+    <!-- Team Section -->
+    <section id="developers" class="py-24 bg-m3-bg">
+        <div class="container mx-auto px-6">
+            <div class="text-center mb-16 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                <h2 class="text-4xl md:text-5xl font-medium text-m3-onSurface mb-6">Meet the Developer</h2>
+                <p class="text-m3-onSurfaceVariant text-lg max-w-2xl mx-auto">The craft and passion behind Arcile's development.</p>
+            </div>
+
+            <div class="max-w-xl mx-auto reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 text-center group hover:bg-m3-surfaceContainerHigh transition-colors duration-300">
+                    <div class="relative w-32 h-32 mx-auto mb-8">
+                        <div class="absolute inset-0 rounded-full bg-m3-primary/10 animate-pulse"></div>
+                        <img src="assets/Tremors.jpg" alt="Tremors" class="relative w-full h-full rounded-full object-cover border-4 border-m3-surfaceContainer">
+                    </div>
+                    <h3 class="text-3xl font-medium text-m3-onSurface mb-2">Tremors</h3>
+                    <p class="text-m3-primary font-medium mb-6">Lead Developer & Designer</p>
+                    <p class="text-m3-onSurfaceVariant mb-8 leading-relaxed">
+                        Passionate about creating clean, efficient, and beautiful Android experiences. 
+                        Arcile is a solo project built with a focus on privacy, performance, and Material Design excellence.
+                    </p>
+                    <div class="flex justify-center gap-6">
+                        <a href="https://github.com/qtremors" target="_blank" class="p-3 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface hover:text-m3-primary transition-colors">
+                            <i data-lucide="github" class="w-6 h-6"></i>
+                        </a>
+                        <a href="https://qtremors.github.io" target="_blank" class="p-3 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface hover:text-m3-primary transition-colors">
+                            <i data-lucide="globe" class="w-6 h-6"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="relative z-10 py-24 bg-m3-bg">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                <h2 class="text-3xl md:text-4xl font-display font-medium text-m3-onSurface mb-4">Frequently Asked Questions</h2>
+                <p class="text-m3-onSurfaceVariant">Everything you need to know about Arcile.</p>
+            </div>
+
+            <div class="space-y-4 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                <!-- FAQ Item 1 (Privacy) -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">Does Arcile collect any of my data?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Absolutely not. Arcile is designed with a strict offline-only architecture. It does not even request the <code>android.permission.INTERNET</code> permission, making it physically impossible for the app to send telemetry, analytics, or personal files to any server.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 2 -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">Is Arcile completely free to use?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Yes, Arcile is 100% free for personal use. The code is publicly visible as <strong>source-available</strong> software under the custom Tremors Source License (TSL). It contains absolutely no advertisements, trackers, or hidden telemetry.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 3 -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">Does it support external SD cards and USB drives?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Absolutely. Arcile is built to seamlessly read and manage files across your Internal Storage, physical SD Cards, and plugged-in USB drives.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 4 -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">Is Arcile on the Google Play Store?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Not currently. Arcile is exclusively available for download directly from our GitHub Releases page. This allows us to push updates rapidly and bypass restrictive App Store policies that can limit advanced file management capabilities.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 5 -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">What Android versions are supported?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Arcile requires a minimum of Android 7.0 (Nougat / API 24). It is heavily optimized and targeted for the latest Android 14+ architectures.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 6 -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">How does the Trash system work?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Instead of permanent deletion, Arcile routes deleted files into a dedicated hidden folder (`.arcile_trash`). You can safely review and restore files with their original metadata and paths intact.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FAQ Item 7 -->
+                <div class="bg-m3-surfaceContainer rounded-[24px] overflow-hidden cursor-pointer hover:bg-m3-surfaceContainerHigh transition-colors" onclick="toggleFaq(this)">
+                    <div class="px-6 py-5 flex items-center justify-between">
+                        <h4 class="text-m3-onSurface font-medium pr-4">Where can I report bugs or request features?</h4>
+                        <i data-lucide="chevron-down" class="w-5 h-5 text-m3-onSurfaceVariant faq-icon shrink-0"></i>
+                    </div>
+                    <div class="faq-content">
+                        <div class="faq-inner px-6 pb-5">
+                            <p class="text-m3-onSurfaceVariant leading-relaxed">Since Arcile is currently in active Beta development, feedback is highly appreciated! The best place to report bugs or request features is directly on our GitHub repository's issue tracker.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section id="download" class="relative z-10 py-24 bg-m3-surfaceContainer">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+            <div class="flex items-center justify-center mb-8">
+                <span class="material-symbols-outlined text-[80px] leading-none text-m3-primary">android</span>
+            </div>
+            <h2 class="text-4xl md:text-5xl font-display font-medium text-m3-onSurface mb-6">Ready to take control?</h2>
+            <p class="text-m3-onSurfaceVariant text-lg mb-10 max-w-2xl mx-auto">
+                Join users who have already switched to a cleaner, faster, and more private file management experience. Download the latest APK directly from our releases page.
+            </p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="w-full sm:w-auto px-10 py-5 rounded-full bg-m3-primary text-m3-onPrimary font-bold text-lg hover:bg-[#EADDFF] hover:scale-105 transition-all shadow-xl shadow-m3-primary/20 flex items-center justify-center gap-3">
+                    <i data-lucide="download" class="w-6 h-6"></i>
+                    Download Beta (v0.4.0)
+                </a>
+                <a href="https://github.com/qtremors/arcile" target="_blank" class="w-full sm:w-auto px-10 py-5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface font-bold text-lg hover:bg-m3-surfaceContainerHigh hover:scale-105 transition-all flex items-center justify-center gap-3">
+                    <i data-lucide="github" class="w-6 h-6"></i>
+                    View Source
+                </a>
+            </div>
+            <p class="text-sm text-m3-outline mt-8">Requires Android 7.0 or newer. APK size: ~3MB</p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="relative z-10 bg-m3-bg pt-20 pb-8 border-t border-m3-surfaceContainerHighest">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+                <div class="col-span-1 md:col-span-2">
+                    <div class="flex items-center gap-3 mb-6">
+                        <img src="assets/Arcile.png" alt="Arcile Logo" class="w-8 h-8 object-contain">
+                        <span class="text-xl font-display font-medium text-m3-onSurface">Arcile</span>
+                    </div>
+                    <p class="text-m3-onSurfaceVariant text-sm max-w-sm mb-6 leading-relaxed">
+                        A personal project built to create a fast, clean, and modern file manager for Android, prioritizing smooth UX and a native Kotlin-first approach.
+                    </p>
+                    <div class="flex gap-4">
+                        <a href="https://github.com/qtremors" target="_blank" class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center text-m3-onSurfaceVariant hover:text-m3-onSurface hover:bg-m3-outlineVariant transition-all">
+                            <i data-lucide="github" class="w-5 h-5"></i>
+                        </a>
+                        <a href="https://qtremors.github.io" target="_blank" class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center text-m3-onSurfaceVariant hover:text-m3-onSurface hover:bg-m3-outlineVariant transition-all">
+                            <i data-lucide="globe" class="w-5 h-5"></i>
+                        </a>
+                    </div>
+                </div>
+                
+                <div>
+                    <h4 class="text-m3-onSurface font-medium mb-4">Resources</h4>
+                    <ul class="space-y-3 text-sm text-m3-onSurfaceVariant">
+                        <li><a href="https://github.com/qtremors/arcile/blob/main/README.md" target="_blank" class="hover:text-m3-primary transition-colors">Documentation</a></li>
+                        <li><a href="https://github.com/qtremors/arcile/blob/main/CHANGELOG.md" target="_blank" class="hover:text-m3-primary transition-colors">Changelog (v0.4.0)</a></li>
+                        <li><a href="https://github.com/qtremors/arcile/blob/main/DEVELOPMENT.md" target="_blank" class="hover:text-m3-primary transition-colors">Architecture Guide</a></li>
+                        <li><a href="https://github.com/qtremors/arcile/issues" target="_blank" class="hover:text-m3-primary transition-colors">Bug Tracker</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="text-m3-onSurface font-medium mb-4">Legal</h4>
+                    <ul class="space-y-3 text-sm text-m3-onSurfaceVariant">
+                        <li><a href="https://qtremors.github.io/license" target="_blank" class="hover:text-m3-primary transition-colors">Tremors Source License (TSL)</a></li>
+                        <li><a href="https://github.com/qtremors/arcile/blob/main/PRIVACY.md" target="_blank" class="hover:text-m3-primary transition-colors">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="pt-8 border-t border-m3-surfaceContainerHighest flex flex-col md:flex-row justify-between items-center gap-4">
+                <p class="text-m3-outline text-sm">© 2026 Tremors. All rights reserved.</p>
+                <div class="flex items-center gap-2 text-m3-outline text-sm">
+                    <span>Designed with</span>
+                    <i data-lucide="heart" class="w-4 h-4 text-[#FF52A3]"></i>
+                    <span>for Android</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Frameworks -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Custom Logic -->
+    <script src="scripts.js"></script>
+</body>
+</html>
