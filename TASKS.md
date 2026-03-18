@@ -25,17 +25,17 @@
   - **Location:** `LocalFileRepository.kt`
   - **Fix:** Extract Trash logic to `TrashRepository`. Extract MediaStore queries to `MediaStoreDataSource` or `CategoryRepository`. Extract copy/move logic to `FileTransferHandler`.
 
-- [ ] [Refactor] Modularize `HomeScreen.kt` composables (985 lines).
+- [x] [Refactor] Modularize `HomeScreen.kt` composables (985 lines).
   - **Problem:** Embeds local composables for storage UI and category grid.
   - **Location:** `HomeScreen.kt`
   - **Fix:** Move `StorageSummaryCard`, `MultiColorStorageBar`, `CategoryLegend`, `CategoryGrid`, and `MainFoldersGrid` to `components/`.
 
-- [ ] [Refactor] Extract Navigation from `ArcileAppShell.kt` (244 lines).
+- [x] [Refactor] Extract Navigation from `ArcileAppShell.kt` (244 lines).
   - **Problem:** Combines the app Shell (Scaffold/SharedTransitionLayout) with the massive `NavHost` definition.
   - **Location:** `ArcileAppShell.kt`
   - **Fix:** Move the `NavHost` and its route definitions to a dedicated file like `AppNavigationGraph.kt`.
 
-- [ ] [Refactor] Split `PasteConflictDialog.kt` components (363 lines).
+- [x] [Refactor] Split `PasteConflictDialog.kt` components (363 lines).
   - **Problem:** Contains the main dialog scaffolding along with detailed comparison cards and thumbnail helpers.
   - **Location:** `components/PasteConflictDialog.kt`
   - **Fix:** Extract `ConflictCard` and `FileInfoColumn` into smaller, reusable pieces if possible.
@@ -45,17 +45,17 @@
   - **Location:** `ui/theme/Color.kt`
   - **Fix:** Split palettes by core hue or generate them algorithmically.
 
-- [ ] [Refactor] Clean up `TrashScreen.kt` (257 lines).
+- [x] [Refactor] Clean up `TrashScreen.kt` (257 lines).
   - **Problem:** Mixes the scaffold, empty state logic, alert dialogs, and the main lazy list.
   - **Location:** `TrashScreen.kt`
   - **Fix:** Move `TrashList` and the Empty Trash AlertDialog to separate composables in `components/trash/`.
 
-- [ ] [Architecture] `ShareSelectedFiles()` in ViewModel creates an `Intent` — Android framework concern.
+- [x] [Architecture] `ShareSelectedFiles()` in ViewModel creates an `Intent` — Android framework concern.
   - **Problem:** ViewModel directly launches `Intent` via `context.startActivity()`.
   - **Location:** `BrowserViewModel.kt`, `RecentFilesViewModel.kt`
   - **Fix:** Expose a `shareEvent` flow/channel and handle the Intent in the UI layer or a dedicated use case.
 
-- [ ] [Architecture] `HomeScreen.kt` directly accesses `Environment.getExternalStorageDirectory()`.
+- [x] [Architecture] `HomeScreen.kt` directly accesses `Environment.getExternalStorageDirectory()`.
   - **Problem:** `MainFoldersGrid` composable directly reads from `Environment`, embedding Android framework knowledge in the UI layer.
   - **Location:** `HomeScreen.kt:916`
   - **Fix:** Pass folder paths from ViewModel or a provider.

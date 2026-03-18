@@ -75,6 +75,8 @@ private class FakeDeletePolicyRepository(
         volumesByPath[path]?.let { Result.success(it) }
             ?: Result.failure(IllegalArgumentException("No volume for path"))
 
+    override fun getStandardFolders(): Map<String, String?> = emptyMap()
+
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())

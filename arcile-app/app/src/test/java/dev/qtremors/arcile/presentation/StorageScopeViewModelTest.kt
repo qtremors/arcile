@@ -237,6 +237,8 @@ private class FakeFileRepository(
 
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
 
+    override fun getStandardFolders(): Map<String, String?> = emptyMap()
+
     override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
         val volume = observedVolumes.replayCache.lastOrNull()
             ?.sortedByDescending { it.path.length }

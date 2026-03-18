@@ -322,6 +322,19 @@ class LocalFileRepository(
         }
     }
 
+    override fun getStandardFolders(): Map<String, String?> {
+        val root = Environment.getExternalStorageDirectory()
+        return mapOf(
+            "DCIM" to File(root, Environment.DIRECTORY_DCIM).absolutePath,
+            "Downloads" to File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath,
+            "Pictures" to File(root, Environment.DIRECTORY_PICTURES).absolutePath,
+            "Documents" to File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath,
+            "Music" to File(root, Environment.DIRECTORY_MUSIC).absolutePath,
+            "Movies" to File(root, Environment.DIRECTORY_MOVIES).absolutePath,
+            "All Files" to null
+        )
+    }
+
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
             val directory = File(path)

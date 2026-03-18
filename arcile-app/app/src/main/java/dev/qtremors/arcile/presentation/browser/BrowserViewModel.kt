@@ -680,38 +680,4 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun shareSelectedFiles(context: Context) {
-        val selected = _state.value.selectedFiles.toList()
-        if (selected.isEmpty()) return
-
-        try {
-            val uris = ArrayList<Uri>()
-            for (path in selected) {
-                val file = java.io.File(path)
-                if (file.exists() && file.isFile) {
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    uris.add(uri)
-                }
-            }
-            if (uris.isEmpty()) return
-
-            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "*/*"
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            }
-
-            val chooser = Intent.createChooser(intent, "Share files via")
-            chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            context.startActivity(chooser)
-
-            clearSelection()
-        } catch (e: Exception) {
-            _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }
-        }
-    }
 }

@@ -46,8 +46,12 @@ class RecentFilesViewModel @Inject constructor(
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
     init {
-        val route = savedStateHandle.toRoute<AppRoutes.RecentFiles>()
-        _state.update { it.copy(currentVolumeId = route.volumeId?.takeIf { it.isNotBlank() }) }
+        val volumeId: String? = try {
+            savedStateHandle.toRoute<AppRoutes.RecentFiles>().volumeId
+        } catch (e: Exception) {
+            savedStateHandle.get<String>("volumeId")
+        }
+        _state.update { it.copy(currentVolumeId = volumeId?.takeIf { it.isNotBlank() }) }
         viewModelScope.launch {
             repository.observeStorageVolumes().collectLatest {
                 loadRecentFiles(false)
@@ -157,38 +161,4 @@ class RecentFilesViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
-    fun shareSelectedFiles(context: android.content.Context) {
-        val selected = _state.value.selectedFiles.toList()
-        if (selected.isEmpty()) return
-
-        try {
-            val uris = java.util.ArrayList<android.net.Uri>()
-            for (path in selected) {
-                val file = java.io.File(path)
-                if (file.exists() && file.isFile) {
-                    val uri = androidx.core.content.FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    uris.add(uri)
-                }
-            }
-            if (uris.isEmpty()) return
-
-            val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "*/*"
-                putParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, uris)
-                flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            }
-            
-            val chooser = android.content.Intent.createChooser(intent, "Share files via")
-            chooser.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-            context.startActivity(chooser)
-            
-            clearSelection()
-        } catch (e: Exception) {
-            _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }
-        }
-    }
 }

@@ -1,8 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.3
+> **Version:** 0.4.4
 > **Last Updated:** 2026-03-18
+
+---
+
+## [0.4.4] - 2026-03-18
+
+### Refactored
+- [Architecture] Extracted `NavHost` from `ArcileAppShell.kt` into a dedicated `AppNavigationGraph.kt` component for a cleaner entry point.
+- [Architecture] Modularized `HomeScreen.kt` by separating large UI elements into `StorageSummaryCards.kt`, `CategoryGrid.kt`, and `MainFoldersGrid.kt`.
+- [Architecture] Cleaned up `TrashScreen.kt` by extracting the empty state dialog and trash list components to `components/trash/`.
+- [Architecture] Split `PasteConflictDialog.kt` into reusable sub-components, migrating the file comparison UI to a new `ConflictCard.kt`.
+- [Architecture] Decoupled `Environment.getExternalStorageDirectory()` framework calls from the Compose presentation layer (`MainFoldersGrid`) by pushing standard folder resolution to the `FileRepository`.
+- [Architecture] Removed the direct creation of Android `Intent` objects inside ViewModels (`ShareSelectedFiles`), shifting this responsibility to a newly introduced `ShareHelper.kt` utility invoked from the UI layer.
 
 ---
 

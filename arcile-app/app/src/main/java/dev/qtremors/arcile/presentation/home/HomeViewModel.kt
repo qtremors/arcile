@@ -30,6 +30,7 @@ import dev.qtremors.arcile.data.StorageClassificationStore
 
 data class HomeState(
     val allStorageVolumes: List<StorageVolume> = emptyList(),
+    val standardFolders: Map<String, String?> = emptyMap(),
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
@@ -102,6 +103,7 @@ class HomeViewModel @Inject constructor(
             val allVolumesResult = repository.getStorageVolumes()
             val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
             val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
+            val standardFolders = repository.getStandardFolders()
             val errorMsg = storageResult.exceptionOrNull()?.message 
                 ?: allVolumesResult.exceptionOrNull()?.message 
                 ?: recentResult.exceptionOrNull()?.message 
@@ -133,6 +135,7 @@ class HomeViewModel @Inject constructor(
                     isCalculatingStorage = false,
                     error = errorMsg,
                     allStorageVolumes = allStorageVolumes,
+                    standardFolders = standardFolders,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
                     storageInfo = storageInfo,
                     categoryStorages = categoryResult.getOrNull() ?: emptyList(),

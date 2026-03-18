@@ -50,7 +50,7 @@ import androidx.compose.ui.graphics.Color
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.MultiColorStorageBar
+import dev.qtremors.arcile.presentation.ui.components.home.MultiColorStorageBar
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.domain.StorageVolume

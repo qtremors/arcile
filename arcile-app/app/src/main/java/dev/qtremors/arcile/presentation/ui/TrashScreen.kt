@@ -63,6 +63,8 @@ import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.trash.TrashState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.trash.EmptyTrashDialog
+import dev.qtremors.arcile.presentation.ui.components.trash.TrashList
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -193,30 +195,11 @@ fun TrashScreen(
         }
 
         if (showEmptyTrashConfirmation) {
-            AlertDialog(
+            EmptyTrashDialog(
                 onDismissRequest = { showEmptyTrashConfirmation = false },
-                icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text(stringResource(R.string.empty_trash_title)) },
-                shape = MaterialTheme.shapes.extraLarge,
-                text = { Text(stringResource(R.string.empty_trash_description)) },
-                confirmButton = {
-                    FilledTonalButton(
-                        onClick = {
-                            showEmptyTrashConfirmation = false
-                            onEmptyTrash()
-                        },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text(stringResource(R.string.empty_trash))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showEmptyTrashConfirmation = false }) {
-                        Text(stringResource(R.string.cancel))
-                    }
+                onConfirm = {
+                    showEmptyTrashConfirmation = false
+                    onEmptyTrash()
                 }
             )
         }
@@ -268,59 +251,3 @@ fun TrashScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun TrashList(
-    files: List<TrashMetadata>,
-    selectedFiles: Set<String>,
-    onToggleSelection: (String) -> Unit
-) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy \u2022 HH:mm", Locale.getDefault()) }
-
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        items(files, key = { it.id }) { trashItem ->
-            val isSelected = selectedFiles.contains(trashItem.id)
-            
-            val animatedSurfaceColor by animateColorAsState(
-                targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                label = "trashListItemColor"
-            )
-            
-            Surface(
-                shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
-                color = animatedSurfaceColor,
-                modifier = Modifier
-                    .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)
-                    .combinedClickable(
-                        onClick = { onToggleSelection(trashItem.id) },
-                        onLongClick = { onToggleSelection(trashItem.id) }
-                    )
-            ) {
-                ListItem(
-                    headlineContent = { Text(trashItem.fileModel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = {
-                        Column {
-                            Text(
-                                text = stringResource(R.string.deleted_at, formatter.format(Date(trashItem.deletionTime))),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            val sourceVolumeStr = when (trashItem.sourceStorageKind) {
-                                dev.qtremors.arcile.domain.StorageKind.INTERNAL -> stringResource(R.string.internal_storage)
-                                dev.qtremors.arcile.domain.StorageKind.SD_CARD -> stringResource(R.string.sd_card)
-                                else -> stringResource(R.string.otg_usb)
-                            }
-                            Text(
-                                text = stringResource(R.string.from_volume, sourceVolumeStr, trashItem.originalPath.substringBeforeLast("/")),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-            }
-        }
-    }
-}

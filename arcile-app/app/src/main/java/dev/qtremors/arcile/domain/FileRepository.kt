@@ -109,6 +109,11 @@ interface FileRepository {
      */
     suspend fun getVolumeForPath(path: String): Result<StorageVolume>
 
+    /**
+     * Returns a map of standard folders (e.g., DCIM, Downloads, Pictures).
+     */
+    fun getStandardFolders(): Map<String, String?>
+
     // ─── Queries ─────────────────────────────────────────────────────────────
 
     /**
