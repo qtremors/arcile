@@ -40,15 +40,17 @@ fun Modifier.shimmer(
 
     var size by remember { mutableStateOf(IntSize.Zero) }
     val transition = rememberInfiniteTransition(label = "shimmerTransition")
-    val startOffsetX by transition.animateFloat(
-        initialValue = -2 * size.width.toFloat(),
-        targetValue = 2 * size.width.toFloat(),
+    val fraction by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "shimmerOffsetX"
+        label = "shimmerFraction"
     )
+
+    val startOffsetX = -2 * size.width.toFloat() + (fraction * 4 * size.width.toFloat())
 
     background(
         brush = Brush.linearGradient(

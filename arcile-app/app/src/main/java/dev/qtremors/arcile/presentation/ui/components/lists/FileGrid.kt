@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -132,7 +133,10 @@ fun FileGridItem(
                 scaleX = scale
                 scaleY = scale
             }
-            .semantics(mergeDescendants = true) { contentDescription = contentDesc }
+            .semantics(mergeDescendants = true) { 
+                contentDescription = contentDesc 
+                selected = isSelected
+            }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,

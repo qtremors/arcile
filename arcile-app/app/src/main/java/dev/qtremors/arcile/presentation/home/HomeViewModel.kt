@@ -155,14 +155,30 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
-            classificationRepo.setClassification(
-                storageKey = storageKey,
-                kind = kind,
-                lastSeenName = volume?.name,
-                lastSeenPath = volume?.path
-            )
-            suppressedVolumeKeys.remove(storageKey)
+            try {
+                val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
+                classificationRepo.setClassification(
+                    storageKey = storageKey,
+                    kind = kind,
+                    lastSeenName = volume?.name,
+                    lastSeenPath = volume?.path
+                )
+                suppressedVolumeKeys.remove(storageKey)
+            } catch (e: Exception) {
+                // Revert optimistic update on failure
+                _state.update { currentState ->
+                    val volume = currentState.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
+                    val restoredVolumes = if (volume != null && !currentState.unclassifiedVolumes.any { it.storageKey == storageKey }) {
+                        currentState.unclassifiedVolumes + volume
+                    } else currentState.unclassifiedVolumes
+                    
+                    currentState.copy(
+                        unclassifiedVolumes = restoredVolumes,
+                        showClassificationPrompt = restoredVolumes.isNotEmpty(),
+                        error = "Failed to save classification: ${e.message}"
+                    )
+                }
+            }
             // No need to manually reload; observeStorageVolumes will trigger it
         }
     }

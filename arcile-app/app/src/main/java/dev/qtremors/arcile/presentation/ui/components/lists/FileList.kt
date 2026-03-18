@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -124,7 +125,10 @@ fun FileItemRow(
         color = animatedSurfaceColor,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
-            .semantics(mergeDescendants = true) { contentDescription = contentDesc }
+            .semantics(mergeDescendants = true) { 
+                contentDescription = contentDesc 
+                selected = isSelected
+            }
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick

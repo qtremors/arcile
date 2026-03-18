@@ -15,6 +15,7 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.DestinationRequiredException
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -173,7 +173,7 @@ class StorageScopeViewModelTest {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
         val repository = FakeFileRepository(
             volumes = listOf(internal),
-            restoreFromTrashResult = Result.failure(Exception("DESTINATION_REQUIRED:trash-1"))
+            restoreFromTrashResult = Result.failure(DestinationRequiredException(listOf("trash-1")))
         )
         val viewModel = TrashViewModel(repository)
 
@@ -226,7 +226,7 @@ private class FakeFileRepository(
 ) : FileRepository {
 
     private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        runBlocking { emit(volumes) }
+        tryEmit(volumes)
     }
 
     val requestedRecentScopes = mutableListOf<StorageScope>()

@@ -1,9 +1,44 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.1
-> **Last Updated:** 2026-03-17
+> **Version:** 0.4.2
+> **Last Updated:** 2026-03-18
 
+---
+
+## [0.4.2] - 2026-03-18
+
+### Added
+- [Documentation] Introduced a new "StorageScope" subsection in `DEVELOPMENT.md` defining the logical contexts used for repository operations (`AllStorage`, `Volume`, `Path`, `Category`).
+
+### Fixed
+- [Bug] `moveToTrash` now properly aborts the deletion loop, preserves failure states, and invalidates caching when the underlying copy/delete fallback mechanism fails.
+- [Bug] Missing file extensions are now reliably captured in Category Views; expanded the MediaStore SQL query to search via `DATA LIKE '%.ext'` string matching when `MIME_TYPE` yields no results.
+- [Bug] Category Views now safely check if `File.isFile` before indexing, preventing arbitrary directories carrying specific extensions (like `folder.zip`) from crashing the UI.
+- [Bug] `TrashViewModel` no longer drops the target destination string or item IDs when spawning the Android system permission overlay (Scoped Storage), preventing silent task cancellation.
+- [Bug] Detached CoroutineScopes have been scrubbed from `StorageClassificationRepository` data mapping streams, eliminating race conditions.
+- [Bug] `BrowserViewModel` now halts UI refreshes if an underlying file deletion or movement throws an exception, allowing the user to actually read the Toast/Snackbar error.
+- [Bug] Invalid `volumeId` restores from deep linking now safely fall back to `StorageScope.AllStorage` mapping rather than crashing or freezing the screen.
+- [Bug] Resolved missing UI warnings when the user's optimistic `StorageClassification` bypass prompt fails to write to the `DataStore` successfully.
+- [Bug] Category storage size calculations now strictly exclude hidden files/folders (`/.`), ensuring consistency with the file browser view.
+- [Bug] Trash operations (`emptyTrash`, `restoreFromTrash`) now correctly invalidate the storage analytics cache, preventing stale category sizes on the dashboard.
+- [Bug] `Category` storage scope now supports optional `volumeId`, enabling cross-volume media discovery and resolving empty category views when navigating from the Home screen.
+- [Bug] Replaced API 26 (Oreo) `File.toPath()` references in path traversal security checks with legacy `canonicalPath` string evaluations, stopping app crashes on Android 7 (Nougat).
+- [Bug] Removed empty TargetState lambda calls inside `AnimatedContent` (`FileManagerScreen.kt`) causing silent animation frame drops and strict Compose linting failures.
+- [Bug] Fixed outdated mock configurations throwing incorrect String Exceptions instead of structured `DestinationRequiredException` inside `StorageScopeViewModelTest`.
+- [Navigation] Standardized `EXPLORER` routes in `ArcileAppShell.kt` to always append the full query parameter set (`path`, `category`, `volumeId`), resolving broken state restoration during cross-screen navigation.
+- [UI/UX] Fixed Shimmer animations capturing gradient layouts at zero size, preventing UI from appearing frozen while loading.
+- [UI/UX] Fixed `FileManagerScreen` showing a blank "Empty Directory" state instead of displaying the volume root menu when exploring the top-level app storage tier.
+- [UI/UX] Optimized `TrashScreen` volume item selections to dismiss the selection dialog overlay immediately, skipping slow upstream view-state delays.
+- [Performance] `LocalFileRepository.getCategoryStorageSizes` now immediately returns optimistic DataStore cache hits if available, bypassing massive unnecessary disk/MediaStore I/O calculations.
+- [Correctness] Removed `runBlocking` calls from `StorageScopeViewModelTest` mocks to align with coroutine testing best practices and prevent potential test deadlocks.
+- [Code Quality] Hoisted `ThemePreferences` initialization to the `MainActivity` level, ensuring lifecycle-aware persistence and resolving compilation errors in theme state collection.
+
+### Changed
+- [Build] Bumped version to `0.4.2` (versionCode `26`) and synchronized references across `build.gradle.kts`, `TASKS.md`, and project documentation.
+- [Design] Dramatically increased the color opacity mapping (`alpha = 0.70f` and `0.16f`) for all dynamic `secondary` and `secondaryContainer` Light Themes inside `Color.kt` to ensure legibility over bright backgrounds.
+- [Accessibility] Explicitly forced `FileGrid` and `FileList` Jetpack Compose rows to broadcast `selected = isSelected` into Android's semantics tree, allowing TalkBack and screen readers to actually announce when a file is checked.
+- [Architecture] Stripped silent `{}` default callback initializations for `onDismissDestinationPicker` in `TrashScreen.kt`, enforcing correct explicit navigation wiring down the tree.
 
 ---
 

@@ -170,13 +170,4 @@ This beta release marks a major step forward in making **Arcile** a premium, hig
 - **Security & Fixes**: Implemented path traversal protection, resolved directory refresh loops, and fixed critical compilation issues in the settings module.
 
 *This beta sets the stage for our 1.0 milestone. Thanks for helping us test the future of Arcile!*
-beta sets the stage for our 1.0 milestone. Thanks for helping us test the future of Arcile!*
-
-
-
-
-
-
-
-
 

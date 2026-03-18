@@ -58,9 +58,6 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
                         }
                     } catch (e: Exception) {
                         android.util.Log.e("StorageClassification", "Failed to parse classification for key: ${key.name}", e)
-                        CoroutineScope(Dispatchers.IO).launch {
-                            resetClassification(key.name)
-                        }
                     }
                 }
             }

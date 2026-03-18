@@ -376,7 +376,7 @@ fun FileManagerScreen(
                     modifier = Modifier.weight(1f)
                 ) { targetKey ->
                     Column(modifier = Modifier.fillMaxSize()) {
-                        if (searchHasCompleted) {
+                        if (targetKey == "search") {
                             // Search results in the content area
                             if (state.searchResults.isEmpty()) {
                                 EmptyState(
@@ -496,17 +496,17 @@ fun FileManagerScreen(
                                     ) {
                                         LoadingIndicator()
                                     }
+                                } else if (state.isVolumeRootScreen) {
+                                    dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
+                                        volumes = state.storageVolumes,
+                                        onNavigateTo = onNavigateTo,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
                                 } else if (displayedFiles.isEmpty()) {
                                     EmptyState(
                                         icon = Icons.Default.FolderOff,
                                         title = "Empty Directory",
                                         description = "This folder doesn't have any files yet. You can create one using the + button.",
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else if (state.isVolumeRootScreen) {
-                                    dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
-                                        volumes = state.storageVolumes,
-                                        onNavigateTo = onNavigateTo,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else if (state.isGridView && !state.isVolumeRootScreen) {

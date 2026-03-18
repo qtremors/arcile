@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
 
     // reactive permission state — updated in onResume so Compose recomposes
     private val _hasPermission = mutableStateOf(false)
+    private lateinit var themePreferences: ThemePreferences
 
     private val storagePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -48,6 +49,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        
+        themePreferences = ThemePreferences(applicationContext)
 
         enableEdgeToEdge()
         _hasPermission.value = checkStoragePermission()
@@ -73,7 +76,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val themePreferences = remember { ThemePreferences(applicationContext) }
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val coroutineScope = rememberCoroutineScope()
 

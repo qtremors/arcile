@@ -209,7 +209,7 @@ interface FileRepository {
     // ─── Trash subsystem ─────────────────────────────────────────────────────
 
     /**
-     * Moves files at [paths] to the app trash (`.arcile_trash/` on external storage).
+     * Moves files at [paths] to the app trash (`.arcile/.trash` on external storage).
      *
      * Each moved file is paired with a JSON metadata sidecar so it can be restored or
      * identified later. The trash directory contains a `.nomedia` file to hide blobs from

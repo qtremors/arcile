@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.4.1
-> **Last Updated:** 2026-03-17
+> **Version:** 0.4.2
+> **Last Updated:** 2026-03-18
 
 ---
 
@@ -20,75 +20,20 @@
 
 ## 1. PR Review Findings (Beta Blockers & Polish)
 
-- [ ] [Accessibility] Missing selection state for TalkBack
-  - **Problem:** `FileList` item sets merged `contentDescription` but doesn't expose selection state.
-  - **Location:** `FileList.kt` (lines 122 - 131)
-  - **Fix:** Set `selected = isSelected` in the `semantics` block.
-
-- [ ] [UI/UX] Shimmer animation captures range at zero size
-  - **Problem:** Animation range is captured while `size == IntSize.Zero`, so `startOffsetX` stays `0`.
-  - **Location:** `ShimmerModifier.kt` (lines 41 - 51)
-  - **Fix:** Use a normalized range (e.g., `0f..1f`) and compute concrete pixel offset during render using latest size.
-
-- [ ] [UI/UX] Wrong UI rendered for empty root screens
-  - **Problem:** `EmptyState` branch is evaluated before `volume-root` branch.
-  - **Location:** `FileManagerScreen.kt` (lines 480 - 493)
-  - **Fix:** Reorder checks so `state.isVolumeRootScreen` is tested first.
-
-- [ ] [Design] Unreadable secondary colors in light theme
-  - **Problem:** `buildScheme` light theme produces nearly-white secondary colors on `Color.White`.
-  - **Location:** `Color.kt` (lines 427 - 473)
-  - **Fix:** Increase opacity of secondary or composite stronger tint over white.
-
 - [ ] [Design] Material2 theme bases used instead of Material3
   - **Problem:** XML theme bases still use Material2 components (`Theme.Material.Light.NoActionBar`).
   - **Location:** `themes.xml` (lines 6 - 11)
-  - **Fix:** Update parent styles to `Theme.Material3.*`.
+  - **Fix:** Update parent styles to `Theme.Material3.*`. *(Note: App is 100% Compose and does not include the `com.google.android.material:material` XML library, making this change unnecessary/bloat. Left as is.)*
 
-- [ ] [Bug] Detached coroutines in flow mapper.
-  - **Problem:** Spawns detached `CoroutineScope(Dispatchers.IO).launch` inside a flow mapper.
-  - **Location:** `StorageClassificationRepository.kt`
-  - **Fix:** Call `resetClassification` synchronously or collect bad keys for a single dataStore edit.
+- [ ] [Performance] Analytics cache lacks TTL and robust error handling.
+  - **Problem:** `saveCategorySizesToCache` has no timestamp, and `invalidateCache` swallows exceptions.
+  - **Location:** `LocalFileRepository.kt` (lines 533 - 603)
+  - **Fix:** Embed "cachedAt" timestamp in cache JSON, implement TTL check in `getCategorySizesFromCache`, and add proper logging/rethrowing in `invalidateCache`.
 
-- [ ] [Bug] Invalid empty volumeId in Category restore.
-  - **Problem:** `StorageBrowserLocation.Category` restores with an invalid/empty `volumeId`.
-  - **Location:** `BrowserViewModel.kt`
-  - **Fix:** Fallback to `StorageScope.AllStorage` with `restoredCategoryName` when `restoredVolumeId` is empty.
-
-- [ ] [Bug] Error message wiped immediately by refresh().
-  - **Problem:** Failure handlers set an error and immediately call `refresh()`, wiping the error before UI can show it.
-  - **Location:** `BrowserViewModel.kt`
-  - **Fix:** Preserve the error through the `refresh()` call or remove the immediate `refresh()`.
-
-- [ ] [Bug] Optimistic dismissal silent failure.
-  - **Problem:** Optimistic dismissal removes prompt before `setClassification` completes, leaving UI silent on failure.
-  - **Location:** `HomeViewModel.kt`
-  - **Fix:** Wrap call in try/catch, only remove `suppressedVolumeKeys` on success, and restore prompt state/set error on failure.
-
-- [ ] [Navigation] Missing query parameters in EXPLORER routes.
-  - **Problem:** Navigations missing full query set (`path`, `category`, `volumeId`) breaking state restoration.
-  - **Location:** `ArcileAppShell.kt`
-  - **Fix:** Always append `?path={encodedPath}&category={encodedCategory}&volumeId={encodedVolumeId}` passing empty strings for missing values.
-
-- [ ] [Architecture] Default no-op lambdas hide missing wiring.
-  - **Problem:** Callback parameters `onDismissDestinationPicker` and `onRestoreToDestination` default to `{}`.
-  - **Location:** `TrashScreen.kt`
-  - **Fix:** Remove default values to enforce required implementation at call sites.
-
-- [ ] [UI/UX] Destination picker doesn't close immediately.
-  - **Problem:** Clickable handler relies on slow upstream state to close picker.
-  - **Location:** `TrashScreen.kt`
-  - **Fix:** Invoke dialog dismissal callback immediately inside the `clickable` lambda alongside the restore call.
-
-- [ ] [Documentation] Missing StorageScope concept definition.
-  - **Problem:** `StorageScope` concept and mapping to classification system is undocumented.
-  - **Location:** `DEVELOPMENT.md`
-  - **Fix:** Add a new subsection under "Core Modules" explaining `StorageScope` allowed values and usage.
-
-- [ ] [Documentation] Stale test coverage claim.
-  - **Problem:** `TASKS.md` claims only minimal tests exist, ignoring newly added test suites.
-  - **Location:** `TASKS.md`
-  - **Fix:** Update checklist entry to reflect current test coverage.
+- [ ] [Performance] Optimistic cache hit ignored in `getCategoryStorageSizes`.
+  - **Problem:** `val cached = getCategorySizesFromCache(scope)` is called but never used or returned.
+  - **Location:** `LocalFileRepository.kt` (lines 606 - 608)
+  - **Fix:** Return `cached` immediately if non-null, or implement a background refresh pattern.
 
 ---
 
@@ -148,50 +93,10 @@
 
 ## 3. Performance & Efficiency
 
-- [~] [Performance] Migrate custom Trash system to Native MediaStore Trash (API 30+).
-  - **Problem:** App uses custom `.arcile/.trash` directory and JSON metadata, duplicating OS functionality.
-  - **Location:** `LocalFileRepository.kt`, `TrashMetadata.kt`
-  - **Fix:** *Abandoned.* Attempting to use `MediaStore.createTrashRequest()` on Android 11+ caused intrusive permission prompt loops and double-trashing bugs. Retained and optimized the custom `.arcile/.trash` fallback globally instead.
-
-- [x] [Performance] Replace manual category size calculation with `StorageStatsManager` (API 26+).
-  - **Problem:** `getCategoryStorageSizes` iterates through thousands of `MediaStore` files to sum sizes manually.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Use `StorageStatsManager` for instant category metrics on API 26+. Keep manual summation as a fallback for older versions.
-
-- [x] [Performance] Replace hardcoded file extensions with native `MimeTypeMap`.
-  - **Problem:** `FileCategories.kt` uses a hardcoded map of extensions to determine file types instead of OS definitions.
-  - **Location:** `FileCategories.kt`, `FileModel.kt`
-  - **Fix:** Utilize `MimeTypeMap.getSingleton().getMimeTypeFromExtension()` and MediaStore `MIME_TYPE` columns.
-
-- [x] [Performance] Use `ContentResolver.loadThumbnail()` for image/audio extraction (API 29+).
-  - **Problem:** `AudioAlbumArtFetcher` manually uses `MediaMetadataRetriever` and `BitmapFactory`, missing out on OS-level optimizations.
-  - **Location:** `AudioAlbumArtFetcher.kt`
-  - **Fix:** Switch to `ContentResolver.loadThumbnail()` on Android 10+. Retain manual extraction as a fallback for older versions.
-
-- [x] [Performance] `getCategoryStorageSizes()` scans the entire MediaStore without filtering.
-  - **Problem:** Queries all files from MediaStore to compute per-category sizes. On devices with 100K+ indexed files, this is very slow.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Use `GROUP BY` SQL aggregation on MIME types in the ContentResolver query, or cache results with a time-based invalidation.
-
-- [x] [Performance] `getFilesByCategory()` loads all MediaStore entries then filters client-side.
-  - **Problem:** `SELECT DATA FROM files` with no selection clause, then filtering by extension in Kotlin.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Use a `LIKE` or `IN` clause on `MIME_TYPE` in the MediaStore query.
-
-- [~] [Performance] Scoped `searchFiles()` uses `File.walkTopDown()` — recursive filesystem traversal on the main thread.
-  - **Problem:** Although wrapped in `Dispatchers.IO`, walking the entire filesystem tree for a scoped search is inherently slow.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** *Abandoned.* Attempting to replace direct disk I/O with MediaStore queries hides hidden files and `.nomedia` directories from the user. Retain `File.walkTopDown()` (or migrate to `java.nio.file.Files.walk`) as it is the most accurate representation of the disk for a file manager.
-
 - [ ] [Performance] `LazyColumn` / `LazyVerticalGrid` items re-keyed by `absolutePath` may conflict.
   - **Problem:** Multiple files from different directories could have the same `absolutePath` key if the list content changes during recomposition.
   - **Location:** `FileManagerScreen.kt`, `HomeScreen.kt`
   - **Fix:** Validate key uniqueness or include additional context (e.g., directory path prefix).
-
-- [ ] [Performance] `AudioAlbumArtFetcher` opens `MediaMetadataRetriever` on the UI thread call path.
-  - **Problem:** Coil dispatches fetchers, but `MediaMetadataRetriever.setDataSource()` can be slow on some devices.
-  - **Location:** `AudioAlbumArtFetcher.kt`
-  - **Fix:** Ensure Coil's dispatcher configuration routes this to an IO thread.
 
 ---
 
@@ -201,21 +106,6 @@
   - **Problem:** Keystore password, key alias, and key password are read from `local.properties` at build time.
   - **Location:** `app/build.gradle.kts`
   - **Fix:** Use environment variables or a dedicated CI secrets mechanism instead of a local file.
-
-- [~] [Security] `MANAGE_EXTERNAL_STORAGE` permission has no graceful degradation.
-  - **Problem:** The app requests `MANAGE_EXTERNAL_STORAGE` on Android 11+ but provides no fallback if the user denies it.
-  - **Location:** `AndroidManifest.xml`, `MainActivity.kt`
-  - **Fix:** *Abandoned.* Implementing an SAF fallback massively bloats the codebase and introduces severe performance penalties for bulk file operations. Arcile is a dedicated File Manager; requiring full storage access is a hard, necessary requirement.
-
-- [ ] [Code Quality] `ThemePreferences` instantiated inside `setContent{}` with `remember`.
-  - **Problem:** `val themePreferences = remember { ThemePreferences(applicationContext) }` creates a non-lifecycle-aware instance inside composition.
-  - **Location:** `MainActivity.kt:72`
-  - **Fix:** Hoist `ThemePreferences` to the Activity level or inject via DI.
-
-- [ ] [Code Quality] Minimal unit tests exist.
-  - **Problem:** `ExampleInstrumentedTest.kt` and `FilePresentationTest.kt` are the only test files.
-  - **Location:** `app/src/test/` and `app/src/androidTest/`
-  - **Fix:** Add unit tests for `HomeViewModel`, `BrowserViewModel`, `LocalFileRepository`, and domain logic.
 
 - [ ] [Design] Custom color schemes hardcoded instead of using Material Color Utilities.
   - **Problem:** All accent color schemes are manually defined with hardcoded hex colors rather than generated from seed colors via HCT.
@@ -227,18 +117,6 @@
   - **Location:** `Shape.kt`
   - **Fix:** Use `RoundedCornerShape` with `CornerSize` percent or implement a custom `CutoutShape`.
 
-- [ ] [Anomaly] Compose BOM version `2024.09.00` conflicts with explicit Material3 `1.4.0-alpha08`.
-  - **Location:** `libs.versions.toml`, `app/build.gradle.kts`
-  - **Fix:** Update the BOM to match the M3 alpha requirement, or pin all Compose libraries to compatible versions.
-
-- [ ] [Anomaly] `compileSdk` uses non-standard block syntax with `minorApiLevel`.
-  - **Location:** `app/build.gradle.kts`
-  - **Fix:** Document this in `DEVELOPMENT.md` if intentional.
-
-- [ ] [Anomaly] `VariantOutputImpl` cast in `androidComponents` block.
-  - **Location:** `app/build.gradle.kts`
-  - **Fix:** Check if a stable API for `outputFileName` exists in AGP 9.x.
-
 ---
 
 ## 5. Comprehensive Audit Findings
@@ -248,14 +126,17 @@
   - **Problem:** Over 90 instances of hardcoded string literals in `Text("...")` composables, preventing app localization.
   - **Location:** Pervasive (e.g., `AboutScreen.kt`, `SettingsScreen.kt`, `FileManagerScreen.kt`, Dialogs).
   - **Fix:** Extract all hardcoded strings to `res/values/strings.xml` and use `stringResource(R.string.*)`.
+
 - [ ] [i18n] Direct String Interpolation in UI Text.
   - **Problem:** Rather than using formatted string resources (e.g., `<string name="delete_items">Delete %1$d item(s)?</string>`), the app dynamically interpolates state variables directly into hardcoded strings.
   - **Location:** `RecentFilesScreen.kt`, `FileManagerScreen.kt`, `AboutScreen.kt`.
   - **Fix:** Use string resources with format arguments (e.g. `stringResource(R.string.delete_items, count)`).
+
 - [ ] [Accessibility] Hardcoded Content Descriptions.
   - **Problem:** Over 40 instances of hardcoded `contentDescription = "..."` for Icons and interactive elements, rendering screen readers useless for non-English users.
   - **Location:** `ArcileTopBar.kt`, `TrashScreen.kt`, `GlobalSearchBar.kt`, `FileList.kt`, etc.
   - **Fix:** Extract `contentDescription` strings to `strings.xml` and use `stringResource()`.
+
 - [ ] [UI/UX] Nested Scaffolds causing potential double-padding issues.
   - **Problem:** `ArcileAppShell` provides a root `Scaffold`, but child screens (`HomeScreen`, `SettingsScreen`, etc.) also define their own `Scaffold` without explicitly consuming or propagating the root padding correctly, which can cause inset glitches.
   - **Location:** `ArcileAppShell.kt` and all screen composables.
@@ -266,10 +147,6 @@
   - **Problem:** Permission state (`_hasPermission`) in `MainActivity` is managed via `mutableStateOf` directly in the Activity class.
   - **Location:** `MainActivity.kt`
   - **Fix:** Move permission logic and state into a dedicated `PermissionManager` or a scoped `ViewModel` to improve testability and separation of concerns.
-- [ ] [Correctness] `runBlocking` used inside coroutine flows in tests.
-  - **Problem:** `StorageScopeViewModelTest` uses `runBlocking { emit(volumes) }` in a test fake's init block. This violates coroutine testing best practices and can lead to deadlocks or flaky tests.
-  - **Location:** `app/src/test/.../StorageScopeViewModelTest.kt`
-  - **Fix:** Remove `runBlocking`, initialize state flows directly with the initial value, or emit inside a properly scoped test coroutine.
 
 ---
 
@@ -304,21 +181,96 @@
 
 ## 7. Completed Tasks
 
-### Beta Release Blockers (PR Review)
-- [x] [Architecture] String matching used for restore failures
-- [x] [Architecture] Typed errors for restore failures (DestinationRequiredException)
-- [x] [Bug] Swallowed exception parsing trash metadata (Cleanup implemented)
-- [x] [Bug] Apply restored browser location before calling refresh
-- [x] [Bug] `detectCopyConflicts` misses nested child collisions
-- [x] [Bug] Missing conflict resolution handling for pre-existing target
-- [x] [Bug] Transient lookup failures mask permanent deletes in `DeletePolicy`
-- [x] [Bug] Invalid context access via `navController.context`
-- [x] [UI/UX] Dead-end destination picker when no indexed volumes
-- [x] [Bug] Sort MediaStore recents by modified time before limiting
-- [x] [Bug] Unhandled DataStore read errors in `BrowserPreferencesRepository`
-- [x] [Security] Sensitive path logged in `LocalFileRepository`
-- [x] [Bug] Swallowed JSON parsing exceptions in `StorageClassificationRepository`
-- [x] [Bug] Swallowed repository failures in `HomeViewModel`
-- [x] [Bug] Unconditional transient UI state reset in `TrashViewModel`
-- [x] [Build] KSP version mismatch with Kotlin 2.2.10
-- [x] [Anomaly] `Kotlin 2.2.10` version may be unreleased/preview.
+- [x] [Accessibility] Missing selection state for TalkBack
+  - **Problem:** `FileList` item sets merged `contentDescription` but doesn't expose selection state.
+  - **Location:** `FileList.kt`
+  - **Fix:** Set `selected = isSelected` in the `semantics` block.
+
+- [x] [UI/UX] Shimmer animation captures range at zero size
+  - **Problem:** Animation range is captured while `size == IntSize.Zero`.
+  - **Location:** `ShimmerModifier.kt`
+  - **Fix:** Use normalized range and compute offset during render.
+
+- [x] [UI/UX] Wrong UI rendered for empty root screens
+  - **Problem:** `EmptyState` branch is evaluated before `volume-root` branch.
+  - **Location:** `FileManagerScreen.kt`
+  - **Fix:** Reorder checks so `state.isVolumeRootScreen` is tested first.
+
+- [x] [Design] Unreadable secondary colors in light theme
+  - **Problem:** `buildScheme` light theme produces nearly-white secondary colors.
+  - **Location:** `Color.kt`
+  - **Fix:** Increase opacity of secondary or composite stronger tint.
+
+- [x] [Bug] Detached coroutines in flow mapper.
+  - **Problem:** Spawns detached `CoroutineScope(Dispatchers.IO).launch` inside a flow mapper.
+  - **Location:** `StorageClassificationRepository.kt`
+  - **Fix:** Call `resetClassification` synchronously.
+
+- [x] [Bug] Invalid empty volumeId in Category restore.
+  - **Problem:** `StorageBrowserLocation.Category` restores with an invalid/empty `volumeId`.
+  - **Location:** `BrowserViewModel.kt`
+  - **Fix:** Fallback to `StorageScope.AllStorage`.
+
+- [x] [Bug] Error message wiped immediately by refresh().
+  - **Problem:** Failure handlers wipe error before UI can show it.
+  - **Location:** `BrowserViewModel.kt`
+  - **Fix:** Preserve error through the `refresh()` call.
+
+- [x] [Bug] Optimistic dismissal silent failure.
+  - **Problem:** UI stays silent if classification persistence fails.
+  - **Location:** `HomeViewModel.kt`
+  - **Fix:** Wrap in try/catch and restore state on failure.
+
+- [x] [Navigation] Missing query parameters in EXPLORER routes.
+  - **Problem:** Routes missing full parameter set breaking state restoration.
+  - **Location:** `ArcileAppShell.kt`
+  - **Fix:** Standardize and force full query parameter set in routes.
+
+- [x] [Architecture] Default no-op lambdas hide missing wiring.
+  - **Problem:** Some critical callbacks defaulted to `{}`.
+  - **Location:** `TrashScreen.kt`
+  - **Fix:** Remove defaults to enforce explicit wiring.
+
+- [x] [UI/UX] Destination picker doesn't close immediately.
+  - **Problem:** Reliance on slow upstream state for dialog dismissal.
+  - **Location:** `TrashScreen.kt`
+  - **Fix:** Dismiss dialog immediately in the `clickable` handler.
+
+- [x] [Documentation] Missing StorageScope concept definition.
+  - **Fix:** Added "StorageScope" section to `DEVELOPMENT.md`.
+
+- [x] [Documentation] Stale test coverage claim.
+  - **Fix:** Updated `TASKS.md` to reflect current test suites.
+
+- [x] [Bug] `moveToTrash` reports success on copy/delete fallback failure.
+  - **Location:** `LocalFileRepository.kt`
+  - **Fix:** Correctly propagate failure in the move fallback branch.
+
+- [x] [Bug] `getFilesByCategory` misses files due to strict `mimePrefix` matching.
+  - **Location:** `LocalFileRepository.kt`
+  - **Fix:** Expand query to include extension-based matching.
+
+- [x] [Bug] `TrashViewModel` loses destination path during native confirmation.
+  - **Location:** `TrashViewModel.kt`
+  - **Fix:** Add persistent pending state for native SCOPED_STORAGE flows.
+
+- [x] [Performance] `AudioAlbumArtFetcher` opens `MediaMetadataRetriever` on the UI thread.
+  - **Fix:** Confirmed usage of `Dispatchers.IO`.
+
+- [x] [Code Quality] `ThemePreferences` instantiated inside `setContent{}`.
+  - **Fix:** Hoisted initialization to `MainActivity` level.
+
+- [x] [Code Quality] Minimal unit tests exist.
+  - **Fix:** Added several unit test suites for repositories and view models.
+
+- [x] [Anomaly] Compose BOM version conflict.
+  - **Fix:** Pinned versions to allow M3 Expressive while maintaining stability.
+
+- [x] [Anomaly] `compileSdk` uses non-standard block syntax.
+  - **Fix:** Standardized to `compileSdk = 36`.
+
+- [x] [Anomaly] `VariantOutputImpl` cast in `androidComponents`.
+  - **Fix:** Maintained as documented AGP workaround.
+
+- [x] [Correctness] `runBlocking` used inside coroutine flows in tests.
+  - **Fix:** Migrated to standard coroutine test practices.

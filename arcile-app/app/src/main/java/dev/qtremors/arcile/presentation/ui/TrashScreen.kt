@@ -80,7 +80,7 @@ fun TrashScreen(
     onRestoreSelected: () -> Unit,
     onEmptyTrash: () -> Unit,
     onClearError: () -> Unit,
-    onDismissDestinationPicker: () -> Unit = {},
+    onDismissDestinationPicker: () -> Unit,
     onRestoreToDestination: (List<String>, String) -> Unit,
     onClearNativeRequest: () -> Unit = {}
 ) {
@@ -90,6 +90,11 @@ fun TrashScreen(
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             when (state.pendingNativeAction) {
                 dev.qtremors.arcile.presentation.trash.NativeAction.RESTORE -> onRestoreSelected()
+                dev.qtremors.arcile.presentation.trash.NativeAction.RESTORE_TO_DESTINATION -> {
+                    if (state.pendingDestinationPath != null && state.pendingRestoreIds.isNotEmpty()) {
+                        onRestoreToDestination(state.pendingRestoreIds, state.pendingDestinationPath)
+                    }
+                }
                 dev.qtremors.arcile.presentation.trash.NativeAction.EMPTY -> onEmptyTrash()
                 null -> {}
             }
@@ -242,6 +247,7 @@ fun TrashScreen(
                                         supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         modifier = Modifier.clickable {
                                             onRestoreToDestination(state.selectedTrashIdsForDestination, volume.path)
+                                            onDismissDestinationPicker()
                                         },
                                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                     )

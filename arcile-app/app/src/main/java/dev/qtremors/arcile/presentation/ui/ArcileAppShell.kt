@@ -76,14 +76,14 @@ fun ArcileAppShell(
                             }
                         },
                         onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.EXPLORER + "?path=${Uri.encode(path)}") {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=${Uri.encode(path)}&category=&volumeId=") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onOpenFile = onOpenFile,
                         onCategoryClick = { categoryName ->
-                            navController.navigate(AppRoutes.EXPLORER + "?category=${Uri.encode(categoryName)}") {
+                            navController.navigate(AppRoutes.EXPLORER + "?path=&category=${Uri.encode(categoryName)}&volumeId=") {
                                 popUpTo(AppRoutes.HOME) { saveState = true }
                                 launchSingleTop = true
                             }
@@ -143,10 +143,10 @@ fun ArcileAppShell(
                         onCategoryClick = { categoryName, scopedVolumeId ->
                             val route = buildString {
                                 append(AppRoutes.EXPLORER)
-                                append("?category=")
+                                append("?path=&category=")
                                 append(Uri.encode(categoryName))
+                                append("&volumeId=")
                                 if (scopedVolumeId != null) {
-                                    append("&volumeId=")
                                     append(Uri.encode(scopedVolumeId))
                                 }
                             }

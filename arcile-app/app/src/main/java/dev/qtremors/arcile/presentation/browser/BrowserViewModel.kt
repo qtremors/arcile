@@ -144,10 +144,9 @@ class BrowserViewModel @Inject constructor(
 
         return when {
             isVolumeRootScreen == true -> StorageBrowserLocation.Roots
-            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() && !restoredVolumeId.isNullOrEmpty() ->
+            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() -> {
                 StorageBrowserLocation.Category(StorageScope.Category(restoredVolumeId, restoredCategoryName))
-            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() ->
-                StorageBrowserLocation.Category(StorageScope.Category("", restoredCategoryName))
+            }
             !restoredPath.isNullOrEmpty() && !restoredVolumeId.isNullOrEmpty() ->
                 StorageBrowserLocation.Directory(StorageScope.Path(restoredVolumeId, restoredPath))
             else -> null
@@ -349,7 +348,7 @@ class BrowserViewModel @Inject constructor(
                 )
             }
 
-            val scope = volumeId?.let { StorageScope.Category(it, categoryName) } ?: StorageScope.AllStorage
+            val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
                 _state.update {
                     it.copy(
@@ -549,7 +548,6 @@ class BrowserViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = BrowserNativeAction.TRASH) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                    refresh()
                 }
             }
         }
@@ -570,7 +568,6 @@ class BrowserViewModel @Inject constructor(
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files") }
-                refresh()
             }
         }
     }

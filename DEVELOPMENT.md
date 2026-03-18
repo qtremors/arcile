@@ -289,6 +289,13 @@ If you discover a security vulnerability, please open a private issue or contact
 
 ## Core Modules
 
+### StorageScope
+`StorageScope` is a sealed class used to bound repository operations (like fetching recent files, calculating storage sizes, or querying categories) to a specific logical context:
+- `AllStorage`: Represents all mounted and indexed volumes globally.
+- `Volume(volumeId)`: Represents a specific storage volume (e.g., an SD Card or primary internal storage).
+- `Path(path, volumeId)`: A specific directory path on a given volume.
+- `Category(volumeId, categoryName)`: A specific file category (e.g., "Images", "Documents") bound to a specific volume (or all volumes if volumeId is blank).
+
 ### FileRepository / LocalFileRepository
 
 The data access layer for all file system operations.
@@ -324,7 +331,7 @@ The data access layer for all file system operations.
 
 | Method | Description |
 |--------|-------------|
-| `moveToTrash(paths)` | Move files to `.arcile_trash/` with metadata |
+| `moveToTrash(paths)` | Move files to `.arcile/.trash` with metadata |
 | `restoreFromTrash(trashIds)` | Restore items to their original paths |
 | `emptyTrash()` | Permanently delete all trash contents |
 | `getTrashFiles()` | List all `TrashMetadata` entries |
@@ -456,7 +463,7 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk`
 |---------------------|----------------------|-----------------|
 | `compileSdk` block syntax | Uses `release(36) { minorApiLevel = 1 }` instead of `compileSdk = 36` | Required for AGP 9.x structured SDK versioning |
 | `VariantOutputImpl` cast in `androidComponents` | Internal AGP API | No stable public API for `outputFileName` exists yet in AGP 9.x — see TASKS.md anomalies |
-| `.arcile_trash/` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
+| `.arcile/.trash` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
 
 ### Technical Debt
 
