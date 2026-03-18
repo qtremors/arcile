@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
 import javax.inject.Inject
+import androidx.navigation.toRoute
+import dev.qtremors.arcile.navigation.AppRoutes
 
 enum class BrowserNativeAction { TRASH }
 
@@ -116,15 +118,12 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     private fun initializeFromArgs() {
-        val argPath = savedStateHandle.get<String>("path")
-        val argCategory = savedStateHandle.get<String>("category")
-        val argVolumeId = savedStateHandle.get<String>("volumeId")
+        val explorer = savedStateHandle.toRoute<AppRoutes.Explorer>()
 
         when {
-            !argPath.isNullOrEmpty() -> navigateToSpecificFolder(argPath)
-            !argCategory.isNullOrEmpty() -> navigateToCategory(argCategory, argVolumeId)
+            !explorer.path.isNullOrEmpty() -> navigateToSpecificFolder(explorer.path)
+            !explorer.category.isNullOrEmpty() -> navigateToCategory(explorer.category, explorer.volumeId)
             else -> openFileBrowser()
         }
     }

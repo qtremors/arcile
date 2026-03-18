@@ -125,6 +125,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -234,6 +236,7 @@ fun FileManagerScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
@@ -261,10 +264,10 @@ fun FileManagerScreen(
     // Show clipboard feedback snackbar
     LaunchedEffect(state.clipboardState) {
         state.clipboardState?.let { clipboard ->
-            val action = if (clipboard.operation == ClipboardOperation.COPY) "copied" else "cut"
+            val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
             val count = clipboard.sourcePaths.size
             coroutineScope.launch {
-                snackbarHostState.showSnackbar("$count item(s) $action to clipboard")
+                snackbarHostState.showSnackbar(context.getString(R.string.clipboard_feedback, count, action))
             }
         }
     }
@@ -295,7 +298,7 @@ fun FileManagerScreen(
                             onClearSearch()
                         },
                         onFilterClick = { onToggleSearchFilterMenu(true) },
-                        placeholder = "Search all files..."
+                        placeholder = stringResource(R.string.search_placeholder)
                     )
                     ActiveFiltersRow(
                         filters = state.activeSearchFilters,
@@ -304,7 +307,7 @@ fun FileManagerScreen(
                 }
             } else {
                 ArcileTopBar(
-                    title = "Browse",
+                    title = stringResource(R.string.browse_title),
                     selectionCount = state.selectedFiles.size,
                     showBackArrow = true,
                     showGridViewAction = true,
@@ -381,8 +384,8 @@ fun FileManagerScreen(
                             if (state.searchResults.isEmpty()) {
                                 EmptyState(
                                     icon = Icons.Default.SearchOff,
-                                    title = "No results found",
-                                    description = "We couldn't find anything matching \"${state.browserSearchQuery}\". Try a different keyword or filters.",
+                                    title = stringResource(R.string.no_results_found),
+                                    description = stringResource(R.string.no_results_description, state.browserSearchQuery),
                                     modifier = Modifier.weight(1f)
                                 )
                             } else {
@@ -439,9 +442,9 @@ fun FileManagerScreen(
                                 ) {
                                     Text(
                                         text = if (currentVolume.kind == StorageKind.OTG) {
-                                            "Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent."
+                                            stringResource(R.string.browsing_temp_usb)
                                         } else {
-                                            "Browsing unclassified external storage. It is treated as temporary until classified, and deletions are permanent."
+                                            stringResource(R.string.browsing_unclassified)
                                         },
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -505,8 +508,8 @@ fun FileManagerScreen(
                                 } else if (displayedFiles.isEmpty()) {
                                     EmptyState(
                                         icon = Icons.Default.FolderOff,
-                                        title = "Empty Directory",
-                                        description = "This folder doesn't have any files yet. You can create one using the + button.",
+                                        title = stringResource(R.string.empty_directory),
+                                        description = stringResource(R.string.empty_directory_description),
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else if (state.isGridView && !state.isVolumeRootScreen) {
@@ -572,8 +575,8 @@ fun FileManagerScreen(
         if (state.showTrashConfirmation) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
-                text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
+                title = { Text(stringResource(R.string.delete_items_title, state.selectedFiles.size)) },
+                text = { Text(stringResource(R.string.delete_items_description)) },
                 confirmButton = {
                     androidx.compose.material3.FilledTonalButton(
                         onClick = onConfirmTrash,
@@ -596,8 +599,8 @@ fun FileManagerScreen(
         if (state.showPermanentDeleteConfirmation) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text("Permanently delete ${state.selectedFiles.size} item(s)?") },
-                text = { Text("Selected items will be permanently deleted. This action cannot be undone.") },
+                title = { Text(stringResource(R.string.delete_permanent_title, state.selectedFiles.size)) },
+                text = { Text(stringResource(R.string.delete_permanent_description)) },
                 confirmButton = {
                     androidx.compose.material3.FilledTonalButton(
                         onClick = onConfirmPermanentDelete,
@@ -620,11 +623,11 @@ fun FileManagerScreen(
         if (state.showMixedDeleteExplanation) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text("Mixed Selection Blocked") },
-                text = { Text("Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.") },
+                title = { Text(stringResource(R.string.mixed_selection_title)) },
+                text = { Text(stringResource(R.string.mixed_selection_description)) },
                 confirmButton = {
                     TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text("OK")
+                        Text(stringResource(R.string.ok))
                     }
                 }
             )
@@ -655,7 +658,7 @@ fun FileManagerScreen(
 
         if (showSortDialog) {
             SortOptionDialog(
-                title = "Sort current folder",
+                title = stringResource(R.string.sort_folder_title),
                 selectedOption = state.browserSortOption,
                 onDismiss = { showSortDialog = false },
                 onOptionSelected = { option, applyToSubfolders ->

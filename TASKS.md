@@ -25,12 +25,12 @@
   - **Location:** `themes.xml` (lines 6 - 11)
   - **Fix:** Update parent styles to `Theme.Material3.*`. *(Note: App is 100% Compose and does not include the `com.google.android.material:material` XML library, making this change unnecessary/bloat. Left as is.)*
 
-- [ ] [Performance] Analytics cache lacks TTL and robust error handling.
+- [x] [Performance] Analytics cache lacks TTL and robust error handling.
   - **Problem:** `saveCategorySizesToCache` has no timestamp, and `invalidateCache` swallows exceptions.
   - **Location:** `LocalFileRepository.kt` (lines 533 - 603)
   - **Fix:** Embed "cachedAt" timestamp in cache JSON, implement TTL check in `getCategorySizesFromCache`, and add proper logging/rethrowing in `invalidateCache`.
 
-- [ ] [Performance] Optimistic cache hit ignored in `getCategoryStorageSizes`.
+- [x] [Performance] Optimistic cache hit ignored in `getCategoryStorageSizes`.
   - **Problem:** `val cached = getCategorySizesFromCache(scope)` is called but never used or returned.
   - **Location:** `LocalFileRepository.kt` (lines 606 - 608)
   - **Fix:** Return `cached` immediately if non-null, or implement a background refresh pattern.
@@ -49,7 +49,7 @@
   - **Location:** `HomeScreen.kt`
   - **Fix:** Move `StorageSummaryCard`, `MultiColorStorageBar`, `CategoryLegend`, `CategoryGrid`, and `MainFoldersGrid` to `components/`.
 
-- [ ] [Refactor] Split `SettingsScreen.kt` sections (365 lines).
+- [x] [Refactor] Split `SettingsScreen.kt` sections (365 lines).
   - **Problem:** Contains both the main settings layout and the detailed UI for theme mode and accent color selection.
   - **Location:** `SettingsScreen.kt`
   - **Fix:** Extract `ThemeModeSelector` and `AccentColorSelector` to `components/settings/`.
@@ -84,7 +84,7 @@
   - **Location:** `HomeScreen.kt:916`
   - **Fix:** Pass folder paths from ViewModel or a provider.
 
-- [ ] [Architecture] Navigation routes use string constants — no type-safe navigation.
+- [x] [Architecture] Navigation routes use string constants — no type-safe navigation.
   - **Problem:** `AppRoutes` uses `const val` strings and direct `navController.navigate()` calls.
   - **Location:** `AppRoutes.kt`, `ArcileAppShell.kt`
   - **Fix:** Migrate to Navigation Compose type-safe routes (Kotlin serialization-based route classes).
@@ -107,7 +107,7 @@
   - **Location:** `app/build.gradle.kts`
   - **Fix:** Use environment variables or a dedicated CI secrets mechanism instead of a local file.
 
-- [ ] [Design] Custom color schemes hardcoded instead of using Material Color Utilities.
+- [x] [Design] Custom color schemes hardcoded instead of using Material Color Utilities.
   - **Problem:** All accent color schemes are manually defined with hardcoded hex colors rather than generated from seed colors via HCT.
   - **Location:** `Color.kt`
   - **Fix:** Use the `material-color-utilities` library to generate `ColorScheme` from seed color at runtime.
@@ -122,7 +122,7 @@
 ## 5. Comprehensive Audit Findings
 
 ### A. UI, UX & Accessibility
-- [ ] [i18n] Hardcoded UI Strings (No Localization).
+- [x] [i18n] Hardcoded UI Strings (No Localization).
   - **Problem:** Over 90 instances of hardcoded string literals in `Text("...")` composables, preventing app localization.
   - **Location:** Pervasive (e.g., `AboutScreen.kt`, `SettingsScreen.kt`, `FileManagerScreen.kt`, Dialogs).
   - **Fix:** Extract all hardcoded strings to `res/values/strings.xml` and use `stringResource(R.string.*)`.

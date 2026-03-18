@@ -105,6 +105,8 @@ import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.ToolCard
 import dev.qtremors.arcile.presentation.ui.components.ToolItem
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -176,7 +178,7 @@ fun StorageClassificationPrompt(
                 )
                 Spacer(modifier = Modifier.width(MaterialTheme.spacing.space12))
                 Text(
-                    text = "New Storage Detected",
+                    text = stringResource(R.string.new_storage_detected),
                     style = MaterialTheme.typography.titleMediumBold
                 )
             }
@@ -184,7 +186,7 @@ fun StorageClassificationPrompt(
             Spacer(modifier = Modifier.height(12.dp))
             
             Text(
-                text = "How should \"${volume.name}\" be treated?",
+                text = stringResource(R.string.how_should_be_treated, volume.name),
                 style = MaterialTheme.typography.bodyMedium
             )
             
@@ -197,10 +199,10 @@ fun StorageClassificationPrompt(
                         modifier = Modifier.fillMaxWidth(),
                         shape = CircleShape
                     ) {
-                        Text("SD Card", maxLines = 1)
+                        Text(stringResource(R.string.sd_card), maxLines = 1)
                     }
                     Text(
-                        "Permanent, indexed, supports trash",
+                        stringResource(R.string.sd_card_description),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(top = MaterialTheme.spacing.extraSmall),
                         textAlign = TextAlign.Center
@@ -213,10 +215,10 @@ fun StorageClassificationPrompt(
                         modifier = Modifier.fillMaxWidth(),
                         shape = CircleShape
                     ) {
-                        Text("OTG / USB", maxLines = 1)
+                        Text(stringResource(R.string.otg_usb), maxLines = 1)
                     }
                     Text(
-                        "Temporary, browsable only, no trash",
+                        stringResource(R.string.otg_usb_description),
                         style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(top = 4.dp),
                         textAlign = TextAlign.Center
@@ -230,7 +232,7 @@ fun StorageClassificationPrompt(
                 onClick = onDecideLater,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                Text("Decide later")
+                Text(stringResource(R.string.decide_later))
             }
         }
     }
@@ -280,7 +282,7 @@ fun HomeScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             ArcileTopBar(
-                title = "Arcile",
+                title = stringResource(R.string.app_name),
                 selectionCount = 0,
                 showSettingsIcon = true,
                 showSearchAction = false,
@@ -381,7 +383,7 @@ fun HomeScreen(
 
                 item {
                     Text(
-                        text = "Categories",
+                        text = stringResource(R.string.categories),
                         style = MaterialTheme.typography.titleMediumBold,
                         modifier = Modifier.padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.medium, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small)
                     )
@@ -390,7 +392,7 @@ fun HomeScreen(
 
                 item {
                     Text(
-                        text = "Folders",
+                        text = stringResource(R.string.folders),
                         style = MaterialTheme.typography.titleMediumBold,
                         modifier = Modifier.padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small)
                     )
@@ -411,11 +413,11 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Utilities",
+                            text = stringResource(R.string.utilities),
                             style = MaterialTheme.typography.titleMediumBold
                         )
                         TextButton(onClick = onNavigateToTools) {
-                            Text("Show All")
+                            Text(stringResource(R.string.show_all))
                         }
                     }
                 }
@@ -429,22 +431,22 @@ fun HomeScreen(
                     ) {
                         item {
                             Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem("Trash Bin", Icons.Default.Delete, isImplemented = true), onClick = onNavigateToTrash)
+                                ToolCard(ToolItem(stringResource(R.string.trash_bin), Icons.Default.Delete, isImplemented = true), onClick = onNavigateToTrash)
                             }
                         }
                         item {
                             Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem("OnlyFiles", Icons.Default.Lock, isImplemented = false))
+                                ToolCard(ToolItem(stringResource(R.string.placeholder_onlyfiles), Icons.Default.Lock, isImplemented = false))
                             }
                         }
                         item {
                             Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem("Large Files", Icons.Default.ZoomIn, isImplemented = false))
+                                ToolCard(ToolItem(stringResource(R.string.placeholder_large_files), Icons.Default.ZoomIn, isImplemented = false))
                             }
                         }
                         item {
                             Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem("FTP Server", Icons.Default.WifiTethering, isImplemented = false))
+                                ToolCard(ToolItem(stringResource(R.string.placeholder_ftp_server), Icons.Default.WifiTethering, isImplemented = false))
                             }
                         }
                     }
@@ -459,11 +461,11 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Recent Files",
+                            text = stringResource(R.string.recent_files),
                             style = MaterialTheme.typography.titleMediumBold
                         )
                         TextButton(onClick = onNavigateToRecentFiles) {
-                            Text("See All")
+                            Text(stringResource(R.string.see_all))
                         }
                     }
                 }
@@ -472,8 +474,8 @@ fun HomeScreen(
                     item {
                         EmptyState(
                             icon = Icons.Default.History,
-                            title = "No recent files",
-                            description = "Files you open recently will appear here for quick access.",
+                            title = stringResource(R.string.no_recent_files),
+                            description = stringResource(R.string.no_recent_files_description),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -555,7 +557,7 @@ fun StorageSummaryCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = primaryVolume?.name ?: "Internal Storage",
+                        text = primaryVolume?.name ?: stringResource(R.string.internal_storage),
                         style = MaterialTheme.typography.titleLargeBold
                     )
                     Icon(Icons.Default.Storage, contentDescription = "Storage")
@@ -594,7 +596,7 @@ fun StorageSummaryCard(
                 } else {
                     Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
                     Text(
-                        text = "Tap to browse storage",
+                        text = stringResource(R.string.tap_to_browse),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -660,7 +662,7 @@ fun StorageVolumeCard(
                     }
                     if (volume.kind.showTemporaryStorageBadge) {
                         Text(
-                            text = if (volume.kind == StorageKind.OTG) "Temporary USB" else "Unclassified External",
+                            text = if (volume.kind == StorageKind.OTG) stringResource(R.string.otg_usb) else "Unclassified External",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )

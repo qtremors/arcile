@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.2
+> **Version:** 0.4.3
 > **Last Updated:** 2026-03-18
 
 ---
+
+## [0.4.3] - 2026-03-18
+
+### Added
+- [Feature] Full Internationalization (i18n): Extracted over 130 hardcoded strings into `strings.xml`, enabling multi-language support across all major screens (Home, Browser, Trash, Tools, Recent Files).
+- [Feature] Dynamic Color Generation: Integrated `MaterialKolor` for high-quality dynamic color schemes based on user-selected accent colors.
+- [Feature] Type-Safe Navigation: Migrated the entire app to Kotlin Serialization-based navigation, eliminating string-based route fragility.
+- [Performance] Analytics Cache TTL: Implemented a 5-minute Time-To-Live (TTL) for storage analytics to prevent redundant recomputations while ensuring data freshness.
+- [Architecture] Modular Settings UI: Refactored the Settings screen into isolated components (`ThemeModeSelector`, `AccentColorSelector`) for better maintainability.
+
+### Changed
+- [Build] Bumped version to `0.4.3` (versionCode `27`) across `build.gradle.kts`, `CHANGELOG.md`, and project documentation.
 
 ## [0.4.2] - 2026-03-18
 

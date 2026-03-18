@@ -33,8 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +45,7 @@ import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 fun AboutScreen(
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -50,11 +54,11 @@ fun AboutScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("About") },
+                title = { Text(stringResource(R.string.about_title)) },
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -69,32 +73,32 @@ fun AboutScreen(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                AboutSection(title = "App Info") {
+                AboutSection(title = stringResource(R.string.section_app_info)) {
                     ListItem(
-                        headlineContent = { Text("Version") },
+                        headlineContent = { Text(stringResource(R.string.version)) },
                         supportingContent = { Text(dev.qtremors.arcile.BuildConfig.VERSION_NAME) },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
-                        headlineContent = { Text("Developer") },
-                        supportingContent = { Text("Tremors (@qtremors)") },
+                        headlineContent = { Text(stringResource(R.string.developer)) },
+                        supportingContent = { Text(stringResource(R.string.developer_name)) },
                         leadingContent = { Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors") }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri(context.getString(R.string.developer_url)) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
-                        headlineContent = { Text("Repository") },
-                        supportingContent = { Text("github.com/qtremors/arcile") },
+                        headlineContent = { Text(stringResource(R.string.repository)) },
+                        supportingContent = { Text(stringResource(R.string.repository_url)) },
                         leadingContent = { Icon(Icons.Default.Source, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors/arcile") }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri(context.getString(R.string.repository_full_url)) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
-                        headlineContent = { Text("Device") },
+                        headlineContent = { Text(stringResource(R.string.device)) },
                         supportingContent = { Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})") },
                         leadingContent = { Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
@@ -103,10 +107,10 @@ fun AboutScreen(
             }
 
             item {
-                AboutSection(title = "Privacy") {
+                AboutSection(title = stringResource(R.string.section_privacy)) {
                     ListItem(
-                        headlineContent = { Text("Privacy Policy") },
-                        supportingContent = { Text("Arcile respects your privacy. It is an offline-first file manager and does not collect or share your personal data with any third-party services.") },
+                        headlineContent = { Text(stringResource(R.string.privacy_policy)) },
+                        supportingContent = { Text(stringResource(R.string.privacy_description)) },
                         leadingContent = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
                     )
@@ -114,10 +118,10 @@ fun AboutScreen(
             }
 
             item {
-                AboutSection(title = "Changelogs") {
+                AboutSection(title = stringResource(R.string.section_changelogs)) {
                     ListItem(
-                        headlineContent = { Text("View Releases") },
-                        supportingContent = { Text("Check out the latest updates and release notes on GitHub") },
+                        headlineContent = { Text(stringResource(R.string.view_releases)) },
+                        supportingContent = { Text(stringResource(R.string.view_releases_description)) },
                         leadingContent = { Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
                         modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors/arcile/releases") }

@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import androidx.navigation.toRoute
+import dev.qtremors.arcile.navigation.AppRoutes
 
 enum class RecentNativeAction { TRASH }
 
@@ -32,6 +34,8 @@ data class RecentFilesState(
     val pendingNativeAction: RecentNativeAction? = null
 )
 
+
+
 @HiltViewModel
 class RecentFilesViewModel @Inject constructor(
     private val repository: FileRepository,
@@ -42,7 +46,8 @@ class RecentFilesViewModel @Inject constructor(
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
     init {
-        _state.update { it.copy(currentVolumeId = savedStateHandle.get<String>("volumeId")?.takeIf { value -> value.isNotBlank() }) }
+        val route = savedStateHandle.toRoute<AppRoutes.RecentFiles>()
+        _state.update { it.copy(currentVolumeId = route.volumeId?.takeIf { it.isNotBlank() }) }
         viewModelScope.launch {
             repository.observeStorageVolumes().collectLatest {
                 loadRecentFiles(false)

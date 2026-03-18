@@ -1,3 +1,166 @@
 <resources>
     <string name="app_name">Arcile</string>
+    
+    <!-- General -->
+    <string name="back">Back</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="ok">OK</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="clear_selection">Clear Selection</string>
+    <string name="selected_count">%1$d selected</string>
+    <string name="share">Share</string>
+    
+    <!-- About Screen -->
+    <string name="about_title">About</string>
+    <string name="section_app_info">App Info</string>
+    <string name="version">Version</string>
+    <string name="developer">Developer</string>
+    <string name="developer_name">"Tremors (\@qtremors)"</string>
+    <string name="developer_url">"https://github.com/qtremors"</string>
+    <string name="repository">Repository</string>
+    <string name="repository_url">"github.com/qtremors/arcile"</string>
+    <string name="repository_full_url">"https://github.com/qtremors/arcile"</string>
+    <string name="device">Device</string>
+    <string name="section_privacy">Privacy</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="privacy_description">"Arcile respects your privacy. It is an offline-first file manager and does not collect or share your personal data with any third-party services."</string>
+    <string name="section_changelogs">Changelogs</string>
+    <string name="view_releases">View Releases</string>
+    <string name="view_releases_description">"Check out the latest updates and release notes on GitHub"</string>
+    
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="section_appearance">Appearance</string>
+    <string name="section_storage">Storage</string>
+    <string name="manage_classification">Manage Storage Classification</string>
+    <string name="manage_classification_description">"Classify external volumes as SD card, OTG, or reset them."</string>
+    <string name="section_info">Info</string>
+    <string name="about_headline">About</string>
+    <string name="about_description">"App info, privacy policy, and changelogs"</string>
+    
+    <!-- Theme Selection -->
+    <string name="theme_mode">Theme Mode</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_oled">OLED</string>
+    
+    <!-- Accent Color Selection -->
+    <string name="accent_color">Accent Color</string>
+    <string name="select_accent_color">Select Accent Color</string>
+    <string name="accent_dynamic">Dynamic</string>
+    <string name="accent_dynamic_description">Wallpaper</string>
+    <string name="accent_monochrome">Monochrome</string>
+    <string name="accent_monochrome_description">Grayscale</string>
+    
+    <!-- Accent Color Labels -->
+    <string name="color_red">Red</string>
+    <string name="color_pink">Pink</string>
+    <string name="color_purple">Purple</string>
+    <string name="color_deep_purple">Deep Purple</string>
+    <string name="color_cyan">Cyan</string>
+    <string name="color_light_blue">Light Blue</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_indigo">Indigo</string>
+    <string name="color_teal">Teal</string>
+    <string name="color_green">Green</string>
+    <string name="color_light_green">Light Green</string>
+    <string name="color_lime">Lime</string>
+    <string name="color_deep_orange">Deep Orange</string>
+    <string name="color_orange">Orange</string>
+    <string name="color_amber">Amber</string>
+    <string name="color_yellow">Yellow</string>
+    <string name="color_brown">Brown</string>
+    <string name="color_blue_grey">Blue Grey</string>
+    <string name="color_grey">Grey</string>
+    <string name="color_black">Black</string>
+
+    <!-- Storage Dashboard -->
+    <string name="storage_dashboard_title">Storage Dashboard</string>
+    <string name="temp_storage_notice">"Temporary external storage is mounted but excluded from indexed dashboard insights."</string>
+    <string name="insights_unavailable">Insights unavailable</string>
+    <string name="no_indexed_volumes">"We couldn't find any indexed storage volumes to analyze."</string>
+    <string name="categories_title">Categories</string>
+    <string name="other_files_system">"Other Files &amp; System"</string>
+    <string name="temp_storage_description">"This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card."</string>
+
+    <!-- Permission Request -->
+    <string name="permission_title">Storage Permission Required</string>
+    <string name="permission_description">This application requires permission to read and manage files on your device.</string>
+    <string name="grant_permission">Grant Permission</string>
+
+    <!-- Home Screen -->
+    <string name="categories">Categories</string>
+    <string name="folders">Folders</string>
+    <string name="utilities">Utilities</string>
+    <string name="show_all">Show All</string>
+    <string name="recent_files">Recent Files</string>
+    <string name="see_all">See All</string>
+    <string name="no_recent_files">No recent files</string>
+    <string name="no_recent_files_description">Files you open recently will appear here for quick access.</string>
+    <string name="internal_storage">Internal Storage</string>
+    <string name="tap_to_browse">Tap to browse storage</string>
+    <string name="new_storage_detected">New Storage Detected</string>
+    <string name="how_should_be_treated">"How should %1$s be treated?"</string>
+    <string name="sd_card">SD Card</string>
+    <string name="sd_card_description">Permanent, indexed, supports trash</string>
+    <string name="otg_usb">OTG / USB</string>
+    <string name="otg_usb_description">Temporary, browsable only, no trash</string>
+    <string name="decide_later">Decide later</string>
+    <string name="used_of">%1$s / %2$s</string>
+    <string name="used_label">%1$s used</string>
+    <string name="free_label">%1$s free</string>
+    <string name="trash_bin">Trash Bin</string>
+    <string name="placeholder_onlyfiles">OnlyFiles</string>
+    <string name="placeholder_large_files">Large Files</string>
+    <string name="placeholder_ftp_server">FTP Server</string>
+
+    <!-- Browser / File Manager -->
+    <string name="browse_title">Browse</string>
+    <string name="search_placeholder">Search all files…</string>
+    <string name="no_results_found">No results found</string>
+    <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
+    <string name="empty_directory">Empty Directory</string>
+    <string name="empty_directory_description">This folder doesn\'t have any files yet. You can create one using the + button.</string>
+    <string name="browsing_temp_usb">Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent.</string>
+    <string name="browsing_unclassified">Browsing unclassified external storage. It is treated as temporary until classified, and deletions are permanent.</string>
+    <string name="delete_items_title">Delete %1$d item(s)?</string>
+    <string name="delete_items_description">Selected items will be moved to the Trash Bin. You can restore them later.</string>
+    <string name="delete_permanent_title">Permanently delete %1$d item(s)?</string>
+    <string name="delete_permanent_description">Selected items will be permanently deleted. This action cannot be undone.</string>
+    <string name="mixed_selection_title">Mixed Selection Blocked</string>
+    <string name="mixed_selection_description">Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.</string>
+    <string name="sort_folder_title">Sort current folder</string>
+    <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
+    <string name="clipboard_copied">copied</string>
+    <string name="clipboard_cut">cut</string>
+
+    <!-- Trash Bin -->
+    <string name="restore_selected">Restore selected</string>
+    <string name="empty_trash">Empty Trash</string>
+    <string name="empty_trash_title">Empty Trash?</string>
+    <string name="empty_trash_description">All items in the trash will be permanently deleted. This action cannot be undone.</string>
+    <string name="trash_is_empty">Trash is empty</string>
+    <string name="trash_empty_description">When you delete files from permanent storage, they\'ll stay here for 30 days before being deleted forever.</string>
+    <string name="no_restore_destination_title">No Restore Destination</string>
+    <string name="no_restore_destination_description">There are no indexed volumes available to restore the files to. Please check your storage management settings.</string>
+    <string name="select_restore_destination_title">Select Restore Destination</string>
+    <string name="select_restore_destination_description">The original storage volume is unavailable. Where would you like to restore the file(s)?</string>
+    <string name="deleted_at">Deleted: %1$s</string>
+    <string name="from_volume">From %1$s: %2$s</string>
+
+    <!-- Recent Files -->
+    <string name="recent_files_title">Recent Files (Past Week)</string>
+
+    <!-- Tools -->
+    <string name="tools_title">Tools &amp; Utilities</string>
+    <string name="tool_ftp">FTP Server</string>
+    <string name="tool_analyze">Analyze Storage</string>
+    <string name="tool_clean">Clean Junk</string>
+    <string name="tool_duplicates">Duplicates</string>
+    <string name="tool_large">Large Files</string>
+    <string name="tool_manager">App Manager</string>
+    <string name="tool_onlyfiles">OnlyFiles</string>
+    <string name="tool_share">Network Share</string>
 </resources>

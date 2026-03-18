@@ -55,6 +55,8 @@ import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -114,10 +116,10 @@ fun StorageDashboardScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Storage Dashboard") },
+                title = { Text(stringResource(R.string.storage_dashboard_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -149,7 +151,7 @@ fun StorageDashboardScreen(
                             color = MaterialTheme.colorScheme.surfaceContainerHigh
                         ) {
                             Text(
-                                text = "Temporary external storage is mounted but excluded from indexed dashboard insights.",
+                                text = stringResource(R.string.temp_storage_notice),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(16.dp)
@@ -162,8 +164,8 @@ fun StorageDashboardScreen(
                     item {
                         EmptyState(
                             icon = Icons.Default.Description,
-                            title = "Insights unavailable",
-                            description = "We couldn't find any indexed storage volumes to analyze.",
+                            title = stringResource(R.string.insights_unavailable),
+                            description = stringResource(R.string.no_indexed_volumes),
                             modifier = Modifier.fillParentMaxSize()
                         )
                     }
@@ -183,7 +185,7 @@ fun StorageDashboardScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${formatFileSize(used)} / ${formatFileSize(volume.totalBytes)}",
+                                text = stringResource(R.string.used_of, formatFileSize(used), formatFileSize(volume.totalBytes)),
                                 style = MaterialTheme.typography.titleLargeBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
@@ -207,7 +209,7 @@ fun StorageDashboardScreen(
                     if (displayCategories.isNotEmpty()) {
                         item {
                             Text(
-                                text = "Categories",
+                                text = stringResource(R.string.categories_title),
                                 style = MaterialTheme.typography.titleMediumBold,
                                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                             )
@@ -247,7 +249,7 @@ fun StorageDashboardScreen(
                             }
 
                             CategoryListTile(
-                                name = "Other Files & System",
+                                name = stringResource(R.string.other_files_system),
                                 sizeBytes = otherUsedBytes,
                                 percentage = percentage,
                                 icon = Icons.Default.Android,
@@ -287,7 +289,7 @@ private fun TemporaryDashboardUnavailableCard(volume: StorageVolume) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card.",
+                text = stringResource(R.string.temp_storage_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

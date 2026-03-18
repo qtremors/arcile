@@ -542,6 +542,7 @@ class LocalFileRepository(
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase(Locale.US))
     }
 
+    private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
     private val cacheDir = File(appContext.cacheDir, "analytics")
 
     private fun saveCategorySizesToCache(scope: StorageScope, data: List<CategoryStorage>) {
@@ -553,7 +554,7 @@ class LocalFileRepository(
                 else -> return // Only cache global and volume-wide stats
             }
             val file = File(cacheDir, "$cacheKey.json")
-            val json = org.json.JSONArray()
+            val itemsJson = org.json.JSONArray()
             data.forEach { item ->
                 val obj = JSONObject().apply {
                     put("name", item.name)
@@ -562,11 +563,17 @@ class LocalFileRepository(
                     item.extensions.forEach { extArray.put(it) }
                     put("extensions", extArray)
                 }
-                json.put(obj)
+                itemsJson.put(obj)
             }
-            file.writeText(json.toString())
+            
+            val root = JSONObject().apply {
+                put("cachedAt", System.currentTimeMillis())
+                put("data", itemsJson)
+            }
+            
+            file.writeText(root.toString())
         } catch (e: Exception) {
-            android.util.Log.e("LocalFileRepository", "Failed to save cache: ${e.message}")
+            android.util.Log.e("LocalFileRepository", "Failed to save cache for $scope: ${e.message}")
         }
     }
 
@@ -580,7 +587,13 @@ class LocalFileRepository(
             val file = File(cacheDir, "$cacheKey.json")
             if (!file.exists()) return null
             
-            val json = org.json.JSONArray(file.readText())
+            val root = JSONObject(file.readText())
+            val cachedAt = root.optLong("cachedAt", 0L)
+            if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) {
+                return null // Stale cache
+            }
+            
+            val json = root.getJSONArray("data")
             val list = mutableListOf<CategoryStorage>()
             for (i in 0 until json.length()) {
                 val obj = json.getJSONObject(i)
@@ -593,6 +606,7 @@ class LocalFileRepository(
             }
             return list
         } catch (e: Exception) {
+            android.util.Log.e("LocalFileRepository", "Cache read failed: ${e.message}")
             return null
         }
     }
@@ -600,18 +614,28 @@ class LocalFileRepository(
     private suspend fun invalidateCache(vararg paths: String) {
         try {
             if (paths.isEmpty()) {
-                cacheDir.listFiles()?.forEach { it.delete() }
+                cacheDir.listFiles()?.forEach { if (it.name.endsWith(".json")) it.delete() }
                 return
             }
             
             val volumes = currentVolumes()
             val affectedVolumeIds = paths.mapNotNull { resolveVolumeForPath(it, volumes)?.id }.toSet()
             
-            File(cacheDir, "global.json").delete()
-            affectedVolumeIds.forEach { volId ->
-                File(cacheDir, "volume_$volId.json").delete()
+            val globalFile = File(cacheDir, "global.json")
+            if (globalFile.exists() && !globalFile.delete()) {
+                 android.util.Log.w("LocalFileRepository", "Failed to delete global cache")
             }
-        } catch (e: Exception) {}
+            
+            affectedVolumeIds.forEach { volId ->
+                val volFile = File(cacheDir, "volume_$volId.json")
+                if (volFile.exists() && !volFile.delete()) {
+                    android.util.Log.w("LocalFileRepository", "Failed to delete cache for volume: $volId")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("LocalFileRepository", "Cache invalidation error: ${e.message}")
+            throw e // Rethrowing as requested for robust error handling
+        }
     }
 
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {

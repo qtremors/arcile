@@ -29,15 +29,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -48,7 +50,7 @@ fun ArcileAppShell(
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.HOME
+    val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.Home
     val context = LocalContext.current
 
     androidx.compose.animation.SharedTransitionLayout {
@@ -58,68 +60,63 @@ fun ArcileAppShell(
             Box(modifier = Modifier.padding(scaffoldPadding)) {
                 NavHost(
                     navController = navController,
-                    startDestination = AppRoutes.HOME,
+                    startDestination = AppRoutes.Home,
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
                     exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
                     popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
                     popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
                 ) {
-                composable(AppRoutes.HOME) {
+                composable<AppRoutes.Home> {
                     val viewModel = hiltViewModel<HomeViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     HomeScreen(
                         state = state,
                         onOpenFileBrowser = {
-                            navController.navigate(AppRoutes.EXPLORER + "?path=&category=&volumeId=") {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.Explorer()) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.EXPLORER + "?path=${Uri.encode(path)}&category=&volumeId=") {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.Explorer(path = path)) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onOpenFile = onOpenFile,
                         onCategoryClick = { categoryName ->
-                            navController.navigate(AppRoutes.EXPLORER + "?path=&category=${Uri.encode(categoryName)}&volumeId=") {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.Explorer(category = categoryName)) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onSettingsClick = {
-                            navController.navigate(AppRoutes.SETTINGS)
+                            navController.navigate(AppRoutes.Settings)
                         },
                         onNavigateToTools = {
-                            navController.navigate(AppRoutes.TOOLS) {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.Tools) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToAbout = {
-                            navController.navigate(AppRoutes.ABOUT)
+                            navController.navigate(AppRoutes.About)
                         },
                         onNavigateToTrash = {
-                            navController.navigate(AppRoutes.TRASH) {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.Trash) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onNavigateToRecentFiles = {
-                            navController.navigate(AppRoutes.RECENT_FILES + "?volumeId=") {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.RecentFiles()) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
                         onOpenStorageDashboard = { volumeId ->
-                            val route = if (volumeId != null) {
-                                AppRoutes.STORAGE_DASHBOARD + "?volumeId=${Uri.encode(volumeId)}"
-                            } else {
-                                AppRoutes.STORAGE_DASHBOARD + "?volumeId="
-                            }
-                            navController.navigate(route) {
-                                popUpTo(AppRoutes.HOME) { saveState = true }
+                            navController.navigate(AppRoutes.StorageDashboard(volumeId = volumeId)) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
@@ -132,31 +129,23 @@ fun ArcileAppShell(
                         onHideClassificationPrompt = { storageKey -> viewModel.hideClassificationPrompt(storageKey) }
                     )
                 }
-                composable(AppRoutes.STORAGE_DASHBOARD + "?volumeId={volumeId}") { backStackEntry ->
+                composable<AppRoutes.StorageDashboard> { backStackEntry ->
                     val viewModel = hiltViewModel<HomeViewModel>() // Shares Home logic
                     val state by viewModel.state.collectAsStateWithLifecycle()
-                    val volumeId = backStackEntry.arguments?.getString("volumeId")?.takeIf { it.isNotBlank() }
+                    val route = backStackEntry.toRoute<AppRoutes.StorageDashboard>()
+                    val volumeId = route.volumeId?.takeIf { it.isNotBlank() }
                     StorageDashboardScreen(
                         state = state,
                         selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
-                            val route = buildString {
-                                append(AppRoutes.EXPLORER)
-                                append("?path=&category=")
-                                append(Uri.encode(categoryName))
-                                append("&volumeId=")
-                                if (scopedVolumeId != null) {
-                                    append(Uri.encode(scopedVolumeId))
-                                }
-                            }
-                            navController.navigate(route) {
-                                popUpTo(AppRoutes.STORAGE_DASHBOARD) { inclusive = true }
+                            navController.navigate(AppRoutes.Explorer(category = categoryName, volumeId = scopedVolumeId)) {
+                                popUpTo<AppRoutes.StorageDashboard> { inclusive = true }
                             }
                         }
                     )
                 }
-                composable(AppRoutes.EXPLORER + "?path={path}&category={category}&volumeId={volumeId}") {
+                composable<AppRoutes.Explorer> {
                     val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -199,7 +188,7 @@ fun ArcileAppShell(
                         onClearNativeRequest = { viewModel.clearNativeRequest() }
                     )
                 }
-                composable(AppRoutes.TRASH) {
+                composable<AppRoutes.Trash> {
                     val viewModel = hiltViewModel<TrashViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     TrashScreen(
@@ -215,7 +204,7 @@ fun ArcileAppShell(
                         onClearNativeRequest = { viewModel.clearNativeRequest() }
                     )
                 }
-                composable(AppRoutes.RECENT_FILES + "?volumeId={volumeId}") {
+                composable<AppRoutes.RecentFiles> {
                     val viewModel = hiltViewModel<RecentFilesViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     RecentFilesScreen(
@@ -233,21 +222,21 @@ fun ArcileAppShell(
                         onClearNativeRequest = { viewModel.clearNativeRequest() }
                     )
                 }
-                composable(AppRoutes.TOOLS) {
+                composable<AppRoutes.Tools> {
                     ToolsScreen(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable(AppRoutes.SETTINGS) {
+                composable<AppRoutes.Settings> {
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
-                        onOpenStorageManagement = { navController.navigate(AppRoutes.STORAGE_MANAGEMENT) },
-                        onNavigateToAbout = { navController.navigate(AppRoutes.ABOUT) }
+                        onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
+                        onNavigateToAbout = { navController.navigate(AppRoutes.About) }
                     )
                 }
-                composable(AppRoutes.STORAGE_MANAGEMENT) {
+                composable<AppRoutes.StorageManagement> {
                     val viewModel = hiltViewModel<HomeViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     StorageManagementScreen(
@@ -257,7 +246,7 @@ fun ArcileAppShell(
                         onResetVolumeClassification = { storageKey -> viewModel.resetVolumeClassification(storageKey) }
                     )
                 }
-                composable(AppRoutes.ABOUT) {
+                composable<AppRoutes.About> {
                     AboutScreen(
                         onNavigateBack = { navController.popBackStack() }
                     )
@@ -278,20 +267,20 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Storage Permission Required",
+            text = stringResource(R.string.permission_title),
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground
         )
         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "This application requires permission to read and manage files on your device.",
+            text = stringResource(R.string.permission_description),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
         androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(32.dp))
         Button(onClick = onRequestPermission) {
-            Text("Grant Permission")
+            Text(stringResource(R.string.grant_permission))
         }
     }
 }
