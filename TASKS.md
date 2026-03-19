@@ -8,13 +8,27 @@
 
 ## Table of Contents
 
-1. [PR Review Findings (Beta Blockers & Polish)](#1-pr-review-findings-beta-blockers--polish)
+1. [PR Review Findings](#1-pr-review-findings)
 2. [Architecture & Refactoring](#2-architecture--refactoring)
 3. [Performance & Efficiency](#3-performance--efficiency)
 4. [General & Code Quality](#4-general--code-quality)
 5. [Comprehensive Audit Findings](#5-comprehensive-audit-findings)
 6. [Backlog / Ideas](#6-backlog--ideas)
-7. [Completed Tasks](#7-completed-tasks)
+
+---
+
+## 1. PR Review Findings
+
+- [ ] [Architecture] `LocalFileRepository.kt`: Cache key uses raw `scope.volumeId` which can contain slashes and produce nested paths. Update cache key generation to sanitize `volumeId` so reads, writes, and invalidations target a safe filename.
+- [ ] [Bug] `MainActivity.kt`: The splash screen can hang if `themePreferences.themeState.first()` throws because `keepSplashScreen` is never cleared. Wrap the await call in `try/finally` and clear the flag.
+- [ ] [Architecture] `AppNavigationGraph.kt`: `StorageManagement` destination is creating a new `HomeViewModel` instance instead of sharing the `Home` entry scoped one. Use `navController.getBackStackEntry` for the `Home` route to share the ViewModel.
+- [ ] [i18n] `ConflictCard.kt`: Hardcoded user-facing strings ("New", "Existing", resolution messages, folder fallback, and thumbnail `contentDescription`). Replace with localized `stringResource`s.
+- [ ] [i18n] `CategoryGrid.kt`: Category display strings are being used as IDs for lookups and navigation, which will break when localized. Introduce a stable internal `id` (e.g., "images", "videos") for logic while keeping the visible label localized.
+- [ ] [UI/UX] `AccentColorSelector.kt`: The modal sheet content is using a plain `Column` which can overflow on small screens. Wrap the outer `Column` with `Modifier.verticalScroll(rememberScrollState())` or convert to a Lazy list.
+- [ ] [Accessibility] `AccentColorSelector.kt`: Missing accessibility semantics on swatch `Box` elements. Add `Modifier.semantics` with `contentDescription` and `selected = isSelected` so TalkBack announces the accent name correctly.
+- [ ] [Bug] `TrashList.kt`: `StorageKind.EXTERNAL_UNCLASSIFIED` incorrectly falls back to `otg_usb` string. Handle it explicitly. Also, `originalPath.substringBeforeLast("/")` can crash or return empty if no slash exists; make parent path extraction robust.
+- [ ] [Security] `ShareHelper.kt`: The `catch` block swallows exceptions and returns false. Add a `Log.e` call to record the error and stack trace before returning false to prevent silent failures.
+- [ ] [Build] `libs.versions.toml`: The `MaterialKolor` dependency uses the incorrect artifact name `material-color-utilities`. Change name to `material-kolor`. Optionally convert `kotlinx-serialization-json` to use a `version.ref`.
 
 ---
 
@@ -55,11 +69,6 @@
   - **Location:** `ArcileTopBar.kt`, `TrashScreen.kt`, `GlobalSearchBar.kt`, `FileList.kt`, etc.
   - **Fix:** Extract `contentDescription` strings to `strings.xml` and use `stringResource()`.
 
-- [x] [UI/UX] Nested Scaffolds causing potential double-padding issues.
-  - **Problem:** `ArcileAppShell` provides a root `Scaffold`, but child screens (`HomeScreen`, `SettingsScreen`, etc.) also define their own `Scaffold` without explicitly consuming or propagating the root padding correctly, which can cause inset glitches.
-  - **Location:** `ArcileAppShell.kt` and all screen composables.
-  - **Fix:** Remove nested Scaffolds or use `WindowInsets` carefully with `.consumeWindowInsets()` to avoid overlapping or double-applied padding.
-
 ### B. Security
 
 - [ ] [Security] Signing credentials read from `local.properties` without validation.
@@ -67,24 +76,12 @@
   - **Location:** `app/build.gradle.kts:25-39`
   - **Fix:** Use `?.toString()` and validate presence before creating the `signingConfig`. Consider a dedicated `signing.properties` file excluded from VCS.
 
-- [x] [Security] Empty catch blocks silently swallow errors in critical paths.
-  - **Problem:** Multiple `catch (e: Exception) {}` blocks silently discard errors in critical operations — e.g., `.nomedia` file creation in trash dir (`LocalFileRepository.kt:1226`), MediaStore deletion after trash (`LocalFileRepository.kt:1330`), `StorageStatsManager` query (`LocalFileRepository.kt:686`), and `BroadcastReceiver` registration context.
-  - **Location:** `LocalFileRepository.kt:686,1226,1330`
-  - **Impact:** Silent failures make debugging impossible and can leave the filesystem in an inconsistent state.
-  - **Fix:** At minimum, log the exception. For critical paths (trash, MediaStore cleanup), propagate or handle the error.
-
 - [ ] [Security] `registerReceiver` called without `RECEIVER_NOT_EXPORTED` flag.
   - **Problem:** `observeStorageVolumes()` registers a `BroadcastReceiver` via `appContext.registerReceiver(receiver, filter)` without specifying `ContextCompat.RECEIVER_NOT_EXPORTED`, which is required on API 34+ to prevent other apps from sending spoofed intents.
   - **Location:** `LocalFileRepository.kt:240`
   - **Fix:** Use `ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)`.
 
 ### C. Performance & Resource Efficiency
-
-- [x] [Performance] Unbounded MediaStore cursor traversal in `getFilesByCategory()`.
-  - **Problem:** `getFilesByCategory()` iterates the entire MediaStore cursor for each category query without a `LIMIT` clause (which MediaStore doesn't directly support). For devices with 100K+ files, this blocks the IO dispatcher for potentially seconds. Additionally, each row calls `File(path).exists()` and `file.isFile`, causing redundant filesystem stat calls.
-  - **Location:** `LocalFileRepository.kt:774-861`
-  - **Impact:** UI hangs when opening a category with many files; heavy disk IO.
-  - **Fix:** Remove the `File.exists()` / `File.isFile` check (trust the MediaStore), and consider pagination or streaming results to the ViewModel.
 
 - [ ] [Performance] `searchFiles()` filesystem walk has no depth or count limit.
   - **Problem:** When searching within a `StorageScope.Path`, the method uses `rootDir.walkTopDown()` with no `maxDepth()` or result count limit. On a deeply nested directory tree (e.g., `Android/data`), this can traverse millions of entries and block the coroutine for tens of seconds.
@@ -197,22 +194,12 @@
   - **Location:** `HomeScreen.kt` (inside `MainFoldersGrid`)
   - **Fix:** Pass folder paths from ViewModel and filter out non-existent directories.
 
-- [x] [UI/UX] `StorageDashboardScreen` uses `hiltViewModel<HomeViewModel>()` — creates separate instance.
-  - **Problem:** The Storage Dashboard composable calls `hiltViewModel<HomeViewModel>()`, which creates a new ViewModel instance scoped to that composable's `NavBackStackEntry`. This means it doesn't share state with the Home screen's `HomeViewModel` and triggers a redundant full reload.
-  - **Location:** `ArcileAppShell.kt:133`
-  - **Fix:** Either accept `HomeState` as a parameter (hoisted from parent) or use a shared ViewModel scope via `navController.previousBackStackEntry`.
-
 ### G. Material Design 3 Expressive Implementation
 
 - [ ] [M3] Inconsistent use of theme spacing — mix of hardcoded `dp` and `MaterialTheme.spacing`.
   - **Problem:** Some composables use `MaterialTheme.spacing.medium` while nearby code uses hardcoded `12.dp`, `16.dp`, `20.dp` for the same logical spacing. This makes the spacing system partially useless.
   - **Location:** `HomeScreen.kt` (e.g., `Spacer(Modifier.height(16.dp))` vs `MaterialTheme.spacing.medium`), `StorageSummaryCard`, `StorageVolumeCard`
   - **Fix:** Audit all `dp` values and replace with the appropriate `MaterialTheme.spacing.*` token.
-
-- [x] [M3] `PermissionRequestScreen` does not use M3 expressive components.
-  - **Problem:** The permission request screen uses only basic `Text` and `Button` with minimal styling. It lacks the polish of the rest of the app — no icon, no card, no surface elevation, minimal spacing.
-  - **Location:** `ArcileAppShell.kt:260-286`
-  - **Fix:** Redesign with an M3 card, illustration/icon, and consistent theming.
 
 ### H. Interaction Quality & Motion Design
 
@@ -221,17 +208,7 @@
   - **Location:** `HomeScreen.kt:330-357`, `FileManagerScreen.kt:458-493`
   - **Fix:** Extract to a shared `ArciclePullRefreshIndicator` composable.
 
-- [x] [Motion] No entry animation for list items on initial load.
-  - **Problem:** When a directory first loads, all items appear instantly. There is no staggered fade-in or slide-in animation for list items, which makes the transition from loading to content feel abrupt.
-  - **Location:** `FileList.kt`, `FileGrid.kt`, `FileManagerScreen.kt`
-  - **Fix:** Add `animateItem()` modifier on LazyColumn/LazyGrid items.
-
 ### I. App Smoothness & Rendering Stability
-
-- [x] [Smoothness] `AnimatedContent` key uses string concatenation instead of data class key.
-  - **Problem:** `AnimatedContent(targetState = if (searchHasCompleted) "search" else state.currentPath + state.activeCategoryName + state.isVolumeRootScreen)` — concatenating a Boolean into a String creates ambiguous keys (e.g., `"/storage/emulated/0" + "" + "true"` could match a different path). This can cause unexpected cross-fade animations.
-  - **Location:** `FileManagerScreen.kt:373`
-  - **Fix:** Use a sealed class or data class as the key type.
 
 - [ ] [Smoothness] `HomeViewModel.loadHomeData()` causes UI flicker on `SILENT` refresh.
   - **Problem:** On `SILENT` refresh, `isCalculatingStorage` is set to `true` before the async work starts, and `isLoading` may briefly toggle. This can cause the shimmer effect to flash momentarily on the storage bar when volumes are re-enumerated.

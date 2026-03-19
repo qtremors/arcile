@@ -42,6 +42,25 @@ Welcome to **Arcile v0.4.5 Beta**! This release focuses heavily on smoothing out
 - **Silent Failures Patched:** I've fortified the core File Repository. If edge-case operations fail (like creating hidden `.nomedia` files for the Trash Bin, or dealing with locked media indices), they no longer crash silently in the background, making future debugging much easier.
 - **Test Suite Enhancements:** I started bridging the gaps in my automated testing suite, adding new core logic checks to ensure critical file naming conflicts (like copying duplicate files) are resolved correctly and safely.
 
+## 🐛 Known Issues (Beta)
+
+As this is an active Beta, please be aware of the following tracked issues:
+
+### 🚨 Critical
+- **Splash Screen Hang:** In rare cases of data corruption, the app may hang on the launch screen. (Workaround: Clear app data).
+- **Caching IOException:** On some devices, the new storage caching system may fail due to unsanitized volume identifiers.
+- **Category Navigation:** Home screen category shortcuts may not function correctly if the app language is set to anything other than English.
+
+### ⚠️ Medium
+- **Unscrollable Themes:** On small screens or in landscape mode, the new Accent Color selector may not scroll, hiding some theme options.
+- **Redundant Processing:** Opening Storage Management may trigger a redundant background calculation of storage statistics.
+
+### 🔵 Low
+- Minor missing translations in the Paste Conflict dialog.
+- Incorrect labeling for "Unclassified" drives in the Trash list.
+- Ongoing TalkBack accessibility refinements for the new theme swatches.
+- Background log-swallowing during file sharing operations.
+
 ---
 
 
