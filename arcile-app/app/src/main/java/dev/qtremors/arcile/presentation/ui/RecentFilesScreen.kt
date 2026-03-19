@@ -29,10 +29,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -45,6 +47,8 @@ import java.util.Locale
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -59,38 +63,54 @@ fun RecentFilesScreen(
     onConfirmPermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
     onShareSelected: () -> Unit,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onClearNativeRequest: () -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()) }
+
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            when (state.pendingNativeAction) {
+                dev.qtremors.arcile.presentation.recentfiles.RecentNativeAction.TRASH -> onConfirmTrash()
+                null -> {}
+            }
+        }
+        onClearNativeRequest()
+    }
+
+    androidx.compose.runtime.LaunchedEffect(state.nativeRequest) {
+        state.nativeRequest?.let { sender ->
+            launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+        }
+    }
 
     // Intercept system back to clear selection before navigating away
     BackHandler(enabled = isSelectionMode) {
         onClearSelection()
     }
 
-    LifecycleResumeEffect(Unit) {
-        onRefresh()
-        onPauseOrDispose { }
-    }
+
 
     Scaffold(
         topBar = {
             if (isSelectionMode) {
                 TopAppBar(
-                    title = { Text("${state.selectedFiles.size} selected") },
+                    title = { Text(stringResource(R.string.selected_count, state.selectedFiles.size)) },
                     navigationIcon = {
                         IconButton(onClick = onClearSelection) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Clear Selection")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.clear_selection))
                         }
                     },
                     actions = {
                         IconButton(onClick = onShareSelected) {
-                            Icon(Icons.Default.Share, contentDescription = "Share")
+                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
                         }
                         IconButton(onClick = onRequestDeleteSelected) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -102,10 +122,10 @@ fun RecentFilesScreen(
                 )
             } else {
                 TopAppBar(
-                    title = { Text("Recent Files (Past Week)") },
+                    title = { Text(stringResource(R.string.recent_files_title)) },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     },
                     scrollBehavior = scrollBehavior
@@ -113,23 +133,32 @@ fun RecentFilesScreen(
             }
         }
     ) { padding ->
+        var showLoading by remember { mutableStateOf(false) }
+        LaunchedEffect(state.isLoading) {
+            if (state.isLoading) {
+                delay(5)
+                showLoading = true
+            } else {
+                showLoading = false
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (state.isLoading && !state.isPullToRefreshing) {
+            if (showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     LoadingIndicator()
                 }
-            } else if (state.recentFiles.isEmpty()) {
+            } else if (state.recentFiles.isEmpty() && !state.isLoading) {
                 EmptyState(
                     icon = Icons.Default.History,
-                    title = "No recent files",
-                    description = "We couldn't find any files modified in the past week.",
+                    title = stringResource(R.string.no_recent_files),
+                    description = stringResource(R.string.no_recent_files_description),
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
@@ -196,8 +225,8 @@ fun RecentFilesScreen(
     if (state.showTrashConfirmation) {
         AlertDialog(
             onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text("Delete ${state.selectedFiles.size} item(s)?") },
-            text = { Text("Selected items will be moved to the Trash Bin. You can restore them later.") },
+            title = { Text(stringResource(R.string.delete_items_title, state.selectedFiles.size)) },
+            text = { Text(stringResource(R.string.delete_items_description)) },
             confirmButton = {
                 FilledTonalButton(
                     onClick = onConfirmTrash,
@@ -206,12 +235,12 @@ fun RecentFilesScreen(
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     )
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -220,8 +249,8 @@ fun RecentFilesScreen(
     if (state.showPermanentDeleteConfirmation) {
         AlertDialog(
             onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text("Permanently delete ${state.selectedFiles.size} item(s)?") },
-            text = { Text("Selected items will be permanently deleted. This action cannot be undone.") },
+            title = { Text(stringResource(R.string.delete_permanent_title, state.selectedFiles.size)) },
+            text = { Text(stringResource(R.string.delete_permanent_description)) },
             confirmButton = {
                 FilledTonalButton(
                     onClick = onConfirmPermanentDelete,
@@ -230,12 +259,12 @@ fun RecentFilesScreen(
                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                     )
                 ) {
-                    Text("Delete")
+                    Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -244,11 +273,11 @@ fun RecentFilesScreen(
     if (state.showMixedDeleteExplanation) {
         AlertDialog(
             onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text("Mixed Selection Blocked") },
-            text = { Text("Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.") },
+            title = { Text(stringResource(R.string.mixed_selection_title)) },
+            text = { Text(stringResource(R.string.mixed_selection_description)) },
             confirmButton = {
                 TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text("OK")
+                    Text(stringResource(R.string.ok))
                 }
             }
         )

@@ -1,6 +1,9 @@
 package dev.qtremors.arcile.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import com.materialkolor.hct.Hct
+import com.materialkolor.scheme.SchemeTonalSpot
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -58,324 +61,6 @@ val OledColorScheme = darkColorScheme(
 
 // Fully tailored custom accent palettes
 
-val BlueLightScheme = lightColorScheme(
-    primary = Color(0xFF0061A4),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFD1E4FF),
-    onPrimaryContainer = Color(0xFF001D36),
-    secondary = Color(0xFF535F70),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFD7E3F7),
-    onSecondaryContainer = Color(0xFF101C2B),
-    background = Color(0xFFFDFBFF),
-    surface = Color(0xFFFDFBFF),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF7F9FF),
-    surfaceContainer = Color(0xFFF1F4FD),
-    surfaceContainerHigh = Color(0xFFEBEFF8),
-    surfaceContainerHighest = Color(0xFFE2E6EC),
-    onSurface = Color(0xFF1B1B1F),
-    onBackground = Color(0xFF1B1B1F),
-    onSurfaceVariant = Color(0xFF43474E),
-    outline = Color(0xFF73777F),
-    outlineVariant = Color(0xFFC3C7CF)
-)
-
-val BlueDarkScheme = darkColorScheme(
-    primary = Color(0xFF9ECAFF),
-    onPrimary = Color(0xFF003258),
-    primaryContainer = Color(0xFF00497D),
-    onPrimaryContainer = Color(0xFFD1E4FF),
-    secondary = Color(0xFFBBC7DB),
-    onSecondary = Color(0xFF253140),
-    secondaryContainer = Color(0xFF3B4858),
-    onSecondaryContainer = Color(0xFFD7E3F7),
-    background = Color(0xFF1A1C1E),
-    surface = Color(0xFF1A1C1E),
-    surfaceContainerLowest = Color(0xFF0C0E11),
-    surfaceContainerLow = Color(0xFF1A1C1E),
-    surfaceContainer = Color(0xFF1E2022),
-    surfaceContainerHigh = Color(0xFF282A2D),
-    surfaceContainerHighest = Color(0xFF333538),
-    onSurface = Color(0xFFE2E2E6),
-    onBackground = Color(0xFFE2E2E6),
-    surfaceVariant = Color(0xFF43474E),
-    onSurfaceVariant = Color(0xFFC3C7CF),
-    outline = Color(0xFF8D9199),
-    outlineVariant = Color(0xFF43474E)
-)
-
-val CyanLightScheme = lightColorScheme(
-    primary = Color(0xFF006874),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFF9EEFF7),
-    onPrimaryContainer = Color(0xFF001F24),
-    secondary = Color(0xFF4A6267),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFCDE7EC),
-    onSecondaryContainer = Color(0xFF051F23),
-    background = Color(0xFFFAFDFF),
-    surface = Color(0xFFFAFDFF),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF4F8FA),
-    surfaceContainer = Color(0xFFEEF2F4),
-    surfaceContainerHigh = Color(0xFFE8ECEE),
-    surfaceContainerHighest = Color(0xFFE2E6E8),
-    onSurface = Color(0xFF191C1D),
-    onBackground = Color(0xFF191C1D),
-    onSurfaceVariant = Color(0xFF3F484A),
-    outline = Color(0xFF6F797A),
-    outlineVariant = Color(0xFFBFC8CA)
-)
-
-val CyanDarkScheme = darkColorScheme(
-    primary = Color(0xFF4FD8EB),
-    onPrimary = Color(0xFF00363D),
-    primaryContainer = Color(0xFF004F58),
-    onPrimaryContainer = Color(0xFF9EEFF7),
-    secondary = Color(0xFFB1CBD0),
-    onSecondary = Color(0xFF1C3438),
-    secondaryContainer = Color(0xFF334A4F),
-    onSecondaryContainer = Color(0xFFCDE7EC),
-    background = Color(0xFF191C1D),
-    surface = Color(0xFF191C1D),
-    surfaceContainerLowest = Color(0xFF0E1112),
-    surfaceContainerLow = Color(0xFF191C1D),
-    surfaceContainer = Color(0xFF1D2021),
-    surfaceContainerHigh = Color(0xFF272A2B),
-    surfaceContainerHighest = Color(0xFF323536),
-    onSurface = Color(0xFFE1E3E3),
-    onBackground = Color(0xFFE1E3E3),
-    surfaceVariant = Color(0xFF3F484A),
-    onSurfaceVariant = Color(0xFFBFC8CA),
-    outline = Color(0xFF899294),
-    outlineVariant = Color(0xFF3F484A)
-)
-
-val GreenLightScheme = lightColorScheme(
-    primary = Color(0xFF2E6B30),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFB0F4AC),
-    onPrimaryContainer = Color(0xFF002204),
-    secondary = Color(0xFF53634F),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFD6E8CD),
-    onSecondaryContainer = Color(0xFF111F0F),
-    background = Color(0xFFFCFDF6),
-    surface = Color(0xFFFCFDF6),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF6F8F0),
-    surfaceContainer = Color(0xFFF0F2EB),
-    surfaceContainerHigh = Color(0xFFEAECE5),
-    surfaceContainerHighest = Color(0xFFE2E6E2),
-    onSurface = Color(0xFF1A1C19),
-    onBackground = Color(0xFF1A1C19),
-    onSurfaceVariant = Color(0xFF43483E),
-    outline = Color(0xFF73796D),
-    outlineVariant = Color(0xFFC3C8BB)
-)
-
-val GreenDarkScheme = darkColorScheme(
-    primary = Color(0xFF90D88D),
-    onPrimary = Color(0xFF00390A),
-    primaryContainer = Color(0xFF13511A),
-    onPrimaryContainer = Color(0xFFB0F4AC),
-    secondary = Color(0xFFB9CCB2),
-    onSecondary = Color(0xFF253423),
-    secondaryContainer = Color(0xFF3B4B38),
-    onSecondaryContainer = Color(0xFFD6E8CD),
-    background = Color(0xFF1A1C19),
-    surface = Color(0xFF1A1C19),
-    surfaceContainerLowest = Color(0xFF0E110D),
-    surfaceContainerLow = Color(0xFF1A1C19),
-    surfaceContainer = Color(0xFF1E201D),
-    surfaceContainerHigh = Color(0xFF282B27),
-    surfaceContainerHighest = Color(0xFF333531),
-    onSurface = Color(0xFFE2E3DD),
-    onBackground = Color(0xFFE2E3DD),
-    surfaceVariant = Color(0xFF43483E),
-    onSurfaceVariant = Color(0xFFC3C8BB),
-    outline = Color(0xFF8D9386),
-    outlineVariant = Color(0xFF43483E)
-)
-
-val RedLightScheme = lightColorScheme(
-    primary = Color(0xFFBC004B),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFFFD9DF),
-    onPrimaryContainer = Color(0xFF3F0014),
-    secondary = Color(0xFF75565B),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFFFD9DF),
-    onSecondaryContainer = Color(0xFF2B151A),
-    background = Color(0xFFFFFBFF),
-    surface = Color(0xFFFFFBFF),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFFF1F2),
-    surfaceContainer = Color(0xFFFFEAEF),
-    surfaceContainerHigh = Color(0xFFFFDDE5),
-    surfaceContainerHighest = Color(0xFFF9DEDC),
-    onSurface = Color(0xFF201A1B),
-    onBackground = Color(0xFF201A1B),
-    onSurfaceVariant = Color(0xFF524345),
-    outline = Color(0xFF857375),
-    outlineVariant = Color(0xFFD7C1C3)
-)
-
-val RedDarkScheme = darkColorScheme(
-    primary = Color(0xFFFFB2BF),
-    onPrimary = Color(0xFF670025),
-    primaryContainer = Color(0xFF910038),
-    onPrimaryContainer = Color(0xFFFFD9DF),
-    secondary = Color(0xFFE4BDC2),
-    onSecondary = Color(0xFF43292D),
-    secondaryContainer = Color(0xFF5C3F44),
-    onSecondaryContainer = Color(0xFFFFD9DF),
-    background = Color(0xFF201A1B),
-    surface = Color(0xFF201A1B),
-    surfaceContainerLowest = Color(0xFF141010),
-    surfaceContainerLow = Color(0xFF201A1B),
-    surfaceContainer = Color(0xFF251E1F),
-    surfaceContainerHigh = Color(0xFF2F2829),
-    surfaceContainerHighest = Color(0xFF3A3334),
-    onSurface = Color(0xFFECE0E0),
-    onBackground = Color(0xFFECE0E0),
-    surfaceVariant = Color(0xFF524345),
-    onSurfaceVariant = Color(0xFFD7C1C3),
-    outline = Color(0xFFA08C8E),
-    outlineVariant = Color(0xFF524345)
-)
-
-val PurpleLightScheme = lightColorScheme(
-    primary = Color(0xFF86279E),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFF8D8FF),
-    onPrimaryContainer = Color(0xFF330043),
-    secondary = Color(0xFF6A5A70),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFF1DCF6),
-    onSecondaryContainer = Color(0xFF24172A),
-    background = Color(0xFFFFFBFF),
-    surface = Color(0xFFFFFBFF),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFFFF7FA),
-    surfaceContainer = Color(0xFFF8EEF5),
-    surfaceContainerHigh = Color(0xFFF2E8EF),
-    surfaceContainerHighest = Color(0xFFEADDFF),
-    onSurface = Color(0xFF1D1B1E),
-    onBackground = Color(0xFF1D1B1E),
-    onSurfaceVariant = Color(0xFF4E444B),
-    outline = Color(0xFF7F747C),
-    outlineVariant = Color(0xFFD1C2CB)
-)
-
-val PurpleDarkScheme = darkColorScheme(
-    primary = Color(0xFFEAB3FF),
-    onPrimary = Color(0xFF51006B),
-    primaryContainer = Color(0xFF6B008B),
-    onPrimaryContainer = Color(0xFFF8D8FF),
-    secondary = Color(0xFFD4C0D9),
-    onSecondary = Color(0xFF3B2C41),
-    secondaryContainer = Color(0xFF524258),
-    onSecondaryContainer = Color(0xFFF1DCF6),
-    background = Color(0xFF1D1B1E),
-    surface = Color(0xFF1D1B1E),
-    surfaceContainerLowest = Color(0xFF110E12),
-    surfaceContainerLow = Color(0xFF1D1B1E),
-    surfaceContainer = Color(0xFF211E22),
-    surfaceContainerHigh = Color(0xFF2B292C),
-    surfaceContainerHighest = Color(0xFF363337),
-    onSurface = Color(0xFFE6E1E4),
-    onBackground = Color(0xFFE6E1E4),
-    surfaceVariant = Color(0xFF4E444B),
-    onSurfaceVariant = Color(0xFFD1C2CB),
-    outline = Color(0xFF998D96),
-    outlineVariant = Color(0xFF4E444B)
-)
-
-// Monochrome / grayscale accent palette
-val MonochromeLightScheme = lightColorScheme(
-    primary = Color(0xFF3B3B3B),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE0E0E0),
-    onPrimaryContainer = Color(0xFF1A1A1A),
-    secondary = Color(0xFF5C5C5C),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFEEEEEE),
-    onSecondaryContainer = Color(0xFF2B2B2B),
-    background = Color(0xFFFAFAFA),
-    surface = Color(0xFFFAFAFA),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF5F5F5),
-    surfaceContainer = Color(0xFFEEEEEE),
-    surfaceContainerHigh = Color(0xFFE8E8E8),
-    surfaceContainerHighest = Color(0xFFE1E1E1),
-    onSurface = Color(0xFF1C1C1C),
-    onBackground = Color(0xFF1C1C1C),
-    onSurfaceVariant = Color(0xFF4A4A4A),
-    outline = Color(0xFF757575),
-    outlineVariant = Color(0xFFBDBDBD)
-)
-
-val MonochromeDarkScheme = darkColorScheme(
-    primary = Color(0xFFCCCCCC),
-    onPrimary = Color(0xFF222222),
-    primaryContainer = Color(0xFF444444),
-    onPrimaryContainer = Color(0xFFE0E0E0),
-    secondary = Color(0xFFAAAAAA),
-    onSecondary = Color(0xFF303030),
-    secondaryContainer = Color(0xFF3D3D3D),
-    onSecondaryContainer = Color(0xFFDDDDDD),
-    background = Color(0xFF1A1C1A),
-    surface = Color(0xFF1A1C1A),
-    surfaceContainerLowest = Color(0xFF101010),
-    surfaceContainerLow = Color(0xFF1A1C1A),
-    surfaceContainer = Color(0xFF1F1F1F),
-    surfaceContainerHigh = Color(0xFF292929),
-    surfaceContainerHighest = Color(0xFF333333),
-    onSurface = Color(0xFFE0E0E0),
-    onBackground = Color(0xFFE0E0E0),
-    surfaceVariant = Color(0xFF3D3D3D),
-    onSurfaceVariant = Color(0xFFBBBBBB),
-    outline = Color(0xFF888888),
-    outlineVariant = Color(0xFF444444)
-)
-
-// Black accent palette (High Contrast for Dark/OLED)
-val BlackLightScheme = lightColorScheme(
-    primary = Color(0xFF000000),
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = Color(0xFFE0E0E0),
-    onPrimaryContainer = Color(0xFF000000),
-    secondary = Color(0xFF424242),
-    onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = Color(0xFFF5F5F5),
-    onSecondaryContainer = Color(0xFF212121),
-    background = Color(0xFFFFFFFF),
-    surface = Color(0xFFFFFFFF),
-    surfaceContainer = Color(0xFFF5F5F5),
-    onSurface = Color(0xFF000000),
-    onBackground = Color(0xFF000000),
-    outline = Color(0xFF757575)
-)
-
-val BlackDarkScheme = darkColorScheme(
-    primary = Color(0xFFE0E0E0), // Light Primary for visibility
-    onPrimary = Color(0xFF000000),
-    primaryContainer = Color(0xFF424242),
-    onPrimaryContainer = Color(0xFFE0E0E0),
-    secondary = Color(0xFFBDBDBD),
-    onSecondary = Color(0xFF000000),
-    secondaryContainer = Color(0xFF333333),
-    onSecondaryContainer = Color(0xFFE0E0E0),
-    background = Color(0xFF1A1C1A),
-    surface = Color(0xFF1A1C1A),
-    surfaceContainer = Color(0xFF212321),
-    onSurface = Color(0xFFFFFFFF),
-    onBackground = Color(0xFFFFFFFF),
-    outline = Color(0xFF9E9E9E)
-)
-
 // Category Colors - Light
 val CatImageLight = Color(0xFF2E6B30)
 val CatVideoLight = Color(0xFFBC004B)
@@ -420,54 +105,87 @@ val OledSurfaceVariant = Color(0xFF121212)
 val OledContainerLow = Color(0xFF0F0D13)
 val OledContainerLowest = Color.Black
 
+
+
 /**
- * Generates a simple Material 3 color scheme from a primary seed color.
- * Used for the expanded accent colors to avoid excessive boilerplate.
+ * Generates a full Material 3 color scheme from a primary seed color using Material Color Utilities.
+ * This provides mathematically accurate tonal palettes for a cohesive design.
  */
 fun buildScheme(primary: Color, isDark: Boolean): ColorScheme {
+    val hct = Hct.fromInt(primary.toArgb())
+    val scheme = SchemeTonalSpot(hct, isDark, 0.0)
+    
     return if (isDark) {
         darkColorScheme(
-            primary = primary,
-            onPrimary = Color.Black,
-            primaryContainer = primary.copy(alpha = 0.3f),
-            onPrimaryContainer = Color.White,
-            secondary = primary,
-            onSecondary = Color.Black,
-            secondaryContainer = primary.copy(alpha = 0.2f),
-            onSecondaryContainer = Color.White,
-            background = Color(0xFF1A1C1E),
-            surface = Color(0xFF1A1C1E),
-            surfaceContainer = Color(0xFF212325),
-            surfaceContainerHigh = Color(0xFF282A2D),
-            surfaceContainerHighest = Color(0xFF333538),
-            onBackground = Color(0xFFE2E2E6),
-            onSurface = Color(0xFFE2E2E6),
-            surfaceVariant = Color(0xFF43474E),
-            onSurfaceVariant = Color(0xFFC3C7CF),
-            outline = Color(0xFF8D9199),
-            outlineVariant = Color(0xFF43474E)
+            primary = Color(scheme.primary),
+            onPrimary = Color(scheme.onPrimary),
+            primaryContainer = Color(scheme.primaryContainer),
+            onPrimaryContainer = Color(scheme.onPrimaryContainer),
+            secondary = Color(scheme.secondary),
+            onSecondary = Color(scheme.onSecondary),
+            secondaryContainer = Color(scheme.secondaryContainer),
+            onSecondaryContainer = Color(scheme.onSecondaryContainer),
+            tertiary = Color(scheme.tertiary),
+            onTertiary = Color(scheme.onTertiary),
+            tertiaryContainer = Color(scheme.tertiaryContainer),
+            onTertiaryContainer = Color(scheme.onTertiaryContainer),
+            error = Color(scheme.error),
+            onError = Color(scheme.onError),
+            errorContainer = Color(scheme.errorContainer),
+            onErrorContainer = Color(scheme.onErrorContainer),
+            background = Color(scheme.background),
+            onBackground = Color(scheme.onBackground),
+            surface = Color(scheme.surface),
+            onSurface = Color(scheme.onSurface),
+            surfaceVariant = Color(scheme.surfaceVariant),
+            onSurfaceVariant = Color(scheme.onSurfaceVariant),
+            outline = Color(scheme.outline),
+            outlineVariant = Color(scheme.outlineVariant),
+            scrim = Color(scheme.scrim),
+            inverseSurface = Color(scheme.inverseSurface),
+            inverseOnSurface = Color(scheme.inverseOnSurface),
+            inversePrimary = Color(scheme.inversePrimary),
+            surfaceContainerLowest = Color(scheme.surfaceContainerLowest),
+            surfaceContainerLow = Color(scheme.surfaceContainerLow),
+            surfaceContainer = Color(scheme.surfaceContainer),
+            surfaceContainerHigh = Color(scheme.surfaceContainerHigh),
+            surfaceContainerHighest = Color(scheme.surfaceContainerHighest)
         )
     } else {
         lightColorScheme(
-            primary = primary,
-            onPrimary = Color.White,
-            primaryContainer = primary.copy(alpha = 0.12f).compositeOver(Color.White),
-            onPrimaryContainer = primary, 
-            secondary = primary.copy(alpha = 0.08f).compositeOver(Color.White),
-            onSecondary = Color.White,
-            secondaryContainer = primary.copy(alpha = 0.08f).compositeOver(Color.White),
-            onSecondaryContainer = primary,
-            background = Color(0xFFFDFBFF),
-            surface = Color(0xFFFDFBFF),
-            surfaceContainer = Color(0xFFF1F4FD),
-            surfaceContainerHigh = Color(0xFFEBEFF8),
-            surfaceContainerHighest = Color(0xFFE2E6EC),
-            onSurface = Color(0xFF1B1B1F),
-            onBackground = Color(0xFF1B1B1F),
-            surfaceVariant = Color(0xFFDFE2EB),
-            onSurfaceVariant = Color(0xFF43474E),
-            outline = Color(0xFF73777F),
-            outlineVariant = Color(0xFFC3C7CF)
+            primary = Color(scheme.primary),
+            onPrimary = Color(scheme.onPrimary),
+            primaryContainer = Color(scheme.primaryContainer),
+            onPrimaryContainer = Color(scheme.onPrimaryContainer),
+            secondary = Color(scheme.secondary),
+            onSecondary = Color(scheme.onSecondary),
+            secondaryContainer = Color(scheme.secondaryContainer),
+            onSecondaryContainer = Color(scheme.onSecondaryContainer),
+            tertiary = Color(scheme.tertiary),
+            onTertiary = Color(scheme.onTertiary),
+            tertiaryContainer = Color(scheme.tertiaryContainer),
+            onTertiaryContainer = Color(scheme.onTertiaryContainer),
+            error = Color(scheme.error),
+            onError = Color(scheme.onError),
+            errorContainer = Color(scheme.errorContainer),
+            onErrorContainer = Color(scheme.onErrorContainer),
+            background = Color(scheme.background),
+            onBackground = Color(scheme.onBackground),
+            surface = Color(scheme.surface),
+            onSurface = Color(scheme.onSurface),
+            surfaceVariant = Color(scheme.surfaceVariant),
+            onSurfaceVariant = Color(scheme.onSurfaceVariant),
+            outline = Color(scheme.outline),
+            outlineVariant = Color(scheme.outlineVariant),
+            scrim = Color(scheme.scrim),
+            inverseSurface = Color(scheme.inverseSurface),
+            inverseOnSurface = Color(scheme.inverseOnSurface),
+            inversePrimary = Color(scheme.inversePrimary),
+            surfaceContainerLowest = Color(scheme.surfaceContainerLowest),
+            surfaceContainerLow = Color(scheme.surfaceContainerLow),
+            surfaceContainer = Color(scheme.surfaceContainer),
+            surfaceContainerHigh = Color(scheme.surfaceContainerHigh),
+            surfaceContainerHighest = Color(scheme.surfaceContainerHighest)
         )
     }
-}
+}

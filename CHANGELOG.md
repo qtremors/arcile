@@ -1,9 +1,113 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.0
-> **Last Updated:** 2026-03-16
+> **Version:** 0.4.5
+> **Last Updated:** 2026-03-19
 
+---
+
+## [0.4.5] - 2026-03-19
+
+### Fixed
+- [UI/UX] Resolved a persistent double-refresh glitch on the **Recent Files** and **Home** screens by removing redundant initialization triggers.
+- [UI/UX] Eliminated jarring loading indicator flickers and incorrect empty-state priority app-wide by implementing a unified micro-delayed (5ms) display guard and synchronous loading state transitions in ViewModels.
+- [UI/UX] Eliminated app launch UI flickering (briefly showing the default purple theme or permission screen) by explicitly holding the `SplashScreen` active until the DataStore finishes resolving and emitting the user's `ThemeState`.
+- [UI/UX] Optimized **Recent Files** screen performance by removing excessive lifecycle-driven refresh events that caused redundant data reloads.
+- [UI/UX] Fixed overlapping system bar insets and padding bugs by removing redundant nested `Scaffold` hierarchies in the root `ArcileAppShell`.
+- [Smoothness] Resolved animation target key collisions during folder-to-folder transitions in `FileManagerScreen` by upgrading the string concatenation state key to a fully typed `FileManagerContentKey` data class.
+- [Security] Patched multiple blind failure states in `LocalFileRepository` (e.g. MediaStore explicit deletion, `.nomedia` trash enforcement, and `StorageStatsManager` faults) by replacing silent empty catch blocks with verbose Android System Log errors.
+
+### Changed
+- [UI/UX] Refined loading visibility logic to ensure "silent" background refreshes when content is already cached or present, providing a smoother and less disruptive user experience.
+- [UI/UX] Polished the `PermissionRequestScreen` with a Material 3 Expressive Card, centralized icon, and structured typography.
+- [UI/UX] Completely redesigned `FileGridItem` to use edge-to-edge images (removing inner padding), forcing a strict `1:1` aspect ratio for the visual container, and locking text to exactly 1 max line. This guarantees every card is perfectly uniform in size regardless of content.
+- [Architecture] `StorageDashboardScreen` now shares the existing `HomeViewModel` instance mapped to the `Home` route backstack entry, instantly rendering storage statistics instead of unnecessarily triggering parallel disk reads for a second isolated ViewModel scope.
+
+### Added
+- [Performance] Optimized MediaStore queries in `getFilesByCategory` by trusting the index over performing redundant `File.exists()` filesystem stat calls on every row, making large media category loading nearly instant.
+- [Motion] Added smooth `animateItem()` entry and reordering animations to all list and grid file views.
+- [Testing] Added `LocalFileOperationsTest` to verify the core `Smart Paste` conflict resolution engine, specifically ensuring duplicate file suffixes (` - Copy (1)`) are correctly appended without corrupting user data.
+
+---
+
+## [0.4.4] - 2026-03-18
+
+### Refactored
+- [Architecture] Extracted `NavHost` from `ArcileAppShell.kt` into a dedicated `AppNavigationGraph.kt` component for a cleaner entry point.
+- [Architecture] Modularized `HomeScreen.kt` by separating large UI elements into `StorageSummaryCards.kt`, `CategoryGrid.kt`, and `MainFoldersGrid.kt`.
+- [Architecture] Cleaned up `TrashScreen.kt` by extracting the empty state dialog and trash list components to `components/trash/`.
+- [Architecture] Split `PasteConflictDialog.kt` into reusable sub-components, migrating the file comparison UI to a new `ConflictCard.kt`.
+- [Architecture] Decoupled `Environment.getExternalStorageDirectory()` framework calls from the Compose presentation layer (`MainFoldersGrid`) by pushing standard folder resolution to the `FileRepository`.
+- [Architecture] Removed the direct creation of Android `Intent` objects inside ViewModels (`ShareSelectedFiles`), shifting this responsibility to a newly introduced `ShareHelper.kt` utility invoked from the UI layer.
+
+---
+
+## [0.4.3] - 2026-03-18
+
+### Added
+- [Feature] Full Internationalization (i18n): Extracted over 130 hardcoded strings into `strings.xml`, enabling multi-language support across all major screens (Home, Browser, Trash, Tools, Recent Files).
+- [Feature] Dynamic Color Generation: Integrated `MaterialKolor` for high-quality dynamic color schemes based on user-selected accent colors.
+- [Feature] Type-Safe Navigation: Migrated the entire app to Kotlin Serialization-based navigation, eliminating string-based route fragility.
+- [Performance] Analytics Cache TTL: Implemented a 5-minute Time-To-Live (TTL) for storage analytics to prevent redundant recomputations while ensuring data freshness.
+- [Architecture] Modular Settings UI: Refactored the Settings screen into isolated components (`ThemeModeSelector`, `AccentColorSelector`) for better maintainability.
+
+### Changed
+- [Build] Bumped version to `0.4.3` (versionCode `27`) across `build.gradle.kts`, `CHANGELOG.md`, and project documentation.
+
+## [0.4.2] - 2026-03-18
+
+### Added
+- [Documentation] Introduced a new "StorageScope" subsection in `DEVELOPMENT.md` defining the logical contexts used for repository operations (`AllStorage`, `Volume`, `Path`, `Category`).
+
+### Fixed
+- [Bug] `moveToTrash` now properly aborts the deletion loop, preserves failure states, and invalidates caching when the underlying copy/delete fallback mechanism fails.
+- [Bug] Missing file extensions are now reliably captured in Category Views; expanded the MediaStore SQL query to search via `DATA LIKE '%.ext'` string matching when `MIME_TYPE` yields no results.
+- [Bug] Category Views now safely check if `File.isFile` before indexing, preventing arbitrary directories carrying specific extensions (like `folder.zip`) from crashing the UI.
+- [Bug] `TrashViewModel` no longer drops the target destination string or item IDs when spawning the Android system permission overlay (Scoped Storage), preventing silent task cancellation.
+- [Bug] Detached CoroutineScopes have been scrubbed from `StorageClassificationRepository` data mapping streams, eliminating race conditions.
+- [Bug] `BrowserViewModel` now halts UI refreshes if an underlying file deletion or movement throws an exception, allowing the user to actually read the Toast/Snackbar error.
+- [Bug] Invalid `volumeId` restores from deep linking now safely fall back to `StorageScope.AllStorage` mapping rather than crashing or freezing the screen.
+- [Bug] Resolved missing UI warnings when the user's optimistic `StorageClassification` bypass prompt fails to write to the `DataStore` successfully.
+- [Bug] Category storage size calculations now strictly exclude hidden files/folders (`/.`), ensuring consistency with the file browser view.
+- [Bug] Trash operations (`emptyTrash`, `restoreFromTrash`) now correctly invalidate the storage analytics cache, preventing stale category sizes on the dashboard.
+- [Bug] `Category` storage scope now supports optional `volumeId`, enabling cross-volume media discovery and resolving empty category views when navigating from the Home screen.
+- [Bug] Replaced API 26 (Oreo) `File.toPath()` references in path traversal security checks with legacy `canonicalPath` string evaluations, stopping app crashes on Android 7 (Nougat).
+- [Bug] Removed empty TargetState lambda calls inside `AnimatedContent` (`FileManagerScreen.kt`) causing silent animation frame drops and strict Compose linting failures.
+- [Bug] Fixed outdated mock configurations throwing incorrect String Exceptions instead of structured `DestinationRequiredException` inside `StorageScopeViewModelTest`.
+- [Navigation] Standardized `EXPLORER` routes in `ArcileAppShell.kt` to always append the full query parameter set (`path`, `category`, `volumeId`), resolving broken state restoration during cross-screen navigation.
+- [UI/UX] Fixed Shimmer animations capturing gradient layouts at zero size, preventing UI from appearing frozen while loading.
+- [UI/UX] Fixed `FileManagerScreen` showing a blank "Empty Directory" state instead of displaying the volume root menu when exploring the top-level app storage tier.
+- [UI/UX] Optimized `TrashScreen` volume item selections to dismiss the selection dialog overlay immediately, skipping slow upstream view-state delays.
+- [Performance] `LocalFileRepository.getCategoryStorageSizes` now immediately returns optimistic DataStore cache hits if available, bypassing massive unnecessary disk/MediaStore I/O calculations.
+- [Correctness] Removed `runBlocking` calls from `StorageScopeViewModelTest` mocks to align with coroutine testing best practices and prevent potential test deadlocks.
+- [Code Quality] Hoisted `ThemePreferences` initialization to the `MainActivity` level, ensuring lifecycle-aware persistence and resolving compilation errors in theme state collection.
+
+### Changed
+- [Build] Bumped version to `0.4.2` (versionCode `26`) and synchronized references across `build.gradle.kts`, `TASKS.md`, and project documentation.
+- [Design] Dramatically increased the color opacity mapping (`alpha = 0.70f` and `0.16f`) for all dynamic `secondary` and `secondaryContainer` Light Themes inside `Color.kt` to ensure legibility over bright backgrounds.
+- [Accessibility] Explicitly forced `FileGrid` and `FileList` Jetpack Compose rows to broadcast `selected = isSelected` into Android's semantics tree, allowing TalkBack and screen readers to actually announce when a file is checked.
+- [Architecture] Stripped silent `{}` default callback initializations for `onDismissDestinationPicker` in `TrashScreen.kt`, enforcing correct explicit navigation wiring down the tree.
+
+---
+
+## [0.4.1] - 2026-03-17
+
+### Added
+- [Performance] Implemented a persistent caching layer for storage analytics in `Context.cacheDir/analytics/`, providing zero-latency loading for the Home screen and Storage Dashboard.
+- [Architecture] Introduced `DestinationRequiredException` for typed error handling during file restoration operations.
+
+### Changed
+- [Performance] Replaced manual filesystem scanning for category sizes with `StorageStatsManager` (API 26+) combined with a highly optimized `MediaStore` fallback. This ensures completely accurate storage size calculations while omitting redundant MIME type queries.
+- [Performance] Optimized `MediaStore` queries to perform SQL-level filtering by MIME type, significantly reducing CPU and memory overhead during file discovery.
+- [Performance] Transitioned file categorization from hardcoded extensions to native `MimeTypeMap` and `MediaStore` MIME type columns for improved accuracy and future-proofing.
+- [Performance] Confirmed `AudioAlbumArtFetcher` correctly utilizes `ContentResolver.loadThumbnail()` (API 29+) with a fallback to `MediaMetadataRetriever` on `Dispatchers.IO`.
+
+### Fixed
+- [Bug] Custom trash directories (`/.arcile`) are now aggressively filtered from all search, category, and recent file queries, and trashed files are explicitly deleted from the `MediaStore` index to prevent them from incorrectly appearing in the UI.
+- [Bug] Enhanced `moveToTrash` fallback logic to safely retain JSON metadata when file rename operations fail, guaranteeing files can always be correctly restored.
+- [Bug] Implemented proactive logging and cleanup of invalid JSON metadata files to prevent corrupted trash metadata from causing parsing crashes.
+- [Architecture] Eliminated string-based error matching in `TrashViewModel` by migrating to a robust, typed exception system for all trash operations.
+- [UX] Refined cache invalidation logic to only clear the specific affected volume's cache during file operations (create, rename, delete, copy, move), preventing unnecessary global dashboard recalculations.
 
 ---
 

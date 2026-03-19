@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.4.0 | **Last Updated:** 2026-03-16
+**Version:** 0.4.5 | **Last Updated:** 2026-03-19
 **Scope:** Internal Development, Security, and Style Specification
 
 ---
@@ -95,6 +95,7 @@ arcile/
 │   │   │   │   │   └── ui/
 │   │   │   │   │       ├── AboutScreen.kt            # App info & credits screen
 │   │   │   │   │       ├── ArcileAppShell.kt         # Nav host + bottom bar shell
+│   │   │   │   │       ├── AppNavigationGraph.kt     # Centralized NavHost controller
 │   │   │   │   │       ├── HomeScreen.kt             # Dashboard screen
 │   │   │   │   │       ├── FileManagerScreen.kt      # File browser screen
 │   │   │   │   │       ├── RecentFilesScreen.kt      # Recent files list screen
@@ -105,8 +106,11 @@ arcile/
 │   │   │   │   │       ├── TrashScreen.kt            # Trash management screen
 │   │   │   │   │       └── components/
 │   │   │   │   │           ├── dialogs/              # Create, rename, paste conflicts
+│   │   │   │   │           ├── home/                 # Storage cards, category/folder grids
 │   │   │   │   │           ├── lists/                # Grids, lists, filter rows
-│   │   │   │   │           └── menus/                # Expandable FAB, top bar actions
+│   │   │   │   │           ├── menus/                # Expandable FAB, top bar actions
+│   │   │   │   │           ├── settings/             # Theme/Accent selectors
+│   │   │   │   │           └── trash/                # Empty/Dialog components
 │   │   │   │   ├── ui/theme/
 │   │   │   │   │   ├── CategoryColors.kt   # Per-category color mappings
 │   │   │   │   │   ├── Color.kt            # Color constants + accent schemes
@@ -117,7 +121,8 @@ arcile/
 │   │   │   │   │   └── Type.kt             # Typography scale
 │   │   │   │   └── utils/
 │   │   │   │       ├── CategoryColors.kt   # Category-to-color utility
-│   │   │   │       └── FormatUtils.kt      # File size / date formatting helpers
+│   │   │   │       ├── FormatUtils.kt      # File size / date formatting helpers
+│   │   │   │       └── ShareHelper.kt      # Intent-based file sharing utility
 │   │   │   └── res/                        # Standard Android resources
 │   │   ├── build.gradle.kts               # App-level build config
 │   │   └── proguard-rules.pro             # ProGuard/R8 rules
@@ -183,6 +188,8 @@ Arcile uses **Material 3 Expressive**, an evolution of the Material Design 3 sys
 1. **Motion Physics:** Use spring-based animations instead of fixed-duration easing (`tween`). Jetpack Compose 1.7+ defaults to springs for many modifiers, but always explicitly prefer `spring()` for custom animations to create a bouncy, lively feel.
 2. **Morphing & Fluidity:** Favor components that morph dynamically rather than static generic shapes. 
 3. **Typography & Hierarchy:** Utilize the expanded typography scale and deeper dynamic color contrast to establish clear visual hierarchy.
+4. **Dynamic Color Integration:** Arcile uses **MaterialKolor** to generate high-quality Material 3 color schemes from user-selected accent colors. This ensures that custom accents follow proper tonal palettes and accessibility standards.
+5. **Internationalization (i18n):** The project is fully internationalized. **Never hardcode strings in the UI layer.** Always use `res/strings.xml` and `stringResource(R.string.id)` to ensure multi-language support.
 
 #### Implementation Requirements
 
@@ -221,16 +228,19 @@ fun ExpressiveLoading() {
 | `compileSdk` | 36 (minor API level 1) | `app/build.gradle.kts` |
 | `minSdk` | 24 | `app/build.gradle.kts` |
 | `targetSdk` | 36 | `app/build.gradle.kts` |
-| `versionCode` | 22 | `app/build.gradle.kts` |
-| `versionName` | `0.4.0` | `app/build.gradle.kts` |
+| `versionCode` | 29 | `app/build.gradle.kts` |
+| `versionName` | `0.4.5` | `app/build.gradle.kts` |
 
 ### Permissions
 
 | Permission | Purpose | Scope |
 |------------|---------|-------|
-| `READ_EXTERNAL_STORAGE` | Read files on storage | Pre-Android 11 |
-| `WRITE_EXTERNAL_STORAGE` | Write files on storage | Pre-Android 10 (`maxSdkVersion=29`) |
+| `READ_EXTERNAL_STORAGE` | Read files on storage | Android 9 and below |
+| `WRITE_EXTERNAL_STORAGE` | Write files on storage | Android 9 and below (`maxSdkVersion=29`) |
 | `MANAGE_EXTERNAL_STORAGE` | Full file access | Android 11+ |
+
+> **Warning: Android 10 (API 29) Support**
+> Because Arcile relies entirely on direct `java.io.File` APIs for robust and fast file management, **Android 10 is fundamentally unsupported**. The `android:requestLegacyExternalStorage="true"` flag was removed for modern security compliance. Without it, Android 10 devices are forced into Scoped Storage but cannot be granted `MANAGE_EXTERNAL_STORAGE` (which was introduced in Android 11), leaving the app unable to browse or manage files globally.
 
 ### Theme Configuration
 
@@ -286,6 +296,13 @@ If you discover a security vulnerability, please open a private issue or contact
 
 ## Core Modules
 
+### StorageScope
+`StorageScope` is a sealed class used to bound repository operations (like fetching recent files, calculating storage sizes, or querying categories) to a specific logical context:
+- `AllStorage`: Represents all mounted and indexed volumes globally.
+- `Volume(volumeId)`: Represents a specific storage volume (e.g., an SD Card or primary internal storage).
+- `Path(path, volumeId)`: A specific directory path on a given volume.
+- `Category(volumeId, categoryName)`: A specific file category (e.g., "Images", "Documents") bound to a specific volume (or all volumes if volumeId is blank).
+
 ### FileRepository / LocalFileRepository
 
 The data access layer for all file system operations.
@@ -321,7 +338,7 @@ The data access layer for all file system operations.
 
 | Method | Description |
 |--------|-------------|
-| `moveToTrash(paths)` | Move files to `.arcile_trash/` with metadata |
+| `moveToTrash(paths)` | Move files to `.arcile/.trash` with metadata |
 | `restoreFromTrash(trashIds)` | Restore items to their original paths |
 | `emptyTrash()` | Permanently delete all trash contents |
 | `getTrashFiles()` | List all `TrashMetadata` entries |
@@ -407,7 +424,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 
 | Category | Status |
 |----------|--------|
-| Unit tests | 🟡 Started (e.g., `HomeViewModelTest`, `DeletePolicyTest`, `StorageScopeViewModelTest`) |
+| Unit tests | 🟡 Started (e.g., `LocalFileOperationsTest`, `DeletePolicyTest`, `StorageScopeViewModelTest`) |
 | Integration tests | ❌ Not implemented |
 | UI / Compose tests | ❌ Not implemented |
 
@@ -421,7 +438,7 @@ fun formatFileSize_zeroBytes_returnsZeroB()
 ./gradlew assembleDebug
 ```
 For standard builds:
-APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk`
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.5-debug.apk`
 
 > **Note:** The output filename is controlled by the `androidComponents` block in `app/build.gradle.kts`, which uses `VariantOutputImpl` (an internal AGP API) to inject the app ID and version into the filename. This is a known anomaly — see [TASKS.md](TASKS.md) general anomalies section for details.
 
@@ -453,7 +470,7 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk`
 |---------------------|----------------------|-----------------|
 | `compileSdk` block syntax | Uses `release(36) { minorApiLevel = 1 }` instead of `compileSdk = 36` | Required for AGP 9.x structured SDK versioning |
 | `VariantOutputImpl` cast in `androidComponents` | Internal AGP API | No stable public API for `outputFileName` exists yet in AGP 9.x — see TASKS.md anomalies |
-| `.arcile_trash/` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
+| `.arcile/.trash` on shared external storage | Trash not using app-private storage | Allows files to survive app uninstall and inspections; trade-off documented in TASKS.md B |
 
 ### Technical Debt
 

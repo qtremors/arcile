@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.Surface
@@ -63,6 +64,16 @@ import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.trash.TrashState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.trash.EmptyTrashDialog
+import dev.qtremors.arcile.presentation.ui.components.trash.TrashList
+
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -74,9 +85,44 @@ fun TrashScreen(
     onRestoreSelected: () -> Unit,
     onEmptyTrash: () -> Unit,
     onClearError: () -> Unit,
-    onDismissDestinationPicker: () -> Unit = {},
-    onRestoreToDestination: (String) -> Unit = {}
+    onDismissDestinationPicker: () -> Unit,
+    onRestoreToDestination: (List<String>, String) -> Unit,
+    onClearNativeRequest: () -> Unit = {}
 ) {
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            when (state.pendingNativeAction) {
+                dev.qtremors.arcile.presentation.trash.NativeAction.RESTORE -> onRestoreSelected()
+                dev.qtremors.arcile.presentation.trash.NativeAction.RESTORE_TO_DESTINATION -> {
+                    if (state.pendingDestinationPath != null && state.pendingRestoreIds.isNotEmpty()) {
+                        onRestoreToDestination(state.pendingRestoreIds, state.pendingDestinationPath)
+                    }
+                }
+                dev.qtremors.arcile.presentation.trash.NativeAction.EMPTY -> onEmptyTrash()
+                null -> {}
+            }
+        }
+        onClearNativeRequest()
+    }
+
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading) {
+        if (state.isLoading) {
+            delay(5)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
+
+    LaunchedEffect(state.nativeRequest) {
+        state.nativeRequest?.let { sender ->
+            launcher.launch(IntentSenderRequest.Builder(sender).build())
+        }
+    }
+
     var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
 
     BackHandler {
@@ -95,7 +141,7 @@ fun TrashScreen(
             LargeTopAppBar(
                 title = {
                     Text(
-                        text = if (state.selectedFiles.isNotEmpty()) "${state.selectedFiles.size} selected" else "Trash Bin",
+                        text = if (state.selectedFiles.isNotEmpty()) stringResource(R.string.selected_count, state.selectedFiles.size) else stringResource(R.string.trash_bin),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -104,22 +150,22 @@ fun TrashScreen(
                 navigationIcon = {
                     if (state.selectedFiles.isNotEmpty()) {
                         IconButton(onClick = onClearSelection) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear selection")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
                         }
                     } else {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     }
                 },
                 actions = {
                     if (state.selectedFiles.isNotEmpty()) {
                         IconButton(onClick = onRestoreSelected) {
-                            Icon(Icons.Default.Restore, contentDescription = "Restore selected")
+                            Icon(Icons.Default.Restore, contentDescription = stringResource(R.string.restore_selected))
                         }
                     } else if (state.trashFiles.isNotEmpty()) {
                         IconButton(onClick = { showEmptyTrashConfirmation = true }) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = "Empty Trash")
+                            Icon(Icons.Default.DeleteSweep, contentDescription = stringResource(R.string.empty_trash))
                         }
                     }
                 },
@@ -136,18 +182,18 @@ fun TrashScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            if (state.isLoading) {
+            if (showLoading && state.trashFiles.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     LoadingIndicator()
                 }
-            } else if (state.trashFiles.isEmpty()) {
+            } else if (state.trashFiles.isEmpty() && !state.isLoading) {
                  EmptyState(
                     icon = Icons.Default.DeleteSweep,
-                    title = "Trash is empty",
-                    description = "When you delete files from permanent storage, they'll stay here for 30 days before being deleted forever.",
+                    title = stringResource(R.string.trash_is_empty),
+                    description = stringResource(R.string.trash_empty_description),
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
@@ -160,30 +206,11 @@ fun TrashScreen(
         }
 
         if (showEmptyTrashConfirmation) {
-            AlertDialog(
+            EmptyTrashDialog(
                 onDismissRequest = { showEmptyTrashConfirmation = false },
-                icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                title = { Text("Empty Trash?") },
-                shape = MaterialTheme.shapes.extraLarge,
-                text = { Text("All items in the trash will be permanently deleted. This action cannot be undone.") },
-                confirmButton = {
-                    FilledTonalButton(
-                        onClick = {
-                            showEmptyTrashConfirmation = false
-                            onEmptyTrash()
-                        },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text("Empty Trash")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showEmptyTrashConfirmation = false }) {
-                        Text("Cancel")
-                    }
+                onConfirm = {
+                    showEmptyTrashConfirmation = false
+                    onEmptyTrash()
                 }
             )
         }
@@ -193,21 +220,21 @@ fun TrashScreen(
             if (indexedVolumes.isEmpty()) {
                 AlertDialog(
                     onDismissRequest = onDismissDestinationPicker,
-                    title = { Text("No Restore Destination") },
-                    text = { Text("There are no indexed volumes available to restore the files to. Please check your storage management settings.") },
+                    title = { Text(stringResource(R.string.no_restore_destination_title)) },
+                    text = { Text(stringResource(R.string.no_restore_destination_description)) },
                     confirmButton = {
                         TextButton(onClick = onDismissDestinationPicker) {
-                            Text("Dismiss")
+                            Text(stringResource(R.string.dismiss))
                         }
                     }
                 )
             } else {
                 AlertDialog(
                     onDismissRequest = onDismissDestinationPicker,
-                    title = { Text("Select Restore Destination") },
+                    title = { Text(stringResource(R.string.select_restore_destination_title)) },
                     text = {
                         Column {
-                            Text("The original storage volume is unavailable. Where would you like to restore the file(s)?")
+                            Text(stringResource(R.string.select_restore_destination_description))
                             androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
                             LazyColumn {
                                 items(indexedVolumes) { volume ->
@@ -215,7 +242,8 @@ fun TrashScreen(
                                         headlineContent = { Text(volume.name) },
                                         supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         modifier = Modifier.clickable {
-                                            onRestoreToDestination(volume.path)
+                                            onRestoreToDestination(state.selectedTrashIdsForDestination, volume.path)
+                                            onDismissDestinationPicker()
                                         },
                                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                     )
@@ -225,70 +253,12 @@ fun TrashScreen(
                     },
                     confirmButton = {
                         TextButton(onClick = onDismissDestinationPicker) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.cancel))
                         }
                     }
                 )
             }
         }
-
-        // Error shown via snackbar in parent Scaffold
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun TrashList(
-    files: List<TrashMetadata>,
-    selectedFiles: Set<String>,
-    onToggleSelection: (String) -> Unit
-) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy \u2022 HH:mm", Locale.getDefault()) }
-
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        items(files, key = { it.id }) { trashItem ->
-            val isSelected = selectedFiles.contains(trashItem.id)
-            
-            val animatedSurfaceColor by animateColorAsState(
-                targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                label = "trashListItemColor"
-            )
-            
-            Surface(
-                shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
-                color = animatedSurfaceColor,
-                modifier = Modifier
-                    .padding(horizontal = if (isSelected) 8.dp else 0.dp, vertical = if (isSelected) 4.dp else 0.dp)
-                    .combinedClickable(
-                        onClick = { onToggleSelection(trashItem.id) },
-                        onLongClick = { onToggleSelection(trashItem.id) }
-                    )
-            ) {
-                ListItem(
-                    headlineContent = { Text(trashItem.fileModel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    supportingContent = {
-                        Column {
-                            Text(
-                                text = "Deleted: ${formatter.format(Date(trashItem.deletionTime))}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            val sourceVolumeStr = when (trashItem.sourceStorageKind) {
-                                dev.qtremors.arcile.domain.StorageKind.INTERNAL -> "Internal Storage"
-                                dev.qtremors.arcile.domain.StorageKind.SD_CARD -> "SD Card"
-                                else -> "External Storage"
-                            }
-                            Text(
-                                text = "From $sourceVolumeStr: ${trashItem.originalPath.substringBeforeLast("/")}/",
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
-            }
-        }
-    }
-}

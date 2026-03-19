@@ -18,6 +18,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -46,24 +48,24 @@ fun ToolsScreen(
         topBar = {
             @OptIn(ExperimentalMaterial3Api::class)
             TopAppBar(
-                title = { Text("Tools & Utilities") },
+                title = { Text(stringResource(R.string.tools_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
         }
     ) { padding ->
         val tools = listOf(
-            ToolItem("FTP Server", Icons.Default.WifiTethering),
-            ToolItem("Analyze Storage", Icons.Default.PieChart),
-            ToolItem("Clean Junk", Icons.Default.CleaningServices),
-            ToolItem("Duplicates", Icons.Default.FilterNone),
-            ToolItem("Large Files", Icons.Default.ZoomIn),
-            ToolItem("App Manager", Icons.Default.Apps),
-            ToolItem("OnlyFiles", Icons.Default.Lock),
-            ToolItem("Network Share", Icons.Default.Dns)
+            ToolItem(stringResource(R.string.tool_ftp), Icons.Default.WifiTethering),
+            ToolItem(stringResource(R.string.tool_analyze), Icons.Default.PieChart),
+            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices),
+            ToolItem(stringResource(R.string.tool_duplicates), Icons.Default.FilterNone),
+            ToolItem(stringResource(R.string.tool_large), Icons.Default.ZoomIn),
+            ToolItem(stringResource(R.string.tool_manager), Icons.Default.Apps),
+            ToolItem(stringResource(R.string.tool_onlyfiles), Icons.Default.Lock),
+            ToolItem(stringResource(R.string.tool_share), Icons.Default.Dns)
         )
 
         LazyVerticalGrid(

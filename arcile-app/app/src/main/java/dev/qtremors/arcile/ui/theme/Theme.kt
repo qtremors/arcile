@@ -55,22 +55,8 @@ fun FileManagerTheme(
         
         // 2. Custom Seed Color chosen
         themeState.accentColor != AccentColor.DYNAMIC -> {
-            val isDark = effectivelyDark
-            val accent = themeState.accentColor
-            val scheme = when (accent) {
-                AccentColor.BLUE -> if (isDark) BlueDarkScheme else BlueLightScheme
-                AccentColor.CYAN -> if (isDark) CyanDarkScheme else CyanLightScheme
-                AccentColor.GREEN -> if (isDark) GreenDarkScheme else GreenLightScheme
-                AccentColor.RED -> if (isDark) RedDarkScheme else RedLightScheme
-                AccentColor.PURPLE -> if (isDark) PurpleDarkScheme else PurpleLightScheme
-                AccentColor.MONOCHROME -> if (isDark) MonochromeDarkScheme else MonochromeLightScheme
-                AccentColor.BLACK -> if (isDark) BlackDarkScheme else BlackLightScheme
-                else -> {
-                    // Optimized: Use buildScheme helper for all new/other colors
-                    val primaryColor = accent.color ?: AccentBlue
-                    buildScheme(primaryColor, isDark)
-                }
-            }
+            val primaryColor = themeState.accentColor.color ?: AccentBlue
+            val scheme = buildScheme(primaryColor, effectivelyDark)
 
              if (themeState.themeMode == ThemeMode.OLED) {
                   scheme.copy(

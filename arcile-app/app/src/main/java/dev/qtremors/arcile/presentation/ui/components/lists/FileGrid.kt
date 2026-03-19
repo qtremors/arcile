@@ -8,8 +8,11 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,10 +34,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -72,6 +77,7 @@ fun FileGrid(
         items(files.size, key = { index -> files[index].absolutePath }) { index ->
             val file = files[index]
             FileGridItem(
+                modifier = Modifier.animateItem(),
                 file = file,
                 formattedDate = formatter.format(Date(file.lastModified)),
                 isSelected = selectedFiles.contains(file.absolutePath),
@@ -105,6 +111,7 @@ fun FileGrid(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileGridItem(
+    modifier: Modifier = Modifier,
     file: FileModel,
     formattedDate: String,
     isSelected: Boolean,
@@ -126,13 +133,16 @@ fun FileGridItem(
     val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else formatFileSize(file.size)}, Modified $formattedDate"
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .semantics(mergeDescendants = true) { contentDescription = contentDesc }
+            .semantics(mergeDescendants = true) { 
+                contentDescription = contentDesc 
+                selected = isSelected
+            }
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
@@ -147,48 +157,65 @@ fun FileGridItem(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
-                .animateContentSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .animateContentSize()
         ) {
-            if (!file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                        FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                        FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                        FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
-            ) {
+            val isMedia = !file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                    FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                    FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                    FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
+
+            if (isMedia) {
                 AsyncImage(
                     model = File(file.absolutePath),
                     contentDescription = "Thumbnail",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(100.dp),
+                        .aspectRatio(1f),
                     contentScale = ContentScale.Crop
                 )
             } else {
-                Icon(
-                    imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                    contentDescription = if (file.isDirectory) "Folder" else "File",
-                    tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(36.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(1f)
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                        contentDescription = if (file.isDirectory) "Folder" else "File",
+                        tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+            
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = buildString {
+                        append(formattedDate)
+                        if (!file.isDirectory) {
+                            append(" | ")
+                            append(formatFileSize(file.size))
+                        }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.titleSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = buildString {
-                    append(formattedDate)
-                    if (!file.isDirectory) {
-                        append(" | ")
-                        append(formatFileSize(file.size))
-                    }
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

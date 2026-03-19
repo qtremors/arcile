@@ -31,6 +31,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.ArrayDeque
 import javax.inject.Inject
+import androidx.navigation.toRoute
+import dev.qtremors.arcile.navigation.AppRoutes
+
+enum class BrowserNativeAction { TRASH }
 
 data class BrowserState(
     val currentPath: String = "",
@@ -48,7 +52,7 @@ data class BrowserState(
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
     val isSearchFilterMenuVisible: Boolean = false,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val error: String? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),
@@ -56,7 +60,9 @@ data class BrowserState(
     val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
-    val showMixedDeleteExplanation: Boolean = false
+    val showMixedDeleteExplanation: Boolean = false,
+    val nativeRequest: android.content.IntentSender? = null,
+    val pendingNativeAction: BrowserNativeAction? = null
 )
 
 @HiltViewModel
@@ -112,15 +118,12 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     private fun initializeFromArgs() {
-        val argPath = savedStateHandle.get<String>("path")
-        val argCategory = savedStateHandle.get<String>("category")
-        val argVolumeId = savedStateHandle.get<String>("volumeId")
+        val explorer = savedStateHandle.toRoute<AppRoutes.Explorer>()
 
         when {
-            !argPath.isNullOrEmpty() -> navigateToSpecificFolder(argPath)
-            !argCategory.isNullOrEmpty() -> navigateToCategory(argCategory, argVolumeId)
+            !explorer.path.isNullOrEmpty() -> navigateToSpecificFolder(explorer.path)
+            !explorer.category.isNullOrEmpty() -> navigateToCategory(explorer.category, explorer.volumeId)
             else -> openFileBrowser()
         }
     }
@@ -140,10 +143,9 @@ class BrowserViewModel @Inject constructor(
 
         return when {
             isVolumeRootScreen == true -> StorageBrowserLocation.Roots
-            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() && !restoredVolumeId.isNullOrEmpty() ->
+            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() -> {
                 StorageBrowserLocation.Category(StorageScope.Category(restoredVolumeId, restoredCategoryName))
-            restoredIsCategory == true && !restoredCategoryName.isNullOrEmpty() ->
-                StorageBrowserLocation.Category(StorageScope.Category("", restoredCategoryName))
+            }
             !restoredPath.isNullOrEmpty() && !restoredVolumeId.isNullOrEmpty() ->
                 StorageBrowserLocation.Directory(StorageScope.Path(restoredVolumeId, restoredPath))
             else -> null
@@ -292,22 +294,21 @@ class BrowserViewModel @Inject constructor(
             pathHistory.clear()
         }
         saveNavState()
+        _state.update {
+            it.copy(
+                isLoading = true,
+                error = errorMessage,
+                currentPath = path,
+                currentVolumeId = resolvedVolumeId,
+                selectedFiles = emptySet(),
+                isCategoryScreen = false,
+                isVolumeRootScreen = false
+            )
+        }
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             val sortOptionForPath = prefs.getSortOptionForPath(path)
-
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    error = errorMessage,
-                    currentPath = path,
-                    currentVolumeId = resolvedVolumeId,
-                    selectedFiles = emptySet(),
-                    isCategoryScreen = false,
-                    isVolumeRootScreen = false,
-                    browserSortOption = sortOptionForPath
-                )
-            }
+            _state.update { it.copy(browserSortOption = sortOptionForPath) }
 
             repository.listFiles(path).onSuccess { files ->
                 _state.update {
@@ -332,20 +333,19 @@ class BrowserViewModel @Inject constructor(
 
     private fun loadCategory(categoryName: String, volumeId: String?) {
         saveNavState()
+        _state.update {
+            it.copy(
+                isLoading = true,
+                error = null,
+                isCategoryScreen = true,
+                isVolumeRootScreen = false,
+                activeCategoryName = categoryName,
+                currentVolumeId = volumeId,
+                selectedFiles = emptySet()
+            )
+        }
         viewModelScope.launch {
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    error = null,
-                    isCategoryScreen = true,
-                    isVolumeRootScreen = false,
-                    activeCategoryName = categoryName,
-                    currentVolumeId = volumeId,
-                    selectedFiles = emptySet()
-                )
-            }
-
-            val scope = volumeId?.let { StorageScope.Category(it, categoryName) } ?: StorageScope.AllStorage
+            val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
                 _state.update {
                     it.copy(
@@ -541,10 +541,17 @@ class BrowserViewModel @Inject constructor(
                 clearSelection()
                 refresh()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                refresh()
+                if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
+                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = BrowserNativeAction.TRASH) }
+                } else {
+                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
+                }
             }
         }
+    }
+
+    fun clearNativeRequest() {
+        _state.update { it.copy(nativeRequest = null) }
     }
 
     fun deleteSelectedPermanently() {
@@ -558,7 +565,6 @@ class BrowserViewModel @Inject constructor(
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files") }
-                refresh()
             }
         }
     }
@@ -672,38 +678,4 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun shareSelectedFiles(context: Context) {
-        val selected = _state.value.selectedFiles.toList()
-        if (selected.isEmpty()) return
-
-        try {
-            val uris = ArrayList<Uri>()
-            for (path in selected) {
-                val file = java.io.File(path)
-                if (file.exists() && file.isFile) {
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    uris.add(uri)
-                }
-            }
-            if (uris.isEmpty()) return
-
-            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "*/*"
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
-            }
-
-            val chooser = Intent.createChooser(intent, "Share files via")
-            chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            context.startActivity(chooser)
-
-            clearSelection()
-        } catch (e: Exception) {
-            _state.update { it.copy(error = "Failed to launch share intent: ${e.message}") }
-        }
-    }
 }

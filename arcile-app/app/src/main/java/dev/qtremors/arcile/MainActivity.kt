@@ -32,11 +32,15 @@ import kotlinx.coroutines.launch
 import java.io.File
 import dagger.hilt.android.AndroidEntryPoint
 
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     // reactive permission state — updated in onResume so Compose recomposes
     private val _hasPermission = mutableStateOf(false)
+    private lateinit var themePreferences: ThemePreferences
 
     private val storagePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -46,11 +50,20 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        
+        themePreferences = ThemePreferences(applicationContext)
 
         enableEdgeToEdge()
         _hasPermission.value = checkStoragePermission()
+
+        var keepSplashScreen = true
+        lifecycleScope.launch {
+            themePreferences.themeState.first()
+            keepSplashScreen = false
+        }
+        splashScreen.setKeepOnScreenCondition { keepSplashScreen }
         
         // Request peak refresh rate outside of Compose recomposition cycle
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -73,7 +86,6 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            val themePreferences = remember { ThemePreferences(applicationContext) }
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val coroutineScope = rememberCoroutineScope()
 

@@ -8,6 +8,7 @@ import android.os.Environment
 import android.os.StatFs
 import android.os.storage.StorageManager
 import android.provider.MediaStore
+import android.webkit.MimeTypeMap
 import androidx.core.content.ContextCompat
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ConflictResolution
@@ -64,7 +65,10 @@ internal fun scopedVolumes(scope: StorageScope, volumes: List<StorageVolume>): L
         StorageScope.AllStorage -> volumes
         is StorageScope.Volume -> volumes.filter { it.id == scope.volumeId }
         is StorageScope.Path -> volumes.filter { it.id == scope.volumeId }
-        is StorageScope.Category -> volumes.filter { it.id == scope.volumeId }
+        is StorageScope.Category -> {
+            if (scope.volumeId.isNullOrEmpty()) volumes
+            else volumes.filter { it.id == scope.volumeId }
+        }
     }
 
 internal fun indexedVolumesForScope(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
@@ -94,8 +98,13 @@ internal fun matchesScope(path: String, scope: StorageScope, volumes: List<Stora
                 (canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator))
         }
         is StorageScope.Category -> {
-            val volume = volumes.find { it.id == scope.volumeId } ?: return false
-            canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+            if (path.contains("${File.separator}.") || path.contains("/.")) return false
+            if (scope.volumeId.isNullOrEmpty()) {
+                resolveVolumeForPath(canonicalPath, volumes) != null
+            } else {
+                val volume = volumes.find { it.id == scope.volumeId } ?: return false
+                canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+            }
         }
     }
 }
@@ -243,60 +252,6 @@ class LocalFileRepository(
     private suspend fun currentVolumes(): List<StorageVolume> =
         getStorageVolumes().getOrNull().orEmpty()
 
-    private fun browsableVolumes(volumes: List<StorageVolume>): List<StorageVolume> = volumes
-
-    private fun indexedVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
-        volumes.filter { it.kind.isIndexed }
-
-    private fun indexedVolumesForScope(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
-        scopedVolumes(scope, indexedVolumes(volumes))
-
-    private fun trashEnabledVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
-        volumes.filter { it.kind.supportsTrash }
-
-    private fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVolume? {
-        val canonicalPath = runCatching { File(path).canonicalPath }.getOrElse { return null }
-        return volumes
-            .sortedByDescending { it.path.length }
-            .firstOrNull { canonicalPath == it.path || canonicalPath.startsWith(it.path + File.separator) }
-    }
-
-    private fun scopedVolumes(scope: StorageScope, volumes: List<StorageVolume>): List<StorageVolume> =
-        when (scope) {
-            StorageScope.AllStorage -> volumes
-            is StorageScope.Volume -> volumes.filter { it.id == scope.volumeId }
-            is StorageScope.Path -> volumes.filter { it.id == scope.volumeId }
-            is StorageScope.Category -> volumes.filter { it.id == scope.volumeId }
-        }
-
-    private fun scopeRoot(scope: StorageScope, volumes: List<StorageVolume>): String? =
-        when (scope) {
-            StorageScope.AllStorage -> null
-            is StorageScope.Volume -> volumes.find { it.id == scope.volumeId }?.path
-            is StorageScope.Path -> scope.absolutePath
-            is StorageScope.Category -> volumes.find { it.id == scope.volumeId }?.path
-        }
-
-    private fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
-        val canonicalPath = runCatching { File(path).canonicalPath }.getOrNull() ?: return false
-        return when (scope) {
-            StorageScope.AllStorage -> resolveVolumeForPath(canonicalPath, volumes) != null
-            is StorageScope.Volume -> {
-                val volume = volumes.find { it.id == scope.volumeId } ?: return false
-                canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
-            }
-            is StorageScope.Path -> {
-                val volume = volumes.find { it.id == scope.volumeId } ?: return false
-                (canonicalPath == scope.absolutePath || canonicalPath.startsWith(scope.absolutePath + File.separator)) &&
-                    (canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator))
-            }
-            is StorageScope.Category -> {
-                val volume = volumes.find { it.id == scope.volumeId } ?: return false
-                canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
-            }
-        }
-    }
-
     // path traversal guard — rejects paths that escape all known storage boundaries
     private fun validatePath(file: File): Result<Unit> {
         val canonical = file.canonicalPath
@@ -318,14 +273,20 @@ class LocalFileRepository(
     }
 
     private fun File.toFileModel(): FileModel {
+        val ext = extension
+        val mime = if (ext.isNotEmpty()) {
+            android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase())
+        } else null
+
         return FileModel(
             name = name,
             absolutePath = absolutePath,
             size = if (isFile) length() else 0L,
             lastModified = lastModified(),
             isDirectory = isDirectory,
-            extension = extension,
-            isHidden = isHidden
+            extension = ext,
+            isHidden = isHidden,
+            mimeType = mime
         )
     }
 
@@ -361,6 +322,19 @@ class LocalFileRepository(
         }
     }
 
+    override fun getStandardFolders(): Map<String, String?> {
+        val root = Environment.getExternalStorageDirectory()
+        return mapOf(
+            "DCIM" to File(root, Environment.DIRECTORY_DCIM).absolutePath,
+            "Downloads" to File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath,
+            "Pictures" to File(root, Environment.DIRECTORY_PICTURES).absolutePath,
+            "Documents" to File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath,
+            "Music" to File(root, Environment.DIRECTORY_MUSIC).absolutePath,
+            "Movies" to File(root, Environment.DIRECTORY_MOVIES).absolutePath,
+            "All Files" to null
+        )
+    }
+
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
             val directory = File(path)
@@ -392,7 +366,7 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
             }
             if (newDir.mkdirs()) {
-                scanMediaFiles(newDir.absolutePath)
+                invalidateCache(newDir.absolutePath)
                 Result.success(newDir.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create directory"))
@@ -412,6 +386,7 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
             }
             if (newFile.createNewFile()) {
+                invalidateCache(newFile.absolutePath)
                 scanMediaFiles(newFile.absolutePath)
                 Result.success(newFile.toFileModel())
             } else {
@@ -442,10 +417,15 @@ class LocalFileRepository(
 
                 val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
                 if (!success) {
+                    if (scannedPaths.isNotEmpty()) {
+                        invalidateCache(*scannedPaths.toTypedArray())
+                        scanMediaFiles(*scannedPaths.toTypedArray())
+                    }
                     return@withContext Result.failure(Exception("Failed to permanently delete file: ${file.name}"))
                 }
                 scannedPaths.add(path)
             }
+            invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
@@ -472,6 +452,7 @@ class LocalFileRepository(
              }
              
              if (file.renameTo(newFile)) {
+                 invalidateCache(file.absolutePath, newFile.absolutePath)
                  scanMediaFiles(file.absolutePath, newFile.absolutePath)
                  Result.success(newFile.toFileModel())
              } else {
@@ -516,15 +497,17 @@ class LocalFileRepository(
                 val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
                 val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                val mimeTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
 
                 while (cursor.moveToNext() && filesList.size < queryLimit) {
                     val path = cursor.getString(dataCol)
                     val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
 
-                    if (path != null && !name.startsWith(".") && matchesScope(path, scope, volumes)) {
+                    if (path != null && !name.startsWith(".") && !path.contains("/.") && matchesScope(path, scope, volumes)) {
                         var size = cursor.getLong(sizeCol)
                         val dateAdded = cursor.getLong(dateAddedCol) * 1000L
                         val dateModified = cursor.getLong(dateModifiedCol) * 1000L
+                        val mimeType = cursor.getString(mimeTypeCol)
 
                         val actualFile = File(path)
                         if (!actualFile.exists()) continue
@@ -541,7 +524,8 @@ class LocalFileRepository(
                             lastModified = maxOf(dateAdded, dateModified), // Prioritize whichever is newer
                             isDirectory = false,
                             extension = extension,
-                            isHidden = false
+                            isHidden = false,
+                            mimeType = mimeType
                         ))
                     }
                 }
@@ -566,7 +550,114 @@ class LocalFileRepository(
         }
     }
 
+    private fun getMimeType(path: String): String? {
+        val extension = path.substringAfterLast('.', "")
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase(Locale.US))
+    }
+
+    private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
+    private val cacheDir = File(appContext.cacheDir, "analytics")
+
+    private fun saveCategorySizesToCache(scope: StorageScope, data: List<CategoryStorage>) {
+        try {
+            if (!cacheDir.exists()) cacheDir.mkdirs()
+            val cacheKey = when (scope) {
+                StorageScope.AllStorage -> "global"
+                is StorageScope.Volume -> "volume_${scope.volumeId}"
+                else -> return // Only cache global and volume-wide stats
+            }
+            val file = File(cacheDir, "$cacheKey.json")
+            val itemsJson = org.json.JSONArray()
+            data.forEach { item ->
+                val obj = JSONObject().apply {
+                    put("name", item.name)
+                    put("size", item.sizeBytes)
+                    val extArray = org.json.JSONArray()
+                    item.extensions.forEach { extArray.put(it) }
+                    put("extensions", extArray)
+                }
+                itemsJson.put(obj)
+            }
+            
+            val root = JSONObject().apply {
+                put("cachedAt", System.currentTimeMillis())
+                put("data", itemsJson)
+            }
+            
+            file.writeText(root.toString())
+        } catch (e: Exception) {
+            android.util.Log.e("LocalFileRepository", "Failed to save cache for $scope: ${e.message}")
+        }
+    }
+
+    private fun getCategorySizesFromCache(scope: StorageScope): List<CategoryStorage>? {
+        try {
+            val cacheKey = when (scope) {
+                StorageScope.AllStorage -> "global"
+                is StorageScope.Volume -> "volume_${scope.volumeId}"
+                else -> return null
+            }
+            val file = File(cacheDir, "$cacheKey.json")
+            if (!file.exists()) return null
+            
+            val root = JSONObject(file.readText())
+            val cachedAt = root.optLong("cachedAt", 0L)
+            if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) {
+                return null // Stale cache
+            }
+            
+            val json = root.getJSONArray("data")
+            val list = mutableListOf<CategoryStorage>()
+            for (i in 0 until json.length()) {
+                val obj = json.getJSONObject(i)
+                val exts = mutableSetOf<String>()
+                val extArray = obj.getJSONArray("extensions")
+                for (j in 0 until extArray.length()) {
+                    exts.add(extArray.getString(j))
+                }
+                list.add(CategoryStorage(obj.getString("name"), obj.getLong("size"), exts))
+            }
+            return list
+        } catch (e: Exception) {
+            android.util.Log.e("LocalFileRepository", "Cache read failed: ${e.message}")
+            return null
+        }
+    }
+
+    private suspend fun invalidateCache(vararg paths: String) {
+        try {
+            if (paths.isEmpty()) {
+                cacheDir.listFiles()?.forEach { if (it.name.endsWith(".json")) it.delete() }
+                return
+            }
+            
+            val volumes = currentVolumes()
+            val affectedVolumeIds = paths.mapNotNull { resolveVolumeForPath(it, volumes)?.id }.toSet()
+            
+            val globalFile = File(cacheDir, "global.json")
+            if (globalFile.exists() && !globalFile.delete()) {
+                 android.util.Log.w("LocalFileRepository", "Failed to delete global cache")
+            }
+            
+            affectedVolumeIds.forEach { volId ->
+                val volFile = File(cacheDir, "volume_$volId.json")
+                if (volFile.exists() && !volFile.delete()) {
+                    android.util.Log.w("LocalFileRepository", "Failed to delete cache for volume: $volId")
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("LocalFileRepository", "Cache invalidation error: ${e.message}")
+            throw e // Rethrowing as requested for robust error handling
+        }
+    }
+
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
+        // Optimistic cache hit
+        val cached = getCategorySizesFromCache(scope)
+        if (cached != null) {
+            return@withContext Result.success(cached)
+        }
+
         try {
             val allVolumes = currentVolumes()
             val volumes = indexedVolumesForScope(scope, allVolumes)
@@ -575,30 +666,106 @@ class LocalFileRepository(
                     FileCategories.all.map { CategoryStorage(it.name, 0L, it.extensions) }
                 )
             }
-            val extToCategoryIndex = mutableMapOf<String, Int>()
-            FileCategories.all.forEachIndexed { index, cat ->
-                cat.extensions.forEach { ext ->
-                    extToCategoryIndex[ext] = index
+
+            val sizes = LongArray(FileCategories.all.size)
+            val needsCalculation = BooleanArray(FileCategories.all.size) { true }
+
+            // 1. Attempt StorageStatsManager (API 26+) for big categories (Images, Video, Audio)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && scope is StorageScope.Volume) {
+                val statsManager = appContext.getSystemService(Context.STORAGE_STATS_SERVICE) as? android.app.usage.StorageStatsManager
+                val volume = volumes.find { it.id == scope.volumeId }
+                
+                if (statsManager != null && volume != null) {
+                    try {
+                        val uuid = if (volume.isPrimary) {
+                            StorageManager.UUID_DEFAULT
+                        } else {
+                            val sm = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
+                            sm.storageVolumes.find { 
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) it.directory?.absolutePath == volume.path else false 
+                            }?.uuid?.let { java.util.UUID.fromString(it) }
+                        }
+
+                        if (uuid != null) {
+                            val stats = statsManager.queryExternalStatsForUser(uuid, android.os.Process.myUserHandle())
+                            FileCategories.all.forEachIndexed { index, cat ->
+                                when (cat.name) {
+                                    "Images" -> { sizes[index] = stats.imageBytes; needsCalculation[index] = false }
+                                    "Videos" -> { sizes[index] = stats.videoBytes; needsCalculation[index] = false }
+                                    "Audio" -> { sizes[index] = stats.audioBytes; needsCalculation[index] = false }
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("LocalFileRepository", "StorageStatsManager query failed for ${volume.name}", e)
+                    }
                 }
             }
 
-            val sizes = LongArray(FileCategories.all.size)
-
+            // 2. Optimized MediaStore scan for missing categories (Docs, APKs, Archives) or when StatsManager fails
             val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(MediaStore.Files.FileColumns.DATA, MediaStore.Files.FileColumns.SIZE)
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.MIME_TYPE
+            )
             
-            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                
-                while (cursor.moveToNext()) {
-                    val path = cursor.getString(dataCol)
-                    val size = cursor.getLong(sizeCol)
-                    if (path != null && matchesScope(path, scope, volumes)) {
-                        val ext = File(path).extension.lowercase()
-                        val catIndex = extToCategoryIndex[ext]
-                        if (catIndex != null) {
-                            sizes[catIndex] += size
+            // Build selection to only fetch items we actually need to categorize
+            val selectionBuilder = StringBuilder()
+            val selectionArgs = mutableListOf<String>()
+            var requiresFullScan = false
+            
+            val clauses = mutableListOf<String>()
+
+            // Only query MIME types for categories that need calculation
+            FileCategories.all.forEachIndexed { index, cat ->
+                if (needsCalculation[index]) {
+                    if (cat.mimePrefix != null) {
+                        val prefix = cat.mimePrefix
+                        if (prefix.endsWith("/")) {
+                            clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?")
+                            selectionArgs.add("$prefix%")
+                        } else {
+                            clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
+                            selectionArgs.add(prefix)
+                        }
+                    } else {
+                        requiresFullScan = true
+                    }
+                    
+                    cat.extensions.forEach { ext ->
+                        clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
+                        selectionArgs.add("%.${ext}")
+                    }
+                }
+            }
+            
+            if (clauses.isNotEmpty()) {
+                selectionBuilder.append(clauses.joinToString(" OR "))
+            }
+            
+            val selection = if (requiresFullScan) null else selectionBuilder.toString().takeIf { it.isNotEmpty() }
+            val args = if (requiresFullScan) null else selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
+            
+            if (requiresFullScan || selection != null) {
+                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
+                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                    val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
+                    
+                    while (cursor.moveToNext()) {
+                        val path = cursor.getString(dataCol)
+                        val size = cursor.getLong(sizeCol)
+                        val mime = cursor.getString(mimeCol)
+                        
+                        if (path != null && matchesScope(path, scope, volumes)) {
+                            val file = File(path)
+                            val cat = FileCategories.getCategoryForFile(file.extension, mime)
+                            val catIndex = FileCategories.all.indexOf(cat)
+                            
+                            if (catIndex != -1 && needsCalculation[catIndex]) {
+                                sizes[catIndex] += size
+                            }
                         }
                     }
                 }
@@ -612,6 +779,7 @@ class LocalFileRepository(
                 )
             }
 
+            saveCategorySizesToCache(scope, result)
             Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
@@ -628,27 +796,77 @@ class LocalFileRepository(
             val category = FileCategories.all.find { it.name == categoryName }
                 ?: return@withContext Result.failure(IllegalArgumentException("Unknown category: $categoryName"))
             
-            val extensions = category.extensions.map { it.lowercase() }.toSet()
             val filesList = mutableListOf<FileModel>()
 
             val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_MODIFIED
+            )
             
-            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+            // Build optimized selection based on MIME type and extensions
+            val selectionBuilder = StringBuilder()
+            val selectionArgs = mutableListOf<String>()
+
+            val clauses = mutableListOf<String>()
+
+            category.mimePrefix?.let { prefix ->
+                if (prefix.endsWith("/")) {
+                    clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?")
+                    selectionArgs.add("$prefix%")
+                } else {
+                    clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
+                    selectionArgs.add(prefix)
+                }
+            }
+
+            category.extensions.forEach { ext ->
+                clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
+                selectionArgs.add("%.${ext}")
+            }
+
+            if (clauses.isNotEmpty()) {
+                selectionBuilder.append(clauses.joinToString(" OR "))
+            }
+
+            val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }
+            val args = selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
+            context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
                 
                 while (cursor.moveToNext()) {
                     val path = cursor.getString(dataCol)
+                    val mime = cursor.getString(mimeCol)
+                    
                     if (path != null && matchesScope(path, scope, volumes)) {
-                        val file = File(path)
-                        if (file.exists() && extensions.contains(file.extension.lowercase())) {
-                            filesList.add(file.toFileModel())
+                        val extension = path.substringAfterLast('.', "")
+                        val cat = FileCategories.getCategoryForFile(extension, mime)
+                        
+                        if (cat == category) {
+                            val name = cursor.getString(nameCol) ?: path.substringAfterLast('/', "")
+                            filesList.add(FileModel(
+                                name = name,
+                                absolutePath = path,
+                                size = cursor.getLong(sizeCol),
+                                lastModified = cursor.getLong(dateCol) * 1000L,
+                                isDirectory = false,
+                                extension = extension,
+                                isHidden = name.startsWith("."),
+                                mimeType = mime
+                            ))
                         }
                     }
                 }
             }
             
-            val sortedFiles = filesList.sortedBy { it.name.lowercase() }
+            val sortedFiles = filesList.sortedByDescending { it.lastModified }
             Result.success(sortedFiles)
         } catch (e: Exception) {
             Result.failure(e)
@@ -681,8 +899,7 @@ class LocalFileRepository(
                 if (rootDir.exists() && rootDir.isDirectory) {
                     rootDir.walkTopDown()
                         .onEnter { dir ->
-                            val dirCanonical = dir.canonicalPath
-                            matchesScope(dirCanonical, scope, volumes)
+                            !dir.name.startsWith(".") && matchesScope(dir.canonicalPath, scope, volumes)
                         }
                         .forEach { file ->
                             if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
@@ -701,7 +918,7 @@ class LocalFileRepository(
                     val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     while (cursor.moveToNext()) {
                         val path = cursor.getString(dataCol)
-                        if (path != null && matchesScope(path, scope, volumes)) {
+                        if (path != null && !path.contains("/.") && matchesScope(path, scope, volumes)) {
                             val f = File(path)
                             if (f.exists() && !f.name.startsWith(".")) {
                                 filesList.add(f.toFileModel())
@@ -772,13 +989,6 @@ class LocalFileRepository(
                 if (!sourceFile.exists()) continue
 
                 val targetFile = File(destDir, sourceFile.name)
-
-                // Treat same-folder paste as a conflict, so the user sees the dialog
-                val conflictTarget = if (sourceFile.absolutePath == targetFile.absolutePath) {
-                    targetFile
-                } else {
-                    targetFile
-                }
 
                 if (targetFile.exists()) {
                     conflicts.add(
@@ -874,9 +1084,9 @@ class LocalFileRepository(
 
                 // Reject copies where the destination is inside the source tree
                 if (sourceFile.isDirectory) {
-                    val sourcePath = sourceFile.canonicalFile.toPath()
-                    val destPath = destDir.canonicalFile.toPath()
-                    if (destPath.startsWith(sourcePath)) {
+                    val sourcePathStr = sourceFile.canonicalPath
+                    val destPathStr = destDir.canonicalPath
+                    if (destPathStr == sourcePathStr || destPathStr.startsWith("$sourcePathStr${File.separator}")) {
                         return@withContext Result.failure(
                             IllegalArgumentException("Cannot copy a directory into itself or one of its subdirectories")
                         )
@@ -917,6 +1127,7 @@ class LocalFileRepository(
                 }
                 scannedPaths.add(targetFile.absolutePath)
             }
+            invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
@@ -946,9 +1157,9 @@ class LocalFileRepository(
 
                 // Reject moves where the destination is inside the source tree
                 if (sourceFile.isDirectory) {
-                    val sourcePath = sourceFile.canonicalFile.toPath()
-                    val destPath = destDir.canonicalFile.toPath()
-                    if (destPath.startsWith(sourcePath)) {
+                    val sourcePathStr = sourceFile.canonicalPath
+                    val destPathStr = destDir.canonicalPath
+                    if (destPathStr == sourcePathStr || destPathStr.startsWith("$sourcePathStr${File.separator}")) {
                         return@withContext Result.failure(
                             IllegalArgumentException("Cannot move a directory into itself or one of its subdirectories")
                         )
@@ -997,12 +1208,17 @@ class LocalFileRepository(
                         }
                     } catch (e: Exception) {
                         if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
+                        if (scannedPaths.isNotEmpty()) {
+                            invalidateCache(*scannedPaths.toTypedArray())
+                            scanMediaFiles(*scannedPaths.toTypedArray())
+                        }
                         return@withContext Result.failure(e)
                     }
                 }
                 scannedPaths.add(sourceFile.absolutePath)
                 scannedPaths.add(targetFile.absolutePath)
             }
+            invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1020,7 +1236,9 @@ class LocalFileRepository(
             trashDir.mkdirs()
             try {
                 File(trashDir, ".nomedia").createNewFile() // Hide from gallery
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                android.util.Log.e("LocalFileRepository", "Failed to create .nomedia in trash", e)
+            }
         }
         return trashDir
     }
@@ -1033,6 +1251,20 @@ class LocalFileRepository(
             metadataDir.mkdirs()
         }
         return metadataDir
+    }
+
+    private fun getMediaStoreUriForPath(path: String): android.net.Uri? {
+        val uri = MediaStore.Files.getContentUri("external")
+        val projection = arrayOf(MediaStore.Files.FileColumns._ID)
+        val selection = "${MediaStore.Files.FileColumns.DATA} = ?"
+        val selectionArgs = arrayOf(path)
+        
+        return context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID))
+                android.content.ContentUris.withAppendedId(uri, id)
+            } else null
+        }
     }
 
     /**
@@ -1078,20 +1310,44 @@ class LocalFileRepository(
 
                 // Move abstracting name
                 val success = file.renameTo(targetTrashFile)
+                var fallbackSuccess = false
                 if (!success) {
-                    // Revert metadata
-                    File(trashMetadataDir, "$trashId.json").delete()
                     // Fallback
-                    if (file.isDirectory) {
-                        file.copyRecursively(targetTrashFile, overwrite = true)
-                        file.deleteRecursively()
-                    } else {
-                        file.copyTo(targetTrashFile, overwrite = true)
-                        file.delete()
+                    try {
+                        if (file.isDirectory) {
+                            file.copyRecursively(targetTrashFile, overwrite = true)
+                            if (!file.deleteRecursively()) throw IOException("Failed to delete source directory after copy")
+                        } else {
+                            file.copyTo(targetTrashFile, overwrite = true)
+                            if (!file.delete()) throw IOException("Failed to delete source file after copy")
+                        }
+                        fallbackSuccess = true
+                    } catch (e: Exception) {
+                        // Revert metadata and partial copy on failure
+                        File(trashMetadataDir, "$trashId.json").delete()
+                        if (targetTrashFile.exists()) {
+                            if (targetTrashFile.isDirectory) targetTrashFile.deleteRecursively() else targetTrashFile.delete()
+                        }
+                        if (scannedPaths.isNotEmpty()) {
+                            invalidateCache(*scannedPaths.toTypedArray())
+                            scanMediaFiles(*scannedPaths.toTypedArray())
+                        }
+                        return@withContext Result.failure(Exception("Failed to move ${file.name} to trash: ${e.message}", e))
                     }
                 }
-                scannedPaths.add(file.absolutePath)
+                
+                if (success || fallbackSuccess) {
+                    scannedPaths.add(file.absolutePath)
+                    // Explicitly delete from MediaStore so it doesn't linger via auto-updates
+                    try {
+                        val uri = MediaStore.Files.getContentUri("external")
+                        context.contentResolver.delete(uri, "${MediaStore.Files.FileColumns.DATA} = ?", arrayOf(file.absolutePath))
+                    } catch (e: Exception) {
+                        android.util.Log.e("LocalFileRepository", "Failed to explicitly delete from MediaStore", e)
+                    }
+                }
             }
+            invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1102,9 +1358,13 @@ class LocalFileRepository(
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val volumes = currentVolumes()
-            val scannedPaths = mutableListOf<String>()
             
-            for (id in trashIds) {
+            // Legacy Custom Trash Fallback
+            val legacyIds = trashIds.filter { it.startsWith("legacy:") || !it.contains(":") }.map { it.removePrefix("legacy:") }
+            val scannedPaths = mutableListOf<String>()
+            val idsRequiringDestination = mutableListOf<String>()
+            
+            for (id in legacyIds) {
                 // Find which volume holds this trashId
                 var metadataFile: File? = null
                 var trashedFile: File? = null
@@ -1138,7 +1398,8 @@ class LocalFileRepository(
                 if (destinationPath == null) {
                     val validationResult = validatePath(targetFile)
                     if (validationResult.isFailure) {
-                        return@withContext Result.failure(Exception("DESTINATION_REQUIRED:$id"))
+                        idsRequiringDestination.add("legacy:$id")
+                        continue
                     }
                 } else {
                     validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
@@ -1173,6 +1434,12 @@ class LocalFileRepository(
                     scannedPaths.add(targetFile.absolutePath)
                 }
             }
+
+            if (idsRequiringDestination.isNotEmpty()) {
+                return@withContext Result.failure(dev.qtremors.arcile.domain.DestinationRequiredException(idsRequiringDestination))
+            }
+
+            invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
@@ -1183,6 +1450,8 @@ class LocalFileRepository(
     override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val volumes = currentVolumes()
+
+            // Legacy Custom Trash Fallback
             for (volume in trashEnabledVolumes(volumes)) {
                 val trashDir = getTrashDirForVolume(volume)
                 val metadataDir = getTrashMetadataDirForVolume(volume)
@@ -1198,6 +1467,7 @@ class LocalFileRepository(
                     metadataDir.listFiles()?.forEach { it.delete() }
                 }
             }
+            invalidateCache()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -1209,8 +1479,8 @@ class LocalFileRepository(
             val list = mutableListOf<TrashMetadata>()
             val volumes = currentVolumes()
             
+            // Legacy Custom Trash
             for (volume in trashEnabledVolumes(volumes)) {
-                
                 val trashDir = getTrashDirForVolume(volume)
                 val trashMetadataDir = getTrashMetadataDirForVolume(volume)
                 
@@ -1239,15 +1509,14 @@ class LocalFileRepository(
                                        isHidden = false
                                     )
                                     
-                                    list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
+                                    list.add(TrashMetadata("legacy:$id", originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
                                 } else {
-                                    // Orphaned metadata
                                     android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for id: $id")
                                     metadataFile.delete() 
-
                                 }
                             } catch (e: Exception) {
-                                // Skip corrupted metadata
+                                android.util.Log.e("LocalFileRepository", "Deleting corrupted trash metadata: ${metadataFile.name}", e)
+                                metadataFile.delete()
                             }
                         }
                     }

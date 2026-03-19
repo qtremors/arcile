@@ -22,5 +22,6 @@ data class FileModel(
     val lastModified: Long = 0L,
     val isDirectory: Boolean = false,
     val extension: String = "",
-    val isHidden: Boolean = false
+    val isHidden: Boolean = false,
+    val mimeType: String? = null
 )

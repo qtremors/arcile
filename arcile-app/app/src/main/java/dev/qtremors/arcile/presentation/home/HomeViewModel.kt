@@ -30,6 +30,7 @@ import dev.qtremors.arcile.data.StorageClassificationStore
 
 data class HomeState(
     val allStorageVolumes: List<StorageVolume> = emptyList(),
+    val standardFolders: Map<String, String?> = emptyMap(),
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
@@ -40,7 +41,7 @@ data class HomeState(
     val activeSearchFilters: SearchFilters = SearchFilters(),
     val isSearching: Boolean = false,
     val isSearchFilterMenuVisible: Boolean = false,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
     val error: String? = null,
@@ -74,24 +75,24 @@ class HomeViewModel @Inject constructor(
                 loadHomeData(HomeRefreshMode.SILENT)
             }
         }
-        loadHomeData(HomeRefreshMode.INITIAL)
     }
+
 
     fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL) {
         refreshJob?.cancel()
-        refreshJob = viewModelScope.launch {
-            val hasVisibleContent = _state.value.storageInfo != null ||
-                _state.value.categoryStorages.isNotEmpty() ||
-                _state.value.recentFiles.isNotEmpty()
+        val hasVisibleContent = _state.value.storageInfo != null ||
+            _state.value.categoryStorages.isNotEmpty() ||
+            _state.value.recentFiles.isNotEmpty()
 
-            _state.update {
-                it.copy(
-                    isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
-                    isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
-                    isCalculatingStorage = true,
-                    error = null
-                )
-            }
+        _state.update {
+            it.copy(
+                isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
+                isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
+                isCalculatingStorage = true,
+                error = null
+            )
+        }
+        refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
 
             val recentResult = repository.getRecentFiles(
@@ -102,6 +103,7 @@ class HomeViewModel @Inject constructor(
             val allVolumesResult = repository.getStorageVolumes()
             val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
             val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
+            val standardFolders = repository.getStandardFolders()
             val errorMsg = storageResult.exceptionOrNull()?.message 
                 ?: allVolumesResult.exceptionOrNull()?.message 
                 ?: recentResult.exceptionOrNull()?.message 
@@ -133,6 +135,7 @@ class HomeViewModel @Inject constructor(
                     isCalculatingStorage = false,
                     error = errorMsg,
                     allStorageVolumes = allStorageVolumes,
+                    standardFolders = standardFolders,
                     recentFiles = recentResult.getOrNull() ?: emptyList(),
                     storageInfo = storageInfo,
                     categoryStorages = categoryResult.getOrNull() ?: emptyList(),
@@ -155,14 +158,30 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
-            classificationRepo.setClassification(
-                storageKey = storageKey,
-                kind = kind,
-                lastSeenName = volume?.name,
-                lastSeenPath = volume?.path
-            )
-            suppressedVolumeKeys.remove(storageKey)
+            try {
+                val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
+                classificationRepo.setClassification(
+                    storageKey = storageKey,
+                    kind = kind,
+                    lastSeenName = volume?.name,
+                    lastSeenPath = volume?.path
+                )
+                suppressedVolumeKeys.remove(storageKey)
+            } catch (e: Exception) {
+                // Revert optimistic update on failure
+                _state.update { currentState ->
+                    val volume = currentState.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
+                    val restoredVolumes = if (volume != null && !currentState.unclassifiedVolumes.any { it.storageKey == storageKey }) {
+                        currentState.unclassifiedVolumes + volume
+                    } else currentState.unclassifiedVolumes
+                    
+                    currentState.copy(
+                        unclassifiedVolumes = restoredVolumes,
+                        showClassificationPrompt = restoredVolumes.isNotEmpty(),
+                        error = "Failed to save classification: ${e.message}"
+                    )
+                }
+            }
             // No need to manually reload; observeStorageVolumes will trigger it
         }
     }

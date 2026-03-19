@@ -1,6 +1,20 @@
 package dev.qtremors.arcile.domain
 
+import android.content.IntentSender
 import kotlinx.coroutines.flow.Flow
+
+/**
+ * Thrown when a file operation (like trash or restore) requires native OS confirmation.
+ * The caller should launch [intentSender] to proceed.
+ */
+class NativeConfirmationRequiredException(val intentSender: android.content.IntentSender) : Exception("Native confirmation required")
+
+/**
+ * Thrown when restoring files from trash requires a destination directory to be selected
+ * (e.g., if the original parent directory was deleted).
+ */
+class DestinationRequiredException(val trashIds: List<String>) : Exception("Destination directory required for restoration")
+
 
 
 /**
@@ -94,6 +108,11 @@ interface FileRepository {
      * Resolves the storage volume that contains the given path.
      */
     suspend fun getVolumeForPath(path: String): Result<StorageVolume>
+
+    /**
+     * Returns a map of standard folders (e.g., DCIM, Downloads, Pictures).
+     */
+    fun getStandardFolders(): Map<String, String?>
 
     // ─── Queries ─────────────────────────────────────────────────────────────
 
@@ -195,7 +214,7 @@ interface FileRepository {
     // ─── Trash subsystem ─────────────────────────────────────────────────────
 
     /**
-     * Moves files at [paths] to the app trash (`.arcile_trash/` on external storage).
+     * Moves files at [paths] to the app trash (`.arcile/.trash` on external storage).
      *
      * Each moved file is paired with a JSON metadata sidecar so it can be restored or
      * identified later. The trash directory contains a `.nomedia` file to hide blobs from
