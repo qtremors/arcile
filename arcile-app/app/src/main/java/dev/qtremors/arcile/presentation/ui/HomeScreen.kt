@@ -64,8 +64,11 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -124,6 +127,8 @@ import dev.qtremors.arcile.utils.getCategoryColor
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import kotlinx.coroutines.delay
+import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.domain.showTemporaryStorageBadge
@@ -268,6 +273,16 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading) {
+        if (state.isLoading) {
+            delay(5)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
+
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         val cal = java.util.Calendar.getInstance()
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -309,7 +324,7 @@ fun HomeScreen(
         }
     ) { padding ->
         
-        if (state.isLoading) {
+        if (showLoading && state.recentFiles.isEmpty() && state.allStorageVolumes.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -474,7 +489,7 @@ fun HomeScreen(
                     }
                 }
 
-                if (displayedRecentFiles.isEmpty()) {
+                if (displayedRecentFiles.isEmpty() && !state.isLoading) {
                     item {
                         EmptyState(
                             icon = Icons.Default.History,

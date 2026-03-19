@@ -29,10 +29,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -91,10 +93,7 @@ fun RecentFilesScreen(
         onClearSelection()
     }
 
-    LifecycleResumeEffect(Unit) {
-        onRefresh()
-        onPauseOrDispose { }
-    }
+
 
     Scaffold(
         topBar = {
@@ -134,19 +133,28 @@ fun RecentFilesScreen(
             }
         }
     ) { padding ->
+        var showLoading by remember { mutableStateOf(false) }
+        LaunchedEffect(state.isLoading) {
+            if (state.isLoading) {
+                delay(5)
+                showLoading = true
+            } else {
+                showLoading = false
+            }
+        }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (state.isLoading && !state.isPullToRefreshing) {
+            if (showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     LoadingIndicator()
                 }
-            } else if (state.recentFiles.isEmpty()) {
+            } else if (state.recentFiles.isEmpty() && !state.isLoading) {
                 EmptyState(
                     icon = Icons.Default.History,
                     title = stringResource(R.string.no_recent_files),

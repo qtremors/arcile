@@ -24,7 +24,7 @@ data class RecentFilesState(
     val currentVolumeId: String? = null,
     val recentFiles: List<FileModel> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val error: String? = null,
     val showTrashConfirmation: Boolean = false,
@@ -57,12 +57,12 @@ class RecentFilesViewModel @Inject constructor(
                 loadRecentFiles(false)
             }
         }
-        loadRecentFiles(false)
     }
 
+
     fun loadRecentFiles(pullToRefresh: Boolean = false) {
+        _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
             val scope = _state.value.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
             val result = repository.getRecentFiles(scope = scope, limit = 500)
             result.onSuccess { files ->

@@ -118,6 +118,7 @@ import dev.qtremors.arcile.presentation.ui.components.lists.FileList
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 import dev.qtremors.arcile.domain.FileCategories
@@ -167,6 +168,13 @@ import androidx.compose.ui.semantics.semantics
  * @param onSearchFiltersChange Updates the active search filters.
  * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
+private data class FileManagerContentKey(
+    val isSearch: Boolean,
+    val path: String,
+    val category: String?,
+    val isRoot: Boolean
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun FileManagerScreen(
@@ -237,6 +245,16 @@ fun FileManagerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    var showLoading by remember(state.isLoading) { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading) {
+        if (state.isLoading) {
+            delay(5)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
 
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
@@ -370,7 +388,12 @@ fun FileManagerScreen(
 
             Column(modifier = Modifier.fillMaxSize()) {
                 AnimatedContent(
-                    targetState = if (searchHasCompleted) "search" else state.currentPath + state.activeCategoryName + state.isVolumeRootScreen,
+                    targetState = FileManagerContentKey(
+                        isSearch = searchHasCompleted,
+                        path = state.currentPath,
+                        category = state.activeCategoryName,
+                        isRoot = state.isVolumeRootScreen
+                    ),
                     transitionSpec = {
                         fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) togetherWith
                                 fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow))
@@ -379,7 +402,7 @@ fun FileManagerScreen(
                     modifier = Modifier.weight(1f)
                 ) { targetKey ->
                     Column(modifier = Modifier.fillMaxSize()) {
-                        if (targetKey == "search") {
+                        if (targetKey.isSearch) {
                             // Search results in the content area
                             if (state.searchResults.isEmpty()) {
                                 EmptyState(
@@ -492,7 +515,7 @@ fun FileManagerScreen(
                                     }
                                 }
                             ) {
-                                if (state.isLoading && !isRefreshing) {
+                                if (showLoading && state.files.isEmpty() && !isRefreshing) {
                                     Box(
                                         modifier = Modifier.fillMaxSize(),
                                         contentAlignment = Alignment.Center
@@ -505,7 +528,7 @@ fun FileManagerScreen(
                                         onNavigateTo = onNavigateTo,
                                         modifier = Modifier.fillMaxSize()
                                     )
-                                } else if (displayedFiles.isEmpty()) {
+                                } else if (displayedFiles.isEmpty() && !state.isLoading) {
                                     EmptyState(
                                         icon = Icons.Default.FolderOff,
                                         title = stringResource(R.string.empty_directory),

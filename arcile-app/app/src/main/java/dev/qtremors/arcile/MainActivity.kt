@@ -32,6 +32,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import dagger.hilt.android.AndroidEntryPoint
 
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.first
+
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
@@ -47,13 +50,20 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         
         themePreferences = ThemePreferences(applicationContext)
 
         enableEdgeToEdge()
         _hasPermission.value = checkStoragePermission()
+
+        var keepSplashScreen = true
+        lifecycleScope.launch {
+            themePreferences.themeState.first()
+            keepSplashScreen = false
+        }
+        splashScreen.setKeepOnScreenCondition { keepSplashScreen }
         
         // Request peak refresh rate outside of Compose recomposition cycle
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

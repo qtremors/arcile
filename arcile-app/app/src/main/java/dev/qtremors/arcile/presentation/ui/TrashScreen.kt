@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.Surface
@@ -104,6 +105,16 @@ fun TrashScreen(
             }
         }
         onClearNativeRequest()
+    }
+
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading) {
+        if (state.isLoading) {
+            delay(5)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
     }
 
     LaunchedEffect(state.nativeRequest) {
@@ -171,14 +182,14 @@ fun TrashScreen(
                 .padding(padding)
                 .fillMaxSize()
         ) {
-            if (state.isLoading) {
+            if (showLoading && state.trashFiles.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     LoadingIndicator()
                 }
-            } else if (state.trashFiles.isEmpty()) {
+            } else if (state.trashFiles.isEmpty() && !state.isLoading) {
                  EmptyState(
                     icon = Icons.Default.DeleteSweep,
                     title = stringResource(R.string.trash_is_empty),

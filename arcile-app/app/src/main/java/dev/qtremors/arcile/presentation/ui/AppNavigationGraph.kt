@@ -6,6 +6,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -101,7 +102,10 @@ fun AppNavigationGraph(
                     )
                 }
                 composable<AppRoutes.StorageDashboard> { backStackEntry ->
-                    val viewModel = hiltViewModel<HomeViewModel>() // Shares Home logic
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry<AppRoutes.Home>()
+                    }
+                    val viewModel = hiltViewModel<HomeViewModel>(parentEntry)
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     val route = backStackEntry.toRoute<AppRoutes.StorageDashboard>()
                     val volumeId = route.volumeId?.takeIf { it.isNotBlank() }

@@ -9,8 +9,12 @@
   <strong><a href="https://qtremors.github.io/arcile/">🌐 Visit the Official Website</a></strong>
 </p>
 
+> [!IMPORTANT]
+> **Beta Status** 🧪 Arcile is currently in **Beta** and under heavy development. Expect rapid changes, potential bugs, and evolving features.
+
+
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.4.0-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.4.5-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
@@ -32,6 +36,8 @@
 | 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
 | 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
+| 🌈 **Dynamic Colors** | Powered by **MaterialKolor** for harmonious, accessible custom palettes |
+| 🌍 **i18n Ready** | Fully internationalized with 130+ string resources for multi-language support |
 | 🗑️ **Trash Subsystem** | Safely remove files with metadata-aware restoration |
 | ⚙️ **Settings & About** | Theme customization and comprehensive app information |
 
@@ -66,7 +72,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile-0.4.0.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.5-debug.apk
 ```
 
 ### Release Signing
@@ -145,12 +151,14 @@ arcile/
 
 ## 🧪 Testing
 
+Run these commands from inside the `arcile-app/` directory:
+
 ```bash
 # Unit tests
-./gradlew test
+./gradlew :app:testDebugUnitTest
 
-# Instrumented tests
-./gradlew connectedAndroidTest
+# Instrumented tests (requires device/emulator)
+./gradlew :app:connectedDebugAndroidTest
 ```
 
 > **Note:** Test infrastructure is currently minimal — see [TASKS.md](TASKS.md) section 4.

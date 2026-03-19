@@ -12,8 +12,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -54,45 +62,64 @@ fun ArcileAppShell(
     val context = LocalContext.current
 
     androidx.compose.animation.SharedTransitionLayout {
-        Scaffold(
-            contentWindowInsets = WindowInsets(0)
-        ) { scaffoldPadding ->
-            Box(modifier = Modifier.padding(scaffoldPadding)) {
-                AppNavigationGraph(
-                    navController = navController,
-                    currentThemeState = currentThemeState,
-                    onThemeChange = onThemeChange,
-                    onOpenFile = onOpenFile
-                )
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
+            AppNavigationGraph(
+                navController = navController,
+                currentThemeState = currentThemeState,
+                onThemeChange = onThemeChange,
+                onOpenFile = onOpenFile
+            )
         }
     }
 }
 
 @Composable
 fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = stringResource(R.string.permission_title),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = stringResource(R.string.permission_description),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
-        )
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onRequestPermission) {
-            Text(stringResource(R.string.grant_permission))
+        Card(
+            modifier = Modifier.padding(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = null,
+                    modifier = Modifier.size(72.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = stringResource(R.string.permission_title),
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.permission_description),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(
+                    onClick = onRequestPermission,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.grant_permission))
+                }
+            }
         }
     }
 }

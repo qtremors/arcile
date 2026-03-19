@@ -1,15 +1,46 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 0.4.0
-> **Last Updated:** 2026-03-17
+> **Version:** 0.4.5
+> **Last Updated:** 2026-03-19
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v0.4.5 Beta](#v045-beta) | 2026-03-19 | Stability, Performance & Visual Polish |
 | [v0.4.0 Beta](#v040-beta) | 2026-03-16 | SD Card & OTG Support |
 | [v0.3.0 Beta](#v030-beta) | 2026-03-11 | Trash Bin & Copy/Paste |
 | [v0.2.0 Beta](#v020-beta) | 2026-03-06 | Material 3 Redesign |
 
+---
+
+# v0.4.5 Beta
+
+**Release Date:** March 19, 2026  
+**Previous release:** v0.4.0 Beta
+
+Welcome to **Arcile v0.4.5 Beta**! This release focuses heavily on smoothing out the rough edges from the massive 0.4.0 update. I've eliminated UI flickers, drastically improved loading speeds for massive media folders, and redesigned the grid view to feel much more premium and uniform.
+
+## 🚀 What's New & Improved
+
+### ⚡ Lightning Fast Category Loading
+- **Instant Media:** Opening categories with thousands of images or videos used to cause the app to freeze momentarily while checking the filesystem. I've optimized the query engine to trust the Android MediaStore index, making large category loading nearly instantaneous.
+
+### 🎨 Visual Polish & Fluidity
+- **Dynamic Colors:** I've integrated MaterialKolor to automatically generate beautiful, high-quality Material 3 color schemes based on your selected accent color.
+- **Smooth Entry Animations:** Files and folders no longer pop onto the screen abruptly. I've added buttery-smooth staggered entry and reordering animations to all list and grid views.
+- **Redesigned Image Grids:** The Grid view has been completely overhauled. Images now stretch edge-to-edge within their cards without awkward borders, and every card is locked to a perfect `1:1` aspect ratio so the grid looks perfectly uniform.
+- **No More Startup Flicker:** I fixed a visual glitch where the app would briefly flash the default purple theme or the permission screen on launch. The app now seamlessly holds the launch screen until your saved themes are fully loaded.
+- **Instant Dashboard:** Opening the Storage Dashboard from the Home screen is now instantaneous, reusing the data you've already loaded instead of calculating it from scratch twice.
+- **Polished Permissions:** The initial permission request screen has been redesigned into a beautiful Material 3 Elevated Card, giving a much more professional first impression.
+- **Glitch-Free Navigation:** I fixed subtle overlapping layout bugs and "double-padding" issues by cleaning up the root application scaffolding. Folder-to-folder crossfade animations are also now flawlessly typed, preventing random visual artifacts during fast navigation.
+
+### 🌍 Global Support
+- **Full Internationalization (i18n):** Arcile is officially ready for the world. I've extracted over 130 hardcoded text strings into a flexible translation system, laying the groundwork for full multi-language support in future updates.
+
+### 🛠️ Stability & Under-the-Hood Fixes
+- **Double Refreshing Fixed:** I eliminated a persistent glitch where the Home and Recent Files screens would load their data twice.
+- **Silent Failures Patched:** I've fortified the core File Repository. If edge-case operations fail (like creating hidden `.nomedia` files for the Trash Bin, or dealing with locked media indices), they no longer crash silently in the background, making future debugging much easier.
+- **Test Suite Enhancements:** I started bridging the gaps in my automated testing suite, adding new core logic checks to ensure critical file naming conflicts (like copying duplicate files) are resolved correctly and safely.
 
 ---
 

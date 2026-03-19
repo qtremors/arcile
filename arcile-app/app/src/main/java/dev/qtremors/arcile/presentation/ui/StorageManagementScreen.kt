@@ -33,8 +33,14 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.StorageKind
@@ -54,6 +60,16 @@ fun StorageManagementScreen(
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val volumes = state.allStorageVolumes
+
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
+        if (state.isLoading || state.isCalculatingStorage) {
+            delay(5)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -118,7 +134,7 @@ fun StorageManagementScreen(
                 }
             }
 
-            if (state.isLoading || state.isCalculatingStorage) {
+            if (showLoading && volumes.isEmpty()) {
                 androidx.compose.foundation.layout.Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

@@ -20,7 +20,7 @@ enum class NativeAction { RESTORE, RESTORE_TO_DESTINATION, EMPTY }
 data class TrashState(
     val trashFiles: List<TrashMetadata> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val error: String? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
@@ -49,8 +49,8 @@ class TrashViewModel @Inject constructor(
     }
 
     fun loadTrashFiles() {
+        _state.update { it.copy(isLoading = true) }
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
             val result = repository.getTrashFiles()
             result.onSuccess { trashItems ->
                 _state.update { currentState -> 

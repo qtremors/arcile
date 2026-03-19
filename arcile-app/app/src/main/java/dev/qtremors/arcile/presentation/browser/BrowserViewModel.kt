@@ -52,7 +52,7 @@ data class BrowserState(
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
     val isSearchFilterMenuVisible: Boolean = false,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val error: String? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),
@@ -294,22 +294,21 @@ class BrowserViewModel @Inject constructor(
             pathHistory.clear()
         }
         saveNavState()
+        _state.update {
+            it.copy(
+                isLoading = true,
+                error = errorMessage,
+                currentPath = path,
+                currentVolumeId = resolvedVolumeId,
+                selectedFiles = emptySet(),
+                isCategoryScreen = false,
+                isVolumeRootScreen = false
+            )
+        }
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             val sortOptionForPath = prefs.getSortOptionForPath(path)
-
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    error = errorMessage,
-                    currentPath = path,
-                    currentVolumeId = resolvedVolumeId,
-                    selectedFiles = emptySet(),
-                    isCategoryScreen = false,
-                    isVolumeRootScreen = false,
-                    browserSortOption = sortOptionForPath
-                )
-            }
+            _state.update { it.copy(browserSortOption = sortOptionForPath) }
 
             repository.listFiles(path).onSuccess { files ->
                 _state.update {
@@ -334,19 +333,18 @@ class BrowserViewModel @Inject constructor(
 
     private fun loadCategory(categoryName: String, volumeId: String?) {
         saveNavState()
+        _state.update {
+            it.copy(
+                isLoading = true,
+                error = null,
+                isCategoryScreen = true,
+                isVolumeRootScreen = false,
+                activeCategoryName = categoryName,
+                currentVolumeId = volumeId,
+                selectedFiles = emptySet()
+            )
+        }
         viewModelScope.launch {
-            _state.update {
-                it.copy(
-                    isLoading = true,
-                    error = null,
-                    isCategoryScreen = true,
-                    isVolumeRootScreen = false,
-                    activeCategoryName = categoryName,
-                    currentVolumeId = volumeId,
-                    selectedFiles = emptySet()
-                )
-            }
-
             val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
                 _state.update {

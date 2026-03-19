@@ -696,7 +696,9 @@ class LocalFileRepository(
                                 }
                             }
                         }
-                    } catch (e: Exception) {}
+                    } catch (e: Exception) {
+                        android.util.Log.e("LocalFileRepository", "StorageStatsManager query failed for ${volume.name}", e)
+                    }
                 }
             }
 
@@ -848,19 +850,17 @@ class LocalFileRepository(
                         val cat = FileCategories.getCategoryForFile(extension, mime)
                         
                         if (cat == category) {
-                            val f = File(path)
-                            if (f.exists() && f.isFile) {
-                                filesList.add(FileModel(
-                                    name = cursor.getString(nameCol) ?: f.name,
-                                    absolutePath = path,
-                                    size = cursor.getLong(sizeCol).takeIf { it > 0 } ?: f.length(),
-                                    lastModified = cursor.getLong(dateCol) * 1000L,
-                                    isDirectory = false,
-                                    extension = extension,
-                                    isHidden = f.name.startsWith("."),
-                                    mimeType = mime
-                                ))
-                            }
+                            val name = cursor.getString(nameCol) ?: path.substringAfterLast('/', "")
+                            filesList.add(FileModel(
+                                name = name,
+                                absolutePath = path,
+                                size = cursor.getLong(sizeCol),
+                                lastModified = cursor.getLong(dateCol) * 1000L,
+                                isDirectory = false,
+                                extension = extension,
+                                isHidden = name.startsWith("."),
+                                mimeType = mime
+                            ))
                         }
                     }
                 }
@@ -1236,7 +1236,9 @@ class LocalFileRepository(
             trashDir.mkdirs()
             try {
                 File(trashDir, ".nomedia").createNewFile() // Hide from gallery
-            } catch (e: Exception) {}
+            } catch (e: Exception) {
+                android.util.Log.e("LocalFileRepository", "Failed to create .nomedia in trash", e)
+            }
         }
         return trashDir
     }
@@ -1340,7 +1342,9 @@ class LocalFileRepository(
                     try {
                         val uri = MediaStore.Files.getContentUri("external")
                         context.contentResolver.delete(uri, "${MediaStore.Files.FileColumns.DATA} = ?", arrayOf(file.absolutePath))
-                    } catch (e: Exception) {}
+                    } catch (e: Exception) {
+                        android.util.Log.e("LocalFileRepository", "Failed to explicitly delete from MediaStore", e)
+                    }
                 }
             }
             invalidateCache(*scannedPaths.toTypedArray())

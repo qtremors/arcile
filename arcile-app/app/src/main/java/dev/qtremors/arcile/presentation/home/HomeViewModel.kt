@@ -41,7 +41,7 @@ data class HomeState(
     val activeSearchFilters: SearchFilters = SearchFilters(),
     val isSearching: Boolean = false,
     val isSearchFilterMenuVisible: Boolean = false,
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
     val error: String? = null,
@@ -75,24 +75,24 @@ class HomeViewModel @Inject constructor(
                 loadHomeData(HomeRefreshMode.SILENT)
             }
         }
-        loadHomeData(HomeRefreshMode.INITIAL)
     }
+
 
     fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL) {
         refreshJob?.cancel()
-        refreshJob = viewModelScope.launch {
-            val hasVisibleContent = _state.value.storageInfo != null ||
-                _state.value.categoryStorages.isNotEmpty() ||
-                _state.value.recentFiles.isNotEmpty()
+        val hasVisibleContent = _state.value.storageInfo != null ||
+            _state.value.categoryStorages.isNotEmpty() ||
+            _state.value.recentFiles.isNotEmpty()
 
-            _state.update {
-                it.copy(
-                    isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
-                    isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
-                    isCalculatingStorage = true,
-                    error = null
-                )
-            }
+        _state.update {
+            it.copy(
+                isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
+                isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
+                isCalculatingStorage = true,
+                error = null
+            )
+        }
+        refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
 
             val recentResult = repository.getRecentFiles(

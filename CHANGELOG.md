@@ -1,8 +1,32 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.4
-> **Last Updated:** 2026-03-18
+> **Version:** 0.4.5
+> **Last Updated:** 2026-03-19
+
+---
+
+## [0.4.5] - 2026-03-19
+
+### Fixed
+- [UI/UX] Resolved a persistent double-refresh glitch on the **Recent Files** and **Home** screens by removing redundant initialization triggers.
+- [UI/UX] Eliminated jarring loading indicator flickers and incorrect empty-state priority app-wide by implementing a unified micro-delayed (5ms) display guard and synchronous loading state transitions in ViewModels.
+- [UI/UX] Eliminated app launch UI flickering (briefly showing the default purple theme or permission screen) by explicitly holding the `SplashScreen` active until the DataStore finishes resolving and emitting the user's `ThemeState`.
+- [UI/UX] Optimized **Recent Files** screen performance by removing excessive lifecycle-driven refresh events that caused redundant data reloads.
+- [UI/UX] Fixed overlapping system bar insets and padding bugs by removing redundant nested `Scaffold` hierarchies in the root `ArcileAppShell`.
+- [Smoothness] Resolved animation target key collisions during folder-to-folder transitions in `FileManagerScreen` by upgrading the string concatenation state key to a fully typed `FileManagerContentKey` data class.
+- [Security] Patched multiple blind failure states in `LocalFileRepository` (e.g. MediaStore explicit deletion, `.nomedia` trash enforcement, and `StorageStatsManager` faults) by replacing silent empty catch blocks with verbose Android System Log errors.
+
+### Changed
+- [UI/UX] Refined loading visibility logic to ensure "silent" background refreshes when content is already cached or present, providing a smoother and less disruptive user experience.
+- [UI/UX] Polished the `PermissionRequestScreen` with a Material 3 Expressive Card, centralized icon, and structured typography.
+- [UI/UX] Completely redesigned `FileGridItem` to use edge-to-edge images (removing inner padding), forcing a strict `1:1` aspect ratio for the visual container, and locking text to exactly 1 max line. This guarantees every card is perfectly uniform in size regardless of content.
+- [Architecture] `StorageDashboardScreen` now shares the existing `HomeViewModel` instance mapped to the `Home` route backstack entry, instantly rendering storage statistics instead of unnecessarily triggering parallel disk reads for a second isolated ViewModel scope.
+
+### Added
+- [Performance] Optimized MediaStore queries in `getFilesByCategory` by trusting the index over performing redundant `File.exists()` filesystem stat calls on every row, making large media category loading nearly instant.
+- [Motion] Added smooth `animateItem()` entry and reordering animations to all list and grid file views.
+- [Testing] Added `LocalFileOperationsTest` to verify the core `Smart Paste` conflict resolution engine, specifically ensuring duplicate file suffixes (` - Copy (1)`) are correctly appended without corrupting user data.
 
 ---
 

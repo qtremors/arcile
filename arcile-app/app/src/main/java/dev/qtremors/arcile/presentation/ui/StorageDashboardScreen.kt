@@ -34,11 +34,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.ui.theme.titleLargeBold
@@ -97,6 +103,16 @@ fun StorageDashboardScreen(
     
     val categoryColors = LocalCategoryColors.current
     val unassignedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
+        if (state.isLoading || state.isCalculatingStorage) {
+            delay(5)
+            showLoading = true
+        } else {
+            showLoading = false
+        }
+    }
 
     val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
     val displayCategories = sortedCategories.map { cat ->
@@ -261,7 +277,7 @@ fun StorageDashboardScreen(
                 }
             }
 
-            if (state.isLoading || state.isCalculatingStorage) {
+            if (showLoading && volumes.isEmpty() && categoryStorages.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

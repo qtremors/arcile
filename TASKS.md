@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.4.3
-> **Last Updated:** 2026-03-18
+> **Version:** 0.4.5
+> **Last Updated:** 2026-03-19
 
 ---
 
@@ -25,40 +25,10 @@
   - **Location:** `LocalFileRepository.kt`
   - **Fix:** Extract Trash logic to `TrashRepository`. Extract MediaStore queries to `MediaStoreDataSource` or `CategoryRepository`. Extract copy/move logic to `FileTransferHandler`.
 
-- [x] [Refactor] Modularize `HomeScreen.kt` composables (985 lines).
-  - **Problem:** Embeds local composables for storage UI and category grid.
-  - **Location:** `HomeScreen.kt`
-  - **Fix:** Move `StorageSummaryCard`, `MultiColorStorageBar`, `CategoryLegend`, `CategoryGrid`, and `MainFoldersGrid` to `components/`.
-
-- [x] [Refactor] Extract Navigation from `ArcileAppShell.kt` (244 lines).
-  - **Problem:** Combines the app Shell (Scaffold/SharedTransitionLayout) with the massive `NavHost` definition.
-  - **Location:** `ArcileAppShell.kt`
-  - **Fix:** Move the `NavHost` and its route definitions to a dedicated file like `AppNavigationGraph.kt`.
-
-- [x] [Refactor] Split `PasteConflictDialog.kt` components (363 lines).
-  - **Problem:** Contains the main dialog scaffolding along with detailed comparison cards and thumbnail helpers.
-  - **Location:** `components/PasteConflictDialog.kt`
-  - **Fix:** Extract `ConflictCard` and `FileInfoColumn` into smaller, reusable pieces if possible.
-
 - [ ] [Refactor] Modularize Color Themes in `Color.kt` (351 lines).
   - **Problem:** Contains hardcoded definitions for 10+ distinct dynamic and static color schemes in one massive file.
   - **Location:** `ui/theme/Color.kt`
   - **Fix:** Split palettes by core hue or generate them algorithmically.
-
-- [x] [Refactor] Clean up `TrashScreen.kt` (257 lines).
-  - **Problem:** Mixes the scaffold, empty state logic, alert dialogs, and the main lazy list.
-  - **Location:** `TrashScreen.kt`
-  - **Fix:** Move `TrashList` and the Empty Trash AlertDialog to separate composables in `components/trash/`.
-
-- [x] [Architecture] `ShareSelectedFiles()` in ViewModel creates an `Intent` — Android framework concern.
-  - **Problem:** ViewModel directly launches `Intent` via `context.startActivity()`.
-  - **Location:** `BrowserViewModel.kt`, `RecentFilesViewModel.kt`
-  - **Fix:** Expose a `shareEvent` flow/channel and handle the Intent in the UI layer or a dedicated use case.
-
-- [x] [Architecture] `HomeScreen.kt` directly accesses `Environment.getExternalStorageDirectory()`.
-  - **Problem:** `MainFoldersGrid` composable directly reads from `Environment`, embedding Android framework knowledge in the UI layer.
-  - **Location:** `HomeScreen.kt:916`
-  - **Fix:** Pass folder paths from ViewModel or a provider.
 
 ---
 
@@ -85,7 +55,7 @@
   - **Location:** `ArcileTopBar.kt`, `TrashScreen.kt`, `GlobalSearchBar.kt`, `FileList.kt`, etc.
   - **Fix:** Extract `contentDescription` strings to `strings.xml` and use `stringResource()`.
 
-- [ ] [UI/UX] Nested Scaffolds causing potential double-padding issues.
+- [x] [UI/UX] Nested Scaffolds causing potential double-padding issues.
   - **Problem:** `ArcileAppShell` provides a root `Scaffold`, but child screens (`HomeScreen`, `SettingsScreen`, etc.) also define their own `Scaffold` without explicitly consuming or propagating the root padding correctly, which can cause inset glitches.
   - **Location:** `ArcileAppShell.kt` and all screen composables.
   - **Fix:** Remove nested Scaffolds or use `WindowInsets` carefully with `.consumeWindowInsets()` to avoid overlapping or double-applied padding.
@@ -97,7 +67,7 @@
   - **Location:** `app/build.gradle.kts:25-39`
   - **Fix:** Use `?.toString()` and validate presence before creating the `signingConfig`. Consider a dedicated `signing.properties` file excluded from VCS.
 
-- [ ] [Security] Empty catch blocks silently swallow errors in critical paths.
+- [x] [Security] Empty catch blocks silently swallow errors in critical paths.
   - **Problem:** Multiple `catch (e: Exception) {}` blocks silently discard errors in critical operations — e.g., `.nomedia` file creation in trash dir (`LocalFileRepository.kt:1226`), MediaStore deletion after trash (`LocalFileRepository.kt:1330`), `StorageStatsManager` query (`LocalFileRepository.kt:686`), and `BroadcastReceiver` registration context.
   - **Location:** `LocalFileRepository.kt:686,1226,1330`
   - **Impact:** Silent failures make debugging impossible and can leave the filesystem in an inconsistent state.
@@ -110,7 +80,7 @@
 
 ### C. Performance & Resource Efficiency
 
-- [ ] [Performance] Unbounded MediaStore cursor traversal in `getFilesByCategory()`.
+- [x] [Performance] Unbounded MediaStore cursor traversal in `getFilesByCategory()`.
   - **Problem:** `getFilesByCategory()` iterates the entire MediaStore cursor for each category query without a `LIMIT` clause (which MediaStore doesn't directly support). For devices with 100K+ files, this blocks the IO dispatcher for potentially seconds. Additionally, each row calls `File(path).exists()` and `file.isFile`, causing redundant filesystem stat calls.
   - **Location:** `LocalFileRepository.kt:774-861`
   - **Impact:** UI hangs when opening a category with many files; heavy disk IO.
@@ -227,7 +197,7 @@
   - **Location:** `HomeScreen.kt` (inside `MainFoldersGrid`)
   - **Fix:** Pass folder paths from ViewModel and filter out non-existent directories.
 
-- [ ] [UI/UX] `StorageDashboardScreen` uses `hiltViewModel<HomeViewModel>()` — creates separate instance.
+- [x] [UI/UX] `StorageDashboardScreen` uses `hiltViewModel<HomeViewModel>()` — creates separate instance.
   - **Problem:** The Storage Dashboard composable calls `hiltViewModel<HomeViewModel>()`, which creates a new ViewModel instance scoped to that composable's `NavBackStackEntry`. This means it doesn't share state with the Home screen's `HomeViewModel` and triggers a redundant full reload.
   - **Location:** `ArcileAppShell.kt:133`
   - **Fix:** Either accept `HomeState` as a parameter (hoisted from parent) or use a shared ViewModel scope via `navController.previousBackStackEntry`.
@@ -239,7 +209,7 @@
   - **Location:** `HomeScreen.kt` (e.g., `Spacer(Modifier.height(16.dp))` vs `MaterialTheme.spacing.medium`), `StorageSummaryCard`, `StorageVolumeCard`
   - **Fix:** Audit all `dp` values and replace with the appropriate `MaterialTheme.spacing.*` token.
 
-- [ ] [M3] `PermissionRequestScreen` does not use M3 expressive components.
+- [x] [M3] `PermissionRequestScreen` does not use M3 expressive components.
   - **Problem:** The permission request screen uses only basic `Text` and `Button` with minimal styling. It lacks the polish of the rest of the app — no icon, no card, no surface elevation, minimal spacing.
   - **Location:** `ArcileAppShell.kt:260-286`
   - **Fix:** Redesign with an M3 card, illustration/icon, and consistent theming.
@@ -251,14 +221,14 @@
   - **Location:** `HomeScreen.kt:330-357`, `FileManagerScreen.kt:458-493`
   - **Fix:** Extract to a shared `ArciclePullRefreshIndicator` composable.
 
-- [ ] [Motion] No entry animation for list items on initial load.
+- [x] [Motion] No entry animation for list items on initial load.
   - **Problem:** When a directory first loads, all items appear instantly. There is no staggered fade-in or slide-in animation for list items, which makes the transition from loading to content feel abrupt.
   - **Location:** `FileList.kt`, `FileGrid.kt`, `FileManagerScreen.kt`
   - **Fix:** Add `animateItem()` modifier on LazyColumn/LazyGrid items.
 
 ### I. App Smoothness & Rendering Stability
 
-- [ ] [Smoothness] `AnimatedContent` key uses string concatenation instead of data class key.
+- [x] [Smoothness] `AnimatedContent` key uses string concatenation instead of data class key.
   - **Problem:** `AnimatedContent(targetState = if (searchHasCompleted) "search" else state.currentPath + state.activeCategoryName + state.isVolumeRootScreen)` — concatenating a Boolean into a String creates ambiguous keys (e.g., `"/storage/emulated/0" + "" + "true"` could match a different path). This can cause unexpected cross-fade animations.
   - **Location:** `FileManagerScreen.kt:373`
   - **Fix:** Use a sealed class or data class as the key type.
