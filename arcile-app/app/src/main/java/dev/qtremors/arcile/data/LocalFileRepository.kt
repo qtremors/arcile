@@ -36,24 +36,7 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 
-internal fun mergeStorageClassifications(
-    volumes: List<StorageVolume>,
-    classifications: Map<String, StorageClassification>
-): List<StorageVolume> {
-    return volumes.map { vol ->
-        val classification = classifications[vol.storageKey]
-            ?: classifications["path:${vol.path.lowercase(Locale.US)}"]
-            ?: classifications[vol.path]
-        if (classification != null) {
-            vol.copy(kind = classification.assignedKind, isUserClassified = true)
-        } else {
-            vol.copy(
-                kind = if (vol.isPrimary) dev.qtremors.arcile.domain.StorageKind.INTERNAL else dev.qtremors.arcile.domain.StorageKind.EXTERNAL_UNCLASSIFIED,
-                isUserClassified = false
-            )
-        }
-    }
-}
+
 
 internal fun browsableVolumes(volumes: List<StorageVolume>): List<StorageVolume> = volumes
 
@@ -99,12 +82,42 @@ internal fun matchesScope(path: String, scope: StorageScope, volumes: List<Stora
         }
         is StorageScope.Category -> {
             if (path.contains("${File.separator}.") || path.contains("/.")) return false
-            if (scope.volumeId.isNullOrEmpty()) {
-                resolveVolumeForPath(canonicalPath, volumes) != null
-            } else {
+            
+            // 1. Check volume if specified
+            if (!scope.volumeId.isNullOrEmpty()) {
                 val volume = volumes.find { it.id == scope.volumeId } ?: return false
-                canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator)
+                if (!(canonicalPath == volume.path || canonicalPath.startsWith(volume.path + File.separator))) {
+                    return false
+                }
+            } else if (resolveVolumeForPath(canonicalPath, volumes) == null) {
+                return false
             }
+
+            // 2. Check category membership
+            val category = FileCategories.all.find { it.name == scope.categoryName } ?: return false
+            val extension = canonicalPath.substringAfterLast('.', "")
+            FileCategories.getCategoryForFile(extension, null) == category
+        }
+
+
+    }
+}
+
+internal fun mergeStorageClassifications(
+    volumes: List<StorageVolume>,
+    classifications: Map<String, StorageClassification>
+): List<StorageVolume> {
+    return volumes.map { vol ->
+        val classification = classifications[vol.storageKey]
+            ?: classifications["path:${vol.path.lowercase(Locale.US)}"]
+            ?: classifications[vol.path]
+        if (classification != null) {
+            vol.copy(kind = classification.assignedKind, isUserClassified = true)
+        } else {
+            vol.copy(
+                kind = if (vol.isPrimary) dev.qtremors.arcile.domain.StorageKind.INTERNAL else dev.qtremors.arcile.domain.StorageKind.EXTERNAL_UNCLASSIFIED,
+                isUserClassified = false
+            )
         }
     }
 }
@@ -116,9 +129,17 @@ class LocalFileRepository(
 
     private val appContext = context.applicationContext
     private val storageManager = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-    private var activeStorageRoots: List<String> = discoverPlatformVolumes().map { it.path }
+    private val activeStorageRoots = java.util.concurrent.atomic.AtomicReference<List<String>>(emptyList())
+    private val cachedVolumes = java.util.concurrent.atomic.AtomicReference<List<StorageVolume>?>(null)
+
+    init {
+        activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+    }
 
     private fun discoverPlatformVolumes(): List<StorageVolume> {
+        val cached = cachedVolumes.get()
+        if (cached != null) return cached
+
         val discovered = linkedMapOf<String, StorageVolume>()
         val primaryPath = Environment.getExternalStorageDirectory().canonicalPath
 
@@ -192,7 +213,8 @@ class LocalFileRepository(
         val volumes = discovered.values.sortedWith(
             compareBy<StorageVolume> { !it.isPrimary }.thenBy { it.name.lowercase(Locale.US) }
         )
-        activeStorageRoots = volumes.map { it.path }
+        activeStorageRoots.set(volumes.map { it.path })
+        cachedVolumes.set(volumes)
         return volumes
     }
 
@@ -223,6 +245,7 @@ class LocalFileRepository(
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
+                    cachedVolumes.set(null)
                     emitVolumes()
                 }
             }
@@ -237,7 +260,7 @@ class LocalFileRepository(
             }
 
             emitVolumes()
-            appContext.registerReceiver(receiver, filter)
+            ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
             awaitClose { appContext.unregisterReceiver(receiver) }
         }.distinctUntilChanged()
 
@@ -255,7 +278,7 @@ class LocalFileRepository(
     // path traversal guard — rejects paths that escape all known storage boundaries
     private fun validatePath(file: File): Result<Unit> {
         val canonical = file.canonicalPath
-        val isAllowed = activeStorageRoots.any { root ->
+        val isAllowed = activeStorageRoots.get().any { root ->
             canonical == root || canonical.startsWith(root + File.separator)
         }
         
@@ -563,7 +586,7 @@ class LocalFileRepository(
             if (!cacheDir.exists()) cacheDir.mkdirs()
             val cacheKey = when (scope) {
                 StorageScope.AllStorage -> "global"
-                is StorageScope.Volume -> "volume_${scope.volumeId}"
+                is StorageScope.Volume -> "volume_${scope.volumeId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
                 else -> return // Only cache global and volume-wide stats
             }
             val file = File(cacheDir, "$cacheKey.json")
@@ -594,7 +617,7 @@ class LocalFileRepository(
         try {
             val cacheKey = when (scope) {
                 StorageScope.AllStorage -> "global"
-                is StorageScope.Volume -> "volume_${scope.volumeId}"
+                is StorageScope.Volume -> "volume_${scope.volumeId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
                 else -> return null
             }
             val file = File(cacheDir, "$cacheKey.json")
@@ -640,7 +663,8 @@ class LocalFileRepository(
             }
             
             affectedVolumeIds.forEach { volId ->
-                val volFile = File(cacheDir, "volume_$volId.json")
+                val safeVolId = volId.replace(Regex("[^a-zA-Z0-9]"), "_")
+                val volFile = File(cacheDir, "volume_$safeVolId.json")
                 if (volFile.exists() && !volFile.delete()) {
                     android.util.Log.w("LocalFileRepository", "Failed to delete cache for volume: $volId")
                 }
@@ -898,23 +922,54 @@ class LocalFileRepository(
                 
                 if (rootDir.exists() && rootDir.isDirectory) {
                     rootDir.walkTopDown()
+                        .maxDepth(10)
                         .onEnter { dir ->
                             !dir.name.startsWith(".") && matchesScope(dir.canonicalPath, scope, volumes)
                         }
+                        .filter { file ->
+                            file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")
+                        }
+                        .take(1000)
                         .forEach { file ->
-                            if (file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")) {
-                                filesList.add(file.toFileModel())
-                            }
+                            filesList.add(file.toFileModel())
                         }
                 }
             } else {
                 // Global MediaStore search
                 val uri = MediaStore.Files.getContentUri("external")
                 val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
-                val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
-                val selectionArgs = arrayOf("%$query%")
+                val selectionBuilder = StringBuilder("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
+                val selectionArgs = mutableListOf("%$query%")
                 
-                context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                // Optimization: If searching within a category, include category filtering in SQL
+                if (scope is StorageScope.Category) {
+                    val category = FileCategories.all.find { it.name == scope.categoryName }
+                    if (category != null) {
+                        val categoryClauses = mutableListOf<String>()
+                        
+                        category.mimePrefix?.let { prefix ->
+                            if (prefix.endsWith("/")) {
+                                categoryClauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?")
+                                selectionArgs.add("$prefix%")
+                            } else {
+                                categoryClauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
+                                selectionArgs.add(prefix)
+                            }
+                        }
+
+                        category.extensions.forEach { ext ->
+                            categoryClauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
+                            selectionArgs.add("%.${ext}")
+                        }
+
+                        if (categoryClauses.isNotEmpty()) {
+                            selectionBuilder.append(" AND (${categoryClauses.joinToString(" OR ")})")
+                        }
+                    }
+                }
+                
+                context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), null)?.use { cursor ->
+
                     val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     while (cursor.moveToNext()) {
                         val path = cursor.getString(dataCol)
@@ -1475,6 +1530,7 @@ class LocalFileRepository(
     }
 
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(Dispatchers.IO) {
+        // ... (existing implementation)
         try {
             val list = mutableListOf<TrashMetadata>()
             val volumes = currentVolumes()
@@ -1509,7 +1565,7 @@ class LocalFileRepository(
                                        isHidden = false
                                     )
                                     
-                                    list.add(TrashMetadata("legacy:$id", originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
+                                    list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
                                 } else {
                                     android.util.Log.w("LocalFileRepository", "Deleting orphaned trash metadata for id: $id")
                                     metadataFile.delete() 
@@ -1523,6 +1579,37 @@ class LocalFileRepository(
                 }
             }
             Result.success(list.sortedByDescending { it.deletionTime })
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val volumes = currentVolumes()
+            for (trashId in trashIds) {
+                // Find which volume has this trash ID
+                var found = false
+                for (volume in trashEnabledVolumes(volumes)) {
+                    val trashDir = getTrashDirForVolume(volume)
+                    val metadataDir = getTrashMetadataDirForVolume(volume)
+                    
+                    val trashedFile = File(trashDir, trashId)
+                    val metadataFile = File(metadataDir, "$trashId.json")
+                    
+                    if (trashedFile.exists() || metadataFile.exists()) {
+                        if (trashedFile.isDirectory) trashedFile.deleteRecursively() else trashedFile.delete()
+                        metadataFile.delete()
+                        found = true
+                        break
+                    }
+                }
+                if (!found) {
+                    android.util.Log.w("LocalFileRepository", "Trash item $trashId not found for deletion")
+                }
+            }
+            invalidateCache()
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }

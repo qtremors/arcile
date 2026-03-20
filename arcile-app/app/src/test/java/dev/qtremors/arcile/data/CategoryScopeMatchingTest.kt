@@ -114,10 +114,14 @@ class CategoryScopeMatchingTest {
         // Correct SD card path
         assertTrue(matchesScope(File("$sdPath/Movies/video.mp4").path, sdScope, volumes))
         
-        // Root SD card path
-        assertTrue(matchesScope(File(sdPath).path, sdScope, volumes))
+        // Root SD card path (folder is not a video)
+        assertFalse(matchesScope(File(sdPath).path, sdScope, volumes))
 
         // Path in another volume
         assertFalse(matchesScope(File("/storage/emulated/0/Download/movie.mp4").path, sdScope, volumes))
+        
+        // Correct volume but wrong category (image in videos scope)
+        assertFalse(matchesScope(File("$sdPath/Pictures/photo.jpg").path, sdScope, volumes))
     }
+
 }

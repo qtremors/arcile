@@ -36,8 +36,9 @@ fun SearchTopBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit,
-    onFilterClick: () -> Unit = {},
+    onFilterClick: (() -> Unit)? = null,
     placeholder: String = "Search files..."
+
 ) {
     val focusRequester = remember { FocusRequester() }
 
@@ -85,9 +86,12 @@ fun SearchTopBar(
                     Icon(Icons.Default.Clear, contentDescription = "Clear")
                 }
             }
-            IconButton(onClick = onFilterClick) {
-                Icon(Icons.Default.FilterList, contentDescription = "Filters")
+            onFilterClick?.let {
+                IconButton(onClick = it) {
+                    Icon(Icons.Default.FilterList, contentDescription = "Filters")
+                }
             }
+
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface

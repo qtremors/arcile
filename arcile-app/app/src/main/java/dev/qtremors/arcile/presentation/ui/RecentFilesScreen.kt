@@ -28,12 +28,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
+
+import androidx.compose.material3.LoadingIndicator
+
+
+
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,13 +64,16 @@ fun RecentFilesScreen(
     onToggleSelection: (String) -> Unit,
     onClearSelection: () -> Unit,
     onRequestDeleteSelected: () -> Unit,
-    onConfirmTrash: () -> Unit,
-    onConfirmPermanentDelete: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onTogglePermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
     onShareSelected: () -> Unit,
     onRefresh: () -> Unit,
+    onSearchQueryChange: (String) -> Unit = {},
+    onClearSearch: () -> Unit = {},
     onClearNativeRequest: () -> Unit = {}
 ) {
+
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()) }
@@ -75,7 +83,7 @@ fun RecentFilesScreen(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             when (state.pendingNativeAction) {
-                dev.qtremors.arcile.presentation.recentfiles.RecentNativeAction.TRASH -> onConfirmTrash()
+                dev.qtremors.arcile.presentation.recentfiles.RecentNativeAction.TRASH -> onConfirmDelete()
                 null -> {}
             }
         }
@@ -88,10 +96,18 @@ fun RecentFilesScreen(
         }
     }
 
+    var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
+
     // Intercept system back to clear selection before navigating away
-    BackHandler(enabled = isSelectionMode) {
-        onClearSelection()
+    BackHandler(enabled = isSelectionMode || showSearchBar) {
+        if (isSelectionMode) {
+            onClearSelection()
+        } else {
+            showSearchBar = false
+            onClearSearch()
+        }
     }
+
 
 
 
@@ -120,6 +136,16 @@ fun RecentFilesScreen(
                         actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 )
+            } else if (showSearchBar) {
+                SearchTopBar(
+                    query = state.searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    onClose = {
+                        showSearchBar = false
+                        onClearSearch()
+                    },
+                    placeholder = "Search recent files..."
+                )
             } else {
                 TopAppBar(
                     title = { Text(stringResource(R.string.recent_files_title)) },
@@ -128,9 +154,16 @@ fun RecentFilesScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                         }
                     },
+                    actions = {
+                        IconButton(onClick = { showSearchBar = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+
+                    },
                     scrollBehavior = scrollBehavior
                 )
             }
+
         }
     ) { padding ->
         var showLoading by remember { mutableStateOf(false) }
@@ -154,54 +187,80 @@ fun RecentFilesScreen(
                 ) {
                     LoadingIndicator()
                 }
-            } else if (state.recentFiles.isEmpty() && !state.isLoading) {
+            } else if (state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar) {
                 EmptyState(
                     icon = Icons.Default.History,
                     title = stringResource(R.string.no_recent_files),
                     description = stringResource(R.string.no_recent_files_description),
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
-                val groupedFiles = remember(state.recentFiles) {
-                val groupFormat = SimpleDateFormat("EEEE, MMM dd", Locale.getDefault())
-                val cal = Calendar.getInstance()
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                cal.set(Calendar.MILLISECOND, 0)
-                val today = cal.timeInMillis
-                
-                cal.add(Calendar.DAY_OF_YEAR, -1)
-                val yesterday = cal.timeInMillis
-
-                state.recentFiles.groupBy { file ->
-                    when {
-                        file.lastModified >= today -> "Today"
-                        file.lastModified >= yesterday -> "Yesterday"
-                        else -> groupFormat.format(Date(file.lastModified))
-                    }
+            } else if (showSearchBar && state.isSearching) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    LoadingIndicator()
                 }
-            }
+            } else if (showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.SearchOff,
+                    title = stringResource(R.string.no_results_found),
+                    description = stringResource(R.string.no_results_description, state.searchQuery),
+                    modifier = Modifier.fillMaxSize()
+                )
+
+            } else {
+                val filesToDisplay = if (showSearchBar) state.searchResults else state.recentFiles
+                val groupedFiles = remember(filesToDisplay, showSearchBar) {
+                if (showSearchBar) {
+                    // Don't group search results by date, just show flat
+                    mapOf("" to filesToDisplay)
+                } else {
+                    val groupFormat = SimpleDateFormat("EEEE, MMM dd", Locale.getDefault())
+                    val cal = Calendar.getInstance()
+                    cal.set(Calendar.HOUR_OF_DAY, 0)
+                    cal.set(Calendar.MINUTE, 0)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.set(Calendar.MILLISECOND, 0)
+                    val today = cal.timeInMillis
+                    
+                    cal.add(Calendar.DAY_OF_YEAR, -1)
+                    val yesterday = cal.timeInMillis
+
+                    filesToDisplay.groupBy { file ->
+                        when {
+                            file.lastModified >= today -> "Today"
+                            file.lastModified >= yesterday -> "Yesterday"
+                            else -> groupFormat.format(Date(file.lastModified))
+                        }
+                    }
+
+                }}
+
+
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     groupedFiles.forEach { (dateHeader, files) ->
                         @OptIn(ExperimentalFoundationApi::class)
-                        stickyHeader {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = dateHeader,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                        if (dateHeader.isNotEmpty()) {
+                            stickyHeader {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text(
+                                        text = dateHeader,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
+
                         items(files, key = { it.absolutePath }) { file ->
                             FileItemRow(
                                 file = file,
@@ -222,51 +281,14 @@ fun RecentFilesScreen(
         }
     }
 
-    if (state.showTrashConfirmation) {
-        AlertDialog(
-            onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text(stringResource(R.string.delete_items_title, state.selectedFiles.size)) },
-            text = { Text(stringResource(R.string.delete_items_description)) },
-            confirmButton = {
-                FilledTonalButton(
-                    onClick = onConfirmTrash,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                ) {
-                    Text(stringResource(R.string.delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-
-    if (state.showPermanentDeleteConfirmation) {
-        AlertDialog(
-            onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text(stringResource(R.string.delete_permanent_title, state.selectedFiles.size)) },
-            text = { Text(stringResource(R.string.delete_permanent_description)) },
-            confirmButton = {
-                FilledTonalButton(
-                    onClick = onConfirmPermanentDelete,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                ) {
-                    Text(stringResource(R.string.delete))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+    if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = state.isPermanentDeleteChecked,
+            isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
+            onConfirm = onConfirmDelete,
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = onTogglePermanentDelete
         )
     }
 

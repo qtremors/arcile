@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -60,7 +61,8 @@ fun FileGrid(
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -68,11 +70,12 @@ fun FileGrid(
     LaunchedEffect(files) { lastInteractedIndex = null }
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        columns = GridCells.Adaptive(minSize = 100.dp),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        state = gridState,
+        modifier = modifier.fillMaxWidth()
     ) {
         items(files.size, key = { index -> files[index].absolutePath }) { index ->
             val file = files[index]
@@ -139,11 +142,11 @@ fun FileGridItem(
                 scaleX = scale
                 scaleY = scale
             }
-            .semantics(mergeDescendants = true) { 
-                contentDescription = contentDesc 
+            .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
+            .semantics(mergeDescendants = true) {
+                contentDescription = contentDesc
                 selected = isSelected
-            }
-            .combinedClickable(
+            }            .combinedClickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
                 onClick = onClick,

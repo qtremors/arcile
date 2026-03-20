@@ -19,8 +19,10 @@ import dev.qtremors.arcile.domain.SearchFilters
 fun SearchFiltersBottomSheet(
     currentFilters: SearchFilters,
     onApplyFilters: (SearchFilters) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    showCategoryFilter: Boolean = true
 ) {
+
     val categories = listOf("All") + FileCategories.all.map { it.name }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -70,22 +72,25 @@ fun SearchFiltersBottomSheet(
                 )
             }
 
-            Text("File Type", style = MaterialTheme.typography.titleMedium)
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(categories) { category ->
-                    val isSelected = if (category == "All") currentFilters.fileType == null else currentFilters.fileType == category
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { 
-                            onApplyFilters(currentFilters.copy(fileType = if (category == "All") null else category)) 
-                        },
-                        label = { Text(category) }
-                    )
+            if (showCategoryFilter) {
+                Text("File Type", style = MaterialTheme.typography.titleMedium)
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(categories) { category ->
+                        val isSelected = if (category == "All") currentFilters.fileType == null else currentFilters.fileType == category
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                onApplyFilters(currentFilters.copy(fileType = if (category == "All") null else category))
+                            },
+                            label = { Text(category) }
+                        )
+                    }
                 }
             }
+
 
             Text("File Size", style = MaterialTheme.typography.titleMedium)
             Row(

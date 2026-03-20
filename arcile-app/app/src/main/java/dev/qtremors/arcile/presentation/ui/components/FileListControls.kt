@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -17,6 +19,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,66 +35,73 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SortOptionDialog(
     title: String,
     selectedOption: FileSortOption,
+    showApplyToSubfolders: Boolean,
     onDismiss: () -> Unit,
     onOptionSelected: (FileSortOption, Boolean) -> Unit
 ) {
     var applyToSubfolders by remember { mutableStateOf(false) }
-    var currentOption by remember { mutableStateOf(selectedOption) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FileSortOption.entries.forEach { option ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.small)
-                            .clickable { currentOption = option }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        RadioButton(
-                            selected = option == currentOption,
-                            onClick = { currentOption = option }
-                        )
-                        Text(option.label, style = MaterialTheme.typography.bodyLarge)
-                    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 4.dp, start = 8.dp)
+            )
+
+            FileSortOption.entries.forEach { option ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .clickable { 
+                            onOptionSelected(option, applyToSubfolders) 
+                        }
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                    RadioButton(
+                        selected = option == selectedOption,
+                        onClick = null // Handled by Row click
+                    )
                 }
+            }
+
+            if (showApplyToSubfolders) {
+                Spacer(modifier = Modifier.height(4.dp))
+                androidx.compose.material3.HorizontalDivider()
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp)
-                        .clip(MaterialTheme.shapes.small)
+                        .clip(MaterialTheme.shapes.medium)
                         .clickable { applyToSubfolders = !applyToSubfolders }
-                        .padding(vertical = 4.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Checkbox(
                         checked = applyToSubfolders,
-                        onCheckedChange = { applyToSubfolders = it }
+                        onCheckedChange = null // Handled by Row click
                     )
-                    Text("Apply to this folder and subfolders", style = MaterialTheme.typography.bodyMedium)
+                    Text("Apply to this folder and subfolders", style = MaterialTheme.typography.bodyLarge)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { onOptionSelected(currentOption, applyToSubfolders) }) {
-                Text("Done")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
         }
-    )
+    }
 }

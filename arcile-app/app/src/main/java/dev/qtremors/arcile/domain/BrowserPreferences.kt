@@ -28,4 +28,8 @@ data class BrowserPreferences(
         }
         return globalSortOption
     }
+
+    fun getSortOptionForCategory(categoryName: String): FileSortOption {
+        return pathSortOptions["category_$categoryName"] ?: FileSortOption.DATE_NEWEST
+    }
 }

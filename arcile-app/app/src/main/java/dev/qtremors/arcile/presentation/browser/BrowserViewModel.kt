@@ -61,6 +61,8 @@ data class BrowserState(
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
+    val isPermanentDeleteChecked: Boolean = false,
+    val isPermanentDeleteToggleEnabled: Boolean = true,
     val nativeRequest: android.content.IntentSender? = null,
     val pendingNativeAction: BrowserNativeAction? = null
 )
@@ -192,22 +194,26 @@ class BrowserViewModel @Inject constructor(
 
     private fun openVolumeRoots(errorMessage: String? = null) {
         pathHistory.clear()
-        _state.update {
-            it.copy(
-                currentPath = "",
-                currentVolumeId = null,
-                isVolumeRootScreen = true,
-                isCategoryScreen = false,
-                activeCategoryName = "",
-                files = volumeFiles(),
-                selectedFiles = emptySet(),
-                error = errorMessage,
-                browserSortOption = FileSortOption.NAME_ASC,
-                isLoading = false,
-                isPullToRefreshing = false
-            )
+        viewModelScope.launch {
+            val prefs = browserPreferencesRepository.preferencesFlow.first()
+            val sortOption = prefs.getSortOptionForPath("/")
+            _state.update {
+                it.copy(
+                    currentPath = "",
+                    currentVolumeId = null,
+                    isVolumeRootScreen = true,
+                    isCategoryScreen = false,
+                    activeCategoryName = "",
+                    files = volumeFiles(),
+                    selectedFiles = emptySet(),
+                    error = errorMessage,
+                    browserSortOption = sortOption,
+                    isLoading = false,
+                    isPullToRefreshing = false
+                )
+            }
+            saveNavState()
         }
-        saveNavState()
     }
 
     fun navigateToSpecificFolder(path: String) {
@@ -345,6 +351,9 @@ class BrowserViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
+            val prefs = browserPreferencesRepository.preferencesFlow.first()
+            val sortOptionForCategory = prefs.getSortOptionForCategory(categoryName)
+
             val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
                 _state.update {
@@ -352,7 +361,7 @@ class BrowserViewModel @Inject constructor(
                         isLoading = false,
                         isPullToRefreshing = false,
                         files = files,
-                        browserSortOption = FileSortOption.DATE_NEWEST
+                        browserSortOption = sortOptionForCategory
                     )
                 }
                 saveNavState()
@@ -409,25 +418,16 @@ class BrowserViewModel @Inject constructor(
             val stateVal = _state.value
             val scope = when {
                 stateVal.isVolumeRootScreen -> StorageScope.AllStorage
-                stateVal.isCategoryScreen -> stateVal.currentVolumeId?.let {
-                    StorageScope.Category(it, stateVal.activeCategoryName)
-                } ?: StorageScope.AllStorage
+                stateVal.isCategoryScreen -> StorageScope.Category(stateVal.currentVolumeId, stateVal.activeCategoryName)
+
                 stateVal.currentVolumeId != null && stateVal.currentPath.isNotEmpty() ->
                     StorageScope.Path(stateVal.currentVolumeId, stateVal.currentPath)
                 else -> StorageScope.AllStorage
             }
 
             repository.searchFiles(query, scope, stateVal.activeSearchFilters).onSuccess { files ->
-                val filtered = if (stateVal.isCategoryScreen) {
-                    val category = dev.qtremors.arcile.domain.FileCategories.all.find { it.name == stateVal.activeCategoryName }
-                    if (category != null) {
-                        files.filter { file -> category.extensions.contains(file.extension.lowercase()) }
-                    } else {
-                        files
-                    }
-                } else {
-                    files
-                }
+                val filtered = files
+
                 _state.update { it.copy(isSearching = false, searchResults = filtered) }
             }.onFailure { error ->
                 _state.update { it.copy(isSearching = false, error = error.message ?: "Search failed") }
@@ -437,16 +437,20 @@ class BrowserViewModel @Inject constructor(
 
     fun updateBrowserSortOption(sortOption: FileSortOption, applyToSubfolders: Boolean) {
         if (_state.value.isVolumeRootScreen) return
+        _state.update { it.copy(browserSortOption = sortOption) }
         viewModelScope.launch {
-            if (applyToSubfolders) {
-                val path = _state.value.currentPath
-                if (path.isNotEmpty() && !_state.value.isCategoryScreen) {
-                    browserPreferencesRepository.updatePathSortOption(path, sortOption)
-                }
+            if (_state.value.isCategoryScreen) {
+                browserPreferencesRepository.updatePathSortOption("category_${_state.value.activeCategoryName}", sortOption)
             } else {
-                browserPreferencesRepository.updateGlobalSortOption(sortOption)
+                if (applyToSubfolders) {
+                    val path = _state.value.currentPath
+                    if (path.isNotEmpty()) {
+                        browserPreferencesRepository.updatePathSortOption(path, sortOption)
+                    }
+                } else {
+                    browserPreferencesRepository.updateGlobalSortOption(sortOption)
+                }
             }
-            _state.update { it.copy(browserSortOption = sortOption) }
         }
     }
 
@@ -518,12 +522,36 @@ class BrowserViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = false, showMixedDeleteExplanation = true) }
                 }
                 is dev.qtremors.arcile.domain.DeletePolicyResult.PermanentDelete -> {
-                    _state.update { it.copy(isLoading = false, showPermanentDeleteConfirmation = true) }
+                    _state.update { it.copy(
+                        isLoading = false, 
+                        showPermanentDeleteConfirmation = true,
+                        isPermanentDeleteChecked = true,
+                        isPermanentDeleteToggleEnabled = false
+                    ) }
                 }
                 is dev.qtremors.arcile.domain.DeletePolicyResult.Trash -> {
-                    _state.update { it.copy(isLoading = false, showTrashConfirmation = true) }
+                    _state.update { it.copy(
+                        isLoading = false, 
+                        showTrashConfirmation = true,
+                        isPermanentDeleteChecked = false,
+                        isPermanentDeleteToggleEnabled = true
+                    ) }
                 }
             }
+        }
+    }
+
+    fun togglePermanentDelete() {
+        if (_state.value.isPermanentDeleteToggleEnabled) {
+            _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
+        }
+    }
+
+    fun confirmDeleteSelected() {
+        if (_state.value.isPermanentDeleteChecked) {
+            deleteSelectedPermanently()
+        } else {
+            moveSelectedToTrash()
         }
     }
 
@@ -536,7 +564,7 @@ class BrowserViewModel @Inject constructor(
         if (selectedFiles.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showTrashConfirmation = false) }
+            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
             repository.moveToTrash(selectedFiles).onSuccess {
                 clearSelection()
                 refresh()
@@ -559,7 +587,7 @@ class BrowserViewModel @Inject constructor(
         if (selectedFiles.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showPermanentDeleteConfirmation = false) }
+            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
             repository.deletePermanently(selectedFiles).onSuccess {
                 clearSelection()
                 refresh()

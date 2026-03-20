@@ -30,9 +30,15 @@ data class RecentFilesState(
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
+    val isPermanentDeleteChecked: Boolean = false,
+    val isPermanentDeleteToggleEnabled: Boolean = true,
     val nativeRequest: android.content.IntentSender? = null,
-    val pendingNativeAction: RecentNativeAction? = null
+    val pendingNativeAction: RecentNativeAction? = null,
+    val searchQuery: String = "",
+    val searchResults: List<FileModel> = emptyList(),
+    val isSearching: Boolean = false
 )
+
 
 
 
@@ -66,8 +72,16 @@ class RecentFilesViewModel @Inject constructor(
             val scope = _state.value.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
             val result = repository.getRecentFiles(scope = scope, limit = 500)
             result.onSuccess { files ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, recentFiles = files) }
+                _state.update { it.copy(
+                    isLoading = false,
+                    isPullToRefreshing = false,
+                    recentFiles = files,
+                    searchResults = if (it.searchQuery.isNotBlank()) {
+                         files.filter { f -> f.name.contains(it.searchQuery, ignoreCase = true) }
+                    } else emptyList()
+                ) }
             }.onFailure { error ->
+
                 _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load recent files") }
             }
         }
@@ -102,12 +116,36 @@ class RecentFilesViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = false, showMixedDeleteExplanation = true) }
                 }
                 is dev.qtremors.arcile.domain.DeletePolicyResult.PermanentDelete -> {
-                    _state.update { it.copy(isLoading = false, showPermanentDeleteConfirmation = true) }
+                    _state.update { it.copy(
+                        isLoading = false, 
+                        showPermanentDeleteConfirmation = true,
+                        isPermanentDeleteChecked = true,
+                        isPermanentDeleteToggleEnabled = false
+                    ) }
                 }
                 is dev.qtremors.arcile.domain.DeletePolicyResult.Trash -> {
-                    _state.update { it.copy(isLoading = false, showTrashConfirmation = true) }
+                    _state.update { it.copy(
+                        isLoading = false, 
+                        showTrashConfirmation = true,
+                        isPermanentDeleteChecked = false,
+                        isPermanentDeleteToggleEnabled = true
+                    ) }
                 }
             }
+        }
+    }
+
+    fun togglePermanentDelete() {
+        if (_state.value.isPermanentDeleteToggleEnabled) {
+            _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
+        }
+    }
+
+    fun confirmDeleteSelected() {
+        if (_state.value.isPermanentDeleteChecked) {
+            deleteSelectedPermanently()
+        } else {
+            moveSelectedToTrash()
         }
     }
 
@@ -120,7 +158,7 @@ class RecentFilesViewModel @Inject constructor(
         if (selected.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showTrashConfirmation = false) }
+            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
             val result = repository.moveToTrash(selected)
             result.onSuccess {
                 clearSelection()
@@ -145,7 +183,7 @@ class RecentFilesViewModel @Inject constructor(
         if (selected.isEmpty()) return
 
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showPermanentDeleteConfirmation = false) }
+            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
             val result = repository.deletePermanently(selected)
             result.onSuccess {
                 clearSelection()
@@ -161,4 +199,26 @@ class RecentFilesViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    fun updateSearchQuery(query: String) {
+        _state.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            searchJob?.cancel()
+        } else {
+            debouncedSearch(query)
+        }
+    }
+
+    private fun debouncedSearch(query: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(300)
+            _state.update { it.copy(isSearching = true) }
+            val filtered = _state.value.recentFiles.filter { it.name.contains(query, ignoreCase = true) }
+            _state.update { it.copy(isSearching = false, searchResults = filtered) }
+        }
+    }
 }
+

@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -71,7 +73,10 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.observeStorageVolumes().collectLatest {
+            @OptIn(FlowPreview::class)
+            repository.observeStorageVolumes()
+                .debounce(1000L)
+                .collectLatest {
                 loadHomeData(HomeRefreshMode.SILENT)
             }
         }

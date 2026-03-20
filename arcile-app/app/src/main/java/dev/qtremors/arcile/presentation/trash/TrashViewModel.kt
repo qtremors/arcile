@@ -28,8 +28,13 @@ data class TrashState(
     val pendingNativeAction: NativeAction? = null,
     val pendingDestinationPath: String? = null,
     val pendingRestoreIds: List<String> = emptyList(),
-    val availableVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList()
+    val availableVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
+    val searchQuery: String = "",
+    val searchResults: List<TrashMetadata> = emptyList(),
+    val isSearching: Boolean = false,
+    val showPermanentDeleteConfirmation: Boolean = false
 )
+
 
 @HiltViewModel
 class TrashViewModel @Inject constructor(
@@ -58,7 +63,12 @@ class TrashViewModel @Inject constructor(
                         isLoading = false, 
                         trashFiles = trashItems, 
                         error = null,
-                        selectedFiles = currentState.selectedFiles.filter { path -> trashItems.any { it.id == path } }.toSet()
+                        selectedFiles = currentState.selectedFiles.filter { path -> trashItems.any { it.id == path } }.toSet(),
+                        searchResults = if (currentState.searchQuery.isNotBlank()) {
+                            trashItems.filter { it.fileModel.name.contains(currentState.searchQuery, ignoreCase = true) }
+                        } else emptyList()
+
+
                     )
                 }
             }.onFailure { error ->
@@ -166,7 +176,62 @@ class TrashViewModel @Inject constructor(
         }
     }
 
+    fun selectAll() {
+        val allIds = _state.value.trashFiles.map { it.id }.toSet()
+        _state.update { it.copy(selectedFiles = allIds) }
+    }
+
+    fun requestDeletePermanentlySelected() {
+        if (_state.value.selectedFiles.isNotEmpty()) {
+            _state.update { it.copy(showPermanentDeleteConfirmation = true) }
+        }
+    }
+
+    fun dismissPermanentDeleteConfirmation() {
+        _state.update { it.copy(showPermanentDeleteConfirmation = false) }
+    }
+
+    fun deletePermanentlySelected() {
+        val selectedIds = _state.value.selectedFiles.toList()
+        if (selectedIds.isEmpty()) return
+
+        _state.update { it.copy(isLoading = true, error = null, showPermanentDeleteConfirmation = false) }
+        viewModelScope.launch {
+            repository.deletePermanentlyFromTrash(selectedIds).onSuccess {
+                clearSelection()
+                loadTrashFiles()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files permanently") }
+                loadTrashFiles()
+            }
+        }
+    }
+
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
+
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    fun updateSearchQuery(query: String) {
+        _state.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            searchJob?.cancel()
+        } else {
+            debouncedSearch(query)
+        }
+    }
+
+    private fun debouncedSearch(query: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(300)
+            _state.update { it.copy(isSearching = true) }
+            val filtered = _state.value.trashFiles.filter { it.fileModel.name.contains(query, ignoreCase = true) }
+            _state.update { it.copy(isSearching = false, searchResults = filtered) }
+
+        }
+    }
 }
+

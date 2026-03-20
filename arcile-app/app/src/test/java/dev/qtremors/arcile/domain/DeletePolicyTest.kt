@@ -97,4 +97,5 @@ private class FakeDeletePolicyRepository(
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.failure(NotImplementedError())
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.failure(NotImplementedError())
 }

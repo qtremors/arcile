@@ -109,9 +109,10 @@ import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
 import dev.qtremors.arcile.presentation.ui.components.lists.ActiveFiltersRow
 import dev.qtremors.arcile.presentation.ui.components.lists.FileGrid
 import dev.qtremors.arcile.presentation.ui.components.lists.FileList
@@ -188,13 +189,13 @@ fun FileManagerScreen(
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
     onRequestDeleteSelected: () -> Unit,
-    onConfirmTrash: () -> Unit,
-    onConfirmPermanentDelete: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onTogglePermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onSortOptionChange: (FileSortOption, Boolean) -> Unit,
+    onSortOptionChange: (dev.qtremors.arcile.presentation.FileSortOption, Boolean) -> Unit,
     onGridViewChange: (Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
@@ -202,14 +203,13 @@ fun FileManagerScreen(
     onPasteFromClipboard: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
-    isRefreshing: Boolean,
-    onRefresh: () -> Unit,
-    onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
-    onResolvingConflicts: (Map<String, ConflictResolution>) -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
-    onDeletePermanentlySelected: () -> Unit = {},
-    onClearNativeRequest: () -> Unit = {}
+    onClearNativeRequest: () -> Unit = {},
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
+    onSearchFiltersChange: (dev.qtremors.arcile.domain.SearchFilters) -> Unit = {},
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
+    onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {}
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -229,7 +229,7 @@ fun FileManagerScreen(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             when (state.pendingNativeAction) {
-                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmTrash()
+                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmDelete()
                 null -> {}
             }
         }
@@ -262,6 +262,16 @@ fun FileManagerScreen(
     }
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
+    }
+
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+
+    LaunchedEffect(state.browserSortOption, state.currentPath, state.activeCategoryName) {
+        if (displayedFiles.isNotEmpty()) {
+            listState.scrollToItem(0)
+            gridState.scrollToItem(0)
+        }
     }
 
     LaunchedEffect(state.browserSearchQuery) {
@@ -308,6 +318,11 @@ fun FileManagerScreen(
         topBar = {
             if (showSearchBar) {
                 Column {
+                    val searchPlaceholder = if (state.isCategoryScreen) {
+                        "Search ${state.activeCategoryName.lowercase()}..."
+                    } else {
+                        stringResource(R.string.search_placeholder)
+                    }
                     SearchTopBar(
                         query = state.browserSearchQuery,
                         onQueryChange = onSearchQueryChange,
@@ -316,8 +331,9 @@ fun FileManagerScreen(
                             onClearSearch()
                         },
                         onFilterClick = { onToggleSearchFilterMenu(true) },
-                        placeholder = stringResource(R.string.search_placeholder)
+                        placeholder = searchPlaceholder
                     )
+
                     ActiveFiltersRow(
                         filters = state.activeSearchFilters,
                         onClearFilter = { clearedFilters -> onSearchFiltersChange(clearedFilters) }
@@ -543,7 +559,8 @@ fun FileManagerScreen(
                                         onOpenFile = onOpenFile,
                                         onToggleSelection = onToggleSelection,
                                         onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        gridState = gridState
                                     )
                                 } else {
                                     FileList(
@@ -553,7 +570,8 @@ fun FileManagerScreen(
                                         onOpenFile = onOpenFile,
                                         onToggleSelection = onToggleSelection,
                                         onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        listState = listState
                                     )
                                 }
                             }
@@ -580,8 +598,10 @@ fun FileManagerScreen(
         SearchFiltersBottomSheet(
             currentFilters = state.activeSearchFilters,
             onApplyFilters = { onSearchFiltersChange(it) },
-            onDismiss = { onToggleSearchFilterMenu(false) }
+            onDismiss = { onToggleSearchFilterMenu(false) },
+            showCategoryFilter = !state.isCategoryScreen
         )
+
     }
 
     // Dialogs
@@ -595,51 +615,14 @@ fun FileManagerScreen(
             )
         }
 
-        if (state.showTrashConfirmation) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text(stringResource(R.string.delete_items_title, state.selectedFiles.size)) },
-                text = { Text(stringResource(R.string.delete_items_description)) },
-                confirmButton = {
-                    androidx.compose.material3.FilledTonalButton(
-                        onClick = onConfirmTrash,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
-
-        if (state.showPermanentDeleteConfirmation) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text(stringResource(R.string.delete_permanent_title, state.selectedFiles.size)) },
-                text = { Text(stringResource(R.string.delete_permanent_description)) },
-                confirmButton = {
-                    androidx.compose.material3.FilledTonalButton(
-                        onClick = onConfirmPermanentDelete,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text("Cancel")
-                    }
-                }
+        if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
+            DeleteConfirmationDialog(
+                selectedCount = state.selectedFiles.size,
+                isPermanentDeleteChecked = state.isPermanentDeleteChecked,
+                isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
+                onConfirm = onConfirmDelete,
+                onDismiss = onDismissDeleteConfirmation,
+                onTogglePermanentDelete = onTogglePermanentDelete
             )
         }
 
@@ -683,6 +666,7 @@ fun FileManagerScreen(
             SortOptionDialog(
                 title = stringResource(R.string.sort_folder_title),
                 selectedOption = state.browserSortOption,
+                showApplyToSubfolders = !state.isCategoryScreen,
                 onDismiss = { showSortDialog = false },
                 onOptionSelected = { option, applyToSubfolders ->
                     onSortOptionChange(option, applyToSubfolders)

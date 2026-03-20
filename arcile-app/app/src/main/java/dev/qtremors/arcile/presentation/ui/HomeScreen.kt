@@ -273,16 +273,6 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
-    var showLoading by remember { mutableStateOf(false) }
-    LaunchedEffect(state.isLoading) {
-        if (state.isLoading) {
-            delay(5)
-            showLoading = true
-        } else {
-            showLoading = false
-        }
-    }
-
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
         val cal = java.util.Calendar.getInstance()
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -323,200 +313,243 @@ fun HomeScreen(
                 )
         }
     ) { padding ->
-        
-        if (showLoading && state.recentFiles.isEmpty() && state.allStorageVolumes.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                LoadingIndicator()
-            }
-        } else {
-            val pullRefreshState = rememberPullToRefreshState()
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                PullToRefreshBox(
-                    isRefreshing = state.isPullToRefreshing,
-                    onRefresh = onRefresh,
-                    state = pullRefreshState,
-                    modifier = Modifier.fillMaxSize(),
-                    indicator = {
-                        val pullDistance = pullRefreshState.distanceFraction
-                        val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
 
-                        if (state.isPullToRefreshing || pullDistance > 0f) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .graphicsLayer {
-                                        translationY = if (state.isPullToRefreshing) 40.dp.toPx() else yOffset.toPx()
-                                        alpha = if (state.isPullToRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
-                                    }
-                                    .padding(top = 8.dp)
+        val pullRefreshState = rememberPullToRefreshState()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            PullToRefreshBox(
+                isRefreshing = state.isPullToRefreshing,
+                onRefresh = onRefresh,
+                state = pullRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    val pullDistance = pullRefreshState.distanceFraction
+                    val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
+
+                    if (state.isPullToRefreshing || pullDistance > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .graphicsLayer {
+                                    translationY =
+                                        if (state.isPullToRefreshing) 40.dp.toPx() else yOffset.toPx()
+                                    alpha =
+                                        if (state.isPullToRefreshing) 1f else pullDistance.coerceIn(
+                                            0f,
+                                            1f
+                                        )
+                                }
+                                .padding(top = 8.dp)
+                        ) {
+                            Card(
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                             ) {
-                                Card(
-                                    shape = androidx.compose.foundation.shape.CircleShape,
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                Box(
+                                    modifier = Modifier.padding(10.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier.padding(10.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        LoadingIndicator(modifier = Modifier.size(24.dp))
-                                    }
+                                    LoadingIndicator(modifier = Modifier.size(24.dp))
                                 }
                             }
                         }
                     }
-                ) {
+                }
+            ) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
 
-                if (state.showClassificationPrompt && state.unclassifiedVolumes.isNotEmpty()) {
-                    val volume = state.unclassifiedVolumes.first()
-                    item(key = "classification_prompt_${volume.id}") {
-                        StorageClassificationPrompt(
-                            volume = volume,
-                            onClassify = { kind -> onSetVolumeClassification(volume.storageKey, kind) },
-                            onDecideLater = { onHideClassificationPrompt(volume.storageKey) }
-                        )
-                    }
-                }
-
-                item {
-                    StorageSummaryCard(
-                        state = state,
-                        onNavigateToPath = onNavigateToPath,
-                        onOpenStorageDashboard = onOpenStorageDashboard,
-                        onOpenFileBrowser = onOpenFileBrowser
-                    )
-                }
-
-                item {
-                    Text(
-                        text = stringResource(R.string.categories),
-                        style = MaterialTheme.typography.titleMediumBold,
-                        modifier = Modifier.padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.medium, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small)
-                    )
-                }
-                item { CategoryGrid(state.categoryStorages, onCategoryClick) }
-
-                item {
-                    Text(
-                        text = stringResource(R.string.folders),
-                        style = MaterialTheme.typography.titleMediumBold,
-                        modifier = Modifier.padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small)
-                    )
-                }
-                item {
-                    MainFoldersGrid(
-                        standardFolders = state.standardFolders,
-                        onOpenFileBrowser = onOpenFileBrowser,
-                        onNavigateToPath = onNavigateToPath
-                    )
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.utilities),
-                            style = MaterialTheme.typography.titleMediumBold
-                        )
-                        TextButton(onClick = onNavigateToTools) {
-                            Text(stringResource(R.string.show_all))
+                    if (state.showClassificationPrompt && state.unclassifiedVolumes.isNotEmpty()) {
+                        val volume = state.unclassifiedVolumes.first()
+                        item(key = "classification_prompt_${volume.id}") {
+                            StorageClassificationPrompt(
+                                volume = volume,
+                                onClassify = { kind ->
+                                    onSetVolumeClassification(
+                                        volume.storageKey,
+                                        kind
+                                    )
+                                },
+                                onDecideLater = { onHideClassificationPrompt(volume.storageKey) }
+                            )
                         }
                     }
-                }
 
-                item {
-                    androidx.compose.foundation.lazy.LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
-                        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
-                    ) {
-                        item {
-                            Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem(stringResource(R.string.trash_bin), Icons.Default.Delete, isImplemented = true), onClick = onNavigateToTrash)
-                            }
-                        }
-                        item {
-                            Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem(stringResource(R.string.placeholder_onlyfiles), Icons.Default.Lock, isImplemented = false))
-                            }
-                        }
-                        item {
-                            Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem(stringResource(R.string.placeholder_large_files), Icons.Default.ZoomIn, isImplemented = false))
-                            }
-                        }
-                        item {
-                            Box(modifier = Modifier.width(140.dp)) {
-                                ToolCard(ToolItem(stringResource(R.string.placeholder_ftp_server), Icons.Default.WifiTethering, isImplemented = false))
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = MaterialTheme.spacing.medium, top = MaterialTheme.spacing.large, end = MaterialTheme.spacing.medium, bottom = MaterialTheme.spacing.small),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.recent_files),
-                            style = MaterialTheme.typography.titleMediumBold
-                        )
-                        TextButton(onClick = onNavigateToRecentFiles) {
-                            Text(stringResource(R.string.see_all))
-                        }
-                    }
-                }
-
-                if (displayedRecentFiles.isEmpty() && !state.isLoading) {
                     item {
-                        EmptyState(
-                            icon = Icons.Default.History,
-                            title = stringResource(R.string.no_recent_files),
-                            description = stringResource(R.string.no_recent_files_description),
-                            modifier = Modifier.fillMaxWidth()
+                        StorageSummaryCard(
+                            state = state,
+                            onNavigateToPath = onNavigateToPath,
+                            onOpenStorageDashboard = onOpenStorageDashboard,
+                            onOpenFileBrowser = onOpenFileBrowser
                         )
                     }
-                } else {
-                    val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                    items(displayedRecentFiles, key = { it.absolutePath }) { file ->
 
-                        FileItemRow(
-                            file = file,
-                            formattedDate = formatter.format(Date(file.lastModified)),
-                            isSelected = false,
-                            onClick = { onOpenFile(file.absolutePath) },
-                            onLongClick = {}
+                    item {
+                        Text(
+                            text = stringResource(R.string.categories),
+                            style = MaterialTheme.typography.titleMediumBold,
+                            modifier = Modifier.padding(
+                                start = MaterialTheme.spacing.medium,
+                                top = MaterialTheme.spacing.medium,
+                                end = MaterialTheme.spacing.medium,
+                                bottom = MaterialTheme.spacing.small
+                            )
                         )
                     }
+                    item { CategoryGrid(state.categoryStorages, onCategoryClick) }
+
+                    item {
+                        Text(
+                            text = stringResource(R.string.folders),
+                            style = MaterialTheme.typography.titleMediumBold,
+                            modifier = Modifier.padding(
+                                start = MaterialTheme.spacing.medium,
+                                top = MaterialTheme.spacing.large,
+                                end = MaterialTheme.spacing.medium,
+                                bottom = MaterialTheme.spacing.small
+                            )
+                        )
+                    }
+                    item {
+                        MainFoldersGrid(
+                            standardFolders = state.standardFolders,
+                            onOpenFileBrowser = onOpenFileBrowser,
+                            onNavigateToPath = onNavigateToPath
+                        )
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = MaterialTheme.spacing.medium,
+                                    top = MaterialTheme.spacing.large,
+                                    end = MaterialTheme.spacing.medium,
+                                    bottom = MaterialTheme.spacing.small
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.utilities),
+                                style = MaterialTheme.typography.titleMediumBold
+                            )
+                            TextButton(onClick = onNavigateToTools) {
+                                Text(stringResource(R.string.show_all))
+                            }
+                        }
+                    }
+
+                    item {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
+                            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
+                        ) {
+                            item {
+                                Box(modifier = Modifier.width(140.dp)) {
+                                    ToolCard(
+                                        ToolItem(
+                                            stringResource(R.string.trash_bin),
+                                            Icons.Default.Delete,
+                                            isImplemented = true
+                                        ), onClick = onNavigateToTrash
+                                    )
+                                }
+                            }
+                            item {
+                                Box(modifier = Modifier.width(140.dp)) {
+                                    ToolCard(
+                                        ToolItem(
+                                            stringResource(R.string.placeholder_onlyfiles),
+                                            Icons.Default.Lock,
+                                            isImplemented = false
+                                        )
+                                    )
+                                }
+                            }
+                            item {
+                                Box(modifier = Modifier.width(140.dp)) {
+                                    ToolCard(
+                                        ToolItem(
+                                            stringResource(R.string.placeholder_large_files),
+                                            Icons.Default.ZoomIn,
+                                            isImplemented = false
+                                        )
+                                    )
+                                }
+                            }
+                            item {
+                                Box(modifier = Modifier.width(140.dp)) {
+                                    ToolCard(
+                                        ToolItem(
+                                            stringResource(R.string.placeholder_ftp_server),
+                                            Icons.Default.WifiTethering,
+                                            isImplemented = false
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = MaterialTheme.spacing.medium,
+                                    top = MaterialTheme.spacing.large,
+                                    end = MaterialTheme.spacing.medium,
+                                    bottom = MaterialTheme.spacing.small
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.recent_files),
+                                style = MaterialTheme.typography.titleMediumBold
+                            )
+                            TextButton(onClick = onNavigateToRecentFiles) {
+                                Text(stringResource(R.string.see_all))
+                            }
+                        }
+                    }
+
+                    if (displayedRecentFiles.isEmpty() && !state.isLoading) {
+                        item {
+                            EmptyState(
+                                icon = Icons.Default.History,
+                                title = stringResource(R.string.no_recent_files),
+                                description = stringResource(R.string.no_recent_files_description),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                        items(displayedRecentFiles, key = { it.absolutePath }) { file ->
+
+                            FileItemRow(
+                                file = file,
+                                formattedDate = formatter.format(Date(file.lastModified)),
+                                isSelected = false,
+                                onClick = { onOpenFile(file.absolutePath) },
+                                onLongClick = {}
+                            )
+                        }
+                    }
+
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
                 }
-
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
-        }
-        }
-        }
+    }
 }
 

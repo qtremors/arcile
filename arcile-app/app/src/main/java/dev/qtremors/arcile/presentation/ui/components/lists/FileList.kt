@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -52,14 +53,15 @@ fun FileList(
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
 
-    LazyColumn(modifier = modifier.fillMaxWidth()) {
+    LazyColumn(modifier = modifier.fillMaxWidth(), state = listState) {
         items(files.size, key = { index -> files[index].absolutePath }) { index ->
             val file = files[index]
             FileItemRow(
@@ -125,11 +127,11 @@ fun FileItemRow(
         color = animatedSurfaceColor,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
-            .semantics(mergeDescendants = true) { 
-                contentDescription = contentDesc 
+            .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
+            .semantics(mergeDescendants = true) {
+                contentDescription = contentDesc
                 selected = isSelected
-            }
-            .combinedClickable(
+            }            .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )

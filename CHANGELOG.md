@@ -1,8 +1,31 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.5
-> **Last Updated:** 2026-03-19
+> **Version:** 0.4.6
+> **Last Updated:** 2026-03-20
+
+---
+
+## [0.4.6] - 2026-03-20
+
+### Added
+- **Category Search Optimization:** Searching within categories (Images, Documents, etc.) is now natively executed at the database level for significantly faster and more accurate results.
+- **Unified Deletion Dialog:** Replaced split deletion prompts with a unified dialog. Includes a "Permanently delete" checkbox that auto-enables and disables itself if the target drive (e.g., OTG/USB) does not support a Trash Bin.
+- **Search Everywhere:** Added live, debounced search bars to the *Recent Files* and *Trash Bin* screens.
+- **Select All in Trash:** The Trash Bin now supports a "Select All" toggle for bulk restoration or permanent deletion.
+
+### Changed
+- **Modernized Filters UI:** The sorting and filtering menu has been overhauled from a generic alert popup into a polished Material 3 `ModalBottomSheet`. 
+- **Contextual Search place holders:** Search bars now dynamically reflect their context (e.g., displaying "Search images..." when inside the Images category). 
+- **Decoupled Category Sorting:** Navigating into a category now intelligently defaults to sorting by "Date Newest", completely decoupled from the generic A-Z sorting rules applied to standard folders.
+- **Hidden File Visualization:** Files and folders starting with a dot (e.g., `.nomedia`) now render at 50% opacity, providing an intuitive, "ghostly" visual cue that they are hidden system elements.
+
+### Fixed
+- **Loading Flicker:** Eliminated an artificial rendering delay on the Home Dashboard that caused the loading indicator to briefly flash before content appeared.
+- **Scroll Position Reset:** Changing the sort order of a folder or category now correctly scrolls the list back to the top, preventing users from getting lost in large directories.
+- **Sorting State Persistence:** Returning to a previously visited folder now correctly remembers and applies the user's specific sorting preference for that directory.
+- **Crash Prevention:** Removed a brittle `MimeTypeMap` lookup that could crash the app when encountering unindexed or malformed file extensions, replacing it with safe fallbacks.
+
 
 ---
 

@@ -137,6 +137,7 @@
     <string name="clipboard_cut">cut</string>
 
     <!-- Trash Bin -->
+    <string name="restore">Restore</string>
     <string name="restore_selected">Restore selected</string>
     <string name="empty_trash">Empty Trash</string>
     <string name="empty_trash_title">Empty Trash?</string>
@@ -163,4 +164,13 @@
     <string name="tool_manager">App Manager</string>
     <string name="tool_onlyfiles">OnlyFiles</string>
     <string name="tool_share">Network Share</string>
+
+    <!-- Additional Deletion & Trash Bin -->
+    <string name="permanently_delete_checkbox">Permanently delete</string>
+    <string name="permanently_delete_checkbox_description">Bypass Trash Bin</string>
+    <string name="trash_info_title">About Trash Bin</string>
+    <string name="trash_info_description">Items deleted from internal storage or SD cards are moved here. They are stored locally on each volume in a hidden .arcile folder.</string>
+    <string name="sort_by_date">Sort by Deletion Date</string>
+    <string name="delete_permanently">Delete Permanently</string>
+    <string name="select_all">Select All</string>
 </resources>

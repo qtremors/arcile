@@ -297,6 +297,8 @@ private class FakeFileRepository(
     override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
 
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(emptyList())
+
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.success(Unit)
 }
 
 private class FakeStorageClassificationStore : StorageClassificationStore {
