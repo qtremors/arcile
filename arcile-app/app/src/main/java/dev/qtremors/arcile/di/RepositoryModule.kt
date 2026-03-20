@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.data.BrowserPreferencesRepository
+import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
@@ -49,5 +50,12 @@ object RepositoryModule {
     ): BrowserPreferencesRepository {
         return BrowserPreferencesRepository(context)
     }
-}
 
+    @Provides
+    @Singleton
+    fun provideBrowserPreferencesStore(
+        repository: BrowserPreferencesRepository
+    ): BrowserPreferencesStore {
+        return repository
+    }
+}

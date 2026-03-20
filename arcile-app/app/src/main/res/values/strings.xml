@@ -92,6 +92,22 @@
 
     <!-- Home Screen -->
     <string name="categories">Categories</string>
+    <string name="category_images">Images</string>
+    <string name="category_videos">Videos</string>
+    <string name="category_audio">Audio</string>
+    <string name="category_docs">Docs</string>
+    <string name="category_archives">Archives</string>
+    <string name="category_apks">APKs</string>
+
+    <!-- Conflict Card -->
+    <string name="conflict_new">New</string>
+    <string name="conflict_existing">Existing</string>
+    <string name="conflict_resolution_keep_both">Will rename incoming file</string>
+    <string name="conflict_resolution_replace">Will overwrite existing file</string>
+    <string name="conflict_resolution_skip">Will skip this file</string>
+    <string name="folder_label">Folder</string>
+    <string name="thumbnail">Thumbnail</string>
+
     <string name="folders">Folders</string>
     <string name="utilities">Utilities</string>
     <string name="show_all">Show All</string>
@@ -105,6 +121,7 @@
     <string name="how_should_be_treated">"How should %1$s be treated?"</string>
     <string name="sd_card">SD Card</string>
     <string name="sd_card_description">Permanent, indexed, supports trash</string>
+    <string name="external_unclassified">Unclassified External</string>
     <string name="otg_usb">OTG / USB</string>
     <string name="otg_usb_description">Temporary, browsable only, no trash</string>
     <string name="decide_later">Decide later</string>

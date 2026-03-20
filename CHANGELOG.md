@@ -1,8 +1,33 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.6
+> **Version:** 0.4.7
 > **Last Updated:** 2026-03-20
+
+---
+
+## [0.4.7] - 2026-03-20
+
+### Fixed
+- **Splash Screen Reliability:** Resolved an issue where the splash screen could hang indefinitely if the theme preference failed to load; added a `try/finally` safety guard.
+- **UI Overflow:** Fixed a layout bug in the Accent Color Selector where the color picker could overflow and become unreachable on small screens; implemented a vertical scroll container.
+- **Trash Bin Robustness:** Patched a potential crash in the Trash List when extracting parent paths from malformed or root-level files.
+- **External Storage Labeling:** Corrected a missing label for "Unclassified External" storage volumes in the Trash metadata view.
+- **Silent Share Failures:** Improved the `ShareHelper` by adding explicit error logging to diagnose failures when launching system share intents.
+- **Dependency Resolution:** Fixed a build error caused by an incorrect artifact name for the `material-kolor` library in the version catalog.
+- **File Size Formatting:** Corrected `formatFileSize` boundary rounding so values near unit thresholds no longer display awkward outputs like `1024.0 KB`.
+- **Browser Path Resolution:** Hardened browser volume-path matching so Android-style `/storage/...` paths resolve correctly regardless of the host file separator used by the runtime.
+
+### Added
+- **Accent Color Accessibility:** Enhanced the Accent Color Selector with full accessibility semantics, allowing screen readers to correctly identify and announce selected colors.
+- **Localization Polish:** Completed the localization of several previously hardcoded UI elements, including conflict resolution messages and category labels.
+- **Automated Test Coverage:** Added new JVM tests for `FormatUtils`, `CategoryColors`, `FileModel`, `StorageInfo`, `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, and `TrashViewModel`.
+- **Compose Component Tests:** Added Robolectric-backed Compose tests for DeleteConfirmationDialog, ArcileTopBar, and EmptyState.
+
+### Changed
+- **Internal Category IDs:** Decoupled visible category labels from internal logic IDs, ensuring navigation and filtering remain stable across different system languages.
+- **Browser Preferences Abstraction:** Introduced a `BrowserPreferencesStore` interface and wired it through DI so browser state logic can be unit tested without changing app behavior.
+- **JVM UI Test Setup:** Enabled Robolectric-backed Compose UI tests in the app module and version catalog, including Android-resource support for JVM test runs.
 
 ---
 
@@ -25,7 +50,6 @@
 - **Scroll Position Reset:** Changing the sort order of a folder or category now correctly scrolls the list back to the top, preventing users from getting lost in large directories.
 - **Sorting State Persistence:** Returning to a previously visited folder now correctly remembers and applies the user's specific sorting preference for that directory.
 - **Crash Prevention:** Removed a brittle `MimeTypeMap` lookup that could crash the app when encountering unindexed or malformed file extensions, replacing it with safe fallbacks.
-
 
 ---
 

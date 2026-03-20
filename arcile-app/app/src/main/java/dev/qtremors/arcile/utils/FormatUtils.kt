@@ -5,7 +5,18 @@ import java.util.Locale
 fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
-        .coerceAtMost(units.size - 1)
-    return String.format(Locale.US, "%.1f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+    var value = size.toDouble()
+    var unitIndex = 0
+
+    while (value >= 1024.0 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex++
+    }
+
+    if (String.format(Locale.US, "%.1f", value).toDouble() >= 1024.0 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex++
+    }
+
+    return String.format(Locale.US, "%.1f %s", value, units[unitIndex])
 }

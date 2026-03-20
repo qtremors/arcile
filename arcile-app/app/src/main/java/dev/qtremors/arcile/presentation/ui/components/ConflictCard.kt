@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,7 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -89,7 +91,7 @@ fun ConflictCard(
             ) {
                 // Incoming file
                 FileInfoColumn(
-                    label = "New",
+                    label = stringResource(R.string.conflict_new),
                     file = conflict.sourceFile,
                     formatter = formatter,
                     modifier = Modifier.weight(1f)
@@ -106,7 +108,7 @@ fun ConflictCard(
 
                 // Existing file
                 FileInfoColumn(
-                    label = "Existing",
+                    label = stringResource(R.string.conflict_existing),
                     file = conflict.existingFile,
                     formatter = formatter,
                     modifier = Modifier.weight(1f)
@@ -124,9 +126,9 @@ fun ConflictCard(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     when (resolution) {
-                        ConflictResolution.KEEP_BOTH -> "Will rename incoming file"
-                        ConflictResolution.REPLACE -> "Will overwrite existing file"
-                        ConflictResolution.SKIP -> "Will skip this file"
+                        ConflictResolution.KEEP_BOTH -> stringResource(R.string.conflict_resolution_keep_both)
+                        ConflictResolution.REPLACE -> stringResource(R.string.conflict_resolution_replace)
+                        ConflictResolution.SKIP -> stringResource(R.string.conflict_resolution_skip)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -145,7 +147,7 @@ private fun FileThumbnail(file: FileModel, size: Int) {
     if (hasPreview) {
         AsyncImage(
             model = File(file.absolutePath),
-            contentDescription = "Thumbnail",
+            contentDescription = stringResource(R.string.thumbnail),
             modifier = Modifier
                 .size(size.dp)
                 .clip(MaterialTheme.shapes.extraLarge),
@@ -193,7 +195,7 @@ private fun FileInfoColumn(
             )
         } else {
             Text(
-                "Folder",
+                stringResource(R.string.folder_label),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium
             )

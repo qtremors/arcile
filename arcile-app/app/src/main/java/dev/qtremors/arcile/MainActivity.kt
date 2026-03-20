@@ -60,8 +60,11 @@ class MainActivity : ComponentActivity() {
 
         var keepSplashScreen = true
         lifecycleScope.launch {
-            themePreferences.themeState.first()
-            keepSplashScreen = false
+            try {
+                themePreferences.themeState.first()
+            } finally {
+                keepSplashScreen = false
+            }
         }
         splashScreen.setKeepOnScreenCondition { keepSplashScreen }
         

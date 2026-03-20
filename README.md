@@ -14,7 +14,7 @@
 
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.4.5-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.4.7-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
@@ -37,7 +37,7 @@
 | 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
 | 🌈 **Dynamic Colors** | Powered by **MaterialKolor** for harmonious, accessible custom palettes |
-| 🌍 **i18n Ready** | Fully internationalized with 130+ string resources for multi-language support |
+| 🌍 **Localization Base** | 130+ string resources are already extracted, with a smaller set of remaining hardcoded strings tracked in `TASKS.md` |
 | 🗑️ **Trash Subsystem** | Safely remove files with metadata-aware restoration |
 | ⚙️ **Settings & About** | Theme customization and comprehensive app information |
 
@@ -72,7 +72,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.5-debug.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.7-debug.apk
 ```
 
 ### Release Signing
@@ -95,7 +95,7 @@ Release builds are signed using credentials stored in `local.properties` (not co
    ./gradlew assembleRelease
    ```
 
-> **Note:** The app requires **All Files Access** permission (Android 11+) or **READ/WRITE_EXTERNAL_STORAGE** (Android 9 and below) to function globally. **Android 10 (API 29) is fundamentally unsupported** because it enforces Scoped Storage but lacks the `MANAGE_EXTERNAL_STORAGE` permission, breaking global file system access via `java.io.File`.
+> **Note:** The app currently requires **All Files Access** permission on Android 11+ and **READ/WRITE_EXTERNAL_STORAGE** on Android 9 and below for full file-system access. **Android 10 (API 29) remains unsupported** because the app's `java.io.File`-based architecture does not work reliably under Scoped Storage.
 
 ---
 
@@ -161,7 +161,7 @@ Run these commands from inside the `arcile-app/` directory:
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-> **Note:** Test infrastructure is currently minimal — see [TASKS.md](TASKS.md) section 4.
+> **Note:** The project already includes a layered JVM test suite for domain logic, repository behavior, ViewModels, and a first batch of Robolectric-backed Compose component tests. Instrumented UI coverage is still minimal and currently limited to the generated example test.
 
 ---
 

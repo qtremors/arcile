@@ -37,6 +37,7 @@ object ShareHelper {
             context.startActivity(chooser)
             return true
         } catch (e: Exception) {
+            android.util.Log.e("ShareHelper", "Failed to share files", e)
             return false
         }
     }

@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.4.5
-> **Last Updated:** 2026-03-19
+> **Version:** 0.4.7
+> **Last Updated:** 2026-03-20
 
 ---
 
@@ -17,32 +17,12 @@
 
 ---
 
-## 1. PR Review Findings
-
-- [ ] [Architecture] `LocalFileRepository.kt`: Cache key uses raw `scope.volumeId` which can contain slashes and produce nested paths. Update cache key generation to sanitize `volumeId` so reads, writes, and invalidations target a safe filename.
-- [ ] [Bug] `MainActivity.kt`: The splash screen can hang if `themePreferences.themeState.first()` throws because `keepSplashScreen` is never cleared. Wrap the await call in `try/finally` and clear the flag.
-- [ ] [Architecture] `AppNavigationGraph.kt`: `StorageManagement` destination is creating a new `HomeViewModel` instance instead of sharing the `Home` entry scoped one. Use `navController.getBackStackEntry` for the `Home` route to share the ViewModel.
-- [ ] [i18n] `ConflictCard.kt`: Hardcoded user-facing strings ("New", "Existing", resolution messages, folder fallback, and thumbnail `contentDescription`). Replace with localized `stringResource`s.
-- [ ] [i18n] `CategoryGrid.kt`: Category display strings are being used as IDs for lookups and navigation, which will break when localized. Introduce a stable internal `id` (e.g., "images", "videos") for logic while keeping the visible label localized.
-- [ ] [UI/UX] `AccentColorSelector.kt`: The modal sheet content is using a plain `Column` which can overflow on small screens. Wrap the outer `Column` with `Modifier.verticalScroll(rememberScrollState())` or convert to a Lazy list.
-- [ ] [Accessibility] `AccentColorSelector.kt`: Missing accessibility semantics on swatch `Box` elements. Add `Modifier.semantics` with `contentDescription` and `selected = isSelected` so TalkBack announces the accent name correctly.
-- [ ] [Bug] `TrashList.kt`: `StorageKind.EXTERNAL_UNCLASSIFIED` incorrectly falls back to `otg_usb` string. Handle it explicitly. Also, `originalPath.substringBeforeLast("/")` can crash or return empty if no slash exists; make parent path extraction robust.
-- [ ] [Security] `ShareHelper.kt`: The `catch` block swallows exceptions and returns false. Add a `Log.e` call to record the error and stack trace before returning false to prevent silent failures.
-- [ ] [Build] `libs.versions.toml`: The `MaterialKolor` dependency uses the incorrect artifact name `material-color-utilities`. Change name to `material-kolor`. Optionally convert `kotlinx-serialization-json` to use a `version.ref`.
-
----
-
 ## 2. Architecture & Refactoring
 
-- [ ] [Refactor] De-monolith `LocalFileRepository.kt` (1139 lines).
+- [ ] [Refactor] De-monolith `LocalFileRepository.kt` (1600+ lines).
   - **Problem:** Handles basic CRUD, MediaStore categories, Trash subsystem, and Copy/Move conflict resolution all in one file, violating SRP.
   - **Location:** `LocalFileRepository.kt`
   - **Fix:** Extract Trash logic to `TrashRepository`. Extract MediaStore queries to `MediaStoreDataSource` or `CategoryRepository`. Extract copy/move logic to `FileTransferHandler`.
-
-- [ ] [Refactor] Modularize Color Themes in `Color.kt` (351 lines).
-  - **Problem:** Contains hardcoded definitions for 10+ distinct dynamic and static color schemes in one massive file.
-  - **Location:** `ui/theme/Color.kt`
-  - **Fix:** Split palettes by core hue or generate them algorithmically.
 
 ---
 
@@ -50,7 +30,7 @@
 
 - [ ] [Performance] `LazyColumn` / `LazyVerticalGrid` items re-keyed by `absolutePath` may conflict.
   - **Problem:** Multiple files from different directories could have the same `absolutePath` key if the list content changes during recomposition.
-  - **Location:** `FileManagerScreen.kt`, `HomeScreen.kt`
+  - **Location:** `FileManagerScreen.kt`, `HomeScreen.kt`, `RecentFilesScreen.kt`
   - **Fix:** Validate key uniqueness or include additional context (e.g., directory path prefix).
 
 ---
@@ -59,54 +39,70 @@
 
 ### A. UI, UX & Accessibility
 
-- [ ] [i18n] Direct String Interpolation in UI Text.
-  - **Problem:** Rather than using formatted string resources (e.g., `<string name="delete_items">Delete %1$d item(s)?</string>`), the app dynamically interpolates state variables directly into hardcoded strings.
-  - **Location:** `RecentFilesScreen.kt`, `FileManagerScreen.kt`, `AboutScreen.kt`.
-  - **Fix:** Use string resources with format arguments (e.g. `stringResource(R.string.delete_items, count)`).
-
 - [ ] [Accessibility] Hardcoded Content Descriptions.
   - **Problem:** Over 40 instances of hardcoded `contentDescription = "..."` for Icons and interactive elements, rendering screen readers useless for non-English users.
-  - **Location:** `ArcileTopBar.kt`, `TrashScreen.kt`, `GlobalSearchBar.kt`, `FileList.kt`, etc.
+  - **Location:** `ArcileTopBar.kt`, `TrashScreen.kt`, `GlobalSearchBar.kt`, `FileList.kt`, `ConflictCard.kt`, `FileGrid.kt`, etc.
   - **Fix:** Extract `contentDescription` strings to `strings.xml` and use `stringResource()`.
+
+- [ ] [Correctness] Android 10 is documented as unsupported but still passes the permission gate.
+  - **Problem:** The app advertises `minSdk = 24` and explicitly documents that Android 10 (API 29) is fundamentally unsupported, yet `MainActivity.checkStoragePermission()` still treats API 29 as supported by accepting `READ_EXTERNAL_STORAGE` + `WRITE_EXTERNAL_STORAGE`. On Android 10 the app can install, pass the permission screen, and then fail across core file operations because the repository depends on unrestricted `java.io.File` access that scoped storage blocks.
+  - **Location:** `arcile-app/app/build.gradle.kts:17`, `arcile-app/app/src/main/java/dev/qtremors/arcile/MainActivity.kt:153-179`, `README.md:98`, `DEVELOPMENT.md:317-318`
+  - **Fix:** Either raise `minSdk` to 30, or hard-block API 29 at startup with a dedicated unsupported-device screen instead of granting access to the main shell.
 
 ### B. Security
 
 - [ ] [Security] Signing credentials read from `local.properties` without validation.
   - **Problem:** `app/build.gradle.kts` loads signing config properties from `local.properties` with null-unsafe casts (`as String?`). If any property is missing, the release build will crash with a `ClassCastException` at configuration time, leaking the build environment structure in error logs.
-  - **Location:** `app/build.gradle.kts:25-39`
+  - **Location:** `app/build.gradle.kts:33-40`
   - **Fix:** Use `?.toString()` and validate presence before creating the `signingConfig`. Consider a dedicated `signing.properties` file excluded from VCS.
 
-- [ ] [Security] `registerReceiver` called without `RECEIVER_NOT_EXPORTED` flag.
-  - **Problem:** `observeStorageVolumes()` registers a `BroadcastReceiver` via `appContext.registerReceiver(receiver, filter)` without specifying `ContextCompat.RECEIVER_NOT_EXPORTED`, which is required on API 34+ to prevent other apps from sending spoofed intents.
-  - **Location:** `LocalFileRepository.kt:240`
-  - **Fix:** Use `ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)`.
+- [ ] [Security] The app hard-requires `MANAGE_EXTERNAL_STORAGE` instead of degrading gracefully on modern Android.
+  - **Problem:** The manifest declares `MANAGE_EXTERNAL_STORAGE`, and `MainActivity` gates the entire app shell behind that permission on Android 11+. This creates a high-risk permission posture, complicates Play distribution, and gives the app filesystem access well beyond the minimum needed for many flows.
+  - **Location:** `app/src/main/AndroidManifest.xml:7`, `MainActivity.kt:102-118`, `MainActivity.kt:153-183`
+  - **Fix:** Audit which flows truly require broad file access, fall back to SAF/MediaStore where possible, and keep the app partially usable when special access is denied.
+
+- [ ] [Security] `FileProvider` exposes the entire external storage tree.
+  - **Problem:** `file_provider_paths.xml` defines `<external-path name="external_root" path="/" />`, so any future URI-generation bug in `openFile()` or `ShareHelper.shareFiles()` can expose arbitrary external-storage files through the app's provider authority instead of only the small set of intended share/open targets.
+  - **Location:** `arcile-app/app/src/main/res/xml/file_provider_paths.xml:4`, `arcile-app/app/src/main/java/dev/qtremors/arcile/MainActivity.kt:130-145`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ShareHelper.kt:21-35`
+  - **Fix:** Replace the root mapping with the narrowest required paths, or move sharing/opening behind SAF/content URIs so the provider does not need blanket external-path coverage.
+
+- [ ] [Security] Trash metadata is stored in public external storage without protection.
+  - **Problem:** The custom trash subsystem writes JSON sidecars under `.arcile/.metadata` on each storage root, including the original absolute path, deletion time, and storage kind. Any app or user with broad storage access can inspect this history and recover sensitive file names and locations even after the file has been "deleted".
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt:1301-1364`
+  - **Fix:** Move metadata into app-private storage keyed by trash ID, or encrypt the sidecars before writing them to shared storage.
 
 ### C. Performance & Resource Efficiency
 
-- [ ] [Performance] `searchFiles()` filesystem walk has no depth or count limit.
-  - **Problem:** When searching within a `StorageScope.Path`, the method uses `rootDir.walkTopDown()` with no `maxDepth()` or result count limit. On a deeply nested directory tree (e.g., `Android/data`), this can traverse millions of entries and block the coroutine for tens of seconds.
-  - **Location:** `LocalFileRepository.kt:887-896`
-  - **Fix:** Add `.maxDepth()` and collect at most N results before returning.
-
 - [ ] [Performance] `discoverPlatformVolumes()` called redundantly.
-  - **Problem:** `discoverPlatformVolumes()` performs `StatFs` and `StorageManager` queries. It is called both in `getStorageVolumes()` and from the `callbackFlow` inside `observeStorageVolumes()`, and also during class initialization (`activeStorageRoots` assignment). On devices with many volumes, this triples the platform discovery cost.
-  - **Location:** `LocalFileRepository.kt:119,221,298-300`
+  - **Problem:** `discoverPlatformVolumes()` performs `StatFs` and `StorageManager` queries. It is called redundantly in places like `observeStorageVolumes()` and during class initialization. On devices with many volumes, this multiplies the platform discovery cost.
+  - **Location:** `LocalFileRepository.kt`
   - **Fix:** Cache the result and invalidate only when storage broadcasts are received.
 
 - [ ] [Performance] `RecentFilesViewModel` queries MediaStore for 500 items with `limit = 500`.
   - **Problem:** The recent files screen requests 500 results. Internally, `getRecentFiles()` over-fetches by `limit * 2 = 1000` rows from MediaStore, checks each against `File.exists()`, and then sorts and truncates. This is expensive on devices with many files.
-  - **Location:** `RecentFilesViewModel.kt:63`, `LocalFileRepository.kt:479`
+  - **Location:** `RecentFilesViewModel.kt:73`, `LocalFileRepository.kt:515`
   - **Fix:** Use a more reasonable initial limit or implement pagination/lazy loading.
 
 - [ ] [Performance] `HomeViewModel` makes 4+ parallel repository calls on every `SILENT` refresh.
   - **Problem:** Every time `observeStorageVolumes` emits (which happens on media mount/unmount AND on classification changes), `loadHomeData(SILENT)` is called, triggering `getRecentFiles`, `getStorageVolumes`, `getStorageInfo`, `getCategoryStorageSizes`, plus per-volume `getCategoryStorageSizes` queries. This fan-out produces heavy IO on every trivial change.
-  - **Location:** `HomeViewModel.kt:72-78`
+  - **Location:** `HomeViewModel.kt`
   - **Fix:** Debounce the `SILENT` refresh or diff the incoming volumes before triggering a full reload.
 
 - [ ] [Performance] `filterAndSortFiles()` recomputed in `remember()` but keyed poorly.
   - **Problem:** In `FileManagerScreen.kt`, `filterAndSortFiles()` is cached with `remember(state.files, state.browserSortOption)` but `state.files` is a `List<FileModel>` that can be structurally identical across recompositions (same content, different instance) if the ViewModel emits a new copy. This triggers re-sort on every `state.copy(...)`.
-  - **Location:** `FileManagerScreen.kt:242-244`
+  - **Location:** `FileManagerScreen.kt:260-262`
   - **Fix:** Use `@Stable` or `@Immutable` annotations on `FileModel` / `BrowserState`, or use `derivedStateOf` with snapshot reads.
+
+- [ ] [Performance] Global MediaStore search is unbounded and unsorted.
+  - **Problem:** `LocalFileRepository.searchFiles()` issues a global `MediaStore` query with no sort order or row limit, then materializes every match into memory before applying Kotlin-side filters.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt:937-983`
+  - **Impact:** Common queries like `a` or `img` can scan thousands of rows, stall search UI, and produce unstable result ordering between runs.
+  - **Fix:** Push sort and limit into the `ContentResolver` query, paginate large result sets, and include more filter criteria in SQL before building `FileModel` instances.
+
+- [ ] [Performance] `MainActivity` forces the highest supported refresh-rate mode for the entire app session.
+  - **Problem:** On startup the activity picks the display mode with the maximum refresh rate and assigns `preferredDisplayModeId` unconditionally. This can increase battery drain and thermal load on LTPO/high-refresh devices without proving that any screen actually needs it.
+  - **Location:** `MainActivity.kt:71-88`
+  - **Fix:** Remove the override or gate it behind explicit profiling and device capability checks for only the screens that measurably benefit.
 
 ### D. Architecture & Code Quality
 
@@ -115,35 +111,30 @@
   - **Location:** `MainActivity.kt`
   - **Fix:** Move permission logic and state into a dedicated `PermissionManager` or a scoped `ViewModel` to improve testability and separation of concerns.
 
-- [ ] [Architecture] `shareSelectedFiles()` duplicated across `BrowserViewModel` and `RecentFilesViewModel`.
-  - **Problem:** Both ViewModels contain near-identical `shareSelectedFiles(context: Context)` methods (~30 lines each) that also receive `Context` as a parameter — a violation of the ViewModel contract (ViewModels should not hold Android framework references).
-  - **Location:** `BrowserViewModel.kt:683-716`, `RecentFilesViewModel.kt:160-193`
-  - **Fix:** Extract to a shared `ShareHelper` class or use case. Expose a share event via `Channel`/`SharedFlow` and handle the `Intent` in the UI layer.
-
 - [ ] [Architecture] `ThemePreferences` instantiated directly in `MainActivity.onCreate()`.
   - **Problem:** `themePreferences = ThemePreferences(applicationContext)` creates a non-injected, non-testable dependency directly in the Activity. This bypasses Hilt's DI graph.
-  - **Location:** `MainActivity.kt:53`
+  - **Location:** `MainActivity.kt:56`
   - **Fix:** Provide `ThemePreferences` via Hilt `@Provides` or `@Inject constructor`.
-
-- [ ] [Architecture] Dead code: top-level `mergeStorageClassifications()` function.
-  - **Problem:** There is a top-level function `mergeStorageClassifications()` at `LocalFileRepository.kt:39-56` that is identical to the internal member function `mergeClassifications()` at lines 199-216. The top-level function appears unreferenced.
-  - **Location:** `LocalFileRepository.kt:39-56`
-  - **Fix:** Remove the dead top-level function.
 
 - [ ] [Architecture] `BrowserPreferencesRepository` not abstracted behind an interface.
   - **Problem:** `BrowserPreferencesRepository` is a concrete class injected directly. Unlike `FileRepository` (which has the `FileRepository` interface), there is no abstraction for browser preferences, making it untestable with fakes.
-  - **Location:** `data/BrowserPreferencesRepository.kt`, `di/RepositoryModule.kt:47-51`
+  - **Location:** `data/BrowserPreferencesRepository.kt`, `di/RepositoryModule.kt`
   - **Fix:** Extract a `BrowserPreferencesStore` interface and bind the concrete implementation via DI.
-
-- [ ] [Architecture] `activeStorageRoots` is a mutable `var` without thread safety.
-  - **Problem:** `activeStorageRoots` is a mutable `List` assigned from `discoverPlatformVolumes()` which can race with `validatePath()` executing concurrently on the IO dispatcher. A read of `activeStorageRoots` while another coroutine is reassigning it is a data race.
-  - **Location:** `LocalFileRepository.kt:119`
-  - **Fix:** Use `@Volatile` or wrap in a `Mutex`/`AtomicReference`.
 
 - [ ] [Architecture] `StorageMountState` enum defined but never used dynamically.
   - **Problem:** `StorageMountState` has `MOUNTED` and `UNMOUNTED` variants, but `UNMOUNTED` is never assigned anywhere. All `StorageVolume` instances are created with the default `MOUNTED` state. The enum provides no runtime value.
   - **Location:** `domain/StorageScope.kt:10-13`, `domain/StorageInfo.kt:66`
   - **Fix:** Either implement unmounted volume detection or remove `StorageMountState` and `mountState` from `StorageVolume` until needed.
+
+- [ ] [Architecture] Browser sort persistence applies unchecked folder changes globally.
+  - **Problem:** The sort sheet labels the checkbox as `"Apply to this folder and subfolders"`, which implies the unchecked case should affect only the current folder. Instead, `BrowserViewModel.updateBrowserSortOption()` writes unchecked selections to `updateGlobalSortOption()`, changing sort order across unrelated locations.
+  - **Location:** `presentation/ui/components/FileListControls.kt:100`, `presentation/browser/BrowserViewModel.kt:442-456`, `domain/BrowserPreferences.kt:9-29`
+  - **Fix:** Persist the current folder path in both cases, and only let descendant lookup inherit that value when the user explicitly opts into subfolder propagation.
+
+- [ ] [Architecture] `StorageManagementScreen` gets a different `HomeViewModel` than the Home flow.
+  - **Problem:** `AppNavigationGraph` correctly shares the Home-scoped `HomeViewModel` with `StorageDashboardScreen`, but `StorageManagementScreen` calls `hiltViewModel<HomeViewModel>()` directly and therefore gets a second instance. That duplicates expensive home-loading work, breaks shared state expectations, and can make storage classification changes appear inconsistent between the Home screen and Settings flow.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:41-42`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:104-108`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:230-231`
+  - **Fix:** Resolve `StorageManagementScreen` against the Home back stack entry, the same way `StorageDashboardScreen` already does.
 
 ### E. Maintainability & Code Quality
 
@@ -154,7 +145,7 @@
 
 - [ ] [CodeQuality] Manual JSON serialization instead of using `kotlinx.serialization`.
   - **Problem:** `LocalFileRepository` and `StorageClassificationRepository` manually construct `JSONObject` instances for trash metadata and storage classifications. The project already depends on `kotlinx.serialization.json` — this is wasted complexity.
-  - **Location:** `LocalFileRepository.kt:1287-1293,1474`, `StorageClassificationRepository.kt:48-56,98-103`
+  - **Location:** `LocalFileRepository.kt`, `StorageClassificationRepository.kt`
   - **Fix:** Define `@Serializable` data classes and use `Json.encodeToString()` / `Json.decodeFromString()`.
 
 - [ ] [CodeQuality] `FileSortOption.label` property uses hardcoded English strings.
@@ -164,35 +155,52 @@
 
 - [ ] [CodeQuality] Duplicate filename validation logic across `BrowserViewModel` and `LocalFileRepository`.
   - **Problem:** Both `BrowserViewModel.createFolder()` / `createFile()` and `LocalFileRepository.validateFileName()` independently check for `'/'`, `'\\'`, `".."`, `'\u0000'`. The ViewModel check is redundant and can drift from the repository's authoritative validation.
-  - **Location:** `BrowserViewModel.kt:475-478,494-497`, `LocalFileRepository.kt:268-273`
+  - **Location:** `BrowserViewModel.kt`, `LocalFileRepository.kt`
   - **Fix:** Remove the ViewModel validation and rely on the repository's `Result.failure` for error messaging.
 
-- [ ] [CodeQuality] Missing ViewModel unit tests for critical flows.
-  - **Problem:** There are no unit tests for any ViewModel (`BrowserViewModel`, `HomeViewModel`, `RecentFilesViewModel`, `TrashViewModel`). These classes contain substantial business logic (delete policy evaluation, clipboard management, navigation state restoration, debounced search) that is completely untested.
-  - **Location:** `src/test/` (missing files)
-  - **Fix:** Add ViewModel tests with a `FakeFileRepository`.
+- [ ] [CodeQuality] Expand ViewModel branch coverage for destructive and refresh-heavy flows.
+  - **Problem:** The project now has JVM tests for `BrowserViewModel`, `HomeViewModel`, `RecentFilesViewModel`, and `TrashViewModel`, but the most failure-prone branches are still only partially covered. Rename conflicts, destination-required restore flows, and repeated refresh/state-restoration paths remain high-risk logic.
+  - **Location:** `arcile-app/app/src/test/java/dev/qtremors/arcile/presentation/`
+  - **Fix:** Add focused tests for rename collisions, restore fallback flows, selection persistence, and repeated volume-emission refresh behavior.
 
-- [ ] [CodeQuality] No Compose UI tests beyond the example `ExampleInstrumentedTest.kt`.
-  - **Problem:** The `androidTest` directory contains only the auto-generated `ExampleInstrumentedTest`. No screen-level or component-level Compose tests exist.
-  - **Location:** `src/androidTest/`
-  - **Fix:** Add `@Composable` preview tests and screen-level integration tests for critical flows (file browsing, delete confirmation, search).
+- [ ] [CodeQuality] Instrumented Compose UI coverage is still effectively absent.
+  - **Problem:** The project now has Robolectric-backed JVM Compose component tests, but `androidTest` still contains only the auto-generated `ExampleInstrumentedTest`. There is no device/runtime validation for navigation, permissions, or full-screen workflows.
+  - **Location:** `arcile-app/app/src/androidTest/`
+  - **Fix:** Add screen-level integration tests for critical flows such as permission gating, file browsing, destructive actions, and search on a real device/emulator.
+
+- [ ] [CodeQuality] APK naming relies on internal AGP implementation classes.
+  - **Problem:** The build script casts outputs to `com.android.build.api.variant.impl.VariantOutputImpl` to rename APKs. That type is outside the public AGP API surface, so Gradle/AGP upgrades can break builds even when the app code is unchanged.
+  - **Location:** `app/build.gradle.kts:72-79`
+  - **Fix:** Move APK naming to a supported public API when available, or isolate the workaround behind version checks and documented build-tool constraints.
 
 ### F. UI / UX Implementation Quality
 
 - [ ] [UI/UX] Hardcoded "Delete" and "Cancel" button text in delete confirmation dialogs.
   - **Problem:** The `FileManagerScreen.kt` delete confirmation dialogs use `Text("Delete")` and `Text("Cancel")` instead of `stringResource()`.
-  - **Location:** `FileManagerScreen.kt:588,593,612,618`
+  - **Location:** `FileManagerScreen.kt`
   - **Fix:** Extract to string resources.
 
 - [ ] [UI/UX] `SimpleDateFormat` created inside `remember()` but not locale-aware on configuration change.
-  - **Problem:** `SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())` is created inside a `remember` block. If the user changes the system locale while the app is open, the formatter won't update because `remember` does not re-execute.
-  - **Location:** `FileManagerScreen.kt:392`, `HomeScreen.kt:483`
+  - **Problem:** `SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())` is created inside a `remember` block. If the user changes the system locale while the app is open, the formatter won't update because `remember` does not re-execute. This is prevalent in many files.
+  - **Location:** `RecentFilesScreen.kt`, `FileManagerScreen.kt`, `HomeScreen.kt`, `FileGrid.kt`, `FileList.kt`, `PasteConflictDialog.kt`, `TrashList.kt`
   - **Fix:** Create the formatter outside `remember` (each recomposition is cheap) or key on locale.
 
 - [ ] [UI/UX] `HomeScreen.kt` directly accesses `android.os.Environment` for folder paths.
   - **Problem:** `MainFoldersGrid` builds folder paths using `Environment.getExternalStorageDirectory()` directly in the composable. This is an existing known issue (see section 2) but the composable also lacks existence checks — if a standard folder (e.g., `Movies`) doesn't exist, the entry is still shown.
   - **Location:** `HomeScreen.kt` (inside `MainFoldersGrid`)
   - **Fix:** Pass folder paths from ViewModel and filter out non-existent directories.
+
+- [ ] [UI/UX] Recent files screen exposes refresh plumbing but no refresh affordance.
+  - **Problem:** `RecentFilesScreen` accepts `onRefresh`, but the screen never renders a `PullToRefreshBox`, refresh action, or any other UI that can invoke it.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt:60-75`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:209-212`
+  - **Impact:** The recent-files list can become stale during a session with no user-visible way to refresh it manually.
+  - **Fix:** Add pull-to-refresh or an explicit refresh action, or remove the unused callback if manual refresh is intentionally unsupported.
+
+- [ ] [UI/UX] Trash operation failures are never surfaced to the user.
+  - **Problem:** `TrashViewModel` populates `state.error` for load, restore, empty, and permanent-delete failures, but `TrashScreen` never renders a snackbar, dialog, or inline error state, and it never calls `onClearError`.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/trash/TrashViewModel.kt:74-76`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/trash/TrashViewModel.kt:118-123`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/trash/TrashViewModel.kt:150-153`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/trash/TrashViewModel.kt:171-174`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/trash/TrashViewModel.kt:203-205`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt:91-106`
+  - **Impact:** Failed restore or delete actions appear to do nothing, which is especially confusing for destructive file-management flows.
+  - **Fix:** Observe `state.error` in `TrashScreen`, show a snackbar or dialog, and clear the error after acknowledgement.
 
 ### G. Material Design 3 Expressive Implementation
 
@@ -205,15 +213,20 @@
 
 - [ ] [Motion] Pull-to-refresh indicator logic duplicated between `HomeScreen` and `FileManagerScreen`.
   - **Problem:** The custom pull-to-refresh indicator (floating `Card` with `LoadingIndicator`) is copy-pasted across `HomeScreen.kt` and `FileManagerScreen.kt` with identical implementations (~30 lines each).
-  - **Location:** `HomeScreen.kt:330-357`, `FileManagerScreen.kt:458-493`
+  - **Location:** `HomeScreen.kt`, `FileManagerScreen.kt`
   - **Fix:** Extract to a shared `ArciclePullRefreshIndicator` composable.
 
 ### I. App Smoothness & Rendering Stability
 
 - [ ] [Smoothness] `HomeViewModel.loadHomeData()` causes UI flicker on `SILENT` refresh.
   - **Problem:** On `SILENT` refresh, `isCalculatingStorage` is set to `true` before the async work starts, and `isLoading` may briefly toggle. This can cause the shimmer effect to flash momentarily on the storage bar when volumes are re-enumerated.
-  - **Location:** `HomeViewModel.kt:87-94`
+  - **Location:** `HomeViewModel.kt`
   - **Fix:** Only set `isCalculatingStorage = true` for `INITIAL` and `MANUAL` modes.
+
+- [ ] [Smoothness] `BrowserViewModel` replays location restoration on every storage-volume emission.
+  - **Problem:** The browser subscribes to `observeStorageVolumes()` and, on every emission, re-runs `restoreLocationFromState()` / `initializeFromArgs()` and then `refresh()`. Classification changes or removable-media broadcasts therefore reload the current directory/category even when the user has not navigated, clearing transient UI state like selections and increasing visible content churn.
+  - **Location:** `presentation/browser/BrowserViewModel.kt:83-121`, `presentation/browser/BrowserViewModel.kt:292-371`
+  - **Fix:** Restore navigation state only once during initialization, then handle later volume updates by diffing the active volume and refreshing only when the current scope actually becomes invalid.
 
 ### J. Documentation Quality
 
@@ -222,17 +235,24 @@
   - **Location:** `arcile-app/app/proguard-rules.pro`
   - **Fix:** Add keep rules for `@Serializable` data classes, custom Coil `Fetcher` factories, and verify release builds don't crash.
 
+
 ### K. General Anomalies
 
-- [ ] [Anomaly] `BrowserState` holds `android.content.IntentSender` directly in data class.
+- [ ] [Anomaly] `BrowserState` and `TrashState` hold `android.content.IntentSender` directly in data class.
   - **Problem:** `BrowserState.nativeRequest` and `TrashState.nativeRequest` hold `IntentSender` — a Parcelable Android framework object. Storing platform objects in state classes violates separation of concerns and prevents trivial unit testing of state assertions.
-  - **Location:** `BrowserViewModel.kt:64`, `TrashViewModel.kt:27`
+  - **Location:** `BrowserViewModel.kt:66`, `TrashViewModel.kt:27`
   - **Fix:** Expose the `IntentSender` via a `SharedFlow<IntentSender>` one-shot event instead of embedding it in the state data class.
 
 - [ ] [Anomaly] `HomeScreen` constructs `Calendar` and `SimpleDateFormat` on every recomposition.
-  - **Problem:** Inside `remember(state.recentFiles, ...)`, a `Calendar.getInstance()` is created to compute `todayStart`. While `remember` prevents re-execution within the same composition, the `Calendar` locale and timezone are baked at creation time. More importantly, the `SimpleDateFormat` at line 483 is created inside a `LazyColumn` item scope — one instance per recomposition.
-  - **Location:** `HomeScreen.kt:269-276,483`
+  - **Problem:** Inside `remember(state.recentFiles, ...)`, a `Calendar.getInstance()` is created to compute `todayStart`. While `remember` prevents re-execution within the same composition, the `Calendar` locale and timezone are baked at creation time. More importantly, the `SimpleDateFormat` is created inside a `LazyColumn` item scope — one instance per recomposition.
+  - **Location:** `HomeScreen.kt`, `RecentFilesScreen.kt`
   - **Fix:** Hoist `todayStart` calculation to the ViewModel and pass it as part of `HomeState`.
+
+- [ ] [Anomaly] Folder-scoped search silently stops at depth 10.
+  - **Problem:** Path-scoped search uses `walkTopDown().maxDepth(10)`, so anything nested deeper than ten directory levels is omitted without any user-facing indication.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt:919-935`
+  - **Impact:** Deep project trees and archive-like folder structures return incomplete search results, making the search feature look unreliable rather than intentionally bounded.
+  - **Fix:** Remove the hardcoded depth cap, or surface a clear depth limit in the UI and switch to paginated traversal to keep deep searches responsive.
 
 ---
 

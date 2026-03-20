@@ -33,11 +33,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.R
 
 @Composable
 fun CategoryGrid(
@@ -45,7 +47,8 @@ fun CategoryGrid(
     onCategoryClick: (String) -> Unit
 ) {
     data class CategoryDisplay(
-        val name: String,
+        val id: String,
+        val label: String,
         val icon: ImageVector,
         val color: Color,
         val sizeBytes: Long
@@ -54,24 +57,24 @@ fun CategoryGrid(
     val catColors = LocalCategoryColors.current
 
     val categories = listOf(
-        CategoryDisplay("Images", Icons.Default.Image, catColors.images, categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
-        CategoryDisplay("Videos", Icons.Default.VideoFile, catColors.videos, categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
-        CategoryDisplay("Audio", Icons.Default.AudioFile, catColors.audio, categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
-        CategoryDisplay("Docs", Icons.Default.Description, catColors.docs, categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
-        CategoryDisplay("Archives", Icons.Default.FolderZip, catColors.archives, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
-        CategoryDisplay("APKs", Icons.Default.Android, catColors.apks, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Images", stringResource(R.string.category_images), Icons.Default.Image, catColors.images, categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
+        CategoryDisplay("Videos", stringResource(R.string.category_videos), Icons.Default.VideoFile, catColors.videos, categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
+        CategoryDisplay("Audio", stringResource(R.string.category_audio), Icons.Default.AudioFile, catColors.audio, categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
+        CategoryDisplay("Docs", stringResource(R.string.category_docs), Icons.Default.Description, catColors.docs, categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Archives", stringResource(R.string.category_archives), Icons.Default.FolderZip, catColors.archives, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
+        CategoryDisplay("APKs", stringResource(R.string.category_apks), Icons.Default.Android, catColors.apks, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
     ).sortedByDescending { it.sizeBytes }
 
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             categories.take(3).forEach { cat ->
                 CategoryItem(
-                    name = cat.name,
+                    name = cat.label,
                     icon = cat.icon,
                     color = cat.color,
                     sizeBytes = cat.sizeBytes,
                     modifier = Modifier.weight(1f),
-                    onClick = { onCategoryClick(cat.name) }
+                    onClick = { onCategoryClick(cat.id) }
                 )
             }
         }
@@ -83,12 +86,12 @@ fun CategoryGrid(
         ) {
             categories.drop(3).take(3).forEach { cat ->
                 CategoryItem(
-                    name = cat.name,
+                    name = cat.label,
                     icon = cat.icon,
                     color = cat.color,
                     sizeBytes = cat.sizeBytes,
                     modifier = Modifier.weight(1f),
-                    onClick = { onCategoryClick(cat.name) }
+                    onClick = { onCategoryClick(cat.id) }
                 )
             }
         }

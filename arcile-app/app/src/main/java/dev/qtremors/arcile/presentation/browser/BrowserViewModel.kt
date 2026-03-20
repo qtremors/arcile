@@ -8,7 +8,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.data.BrowserPreferencesRepository
+import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -70,7 +70,7 @@ data class BrowserState(
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val repository: FileRepository,
-    private val browserPreferencesRepository: BrowserPreferencesRepository,
+    private val browserPreferencesRepository: BrowserPreferencesStore,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -178,7 +178,11 @@ class BrowserViewModel @Inject constructor(
     private fun findVolumeForPath(path: String) =
         _state.value.storageVolumes
             .sortedByDescending { it.path.length }
-            .firstOrNull { path == it.path || path.startsWith(it.path + java.io.File.separator) }
+            .firstOrNull {
+                path == it.path ||
+                    path.startsWith(it.path + "/") ||
+                    path.startsWith(it.path + java.io.File.separator)
+            }
 
     fun openFileBrowser(errorMessage: String? = null) {
         val volumes = _state.value.storageVolumes
@@ -707,3 +711,6 @@ class BrowserViewModel @Inject constructor(
     }
 
 }
+
+
+

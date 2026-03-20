@@ -14,10 +14,18 @@ import java.io.IOException
 
 val Context.browserDataStore by preferencesDataStore(name = "browser_prefs")
 
-class BrowserPreferencesRepository(private val context: Context) {
+interface BrowserPreferencesStore {
+    val preferencesFlow: Flow<BrowserPreferences>
+
+    suspend fun updateGlobalSortOption(sortOption: FileSortOption)
+
+    suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?)
+}
+
+class BrowserPreferencesRepository(private val context: Context) : BrowserPreferencesStore {
     private val GLOBAL_SORT_KEY = stringPreferencesKey("global_sort_option")
 
-    val preferencesFlow: Flow<BrowserPreferences> = context.browserDataStore.data
+    override val preferencesFlow: Flow<BrowserPreferences> = context.browserDataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -26,29 +34,29 @@ class BrowserPreferencesRepository(private val context: Context) {
             }
         }
         .map { prefs ->
-        val globalSortStr = prefs[GLOBAL_SORT_KEY] ?: FileSortOption.NAME_ASC.name
-        val globalSort = FileSortOption.entries.find { it.name == globalSortStr } ?: FileSortOption.NAME_ASC
-        
-        val pathMap = mutableMapOf<String, FileSortOption>()
-        prefs.asMap().forEach { (key, value) ->
-            if (key.name.startsWith("path_sort_") && value is String) {
-                val path = key.name.removePrefix("path_sort_")
-                val sortOption = FileSortOption.entries.find { it.name == value }
-                if (sortOption != null) {
-                    pathMap[path] = sortOption
+            val globalSortStr = prefs[GLOBAL_SORT_KEY] ?: FileSortOption.NAME_ASC.name
+            val globalSort = FileSortOption.entries.find { it.name == globalSortStr } ?: FileSortOption.NAME_ASC
+
+            val pathMap = mutableMapOf<String, FileSortOption>()
+            prefs.asMap().forEach { (key, value) ->
+                if (key.name.startsWith("path_sort_") && value is String) {
+                    val path = key.name.removePrefix("path_sort_")
+                    val sortOption = FileSortOption.entries.find { it.name == value }
+                    if (sortOption != null) {
+                        pathMap[path] = sortOption
+                    }
                 }
             }
+            BrowserPreferences(globalSort, pathMap)
         }
-        BrowserPreferences(globalSort, pathMap)
-    }
 
-    suspend fun updateGlobalSortOption(sortOption: FileSortOption) {
+    override suspend fun updateGlobalSortOption(sortOption: FileSortOption) {
         context.browserDataStore.edit { prefs ->
             prefs[GLOBAL_SORT_KEY] = sortOption.name
         }
     }
 
-    suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?) {
+    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?) {
         val normalizedPath = if (path.length > 1) path.trimEnd('/') else path
         val key = stringPreferencesKey("path_sort_$normalizedPath")
         context.browserDataStore.edit { prefs ->

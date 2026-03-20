@@ -108,10 +108,16 @@ fun TrashList(
                             val sourceVolumeStr = when (trashItem.sourceStorageKind) {
                                 dev.qtremors.arcile.domain.StorageKind.INTERNAL -> stringResource(R.string.internal_storage)
                                 dev.qtremors.arcile.domain.StorageKind.SD_CARD -> stringResource(R.string.sd_card)
+                                dev.qtremors.arcile.domain.StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.external_unclassified)
                                 else -> stringResource(R.string.otg_usb)
                             }
+                            val parentPath = if (trashItem.originalPath.contains("/")) {
+                                trashItem.originalPath.substringBeforeLast("/")
+                            } else {
+                                trashItem.originalPath
+                            }
                             Text(
-                                text = "Original: $sourceVolumeStr${trashItem.originalPath.substringBeforeLast("/")}",
+                                text = "Original: $sourceVolumeStr$parentPath",
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
