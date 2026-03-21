@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.4.7
-> **Last Updated:** 2026-03-20
+> **Version:** 0.4.9
+> **Last Updated:** 2026-03-21
 
 ---
 
@@ -14,24 +14,6 @@
 4. [General & Code Quality](#4-general--code-quality)
 5. [Comprehensive Audit Findings](#5-comprehensive-audit-findings)
 6. [Backlog / Ideas](#6-backlog--ideas)
-
----
-
-## 2. Architecture & Refactoring
-
-- [ ] [Refactor] De-monolith `LocalFileRepository.kt` (1600+ lines).
-  - **Problem:** Handles basic CRUD, MediaStore categories, Trash subsystem, and Copy/Move conflict resolution all in one file, violating SRP.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Extract Trash logic to `TrashRepository`. Extract MediaStore queries to `MediaStoreDataSource` or `CategoryRepository`. Extract copy/move logic to `FileTransferHandler`.
-
----
-
-## 3. Performance & Efficiency
-
-- [x] [Performance] `LazyColumn` / `LazyVerticalGrid` items re-keyed by `absolutePath` may conflict.
-  - **Problem:** Multiple files from different directories could have the same `absolutePath` key if the list content changes during recomposition.
-  - **Location:** `FileManagerScreen.kt`, `HomeScreen.kt`, `RecentFilesScreen.kt`
-  - **Fix:** Validate key uniqueness or include additional context (e.g., directory path prefix).
 
 ---
 
@@ -71,92 +53,12 @@
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt:1301-1364`
   - **Fix:** Move metadata into app-private storage keyed by trash ID, or encrypt the sidecars before writing them to shared storage.
 
-### C. Performance & Resource Efficiency
-
-- [x] [Performance] `discoverPlatformVolumes()` called redundantly.
-  - **Problem:** `discoverPlatformVolumes()` performs `StatFs` and `StorageManager` queries. It is called redundantly in places like `observeStorageVolumes()` and during class initialization. On devices with many volumes, this multiplies the platform discovery cost.
-  - **Location:** `LocalFileRepository.kt`
-  - **Fix:** Cache the result and invalidate only when storage broadcasts are received.
-
-- [x] [Performance] `RecentFilesViewModel` queries MediaStore for 500 items with `limit = 500`.
-  - **Problem:** The recent files screen requests 500 results. Internally, `getRecentFiles()` over-fetches by `limit * 2 = 1000` rows from MediaStore, checks each against `File.exists()`, and then sorts and truncates. This is expensive on devices with many files.
-  - **Location:** `RecentFilesViewModel.kt:73`, `LocalFileRepository.kt:515`
-  - **Fix:** Use a more reasonable initial limit or implement pagination/lazy loading.
-
-- [x] [Performance] `HomeViewModel` makes 4+ parallel repository calls on every `SILENT` refresh.
-  - **Problem:** Every time `observeStorageVolumes` emits (which happens on media mount/unmount AND on classification changes), `loadHomeData(SILENT)` is called, triggering `getRecentFiles`, `getStorageVolumes`, `getStorageInfo`, `getCategoryStorageSizes`, plus per-volume `getCategoryStorageSizes` queries. This fan-out produces heavy IO on every trivial change.
-  - **Location:** `HomeViewModel.kt`
-  - **Fix:** Debounce the `SILENT` refresh or diff the incoming volumes before triggering a full reload.
-
-- [x] [Performance] `filterAndSortFiles()` recomputed in `remember()` but keyed poorly.
-  - **Problem:** In `FileManagerScreen.kt`, `filterAndSortFiles()` is cached with `remember(state.files, state.browserSortOption)` but `state.files` is a `List<FileModel>` that can be structurally identical across recompositions (same content, different instance) if the ViewModel emits a new copy. This triggers re-sort on every `state.copy(...)`.
-  - **Location:** `FileManagerScreen.kt:260-262`
-  - **Fix:** Use `@Stable` or `@Immutable` annotations on `FileModel` / `BrowserState`, or use `derivedStateOf` with snapshot reads.
-
-- [x] [Performance] Global MediaStore search is unbounded and unsorted.
-  - **Problem:** `LocalFileRepository.searchFiles()` issues a global `MediaStore` query with no sort order or row limit, then materializes every match into memory before applying Kotlin-side filters.
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt:937-983`
-  - **Impact:** Common queries like `a` or `img` can scan thousands of rows, stall search UI, and produce unstable result ordering between runs.
-  - **Fix:** Push sort and limit into the `ContentResolver` query, paginate large result sets, and include more filter criteria in SQL before building `FileModel` instances.
-
-- [x] [Performance] `MainActivity` forces the highest supported refresh-rate mode for the entire app session.
-  - **Problem:** On startup the activity picks the display mode with the maximum refresh rate and assigns `preferredDisplayModeId` unconditionally. This can increase battery drain and thermal load on LTPO/high-refresh devices without proving that any screen actually needs it.
-  - **Location:** `MainActivity.kt:71-88`
-  - **Fix:** Remove the override or gate it behind explicit profiling and device capability checks for only the screens that measurably benefit.
-
-### D. Architecture & Code Quality
-
-- [x] [Architecture] Activity State managed via `mutableStateOf`.
-  - **Problem:** Permission state (`_hasPermission`) in `MainActivity` is managed via `mutableStateOf` directly in the Activity class.
-  - **Location:** `MainActivity.kt`
-  - **Fix:** Move permission logic and state into a dedicated `PermissionManager` or a scoped `ViewModel` to improve testability and separation of concerns.
-
-- [x] [Architecture] `ThemePreferences` instantiated directly in `MainActivity.onCreate()`.
-  - **Problem:** `themePreferences = ThemePreferences(applicationContext)` creates a non-injected, non-testable dependency directly in the Activity. This bypasses Hilt's DI graph.
-  - **Location:** `MainActivity.kt:56`
-  - **Fix:** Provide `ThemePreferences` via Hilt `@Provides` or `@Inject constructor`.
-
-- [x] [Architecture] `BrowserPreferencesRepository` not abstracted behind an interface.
-  - **Problem:** `BrowserPreferencesRepository` is a concrete class injected directly. Unlike `FileRepository` (which has the `FileRepository` interface), there is no abstraction for browser preferences, making it untestable with fakes.
-  - **Location:** `data/BrowserPreferencesRepository.kt`, `di/RepositoryModule.kt`
-  - **Fix:** Extract a `BrowserPreferencesStore` interface and bind the concrete implementation via DI.
-
-- [x] [Architecture] `StorageMountState` enum defined but never used dynamically.
-  - **Problem:** `StorageMountState` has `MOUNTED` and `UNMOUNTED` variants, but `UNMOUNTED` is never assigned anywhere. All `StorageVolume` instances are created with the default `MOUNTED` state. The enum provides no runtime value.
-  - **Location:** `domain/StorageScope.kt:10-13`, `domain/StorageInfo.kt:66`
-  - **Fix:** Either implement unmounted volume detection or remove `StorageMountState` and `mountState` from `StorageVolume` until needed.
-
-- [x] [Architecture] Browser sort persistence applies unchecked folder changes globally.
-  - **Problem:** The sort sheet labels the checkbox as `"Apply to this folder and subfolders"`, which implies the unchecked case should affect only the current folder. Instead, `BrowserViewModel.updateBrowserSortOption()` writes unchecked selections to `updateGlobalSortOption()`, changing sort order across unrelated locations.
-  - **Location:** `presentation/ui/components/FileListControls.kt:100`, `presentation/browser/BrowserViewModel.kt:442-456`, `domain/BrowserPreferences.kt:9-29`
-  - **Fix:** Persist the current folder path in both cases, and only let descendant lookup inherit that value when the user explicitly opts into subfolder propagation.
-
-- [x] [Architecture] `StorageManagementScreen` gets a different `HomeViewModel` than the Home flow.
-  - **Problem:** `AppNavigationGraph` correctly shares the Home-scoped `HomeViewModel` with `StorageDashboardScreen`, but `StorageManagementScreen` calls `hiltViewModel<HomeViewModel>()` directly and therefore gets a second instance. That duplicates expensive home-loading work, breaks shared state expectations, and can make storage classification changes appear inconsistent between the Home screen and Settings flow.
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:41-42`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:104-108`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt:230-231`
-  - **Fix:** Resolve `StorageManagementScreen` against the Home back stack entry, the same way `StorageDashboardScreen` already does.
-
 ### E. Maintainability & Code Quality
-
-- [x] [CodeQuality] Deprecated `SearchFilters` typealias kept in `presentation/SearchFilters.kt`.
-  - **Problem:** A deprecated typealias `presentation.SearchFilters → domain.SearchFilters` exists with `@file:Suppress("DEPRECATION_WARNING")`. This is dead code adding confusion — the canonical type is in `domain/SearchFilters.kt`.
-  - **Location:** `presentation/SearchFilters.kt`
-  - **Fix:** Verify no external references, then delete the file.
 
 - [ ] [CodeQuality] Manual JSON serialization instead of using `kotlinx.serialization`.
   - **Problem:** `LocalFileRepository` and `StorageClassificationRepository` manually construct `JSONObject` instances for trash metadata and storage classifications. The project already depends on `kotlinx.serialization.json` — this is wasted complexity.
   - **Location:** `LocalFileRepository.kt`, `StorageClassificationRepository.kt`
   - **Fix:** Define `@Serializable` data classes and use `Json.encodeToString()` / `Json.decodeFromString()`.
-
-- [x] [CodeQuality] `FileSortOption.label` property uses hardcoded English strings.
-  - **Problem:** The `label` property on `FileSortOption` (e.g., `"Name (A-Z)"`) is not backed by string resources. This will display English text regardless of locale.
-  - **Location:** `presentation/FilePresentation.kt:5-12`
-  - **Fix:** Remove the `label` property and resolve display names via `stringResource()` in composables.
-
-- [x] [CodeQuality] Duplicate filename validation logic across `BrowserViewModel` and `LocalFileRepository`.
-  - **Problem:** Both `BrowserViewModel.createFolder()` / `createFile()` and `LocalFileRepository.validateFileName()` independently check for `'/'`, `'\\'`, `".."`, `'\u0000'`. The ViewModel check is redundant and can drift from the repository's authoritative validation.
-  - **Location:** `BrowserViewModel.kt`, `LocalFileRepository.kt`
-  - **Fix:** Remove the ViewModel validation and rely on the repository's `Result.failure` for error messaging.
 
 - [ ] [CodeQuality] Expand ViewModel branch coverage for destructive and refresh-heavy flows.
   - **Problem:** The project now has JVM tests for `BrowserViewModel`, `HomeViewModel`, `RecentFilesViewModel`, and `TrashViewModel`, but the most failure-prone branches are still only partially covered. Rename conflicts, destination-required restore flows, and repeated refresh/state-restoration paths remain high-risk logic.
@@ -215,18 +117,6 @@
   - **Problem:** The custom pull-to-refresh indicator (floating `Card` with `LoadingIndicator`) is copy-pasted across `HomeScreen.kt` and `FileManagerScreen.kt` with identical implementations (~30 lines each).
   - **Location:** `HomeScreen.kt`, `FileManagerScreen.kt`
   - **Fix:** Extract to a shared `ArciclePullRefreshIndicator` composable.
-
-### I. App Smoothness & Rendering Stability
-
-- [x] [Smoothness] `HomeViewModel.loadHomeData()` causes UI flicker on `SILENT` refresh.
-  - **Problem:** On `SILENT` refresh, `isCalculatingStorage` is set to `true` before the async work starts, and `isLoading` may briefly toggle. This can cause the shimmer effect to flash momentarily on the storage bar when volumes are re-enumerated.
-  - **Location:** `HomeViewModel.kt`
-  - **Fix:** Only set `isCalculatingStorage = true` for `INITIAL` and `MANUAL` modes.
-
-- [x] [Smoothness] `BrowserViewModel` replays location restoration on every storage-volume emission.
-  - **Problem:** The browser subscribes to `observeStorageVolumes()` and, on every emission, re-runs `restoreLocationFromState()` / `initializeFromArgs()` and then `refresh()`. Classification changes or removable-media broadcasts therefore reload the current directory/category even when the user has not navigated, clearing transient UI state like selections and increasing visible content churn.
-  - **Location:** `presentation/browser/BrowserViewModel.kt:83-121`, `presentation/browser/BrowserViewModel.kt:292-371`
-  - **Fix:** Restore navigation state only once during initialization, then handle later volume updates by diffing the active volume and refreshing only when the current scope actually becomes invalid.
 
 ### J. Documentation Quality
 

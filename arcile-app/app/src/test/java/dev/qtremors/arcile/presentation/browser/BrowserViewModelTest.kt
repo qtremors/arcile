@@ -16,6 +16,9 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
+import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
+import dev.qtremors.arcile.domain.usecase.PasteFilesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.testutil.MainDispatcherRule
@@ -40,6 +43,21 @@ class BrowserViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    private fun createViewModel(
+        repository: FileRepository,
+        browserPreferencesRepository: BrowserPreferencesStore,
+        savedStateHandle: SavedStateHandle
+    ): BrowserViewModel {
+        return BrowserViewModel(
+            repository = repository,
+            browserPreferencesRepository = browserPreferencesRepository,
+            savedStateHandle = savedStateHandle,
+            getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
+            moveToTrashUseCase = MoveToTrashUseCase(repository),
+            pasteFilesUseCase = PasteFilesUseCase(repository)
+        )
+    }
+
     @Test
     fun `multiple volumes open volume root screen with stored root sort option`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
@@ -47,7 +65,7 @@ class BrowserViewModelTest {
         val preferences = FakeBrowserPreferencesStore(
             BrowserPreferences(globalSortOption = FileSortOption.NAME_ASC, pathSortOptions = mapOf("/" to FileSortOption.SIZE_LARGEST))
         )
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, sd)),
             browserPreferencesRepository = preferences,
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -64,7 +82,7 @@ class BrowserViewModelTest {
     @Test
     fun `navigateToSpecificFolder falls back to volume roots when path storage is unavailable`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true))),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -87,7 +105,7 @@ class BrowserViewModelTest {
             filesByPath = mapOf("/storage/emulated/0/Download" to listOf(browserFile("one.txt", "/storage/emulated/0/Download/one.txt"))),
             searchResult = Result.success(listOf(browserFile("holiday.jpg", "/storage/emulated/0/Download/holiday.jpg")))
         )
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = repo,
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -114,7 +132,7 @@ class BrowserViewModelTest {
     @Test
     fun `copy selection updates clipboard and clears selected files`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal)),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -143,7 +161,7 @@ class BrowserViewModelTest {
             filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
             conflictsResult = Result.success(listOf(conflict))
         )
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = repo,
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -168,7 +186,7 @@ class BrowserViewModelTest {
     fun `requestDeleteSelected shows mixed explanation for cross-policy selection`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val otg = browserVolume("otg", "USB", "/storage/otg", isPrimary = false, isRemovable = true, kind = StorageKind.OTG)
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, otg)),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -195,7 +213,7 @@ class BrowserViewModelTest {
             volumes = listOf(internal),
             moveToTrashResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
         )
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = repo,
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
@@ -218,7 +236,7 @@ class BrowserViewModelTest {
     fun `updateBrowserSortOption persists category sort key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val preferences = FakeBrowserPreferencesStore()
-        val viewModel = BrowserViewModel(
+        val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(
                 volumes = listOf(internal),
                 filesByCategory = mapOf("Images" to listOf(browserFile("pic.jpg", "/storage/emulated/0/DCIM/pic.jpg")))
@@ -303,7 +321,7 @@ private class BrowserFakeFileRepository(
         return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
     }
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = Result.failure(NotImplementedError())
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = Result.failure(NotImplementedError())
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.success(filesByCategory[categoryName].orEmpty())

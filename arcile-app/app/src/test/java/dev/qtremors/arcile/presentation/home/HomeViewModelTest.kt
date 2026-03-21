@@ -185,7 +185,7 @@ private class HomeFakeFileRepository(
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
     override suspend fun getVolumeForPath(path: String): Result<StorageVolume> = Result.failure(NotImplementedError())
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): Result<List<FileModel>> = recentFilesResult
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = recentFilesResult
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = storageInfoResult
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = categoryStorageResult
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.failure(NotImplementedError())

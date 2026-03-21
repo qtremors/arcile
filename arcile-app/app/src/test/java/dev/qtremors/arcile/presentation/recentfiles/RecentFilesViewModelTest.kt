@@ -154,7 +154,7 @@ private class RecentFakeFileRepository(
         return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
     }
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): Result<List<FileModel>> {
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
         requestedScopes += scope
         return Result.success(recentFiles)
     }

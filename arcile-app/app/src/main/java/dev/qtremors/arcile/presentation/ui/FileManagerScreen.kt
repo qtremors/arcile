@@ -109,6 +109,7 @@ import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
@@ -617,15 +618,8 @@ fun FileManagerScreen(
         }
 
         if (state.showMixedDeleteExplanation) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text(stringResource(R.string.mixed_selection_title)) },
-                text = { Text(stringResource(R.string.mixed_selection_description)) },
-                confirmButton = {
-                    TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text(stringResource(R.string.ok))
-                    }
-                }
+            MixedDeleteExplanationDialog(
+                onDismiss = onDismissDeleteConfirmation
             )
         }
 

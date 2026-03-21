@@ -256,7 +256,7 @@ private class FakeFileRepository(
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
 
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): Result<List<FileModel>> {
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
         requestedRecentScopes += scope
         return Result.success(recentFilesByScope[scope].orEmpty())
     }

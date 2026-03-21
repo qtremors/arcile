@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.4.7 | **Last Updated:** 2026-03-20
+**Version:** 0.4.9 | **Last Updated:** 2026-03-21
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -69,7 +69,14 @@ arcile/
 │   │   │   │   ├── data/                   # Data Layer (Implementations)
 │   │   │   │   │   ├── BrowserPreferencesRepository.kt  # DataStore-backed browser preference persistence
 │   │   │   │   │   ├── LocalFileRepository.kt           # The core file system & MediaStore engine
-│   │   │   │   │   └── StorageClassificationRepository.kt # Handles OTG vs SD Card logic
+│   │   │   │   │   ├── StorageClassificationRepository.kt # Handles OTG vs SD Card logic
+│   │   │   │   │   ├── manager/
+│   │   │   │   │   │   └── TrashManager.kt
+│   │   │   │   │   ├── provider/
+│   │   │   │   │   │   └── VolumeProvider.kt
+│   │   │   │   │   └── source/
+│   │   │   │   │       ├── FileSystemDataSource.kt
+│   │   │   │   │       └── MediaStoreClient.kt
 │   │   │   │   ├── di/                     # Dependency Injection
 │   │   │   │   │   └── RepositoryModule.kt
 │   │   │   │   ├── domain/                 # Domain Layer (Interfaces & Models)
@@ -83,7 +90,11 @@ arcile/
 │   │   │   │   │   ├── StorageBrowserLocation.kt # Current location within browser
 │   │   │   │   │   ├── StorageInfo.kt      # Storage total/free byte model
 │   │   │   │   │   ├── StorageScope.kt     # Volume bounding constraints
-│   │   │   │   │   └── TrashMetadata.kt    # Trash entry model
+│   │   │   │   │   ├── TrashMetadata.kt    # Trash entry model
+│   │   │   │   │   └── usecase/            # Domain use cases
+│   │   │   │   │       ├── GetStorageVolumesUseCase.kt
+│   │   │   │   │       ├── MoveToTrashUseCase.kt
+│   │   │   │   │       └── PasteFilesUseCase.kt
 │   │   │   │   ├── image/                  # Coil Fetchers
 │   │   │   │   │   ├── ApkIconFetcher.kt   # Extracts APK icons
 │   │   │   │   │   └── AudioAlbumArtFetcher.kt # Extracts embedded audio covers
@@ -91,6 +102,10 @@ arcile/
 │   │   │   │   │   └── AppRoutes.kt        # Type-safe serialization routes
 │   │   │   │   ├── presentation/           # Presentation Layer (ViewModels & UI)
 │   │   │   │   │   ├── browser/            # BrowserViewModel & state
+│   │   │   │   │   │   └── delegate/
+│   │   │   │   │   │       ├── ClipboardDelegate.kt
+│   │   │   │   │   │       ├── NavigationDelegate.kt
+│   │   │   │   │   │       └── SearchDelegate.kt
 │   │   │   │   │   ├── home/               # HomeViewModel & state
 │   │   │   │   │   ├── recentfiles/        # RecentFilesViewModel & state
 │   │   │   │   │   ├── settings/           # Settings feature ViewModel & state
@@ -199,7 +214,7 @@ Because Scoped Storage severely limits cross-app deletion mechanisms, Arcile imp
 ## Core Modules & ViewModels
 
 ### FileRepository / LocalFileRepository
-The single source of truth for file operations.
+The single source of truth for file operations. It is now a facade delegating to `VolumeProvider`, `TrashManager`, `MediaStoreClient`, and `FileSystemDataSource`.
 
 | Method Context | Description |
 |----------------|-------------|
@@ -213,7 +228,7 @@ ViewModels manage state and logic tailored to specific application features, red
 
 | ViewModel | Responsibility |
 |-----------|----------------|
-| `BrowserViewModel` | Core file exploration logic, search, selection, and clipboard operations (copy, cut, paste, rename, trash). |
+| `BrowserViewModel` | Core file exploration logic, search, selection, and clipboard operations (copy, cut, paste, rename, trash). Uses `NavigationDelegate`, `ClipboardDelegate`, and `SearchDelegate`. |
 | `HomeViewModel` | Dashboard state, including quick-access categories, recent file previews, and scoped storage overview. |
 | `RecentFilesViewModel` | Manages the full list of recently modified files, scoped to volumes, enabling direct actions and timeline sorting. |
 | `TrashViewModel` | Dedicated logic for browsing the recycle bin, permanent deletion, and metadata-aware restoration. |

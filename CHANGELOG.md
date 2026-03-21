@@ -6,6 +6,15 @@
 
 ---
 
+## [0.4.9] - 2026-03-21
+
+### Refactored
+- **Clean Architecture:** Completely modularized `LocalFileRepository.kt` into dedicated data sources (`VolumeProvider`, `TrashManager`, `MediaStoreClient`, `FileSystemDataSource`) and introduced Domain-level Use Cases.
+- **ViewModel Delegates:** Decomposed the massive `BrowserViewModel.kt` into `NavigationDelegate`, `ClipboardDelegate`, and `SearchDelegate` to cleanly isolate state management.
+- **UI Modularization:** Extracted complex inline dialogs and views from `FileManagerScreen.kt` into isolated Compose components, completing the eradication of "God Class" monoliths across the presentation and data layers.
+
+---
+
 ## [0.4.8] - 2026-03-21
 
 ### Fixed

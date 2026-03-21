@@ -84,7 +84,7 @@ private class FakeDeletePolicyRepository(
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
     override fun observeStorageVolumes() = kotlinx.coroutines.flow.emptyFlow<List<StorageVolume>>()
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.failure(NotImplementedError())
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = Result.failure(NotImplementedError())
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = Result.failure(NotImplementedError())
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
