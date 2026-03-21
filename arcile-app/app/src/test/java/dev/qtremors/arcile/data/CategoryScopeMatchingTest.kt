@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.data
 
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import org.junit.Assert.assertEquals
@@ -23,7 +22,6 @@ class CategoryScopeMatchingTest {
             freeBytes = 500L,
             isPrimary = id == "primary",
             isRemovable = id != "primary",
-            mountState = StorageMountState.MOUNTED,
             kind = if (id == "primary") StorageKind.INTERNAL else StorageKind.SD_CARD,
             isUserClassified = true
         )

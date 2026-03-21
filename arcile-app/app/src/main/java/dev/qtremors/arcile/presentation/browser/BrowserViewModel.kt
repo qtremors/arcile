@@ -36,6 +36,7 @@ import dev.qtremors.arcile.navigation.AppRoutes
 
 enum class BrowserNativeAction { TRASH }
 
+@androidx.compose.runtime.Immutable
 data class BrowserState(
     val currentPath: String = "",
     val currentVolumeId: String? = null,
@@ -80,14 +81,15 @@ class BrowserViewModel @Inject constructor(
     private val pathHistory = ArrayDeque<String>()
     private var searchJob: Job? = null
 
+    private var isInitialized = false
+
     init {
         viewModelScope.launch {
             repository.observeStorageVolumes().collectLatest { volumes ->
                 _state.update { it.copy(storageVolumes = volumes) }
-                val currentVolumeId = _state.value.currentVolumeId
-                if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
-                    openVolumeRoots("Selected storage was removed")
-                } else {
+                
+                if (!isInitialized) {
+                    isInitialized = true
                     when (val location = restoreLocationFromState()) {
                         StorageBrowserLocation.Roots -> openFileBrowser()
                         is StorageBrowserLocation.Directory -> {
@@ -115,6 +117,13 @@ class BrowserViewModel @Inject constructor(
                             refresh()
                         }
                         null -> initializeFromArgs()
+                    }
+                } else {
+                    val currentVolumeId = _state.value.currentVolumeId
+                    if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
+                        openVolumeRoots("Selected storage was removed")
+                    } else if (_state.value.isVolumeRootScreen) {
+                        _state.update { it.copy(files = volumeFiles()) }
                     }
                 }
             }
@@ -444,14 +453,12 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(browserSortOption = sortOption) }
         viewModelScope.launch {
             if (_state.value.isCategoryScreen) {
-                browserPreferencesRepository.updatePathSortOption("category_${_state.value.activeCategoryName}", sortOption)
+                browserPreferencesRepository.updatePathSortOption("category_${_state.value.activeCategoryName}", sortOption, applyToSubfolders = false)
             } else {
-                if (applyToSubfolders) {
-                    val path = _state.value.currentPath
-                    if (path.isNotEmpty()) {
-                        browserPreferencesRepository.updatePathSortOption(path, sortOption)
-                    }
-                } else {
+                val path = _state.value.currentPath
+                if (path.isNotEmpty()) {
+                    browserPreferencesRepository.updatePathSortOption(path, sortOption, applyToSubfolders)
+                } else if (applyToSubfolders) {
                     browserPreferencesRepository.updateGlobalSortOption(sortOption)
                 }
             }
@@ -478,12 +485,6 @@ class BrowserViewModel @Inject constructor(
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
 
-        val invalidChars = listOf('/', '\\', '\u0000')
-        if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
-            _state.update { it.copy(error = "Invalid folder name: must not be blank or contain /, \\, or ..") }
-            return
-        }
-
         viewModelScope.launch {
             repository.createDirectory(currentPath, name).onSuccess {
                 refresh()
@@ -496,12 +497,6 @@ class BrowserViewModel @Inject constructor(
     fun createFile(name: String) {
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
-
-        val invalidChars = listOf('/', '\\', '\u0000')
-        if (name.isBlank() || invalidChars.any { name.contains(it) } || name.contains("..")) {
-            _state.update { it.copy(error = "Invalid file name: must not be blank or contain /, \\, or ..") }
-            return
-        }
 
         viewModelScope.launch {
             repository.createFile(currentPath, name).onSuccess {

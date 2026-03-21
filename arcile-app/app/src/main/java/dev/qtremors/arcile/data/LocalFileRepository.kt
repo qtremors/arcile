@@ -16,7 +16,6 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -183,7 +182,6 @@ class LocalFileRepository(
                     freeBytes = freeBytes,
                     isPrimary = isPrimary,
                     isRemovable = isRemovable,
-                    mountState = StorageMountState.MOUNTED
                 )
             }
         }
@@ -489,6 +487,7 @@ class LocalFileRepository(
     override suspend fun getRecentFiles(
         scope: StorageScope,
         limit: Int,
+        offset: Int,
         minTimestamp: Long
     ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
         try {
@@ -512,8 +511,6 @@ class LocalFileRepository(
             val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
             val selection = if (minTimestamp > 0) "$baseSelection AND (${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)" else baseSelection
             val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString(), (minTimestamp / 1000).toString()) else null
-            val queryLimit = limit * 2
-
             context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
@@ -522,18 +519,26 @@ class LocalFileRepository(
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
                 val mimeTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
 
-                while (cursor.moveToNext() && filesList.size < queryLimit) {
+                var validFilesSkipped = 0
+
+                while (cursor.moveToNext() && filesList.size < limit) {
                     val path = cursor.getString(dataCol)
                     val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
 
                     if (path != null && !name.startsWith(".") && !path.contains("/.") && matchesScope(path, scope, volumes)) {
+                        val actualFile = File(path)
+                        if (!actualFile.exists()) continue
+                        
+                        if (validFilesSkipped < offset) {
+                            validFilesSkipped++
+                            continue
+                        }
+
                         var size = cursor.getLong(sizeCol)
                         val dateAdded = cursor.getLong(dateAddedCol) * 1000L
                         val dateModified = cursor.getLong(dateModifiedCol) * 1000L
                         val mimeType = cursor.getString(mimeTypeCol)
 
-                        val actualFile = File(path)
-                        if (!actualFile.exists()) continue
                         if (size == 0L) {
                             size = actualFile.length()
                         }
@@ -554,7 +559,7 @@ class LocalFileRepository(
                 }
             }
 
-            val finalSortedList = filesList.sortedByDescending { it.lastModified }.take(limit)
+            val finalSortedList = filesList.sortedByDescending { it.lastModified }
 
             Result.success(finalSortedList)
         } catch (e: Exception) {
@@ -968,11 +973,25 @@ class LocalFileRepository(
                     }
                 }
                 
-                context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), null)?.use { cursor ->
+                val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+                val bundle = android.os.Bundle().apply {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selectionBuilder.toString())
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, 500)
+                }
 
-                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                    while (cursor.moveToNext()) {
-                        val path = cursor.getString(dataCol)
+                val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.contentResolver.query(uri, projection, bundle, null)
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), "$sortOrder LIMIT 500")
+                }
+
+                cursor?.use { c ->
+                    val dataCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    while (c.moveToNext()) {
+                        val path = c.getString(dataCol)
                         if (path != null && !path.contains("/.") && matchesScope(path, scope, volumes)) {
                             val f = File(path)
                             if (f.exists() && !f.name.startsWith(".")) {

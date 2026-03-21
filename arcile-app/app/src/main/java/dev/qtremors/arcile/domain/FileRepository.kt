@@ -130,6 +130,7 @@ interface FileRepository {
     suspend fun getRecentFiles(
         scope: StorageScope = StorageScope.AllStorage,
         limit: Int = 10,
+        offset: Int = 0,
         minTimestamp: Long = 0L
     ): Result<List<FileModel>>
 

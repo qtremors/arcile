@@ -10,7 +10,6 @@ import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -111,7 +110,6 @@ private class TrashFakeFileRepository(
                     freeBytes = 20L,
                     isPrimary = true,
                     isRemovable = false,
-                    mountState = StorageMountState.MOUNTED,
                     kind = StorageKind.INTERNAL
                 )
             )

@@ -41,7 +41,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -286,8 +290,18 @@ fun MultiColorStorageBar(
     val hasData = totalBytes > 0
     
     // Global progress for the "revealing" animation when data first appears
+    var animationTrigger by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isCalculating, hasData) {
+        if (!isCalculating && hasData) {
+            animationTrigger = true
+        } else if (isCalculating) {
+            animationTrigger = false
+        }
+    }
+
     val revealProgress by animateFloatAsState(
-        targetValue = if (hasData) 1f else 0f,
+        targetValue = if (animationTrigger) 1f else 0f,
         animationSpec = tween(1000, easing = LinearEasing),
         label = "storageBarReveal"
     )
@@ -298,13 +312,13 @@ fun MultiColorStorageBar(
             .height(barHeight)
             .clip(barShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .shimmer(visible = isCalculating && !hasData, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            .shimmer(visible = isCalculating, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
     ) {
         if (hasData || isCalculating) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Indeterminate Layer (Flowing colors)
                 AnimatedVisibility(
-                    visible = isCalculating && !hasData,
+                    visible = isCalculating,
                     enter = fadeIn(),
                     exit = fadeOut(animationSpec = tween(1000))
                 ) {
@@ -341,7 +355,7 @@ fun MultiColorStorageBar(
                 }
 
                 // Data Layer (Segments)
-                if (hasData) {
+                if (hasData && animationTrigger) {
                     Row(modifier = Modifier.fillMaxSize()) {
                         val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
                         val actualUsedBytes = totalBytes - freeBytes

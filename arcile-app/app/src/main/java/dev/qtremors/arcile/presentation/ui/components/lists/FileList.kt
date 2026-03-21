@@ -62,7 +62,7 @@ fun FileList(
     LaunchedEffect(files) { lastInteractedIndex = null }
 
     LazyColumn(modifier = modifier.fillMaxWidth(), state = listState) {
-        items(files.size, key = { index -> files[index].absolutePath }) { index ->
+        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
             val file = files[index]
             FileItemRow(
                 modifier = Modifier.animateItem(),

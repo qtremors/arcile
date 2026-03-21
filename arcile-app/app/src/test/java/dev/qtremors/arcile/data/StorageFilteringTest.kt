@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.data
 
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import org.junit.Assert.assertEquals
@@ -21,7 +20,6 @@ class StorageFilteringTest {
             freeBytes = 500L,
             isPrimary = kind == StorageKind.INTERNAL,
             isRemovable = kind != StorageKind.INTERNAL,
-            mountState = StorageMountState.MOUNTED,
             kind = kind,
             isUserClassified = true
         )

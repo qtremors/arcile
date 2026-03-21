@@ -62,7 +62,6 @@ class DeletePolicyTest {
         freeBytes = 50L,
         isPrimary = kind == StorageKind.INTERNAL,
         isRemovable = kind != StorageKind.INTERNAL,
-        mountState = StorageMountState.MOUNTED,
         kind = kind,
         isUserClassified = kind != StorageKind.INTERNAL
     )

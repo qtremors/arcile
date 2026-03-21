@@ -6,8 +6,3 @@ sealed interface StorageScope {
     data class Path(val volumeId: String, val absolutePath: String) : StorageScope
     data class Category(val volumeId: String? = null, val categoryName: String) : StorageScope
 }
-
-enum class StorageMountState {
-    MOUNTED,
-    UNMOUNTED
-}

@@ -10,7 +10,6 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
@@ -202,7 +201,6 @@ class StorageScopeViewModelTest {
         freeBytes = 40L,
         isPrimary = !removable,
         isRemovable = removable,
-        mountState = StorageMountState.MOUNTED,
         kind = kind,
         isUserClassified = removable
     )

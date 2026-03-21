@@ -11,7 +11,6 @@ import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -191,7 +190,6 @@ private fun recentVolume(id: String, path: String, kind: StorageKind) = StorageV
     freeBytes = 20L,
     isPrimary = kind == StorageKind.INTERNAL,
     isRemovable = kind != StorageKind.INTERNAL,
-    mountState = StorageMountState.MOUNTED,
     kind = kind
 )
 

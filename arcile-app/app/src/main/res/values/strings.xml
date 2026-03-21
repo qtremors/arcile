@@ -149,6 +149,12 @@
     <string name="mixed_selection_title">Mixed Selection Blocked</string>
     <string name="mixed_selection_description">Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.</string>
     <string name="sort_folder_title">Sort current folder</string>
+    <string name="sort_name_asc">Name (A to Z)</string>
+    <string name="sort_name_desc">Name (Z to A)</string>
+    <string name="sort_date_newest">Newest First</string>
+    <string name="sort_date_oldest">Oldest First</string>
+    <string name="sort_size_largest">Largest First</string>
+    <string name="sort_size_smallest">Smallest First</string>
     <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
     <string name="clipboard_copied">copied</string>
     <string name="clipboard_cut">cut</string>
@@ -169,7 +175,7 @@
     <string name="from_volume">From %1$s: %2$s</string>
 
     <!-- Recent Files -->
-    <string name="recent_files_title">Recent Files (Past Week)</string>
+    <string name="recent_files_title">Recent Files</string>
 
     <!-- Tools -->
     <string name="tools_title">Tools &amp; Utilities</string>

@@ -26,6 +26,9 @@ data class RecentFilesState(
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val hasMore: Boolean = true,
+    val currentOffset: Int = 0,
     val error: String? = null,
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
@@ -66,25 +69,44 @@ class RecentFilesViewModel @Inject constructor(
     }
 
 
-    fun loadRecentFiles(pullToRefresh: Boolean = false) {
-        _state.update { it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null) }
-        viewModelScope.launch {
-            val scope = _state.value.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
-            val result = repository.getRecentFiles(scope = scope, limit = 500)
-            result.onSuccess { files ->
-                _state.update { it.copy(
-                    isLoading = false,
-                    isPullToRefreshing = false,
-                    recentFiles = files,
-                    searchResults = if (it.searchQuery.isNotBlank()) {
-                         files.filter { f -> f.name.contains(it.searchQuery, ignoreCase = true) }
-                    } else emptyList()
-                ) }
-            }.onFailure { error ->
-
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, error = error.message ?: "Failed to load recent files") }
+    fun loadRecentFiles(pullToRefresh: Boolean = false, loadMore: Boolean = false) {
+        if (loadMore && (_state.value.isLoadingMore || !_state.value.hasMore)) return
+        
+        val offset = if (loadMore) _state.value.currentOffset + 50 else 0
+        
+        _state.update { 
+            if (loadMore) {
+                it.copy(isLoadingMore = true, error = null)
+            } else {
+                it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null, currentOffset = 0, hasMore = true)
             }
         }
+        viewModelScope.launch {
+            val scope = _state.value.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
+            val result = repository.getRecentFiles(scope = scope, limit = 50, offset = offset)
+            result.onSuccess { files ->
+                _state.update { 
+                    val newFiles = if (loadMore) it.recentFiles + files else files
+                    it.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        isLoadingMore = false,
+                        recentFiles = newFiles,
+                        currentOffset = offset,
+                        hasMore = files.size == 50,
+                        searchResults = if (it.searchQuery.isNotBlank()) {
+                             newFiles.filter { f -> f.name.contains(it.searchQuery, ignoreCase = true) }
+                        } else emptyList()
+                    ) 
+                }
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, isLoadingMore = false, error = error.message ?: "Failed to load recent files") }
+            }
+        }
+    }
+
+    fun loadMore() {
+        loadRecentFiles(loadMore = true)
     }
 
     fun toggleSelection(path: String) {

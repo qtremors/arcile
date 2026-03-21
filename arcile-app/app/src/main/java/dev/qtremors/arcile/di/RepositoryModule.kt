@@ -12,11 +12,20 @@ import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.ui.theme.ThemePreferences
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
+
+    @Provides
+    @Singleton
+    fun provideThemePreferences(
+        @ApplicationContext context: Context
+    ): ThemePreferences {
+        return ThemePreferences(context)
+    }
 
     @Provides
     @Singleton

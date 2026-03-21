@@ -19,7 +19,7 @@ interface BrowserPreferencesStore {
 
     suspend fun updateGlobalSortOption(sortOption: FileSortOption)
 
-    suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?)
+    suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?, applyToSubfolders: Boolean = false)
 }
 
 class BrowserPreferencesRepository(private val context: Context) : BrowserPreferencesStore {
@@ -38,6 +38,7 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
             val globalSort = FileSortOption.entries.find { it.name == globalSortStr } ?: FileSortOption.NAME_ASC
 
             val pathMap = mutableMapOf<String, FileSortOption>()
+            val exactPathMap = mutableMapOf<String, FileSortOption>()
             prefs.asMap().forEach { (key, value) ->
                 if (key.name.startsWith("path_sort_") && value is String) {
                     val path = key.name.removePrefix("path_sort_")
@@ -45,9 +46,15 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
                     if (sortOption != null) {
                         pathMap[path] = sortOption
                     }
+                } else if (key.name.startsWith("exact_path_sort_") && value is String) {
+                    val path = key.name.removePrefix("exact_path_sort_")
+                    val sortOption = FileSortOption.entries.find { it.name == value }
+                    if (sortOption != null) {
+                        exactPathMap[path] = sortOption
+                    }
                 }
             }
-            BrowserPreferences(globalSort, pathMap)
+            BrowserPreferences(globalSort, pathMap, exactPathMap)
         }
 
     override suspend fun updateGlobalSortOption(sortOption: FileSortOption) {
@@ -56,14 +63,23 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
         }
     }
 
-    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?) {
+    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?, applyToSubfolders: Boolean) {
         val normalizedPath = if (path.length > 1) path.trimEnd('/') else path
-        val key = stringPreferencesKey("path_sort_$normalizedPath")
+        val recursiveKey = stringPreferencesKey("path_sort_$normalizedPath")
+        val exactKey = stringPreferencesKey("exact_path_sort_$normalizedPath")
+        
         context.browserDataStore.edit { prefs ->
             if (sortOption == null) {
-                prefs.remove(key)
+                prefs.remove(recursiveKey)
+                prefs.remove(exactKey)
             } else {
-                prefs[key] = sortOption.name
+                if (applyToSubfolders) {
+                    prefs[recursiveKey] = sortOption.name
+                    prefs.remove(exactKey)
+                } else {
+                    prefs[exactKey] = sortOption.name
+                    prefs.remove(recursiveKey)
+                }
             }
         }
     }

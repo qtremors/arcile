@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.data
 
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageVolume
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -26,7 +25,6 @@ class StorageClassificationMergeTest {
             freeBytes = 500L,
             isPrimary = isPrimary,
             isRemovable = !isPrimary,
-            mountState = StorageMountState.MOUNTED,
             kind = if (isPrimary) StorageKind.INTERNAL else StorageKind.EXTERNAL_UNCLASSIFIED,
             isUserClassified = false
         )

@@ -1,8 +1,47 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.7
-> **Last Updated:** 2026-03-20
+> **Version:** 0.4.8
+> **Last Updated:** 2026-03-21
+
+---
+
+## [0.4.8] - 2026-03-21
+
+### Fixed
+- **Recent Files Pagination:** Increased visibility of historical records in the Recent Files tab by replacing the arbitrary 50-file limit with an infinite-scrolling offset mechanism.
+- **Folder Navigation Delay:** Removed redundant `AnimatedContent` wrappers on the `FileManagerScreen` that were doubling composition loads, guaranteeing instantaneous snaps and stutter-free folder loading alongside the new 5ms indicator delay.
+- **Sort Dialog UX:** Fixed the "Sort By" bottom sheet dismissing prematurely upon radio selection before users could toggle the subfolder checkbox. Added active local state tracking with dedicated Apply/Cancel confirmation buttons.
+- **Filter Dialog Expansion:** Enforced `skipPartiallyExpanded = true` for the `SortOptionDialog` and `SearchFiltersBottomSheet` so that the dialogs immediately open to full height, preventing buttons and options from being hidden off-screen.
+
+### Changed
+- **Material 3 Expressive Filter UI:** Upgraded the `SearchFiltersBottomSheet` to M3 Expressive standards, replacing scattered `FilterChips` with cohesive, sliding `SingleChoiceSegmentedButtonRow` pills.
+- **Material 3 Expressive Sort UI:** Upgraded the `SortOptionDialog` to M3 Expressive, introducing robust interactive `Surface` elements that responsively color-fill with `secondaryContainer` highlights upon selection, grounded by a solid `FilledTonalButton`.
+
+### Performance
+- **Volume Discovery:** Added a memory cache to `discoverPlatformVolumes()` that precisely invalidates upon receiving explicit storage mount/unmount broadcasts, preventing severe redundant `StatFs` I/O during operations and startup.
+- **Search Optimization:** Pushed sort and limit logic for global MediaStore searches into the `ContentResolver` query to prevent memory bloat and unstructured result sets.
+- **Home Screen Efficiency:** Debounced and diffed incoming storage volume events to eliminate redundant Home screen data fetches on silent refreshes.
+- **Recent Files Performance:** Reduced the initial MediaStore query limit from 500 to 50 for the recent files screen to improve startup speed and reduce memory consumption.
+- **Compose Recomposition Fixes:** Added `@Immutable` annotations to `FileModel` and `BrowserState` to prevent excessive recompositions and sorting overhead.
+- **List Stability:** Implemented unique string keys for `LazyColumn` and `LazyVerticalGrid` elements to prevent item collision during rapid directory transitions.
+- **Refresh Rate Management:** Removed unconditional app-wide overrides for device refresh rates, allowing the system to handle display dynamics properly.
+
+### Smoothness
+- **Browser State Retention:** Handled volume updates by diffing the active volume and updating state accordingly, stopping the `BrowserViewModel` from destructively resetting path locations and UI selections whenever a volume re-enumerated.
+- **Home Screen Flicker:** Debounced and scoped `isCalculatingStorage` so `HomeViewModel.loadHomeData()` no longer forces UI shimmer and flickering on silent background updates.
+
+### Code Quality & Maintainability
+- **Sorting Localization:** Removed hardcoded English labels from `FileSortOption` and migrated `FileListControls` to use proper XML string resources for translation support.
+- **Validation Logic:** Eliminated duplicate filename validation checks (`/`, `\`, `..`) in `BrowserViewModel` to ensure the repository remains the single source of truth for file creation rules.
+- **Dead Code Removal:** Deleted the deprecated `presentation/SearchFilters.kt` typealias file to prevent confusing domain boundary imports.
+
+### Architecture
+- **Dependency Injection:** Hoisted `ThemePreferences` instantiation out of `MainActivity` and correctly wired it into the Hilt DI graph for better testability.
+- **State Management:** Extracted `MainActivity` permission handling and reactive states (`_hasPermission`) into a dedicated `MainViewModel`, cleanly separating application UI from core logic.
+- **ViewModel Sharing:** `StorageManagementScreen` now natively shares the same `HomeViewModel` instance anchored to the `Home` back stack entry, preventing duplicate `Home` data reloading and visual sync bugs.
+- **Dead State Pruning:** Removed the completely unused `StorageMountState` enum and its dependent initialization lines across the app and testing environments.
+- **Sort Settings Granularity:** Reworked `BrowserPreferencesStore` and its repository logic to fully support isolating folder sorting rules to a single directory (without corrupting the global state) or allowing subdirectories to inherit via standard propagation.
 
 ---
 

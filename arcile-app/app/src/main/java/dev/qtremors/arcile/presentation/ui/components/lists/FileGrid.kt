@@ -77,7 +77,7 @@ fun FileGrid(
         state = gridState,
         modifier = modifier.fillMaxWidth()
     ) {
-        items(files.size, key = { index -> files[index].absolutePath }) { index ->
+        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
             val file = files[index]
             FileGridItem(
                 modifier = Modifier.animateItem(),

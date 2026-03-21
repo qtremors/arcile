@@ -534,7 +534,7 @@ fun HomeScreen(
                         }
                     } else {
                         val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
-                        items(displayedRecentFiles, key = { it.absolutePath }) { file ->
+                        items(displayedRecentFiles, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
 
                             FileItemRow(
                                 file = file,

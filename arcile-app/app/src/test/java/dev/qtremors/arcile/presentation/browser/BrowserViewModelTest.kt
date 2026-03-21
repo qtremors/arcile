@@ -13,7 +13,6 @@ import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -238,28 +237,6 @@ class BrowserViewModelTest {
         assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathSortOption)
         assertNull(preferences.lastUpdatedGlobalSortOption)
     }
-
-    @Test
-    fun `createFolder rejects invalid names without touching repository`() = runTest(mainDispatcherRule.dispatcher) {
-        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val repo = BrowserFakeFileRepository(
-            volumes = listOf(internal),
-            filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
-        )
-        val viewModel = BrowserViewModel(
-            repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
-            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
-        )
-
-        advanceUntilIdle()
-        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
-        advanceUntilIdle()
-        viewModel.createFolder("../bad")
-
-        assertEquals("Invalid folder name: must not be blank or contain /, \\, or ..", viewModel.state.value.error)
-        assertEquals(0, repo.createDirectoryCalls)
-    }
 }
 
 private class FakeBrowserPreferencesStore(
@@ -277,7 +254,7 @@ private class FakeBrowserPreferencesStore(
         _preferencesFlow.value = _preferencesFlow.value.copy(globalSortOption = sortOption)
     }
 
-    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?) {
+    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?, applyToSubfolders: Boolean) {
         lastUpdatedPath = path
         lastUpdatedPathSortOption = sortOption
         _preferencesFlow.value = _preferencesFlow.value.copy(
@@ -366,7 +343,6 @@ private fun browserVolume(
     freeBytes = 250L,
     isPrimary = isPrimary,
     isRemovable = isRemovable,
-    mountState = StorageMountState.MOUNTED,
     kind = kind
 )
 

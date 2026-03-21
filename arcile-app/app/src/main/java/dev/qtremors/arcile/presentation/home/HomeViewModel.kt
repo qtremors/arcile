@@ -76,9 +76,12 @@ class HomeViewModel @Inject constructor(
             @OptIn(FlowPreview::class)
             repository.observeStorageVolumes()
                 .debounce(1000L)
-                .collectLatest {
-                loadHomeData(HomeRefreshMode.SILENT)
-            }
+                .collectLatest { volumes ->
+                    val currentState = _state.value
+                    if (currentState.allStorageVolumes != volumes) {
+                        loadHomeData(HomeRefreshMode.SILENT)
+                    }
+                }
         }
     }
 
@@ -93,7 +96,7 @@ class HomeViewModel @Inject constructor(
             it.copy(
                 isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
                 isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
-                isCalculatingStorage = true,
+                isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT,
                 error = null
             )
         }

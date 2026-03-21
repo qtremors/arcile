@@ -10,7 +10,6 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -43,7 +42,7 @@ class HomeViewModelTest {
         )
         val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore())
 
-        advanceTimeBy(1_000)
+        viewModel.loadHomeData()
         advanceUntilIdle()
 
         assertEquals("storage failed", viewModel.state.value.error)
@@ -244,7 +243,6 @@ private fun homeVolume(
     freeBytes = 500L,
     isPrimary = isPrimary,
     isRemovable = isRemovable,
-    mountState = StorageMountState.MOUNTED,
     kind = kind
 )
 

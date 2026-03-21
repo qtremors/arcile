@@ -402,23 +402,15 @@ fun FileManagerScreen(
             // When search has completed, show search results instead of browse content
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
+            val targetKey = FileManagerContentKey(
+                isSearch = searchHasCompleted,
+                path = state.currentPath,
+                category = state.activeCategoryName,
+                isRoot = state.isVolumeRootScreen
+            )
+
             Column(modifier = Modifier.fillMaxSize()) {
-                AnimatedContent(
-                    targetState = FileManagerContentKey(
-                        isSearch = searchHasCompleted,
-                        path = state.currentPath,
-                        category = state.activeCategoryName,
-                        isRoot = state.isVolumeRootScreen
-                    ),
-                    transitionSpec = {
-                        fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) togetherWith
-                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow))
-                    },
-                    label = "FolderTransition",
-                    modifier = Modifier.weight(1f)
-                ) { targetKey ->
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        if (targetKey.isSearch) {
+                if (targetKey.isSearch) {
                             // Search results in the content area
                             if (state.searchResults.isEmpty()) {
                                 EmptyState(
@@ -430,7 +422,7 @@ fun FileManagerScreen(
                             } else {
                                 val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                                 LazyColumn(modifier = Modifier.weight(1f)) {
-                                    items(state.searchResults, key = { it.absolutePath }) { file ->
+                                    items(state.searchResults, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
                                         FileItemRow(
                                             file = file,
                                             formattedDate = formatter.format(Date(file.lastModified)),
@@ -575,8 +567,6 @@ fun FileManagerScreen(
                                     )
                                 }
                             }
-                        }
-                    }
                 }
             }
 

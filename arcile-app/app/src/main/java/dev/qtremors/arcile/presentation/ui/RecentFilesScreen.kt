@@ -71,7 +71,8 @@ fun RecentFilesScreen(
     onRefresh: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
-    onClearNativeRequest: () -> Unit = {}
+    onClearNativeRequest: () -> Unit = {},
+    onLoadMore: () -> Unit = {}
 ) {
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
@@ -239,8 +240,25 @@ fun RecentFilesScreen(
 
 
 
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                
+                val shouldLoadMore by remember {
+                    derivedStateOf {
+                        val totalItems = listState.layoutInfo.totalItemsCount
+                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                        totalItems > 0 && lastVisibleItem >= totalItems - 5
+                    }
+                }
+
+                LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+                    if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                        onLoadMore()
+                    }
+                }
+
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState
                 ) {
                     groupedFiles.forEach { (dateHeader, files) ->
                         @OptIn(ExperimentalFoundationApi::class)
@@ -261,7 +279,7 @@ fun RecentFilesScreen(
                             }
                         }
 
-                        items(files, key = { it.absolutePath }) { file ->
+                        items(files, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
                             FileItemRow(
                                 file = file,
                                 formattedDate = formatter.format(Date(file.lastModified)),
@@ -274,6 +292,18 @@ fun RecentFilesScreen(
                                     onToggleSelection(file.absolutePath)
                                 }
                             )
+                        }
+                    }
+                    if (state.isLoadingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator()
+                            }
                         }
                     }
                 }

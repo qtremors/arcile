@@ -28,7 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.presentation.FileSortOption
 
-
+import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.Checkbox
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,13 +45,18 @@ fun SortOptionDialog(
     onOptionSelected: (FileSortOption, Boolean) -> Unit
 ) {
     var applyToSubfolders by remember { mutableStateOf(false) }
+    var tempSelectedOption by remember { mutableStateOf(selectedOption) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(bottom = 16.dp, top = 8.dp)
         ) {
             Text(
                 text = title,
@@ -60,22 +65,46 @@ fun SortOptionDialog(
             )
 
             FileSortOption.entries.forEach { option ->
-                Row(
+                val isSelected = option == tempSelectedOption
+                val backgroundColor by androidx.compose.animation.animateColorAsState(
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                    label = "sort_bg"
+                )
+                
+                androidx.compose.material3.Surface(
+                    shape = MaterialTheme.shapes.large,
+                    color = backgroundColor,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.medium)
-                        .clickable { 
-                            onOptionSelected(option, applyToSubfolders) 
-                        }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clip(MaterialTheme.shapes.large)
+                        .clickable { tempSelectedOption = option }
                 ) {
-                    Text(option.label, style = MaterialTheme.typography.bodyLarge)
-                    RadioButton(
-                        selected = option == selectedOption,
-                        onClick = null // Handled by Row click
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        val labelRes = when(option) {
+                            FileSortOption.NAME_ASC -> dev.qtremors.arcile.R.string.sort_name_asc
+                            FileSortOption.NAME_DESC -> dev.qtremors.arcile.R.string.sort_name_desc
+                            FileSortOption.DATE_NEWEST -> dev.qtremors.arcile.R.string.sort_date_newest
+                            FileSortOption.DATE_OLDEST -> dev.qtremors.arcile.R.string.sort_date_oldest
+                            FileSortOption.SIZE_LARGEST -> dev.qtremors.arcile.R.string.sort_size_largest
+                            FileSortOption.SIZE_SMALLEST -> dev.qtremors.arcile.R.string.sort_size_smallest
+                        }
+                        Text(
+                            text = stringResource(labelRes), 
+                            style = MaterialTheme.typography.titleMedium,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+                        )
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = null // Handled by Surface click
+                        )
+                    }
                 }
             }
 
@@ -101,7 +130,24 @@ fun SortOptionDialog(
                 }
             }
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(dev.qtremors.arcile.R.string.cancel))
+                }
+                androidx.compose.material3.FilledTonalButton(onClick = {
+                    onOptionSelected(tempSelectedOption, applyToSubfolders)
+                    onDismiss()
+                }) {
+                    Text("Apply")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

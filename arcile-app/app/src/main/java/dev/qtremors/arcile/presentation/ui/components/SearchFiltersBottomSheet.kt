@@ -25,7 +25,12 @@ fun SearchFiltersBottomSheet(
 
     val categories = listOf("All") + FileCategories.all.map { it.name }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -52,24 +57,24 @@ fun SearchFiltersBottomSheet(
 
             Text("Item Type", style = MaterialTheme.typography.titleMedium)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
             ) {
-                FilterChip(
-                    selected = currentFilters.itemType == null || currentFilters.itemType == "Any",
-                    onClick = { onApplyFilters(currentFilters.copy(itemType = null)) },
-                    label = { Text("Any") }
-                )
-                FilterChip(
-                    selected = currentFilters.itemType == "Folders",
-                    onClick = { onApplyFilters(currentFilters.copy(itemType = "Folders")) },
-                    label = { Text("Folders") }
-                )
-                FilterChip(
-                    selected = currentFilters.itemType == "Files",
-                    onClick = { onApplyFilters(currentFilters.copy(itemType = "Files")) },
-                    label = { Text("Files") }
-                )
+                SingleChoiceSegmentedButtonRow {
+                    val options = listOf("Any", "Folders", "Files")
+                    options.forEachIndexed { index, label ->
+                        val selected = when(label) {
+                            "Any" -> currentFilters.itemType == null || currentFilters.itemType == "Any"
+                            else -> currentFilters.itemType == label
+                        }
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                            onClick = { onApplyFilters(currentFilters.copy(itemType = if (label == "Any") null else label)) },
+                            selected = selected
+                        ) {
+                            Text(label)
+                        }
+                    }
+                }
             }
 
             if (showCategoryFilter) {
@@ -94,63 +99,59 @@ fun SearchFiltersBottomSheet(
 
             Text("File Size", style = MaterialTheme.typography.titleMedium)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
             ) {
-                FilterChip(
-                    selected = currentFilters.minSize == null && currentFilters.maxSize == null,
-                    onClick = { onApplyFilters(currentFilters.copy(minSize = null, maxSize = null)) },
-                    label = { Text("Any") }
-                )
-                FilterChip(
-                    selected = currentFilters.minSize == null && currentFilters.maxSize == 10L * 1024 * 1024,
-                    onClick = { onApplyFilters(currentFilters.copy(minSize = null, maxSize = 10L * 1024 * 1024)) },
-                    label = { Text("< 10 MB") }
-                )
-                FilterChip(
-                    selected = currentFilters.minSize == 10L * 1024 * 1024 && currentFilters.maxSize == 100L * 1024 * 1024,
-                    onClick = { onApplyFilters(currentFilters.copy(minSize = 10L * 1024 * 1024, maxSize = 100L * 1024 * 1024)) },
-                    label = { Text("10 MB - 100 MB") }
-                )
-                FilterChip(
-                    selected = currentFilters.minSize == 100L * 1024 * 1024 && currentFilters.maxSize == null,
-                    onClick = { onApplyFilters(currentFilters.copy(minSize = 100L * 1024 * 1024, maxSize = null)) },
-                    label = { Text("> 100 MB") }
-                )
+                SingleChoiceSegmentedButtonRow {
+                    val options = listOf(
+                        "Any" to (null to null),
+                        "< 10 MB" to (null to 10L * 1024 * 1024),
+                        "10 - 100 MB" to (10L * 1024 * 1024 to 100L * 1024 * 1024),
+                        "> 100 MB" to (100L * 1024 * 1024 to null)
+                    )
+                    options.forEachIndexed { index, (label, sizeRange) ->
+                        val selected = currentFilters.minSize == sizeRange.first && currentFilters.maxSize == sizeRange.second
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                            onClick = { onApplyFilters(currentFilters.copy(minSize = sizeRange.first, maxSize = sizeRange.second)) },
+                            selected = selected
+                        ) {
+                            Text(label, maxLines = 1)
+                        }
+                    }
+                }
             }
 
             Text("Date Modified", style = MaterialTheme.typography.titleMedium)
             val dayMillis = 24L * 60 * 60 * 1000
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
             ) {
-                FilterChip(
-                    selected = currentFilters.minDateMillis == null && currentFilters.maxDateMillis == null,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = null, maxDateMillis = null)) },
-                    label = { Text("Any time") }
-                )
-                FilterChip(
-                    selected = currentFilters.minDateMillis != null &&
-                        currentFilters.minDateMillis >= System.currentTimeMillis() - 2 * dayMillis &&
-                        currentFilters.minDateMillis < System.currentTimeMillis() - 0,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = System.currentTimeMillis() - dayMillis, maxDateMillis = null)) },
-                    label = { Text("Today") }
-                )
-                FilterChip(
-                    selected = currentFilters.minDateMillis != null &&
-                        currentFilters.minDateMillis >= System.currentTimeMillis() - 8 * dayMillis &&
-                        currentFilters.minDateMillis < System.currentTimeMillis() - 2 * dayMillis,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = System.currentTimeMillis() - 7 * dayMillis, maxDateMillis = null)) },
-                    label = { Text("Last 7 days") }
-                )
-                FilterChip(
-                    selected = currentFilters.minDateMillis != null &&
-                        currentFilters.minDateMillis >= System.currentTimeMillis() - 31 * dayMillis &&
-                        currentFilters.minDateMillis < System.currentTimeMillis() - 8 * dayMillis,
-                    onClick = { onApplyFilters(currentFilters.copy(minDateMillis = System.currentTimeMillis() - 30 * dayMillis, maxDateMillis = null)) },
-                    label = { Text("Last 30 days") }
-                )
+                val now = System.currentTimeMillis()
+                SingleChoiceSegmentedButtonRow {
+                    val options = listOf(
+                        "Any" to (null to null),
+                        "Today" to (now - dayMillis to null),
+                        "Last 7 days" to (now - 7 * dayMillis to null),
+                        "Last 30 days" to (now - 30 * dayMillis to null)
+                    )
+                    options.forEachIndexed { index, (label, dateRange) ->
+                        val selected = if (label == "Any") {
+                            currentFilters.minDateMillis == null && currentFilters.maxDateMillis == null
+                        } else {
+                            currentFilters.minDateMillis != null && 
+                            currentFilters.minDateMillis >= dateRange.first!! - dayMillis && 
+                            currentFilters.minDateMillis <= dateRange.first!! + dayMillis
+                        }
+                        
+                        SegmentedButton(
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                            onClick = { onApplyFilters(currentFilters.copy(minDateMillis = dateRange.first, maxDateMillis = dateRange.second)) },
+                            selected = selected
+                        ) {
+                            Text(label, maxLines = 1)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))

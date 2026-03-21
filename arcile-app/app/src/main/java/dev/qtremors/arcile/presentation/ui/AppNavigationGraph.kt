@@ -209,7 +209,8 @@ fun AppNavigationGraph(
                         onRefresh = { viewModel.loadRecentFiles() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() }
+                        onClearNativeRequest = { viewModel.clearNativeRequest() },
+                        onLoadMore = { viewModel.loadMore() }
 
                     )
                 }
@@ -227,8 +228,11 @@ fun AppNavigationGraph(
                         onNavigateToAbout = { navController.navigate(AppRoutes.About) }
                     )
                 }
-                composable<AppRoutes.StorageManagement> {
-                    val viewModel = hiltViewModel<HomeViewModel>()
+                composable<AppRoutes.StorageManagement> { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry<AppRoutes.Home>()
+                    }
+                    val viewModel = hiltViewModel<HomeViewModel>(parentEntry)
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     StorageManagementScreen(
                         state = state,
