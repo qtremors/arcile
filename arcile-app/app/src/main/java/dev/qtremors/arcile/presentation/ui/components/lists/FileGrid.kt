@@ -1,8 +1,12 @@
 package dev.qtremors.arcile.presentation.ui.components.lists
 
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -48,9 +52,8 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
-import java.text.SimpleDateFormat
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -64,7 +67,7 @@ fun FileGrid(
     modifier: Modifier = Modifier,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
@@ -128,8 +131,7 @@ fun FileGridItem(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
-            stiffness = 380f
-        ),
+            stiffness = Spring.StiffnessMediumLow),
         label = "gridItemScale"
     )
 
@@ -170,7 +172,7 @@ fun FileGridItem(
             if (isMedia) {
                 AsyncImage(
                     model = File(file.absolutePath),
-                    contentDescription = "Thumbnail",
+                    contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f),

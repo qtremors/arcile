@@ -11,6 +11,7 @@ import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,7 +25,6 @@ data class TrashState(
     val error: String? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
-    val nativeRequest: IntentSender? = null,
     val pendingNativeAction: NativeAction? = null,
     val pendingDestinationPath: String? = null,
     val pendingRestoreIds: List<String> = emptyList(),
@@ -43,6 +43,9 @@ class TrashViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(TrashState())
     val state: StateFlow<TrashState> = _state.asStateFlow()
+
+    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
+    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     init {
         loadTrashFiles()
@@ -113,7 +116,8 @@ class TrashViewModel @Inject constructor(
                         }
                     }
                     is NativeConfirmationRequiredException -> {
-                        _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.RESTORE) }
+                        _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.RESTORE) }
+                        viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                     }
                     else -> {
                         _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
@@ -141,22 +145,18 @@ class TrashViewModel @Inject constructor(
                     _state.update { 
                         it.copy(
                             isLoading = false, 
-                            nativeRequest = error.intentSender, 
                             pendingNativeAction = NativeAction.RESTORE_TO_DESTINATION,
                             pendingDestinationPath = destinationPath,
                             pendingRestoreIds = trashIds
                         ) 
                     }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
                     loadTrashFiles()
                 }
             }
         }
-    }
-
-    fun clearNativeRequest() {
-        _state.update { it.copy(nativeRequest = null, pendingNativeAction = null, pendingDestinationPath = null, pendingRestoreIds = emptyList()) }
     }
 
     fun emptyTrash() {
@@ -167,7 +167,8 @@ class TrashViewModel @Inject constructor(
                 loadTrashFiles()
             }.onFailure { error ->
                 if (error is NativeConfirmationRequiredException) {
-                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.EMPTY) }
+                    _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.EMPTY) }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
                     loadTrashFiles()

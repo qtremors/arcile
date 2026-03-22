@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
@@ -28,7 +30,7 @@ import androidx.compose.ui.text.input.ImeAction
 /**
  * A TopAppBar that acts as a search bar.
  * The title area is replaced with a TextField for entering search queries.
- * This sits cleanly in a Scaffold topBar slot — no overflow, no push-down.
+ * This sits cleanly in a Scaffold topBar slot â€” no overflow, no push-down.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +53,7 @@ fun SearchTopBar(
             IconButton(onClick = onClose) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Close search"
+                    contentDescription = stringResource(R.string.action_close_search)
                 )
             }
         },
@@ -83,12 +85,12 @@ fun SearchTopBar(
         actions = {
             if (query.isNotEmpty()) {
                 IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.action_clear))
                 }
             }
             onFilterClick?.let {
                 IconButton(onClick = it) {
-                    Icon(Icons.Default.FilterList, contentDescription = "Filters")
+                    Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.action_filters))
                 }
             }
 

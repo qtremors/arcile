@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.dialogs
+package dev.qtremors.arcile.presentation.ui.components.dialogs
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
@@ -21,13 +23,13 @@ fun CreateFileDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create File") },
+        title = { Text(stringResource(R.string.title_create_file)) },
         shape = MaterialTheme.shapes.extraLarge,
         text = {
             OutlinedTextField(
                 value = fileName,
                 onValueChange = { fileName = it },
-                label = { Text("File Name (e.g., text.txt)") },
+                label = { Text(stringResource(R.string.label_file_name_example)) },
                 singleLine = true
             )
         },
@@ -36,12 +38,12 @@ fun CreateFileDialog(
                 onClick = { onConfirm(fileName) },
                 enabled = fileName.isNotBlank()
             ) {
-                Text("Create")
+                Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

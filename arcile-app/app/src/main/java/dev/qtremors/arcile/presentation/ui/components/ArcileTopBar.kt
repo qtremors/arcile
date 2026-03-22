@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -87,11 +89,11 @@ fun ArcileTopBar(
         navigationIcon = {
             if (selectionCount > 0) {
                 IconButton(onClick = onClearSelection) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear selection")
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
                 }
             } else if (showBackArrow) {
                 IconButton(onClick = onBackClick) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             }
         },
@@ -107,31 +109,31 @@ fun ArcileTopBar(
                     ) {
                         Row {
                             IconButton(onClick = onCancelPaste) {
-                                Icon(Icons.Default.Close, contentDescription = "Cancel transfer", tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_cancel_transfer), tint = MaterialTheme.colorScheme.onTertiaryContainer)
                             }
                             IconButton(onClick = onPasteClick) {
-                                Icon(Icons.Default.ContentPaste, contentDescription = "Paste here", tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                                Icon(Icons.Default.ContentPaste, contentDescription = stringResource(R.string.action_paste_here), tint = MaterialTheme.colorScheme.onTertiaryContainer)
                             }
                         }
                     }
                 } else {
                     if (showSearchAction) {
                         IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
                         }
                     }
                     if (showSortAction) {
                         IconButton(onClick = onSortClick) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                            Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.action_sort))
                         }
                     }
                     if (showSettingsIcon) {
                         IconButton(onClick = onSettingsClick) {
-                            Icon(Icons.Default.Settings, contentDescription = "Settings")
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.action_settings))
                         }
                     }
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More options")
+                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
                     }
                 }
                 DropdownMenu(
@@ -194,24 +196,24 @@ fun ArcileTopBar(
                 ) {
                     Row {
                         IconButton(onClick = { onActionSelected(TopBarAction.Share) }) {
-                            Icon(Icons.Default.Share, contentDescription = "Share")
+                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.SelectAll) }) {
                             Icon(Icons.Default.SelectAll, contentDescription = "Select All")
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.Copy) }) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                            Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.Cut) }) {
-                            Icon(Icons.Default.ContentCut, contentDescription = "Cut")
+                            Icon(Icons.Default.ContentCut, contentDescription = stringResource(R.string.action_cut))
                         }
                         if (selectionCount == 1) {
                             IconButton(onClick = { onActionSelected(TopBarAction.Rename) }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Rename")
+                                Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_rename))
                             }
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete selected")
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete_selected))
                         }
                     }
                 }

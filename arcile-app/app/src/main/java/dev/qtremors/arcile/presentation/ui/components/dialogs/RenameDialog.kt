@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.dialogs
+package dev.qtremors.arcile.presentation.ui.components.dialogs
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
@@ -22,13 +24,13 @@ fun RenameDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename") },
+        title = { Text(stringResource(R.string.title_rename)) },
         shape = MaterialTheme.shapes.extraLarge,
         text = {
             OutlinedTextField(
                 value = newName,
                 onValueChange = { newName = it },
-                label = { Text("New Name") },
+                label = { Text(stringResource(R.string.label_new_name)) },
                 singleLine = true
             )
         },
@@ -37,12 +39,12 @@ fun RenameDialog(
                 onClick = { onConfirm(newName) },
                 enabled = newName.isNotBlank() && newName != currentName
             ) {
-                Text("Rename")
+                Text(stringResource(R.string.action_rename))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

@@ -37,9 +37,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.TrashMetadata
-import java.text.SimpleDateFormat
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -48,7 +47,7 @@ fun TrashList(
     selectedFiles: Set<String>,
     onToggleSelection: (String) -> Unit
 ) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy \u2022 HH:mm", Locale.getDefault()) }
+    val formatter = rememberDateFormatter("MMM dd, yyyy \u2022 HH:mm")
 
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
         items(files, key = { it.id }) { trashItem ->

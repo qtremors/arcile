@@ -14,10 +14,10 @@
 
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.4.7-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.5.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
-  <img src="https://img.shields.io/badge/Min_SDK-24-34A853?logo=android" alt="Android">
+  <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
 </p>
 
@@ -95,7 +95,7 @@ Release builds are signed using credentials stored in `local.properties` (not co
    ./gradlew assembleRelease
    ```
 
-> **Note:** The app currently requires **All Files Access** permission on Android 11+ and **READ/WRITE_EXTERNAL_STORAGE** on Android 9 and below for full file-system access. **Android 10 (API 29) remains unsupported** because the app's `java.io.File`-based architecture does not work reliably under Scoped Storage.
+> **Note:** The app requires **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) permission on Android 11+ for full file-system access.
 
 ---
 
@@ -109,7 +109,7 @@ Release builds are signed using credentials stored in `local.properties` (not co
 | **Navigation** | Navigation Compose |
 | **Async** | Kotlin Coroutines |
 | **Build System** | Gradle (Kotlin DSL) with Version Catalogs |
-| **Min SDK** | 24 (Android 7.0) |
+| **Min SDK** | 30 (Android 11.0) |
 | **Target SDK** | 36 |
 
 ---

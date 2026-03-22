@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -35,11 +36,12 @@ data class RecentFilesState(
     val showMixedDeleteExplanation: Boolean = false,
     val isPermanentDeleteChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
-    val nativeRequest: android.content.IntentSender? = null,
     val pendingNativeAction: RecentNativeAction? = null,
     val searchQuery: String = "",
     val searchResults: List<FileModel> = emptyList(),
-    val isSearching: Boolean = false
+    val isSearching: Boolean = false,
+    val todayStart: Long = 0L,
+    val yesterdayStart: Long = 0L
 )
 
 
@@ -54,13 +56,27 @@ class RecentFilesViewModel @Inject constructor(
     private val _state = MutableStateFlow(RecentFilesState())
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
+    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
+    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+
     init {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val tStart = cal.timeInMillis
+
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val yStart = cal.timeInMillis
+
         val volumeId: String? = try {
             savedStateHandle.toRoute<AppRoutes.RecentFiles>().volumeId
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             savedStateHandle.get<String>("volumeId")
         }
-        _state.update { it.copy(currentVolumeId = volumeId?.takeIf { it.isNotBlank() }) }
+        _state.update { it.copy(currentVolumeId = volumeId?.takeIf { it.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
         viewModelScope.launch {
             repository.observeStorageVolumes().collectLatest {
                 loadRecentFiles(false)
@@ -187,17 +203,14 @@ class RecentFilesViewModel @Inject constructor(
                 loadRecentFiles(false)
             }.onFailure { error ->
                 if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
-                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = RecentNativeAction.TRASH) }
+                    _state.update { it.copy(isLoading = false, pendingNativeAction = RecentNativeAction.TRASH) }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
                     loadRecentFiles(false)
                 }
             }
         }
-    }
-
-    fun clearNativeRequest() {
-        _state.update { it.copy(nativeRequest = null) }
     }
 
     fun deleteSelectedPermanently() {

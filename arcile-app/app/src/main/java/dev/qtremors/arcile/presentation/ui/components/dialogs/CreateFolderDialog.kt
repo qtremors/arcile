@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.dialogs
+package dev.qtremors.arcile.presentation.ui.components.dialogs
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
@@ -21,13 +23,13 @@ fun CreateFolderDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Create Folder") },
+        title = { Text(stringResource(R.string.title_create_folder)) },
         shape = MaterialTheme.shapes.extraLarge,
         text = {
             OutlinedTextField(
                 value = folderName,
                 onValueChange = { folderName = it },
-                label = { Text("Folder Name") },
+                label = { Text(stringResource(R.string.label_folder_name)) },
                 singleLine = true
             )
         },
@@ -36,12 +38,12 @@ fun CreateFolderDialog(
                 onClick = { onConfirm(folderName) },
                 enabled = folderName.isNotBlank()
             ) {
-                Text("Create")
+                Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )

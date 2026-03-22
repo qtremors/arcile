@@ -19,3 +19,14 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# kotlinx.serialization
+-keepattributes *Annotation*, InnerClasses
+-keep,includedescriptorclasses class kotlinx.serialization.** { *; }
+-keepclassmembers class kotlinx.serialization.** { *; }
+-keep class * {
+    @kotlinx.serialization.Serializable *;
+}
+
+# Coil Custom Fetchers
+-keep class dev.qtremors.arcile.image.** { *; }

@@ -21,6 +21,7 @@ import dev.qtremors.arcile.presentation.browser.delegate.SearchDelegate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -56,7 +57,6 @@ data class BrowserState(
     val showMixedDeleteExplanation: Boolean = false,
     val isPermanentDeleteChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
-    val nativeRequest: android.content.IntentSender? = null,
     val pendingNativeAction: BrowserNativeAction? = null
 )
 
@@ -72,6 +72,9 @@ class BrowserViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
+    
+    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
+    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     private val searchDelegate = SearchDelegate(_state, viewModelScope, repository)
     private val navigationDelegate = NavigationDelegate(
@@ -282,16 +285,13 @@ class BrowserViewModel @Inject constructor(
                 refresh()
             }.onFailure { error ->
                 if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
-                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = BrowserNativeAction.TRASH) }
+                    _state.update { it.copy(isLoading = false, pendingNativeAction = BrowserNativeAction.TRASH) }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
                 }
             }
         }
-    }
-
-    fun clearNativeRequest() {
-        _state.update { it.copy(nativeRequest = null) }
     }
 
     fun deleteSelectedPermanently() {

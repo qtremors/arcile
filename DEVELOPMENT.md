@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.4.9 | **Last Updated:** 2026-03-21
+**Version:** 0.5.0 | **Last Updated:** 2026-03-21
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -316,7 +316,7 @@ When adding new UI features, strictly adhere to these established paradigms:
 | `namespace` | `dev.qtremors.arcile` | `app/build.gradle.kts` |
 | `applicationId` | `dev.qtremors.arcile` | `app/build.gradle.kts` |
 | `compileSdk` | 36 | `app/build.gradle.kts` |
-| `minSdk` | 24 (Android 7.0) | `app/build.gradle.kts` |
+| `minSdk` | 30 (Android 11.0) | `app/build.gradle.kts` |
 | `targetSdk` | 36 | `app/build.gradle.kts` |
 | `unitTests.isIncludeAndroidResources` | `true` | `app/build.gradle.kts` |
 
@@ -325,11 +325,11 @@ When adding new UI features, strictly adhere to these established paradigms:
 | Permission | Purpose | Scope |
 |------------|---------|-------|
 | `READ_EXTERNAL_STORAGE` | Read files on storage | Android 9 and below |
-| `WRITE_EXTERNAL_STORAGE` | Write files on storage | Android 9 and below (`maxSdkVersion=29`) |
+| `WRITE_EXTERNAL_STORAGE` | Write files on storage | N/A (Min SDK is 30) |
 | `MANAGE_EXTERNAL_STORAGE` | Full file access | Android 11+ |
 
-> **Warning: Android 10 (API 29) Support**
-> Arcile relies on `java.io.File` for maximum I/O speed. Because Google removed `requestLegacyExternalStorage` support in API 29 without providing `MANAGE_EXTERNAL_STORAGE` (API 30+), **Android 10 is fundamentally unsupported.**
+> **Note: Android 11+ Support**
+> Arcile relies on `java.io.File` for maximum I/O speed and therefore requires `MANAGE_EXTERNAL_STORAGE` available in Android 11+ (API 30+). Android 10 and below are not supported.
 
 ### Theme Configuration
 
@@ -350,6 +350,12 @@ When adding new UI features, strictly adhere to these established paradigms:
 ---
 
 ## Error Handling
+
+### Coroutine Exception Contract
+When catching exceptions inside Coroutines or Flow blocks, you **must not** swallow `CancellationException`. Doing so breaks structured concurrency and prevents jobs from terminating cleanly when scopes are canceled.
+- **Bad:** `catch (e: Exception) { Log.e(TAG, "Error", e) }`
+- **Good:** `catch (e: Exception) { if (e is CancellationException) throw e; Log.e(TAG, "Error", e) }`
+- **Alternative:** Use `runCatching { ... }.onFailure { if (it is CancellationException) throw it }`
 
 ### ViewModel Layer
 

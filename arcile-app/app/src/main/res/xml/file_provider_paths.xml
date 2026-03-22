@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Root mapping: covers all external storage paths including subdirectories not listed below -->
-    <external-path name="external_root" path="/" />
+    <!-- Mapped external paths -->
     <external-path name="downloads" path="Download/" />
     <external-path name="documents" path="Documents/" />
     <external-path name="pictures" path="Pictures/" />

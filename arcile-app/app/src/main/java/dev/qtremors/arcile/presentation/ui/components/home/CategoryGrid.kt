@@ -114,8 +114,7 @@ fun CategoryItem(
         targetValue = if (isPressed) 0.90f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
-            stiffness = 380f
-        ),
+            stiffness = Spring.StiffnessMediumLow),
         label = "categoryScale"
     )
 

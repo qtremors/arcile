@@ -8,18 +8,18 @@ import dev.qtremors.arcile.domain.StorageKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 private val Context.classificationDataStore by preferencesDataStore(name = "storage_classifications_prefs")
 
+@Serializable
 data class StorageClassification(
     val assignedKind: StorageKind,
-    val lastSeenName: String?,
-    val lastSeenPath: String?,
-    val updatedAt: Long
+    val lastSeenName: String? = null,
+    val lastSeenPath: String? = null,
+    val updatedAt: Long = 0L
 )
 
 interface StorageClassificationStore {
@@ -36,8 +36,7 @@ interface StorageClassificationStore {
 
 class StorageClassificationRepository(private val context: Context) : StorageClassificationStore {
 
-    private fun JSONObject.optNullableString(name: String): String? =
-        if (has(name) && !isNull(name)) getString(name) else null
+    private val jsonFormat = Json { ignoreUnknownKeys = true }
 
     override fun observeClassifications(): Flow<Map<String, StorageClassification>> {
         return context.classificationDataStore.data.map { prefs ->
@@ -45,18 +44,10 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
             prefs.asMap().forEach { (key, value) ->
                 if (value is String) {
                     try {
-                        val json = JSONObject(value)
-                        val kindName = json.getString("assignedKind")
-                        val kind = StorageKind.entries.find { it.name == kindName }
-                        if (kind != null) {
-                            result[key.name] = StorageClassification(
-                                assignedKind = kind,
-                                lastSeenName = json.optNullableString("lastSeenName"),
-                                lastSeenPath = json.optNullableString("lastSeenPath"),
-                                updatedAt = json.optLong("updatedAt", 0L)
-                            )
-                        }
+                        val classification = jsonFormat.decodeFromString<StorageClassification>(value)
+                        result[key.name] = classification
                     } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                         android.util.Log.e("StorageClassification", "Failed to parse classification for key: ${key.name}", e)
                     }
                 }
@@ -70,18 +61,9 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
         val prefs = context.classificationDataStore.data.first()
         val jsonString = prefs[key] ?: return null
         return try {
-            val json = JSONObject(jsonString)
-            val kindName = json.getString("assignedKind")
-            val kind = StorageKind.entries.find { it.name == kindName }
-            if (kind != null) {
-                StorageClassification(
-                    assignedKind = kind,
-                    lastSeenName = json.optNullableString("lastSeenName"),
-                    lastSeenPath = json.optNullableString("lastSeenPath"),
-                    updatedAt = json.optLong("updatedAt", 0L)
-                )
-            } else null
+            jsonFormat.decodeFromString<StorageClassification>(jsonString)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("StorageClassification", "Failed to parse classification for key: $storageKey", e)
             resetClassification(storageKey)
             null
@@ -95,12 +77,13 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
         lastSeenPath: String?
     ) {
         val key = stringPreferencesKey(storageKey)
-        val jsonString = JSONObject().apply {
-            put("assignedKind", kind.name)
-            if (lastSeenName != null) put("lastSeenName", lastSeenName)
-            if (lastSeenPath != null) put("lastSeenPath", lastSeenPath)
-            put("updatedAt", System.currentTimeMillis())
-        }.toString()
+        val classification = StorageClassification(
+            assignedKind = kind,
+            lastSeenName = lastSeenName,
+            lastSeenPath = lastSeenPath,
+            updatedAt = System.currentTimeMillis()
+        )
+        val jsonString = jsonFormat.encodeToString(classification)
 
         context.classificationDataStore.edit { prefs ->
             prefs[key] = jsonString

@@ -2,6 +2,7 @@ package dev.qtremors.arcile.data.manager
 
 import android.content.Context
 import android.provider.MediaStore
+import android.provider.Settings
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.data.util.resolveVolumeForPath
@@ -12,9 +13,27 @@ import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.supportsTrash
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.security.SecureRandom
+import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
+
+@Serializable
+data class TrashMetadataEntity(
+    val id: String,
+    val originalPath: String,
+    val deletionTime: Long,
+    val sourceVolumeId: String? = null,
+    val sourceStorageKind: String? = null
+)
 
 interface TrashManager {
     suspend fun moveToTrash(paths: List<String>): Result<Unit>
@@ -22,6 +41,56 @@ interface TrashManager {
     suspend fun emptyTrash(): Result<Unit>
     suspend fun getTrashFiles(): Result<List<TrashMetadata>>
     suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit>
+}
+
+private object TrashCryptoHelper {
+    private const val ALGORITHM = "AES/GCM/NoPadding"
+    private const val TAG_LENGTH_BIT = 128
+    private const val IV_LENGTH_BYTE = 12
+    private const val SALT = "arcile_trash_salt_v1"
+
+    private var secretKey: SecretKeySpec? = null
+
+    private fun getKey(context: Context): SecretKeySpec {
+        secretKey?.let { return it }
+        val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "fallback_id"
+        val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val spec = PBEKeySpec(androidId.toCharArray(), SALT.toByteArray(), 10000, 256)
+        val tmp = factory.generateSecret(spec)
+        val key = SecretKeySpec(tmp.encoded, "AES")
+        secretKey = key
+        return key
+    }
+
+    fun encrypt(context: Context, plainText: String): ByteArray {
+        val key = getKey(context)
+        val cipher = Cipher.getInstance(ALGORITHM)
+        val iv = ByteArray(IV_LENGTH_BYTE)
+        SecureRandom().nextBytes(iv)
+        val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
+        cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec)
+        val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+        
+        val byteBuffer = ByteBuffer.allocate(iv.size + cipherText.size)
+        byteBuffer.put(iv)
+        byteBuffer.put(cipherText)
+        return byteBuffer.array()
+    }
+
+    fun decrypt(context: Context, encryptedData: ByteArray): String {
+        val key = getKey(context)
+        val cipher = Cipher.getInstance(ALGORITHM)
+        val byteBuffer = ByteBuffer.wrap(encryptedData)
+        val iv = ByteArray(IV_LENGTH_BYTE)
+        byteBuffer.get(iv)
+        val cipherText = ByteArray(byteBuffer.remaining())
+        byteBuffer.get(cipherText)
+        
+        val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
+        cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec)
+        val plainText = cipher.doFinal(cipherText)
+        return String(plainText, Charsets.UTF_8)
+    }
 }
 
 class DefaultTrashManager(
@@ -39,6 +108,7 @@ class DefaultTrashManager(
             try {
                 File(trashDir, ".nomedia").createNewFile() // Hide from gallery
             } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                 android.util.Log.e("TrashManager", "Failed to create .nomedia in trash", e)
             }
         }
@@ -102,14 +172,24 @@ class DefaultTrashManager(
                 val targetTrashFile = File(trashDir, trashId)
                 
                 // Write metadata JSON
-                val metadataJson = JSONObject().apply {
-                    put("id", trashId)
-                    put("originalPath", file.absolutePath)
-                    put("deletionTime", System.currentTimeMillis())
-                    put("sourceVolumeId", sourceVolume.id)
-                    put("sourceStorageKind", sourceVolume.kind.name)
+                val metadataEntity = TrashMetadataEntity(
+                    id = trashId,
+                    originalPath = file.absolutePath,
+                    deletionTime = System.currentTimeMillis(),
+                    sourceVolumeId = sourceVolume.id,
+                    sourceStorageKind = sourceVolume.kind.name
+                )
+                val jsonFormat = Json { ignoreUnknownKeys = true }
+                val jsonString = jsonFormat.encodeToString(metadataEntity)
+                val destFile = File(trashMetadataDir, "$trashId.json")
+                try {
+                    val encryptedBytes = TrashCryptoHelper.encrypt(context, jsonString)
+                    destFile.writeBytes(encryptedBytes)
+                } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+                    // Fallback to plain text if encryption fails
+                    destFile.writeText(jsonString)
                 }
-                File(trashMetadataDir, "$trashId.json").writeText(metadataJson.toString())
 
                 // Move abstracting name
                 val success = file.renameTo(targetTrashFile)
@@ -126,6 +206,7 @@ class DefaultTrashManager(
                         }
                         fallbackSuccess = true
                     } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                         // Revert metadata and partial copy on failure
                         File(trashMetadataDir, "$trashId.json").delete()
                         if (targetTrashFile.exists()) {
@@ -146,6 +227,7 @@ class DefaultTrashManager(
                         val uri = MediaStore.Files.getContentUri("external")
                         context.contentResolver.delete(uri, "${MediaStore.Files.FileColumns.DATA} = ?", arrayOf(file.absolutePath))
                     } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                         android.util.Log.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
                     }
                 }
@@ -154,6 +236,7 @@ class DefaultTrashManager(
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -186,8 +269,21 @@ class DefaultTrashManager(
                 
                 if (metadataFile == null || trashedFile == null) continue
 
-                val json = JSONObject(metadataFile.readText())
-                val originalPath = json.getString("originalPath")
+                val jsonFormat = Json { ignoreUnknownKeys = true }
+                val jsonString = try {
+                    val bytes = metadataFile.readBytes()
+                    val text = String(bytes, Charsets.UTF_8)
+                    if (text.trimStart().startsWith("{")) {
+                        text // Legacy unencrypted JSON
+                    } else {
+                        TrashCryptoHelper.decrypt(context, bytes)
+                    }
+                } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+                    metadataFile.readText()
+                }
+                val entity = jsonFormat.decodeFromString<TrashMetadataEntity>(jsonString)
+                val originalPath = entity.originalPath
                 
                 val originalFileContext = File(originalPath)
                 var targetFile = if (destinationPath != null) {
@@ -240,6 +336,7 @@ class DefaultTrashManager(
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -266,6 +363,7 @@ class DefaultTrashManager(
             mediaStoreClient.invalidateCache()
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -283,12 +381,25 @@ class DefaultTrashManager(
                     trashMetadataDir.listFiles()?.forEach { metadataFile ->
                         if (metadataFile.isFile && metadataFile.extension == "json") {
                             try {
-                                val json = JSONObject(metadataFile.readText())
-                                val id = json.getString("id")
-                                val originalPath = json.getString("originalPath")
-                                val deletionTime = json.getLong("deletionTime")
-                                val sourceVolId = json.optString("sourceVolumeId", volume.id)
-                                val sourceVolKindStr = json.optString("sourceStorageKind", volume.kind.name)
+                                val jsonFormat = Json { ignoreUnknownKeys = true }
+                                val jsonString = try {
+                                    val bytes = metadataFile.readBytes()
+                                    val text = String(bytes, Charsets.UTF_8)
+                                    if (text.trimStart().startsWith("{")) {
+                                        text // Legacy unencrypted JSON
+                                    } else {
+                                        TrashCryptoHelper.decrypt(context, bytes)
+                                    }
+                                } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+                                    metadataFile.readText()
+                                }
+                                val entity = jsonFormat.decodeFromString<TrashMetadataEntity>(jsonString)
+                                val id = entity.id
+                                val originalPath = entity.originalPath
+                                val deletionTime = entity.deletionTime
+                                val sourceVolId = entity.sourceVolumeId ?: volume.id
+                                val sourceVolKindStr = entity.sourceStorageKind ?: volume.kind.name
                                 val sourceVolKind = dev.qtremors.arcile.domain.StorageKind.entries.find { it.name == sourceVolKindStr } ?: volume.kind
                                 
                                 val trashedFile = File(trashDir, id)
@@ -310,6 +421,7 @@ class DefaultTrashManager(
                                     metadataFile.delete() 
                                 }
                             } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                                 android.util.Log.e("TrashManager", "Deleting corrupted trash metadata: ${metadataFile.name}", e)
                                 metadataFile.delete()
                             }
@@ -319,6 +431,7 @@ class DefaultTrashManager(
             }
             Result.success(list.sortedByDescending { it.deletionTime })
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -349,6 +462,7 @@ class DefaultTrashManager(
             mediaStoreClient.invalidateCache()
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

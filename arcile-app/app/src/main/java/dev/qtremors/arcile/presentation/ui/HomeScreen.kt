@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.ui.theme.spacing
 import android.os.Environment
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -138,7 +139,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Info
-
+import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 /**
  * Dashboard screen shown when the app first launches.
  *
@@ -191,7 +192,7 @@ fun StorageClassificationPrompt(
                 )
             }
             
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
             
             Text(
                 text = stringResource(R.string.how_should_be_treated, volume.name),
@@ -228,7 +229,7 @@ fun StorageClassificationPrompt(
                     Text(
                         stringResource(R.string.otg_usb_description),
                         style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = MaterialTheme.spacing.extraSmall),
                         textAlign = TextAlign.Center
                     )
                 }
@@ -273,18 +274,13 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
-    val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption) {
-        val cal = java.util.Calendar.getInstance()
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        val todayStart = cal.timeInMillis
-        val todayFiles = state.recentFiles.filter { it.lastModified >= todayStart }
+    val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption, state.todayStart) {
+        val todayFiles = state.recentFiles.filter { it.lastModified >= state.todayStart }
         filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val dateFormatter = dev.qtremors.arcile.presentation.utils.rememberDateFormatter("MMM dd, yyyy")
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -326,38 +322,10 @@ fun HomeScreen(
                 state = pullRefreshState,
                 modifier = Modifier.fillMaxSize(),
                 indicator = {
-                    val pullDistance = pullRefreshState.distanceFraction
-                    val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
-
-                    if (state.isPullToRefreshing || pullDistance > 0f) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .graphicsLayer {
-                                    translationY =
-                                        if (state.isPullToRefreshing) 40.dp.toPx() else yOffset.toPx()
-                                    alpha =
-                                        if (state.isPullToRefreshing) 1f else pullDistance.coerceIn(
-                                            0f,
-                                            1f
-                                        )
-                                }
-                                .padding(top = 8.dp)
-                        ) {
-                            Card(
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(10.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    LoadingIndicator(modifier = Modifier.size(24.dp))
-                                }
-                            }
-                        }
-                    }
+                    ArcilePullRefreshIndicator(
+                        isRefreshing = state.isPullToRefreshing,
+                        state = pullRefreshState
+                    )
                 }
             ) {
                 LazyColumn(
@@ -533,12 +501,11 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
                         items(displayedRecentFiles, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
 
                             FileItemRow(
                                 file = file,
-                                formattedDate = formatter.format(Date(file.lastModified)),
+                                formattedDate = dateFormatter.format(Date(file.lastModified)),
                                 isSelected = false,
                                 onClick = { onOpenFile(file.absolutePath) },
                                 onLongClick = {}
@@ -546,7 +513,7 @@ fun HomeScreen(
                         }
                     }
 
-                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    item { Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium)) }
                 }
             }
         }

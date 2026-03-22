@@ -48,6 +48,7 @@ class LocalFileRepository(
                 Result.failure(Exception("No volume found for path"))
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

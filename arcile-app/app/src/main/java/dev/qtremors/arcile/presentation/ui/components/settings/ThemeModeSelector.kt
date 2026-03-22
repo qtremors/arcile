@@ -75,8 +75,7 @@ fun ThemeModeCard(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
-            stiffness = Spring.StiffnessMedium
-        ), label = "cardScale"
+            stiffness = Spring.StiffnessMediumLow), label = "cardScale"
     )
 
     val containerColor by animateColorAsState(

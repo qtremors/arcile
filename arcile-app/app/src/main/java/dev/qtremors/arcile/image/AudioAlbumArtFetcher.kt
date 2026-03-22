@@ -49,6 +49,7 @@ class AudioAlbumArtFetcher(
                     }
                 }
             } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                 // Fallback to MediaMetadataRetriever below
             }
         }
@@ -88,6 +89,7 @@ class AudioAlbumArtFetcher(
                 null
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             null
         } finally {
             retriever.release()

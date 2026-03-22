@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.data.source
 
+import dev.qtremors.arcile.domain.FileOperationException
+
 import android.content.Context
 import android.os.storage.StorageManager
 import android.provider.MediaStore
@@ -13,8 +15,23 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.File
+
+@Serializable
+data class CategoryCacheEntity(
+    val name: String,
+    val size: Long,
+    val extensions: List<String>
+)
+
+@Serializable
+data class CacheRootEntity(
+    val cachedAt: Long,
+    val data: List<CategoryCacheEntity>
+)
 
 interface MediaStoreClient {
     suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>>
@@ -60,25 +77,24 @@ class DefaultMediaStoreClient(
                 else -> return // Only cache global and volume-wide stats
             }
             val file = File(cacheDir, "$cacheKey.json")
-            val itemsJson = org.json.JSONArray()
-            data.forEach { item ->
-                val obj = JSONObject().apply {
-                    put("name", item.name)
-                    put("size", item.sizeBytes)
-                    val extArray = org.json.JSONArray()
-                    item.extensions.forEach { extArray.put(it) }
-                    put("extensions", extArray)
-                }
-                itemsJson.put(obj)
+            
+            val cacheEntities = data.map { item ->
+                CategoryCacheEntity(
+                    name = item.name,
+                    size = item.sizeBytes,
+                    extensions = item.extensions.toList()
+                )
             }
             
-            val root = JSONObject().apply {
-                put("cachedAt", System.currentTimeMillis())
-                put("data", itemsJson)
-            }
+            val rootEntity = CacheRootEntity(
+                cachedAt = System.currentTimeMillis(),
+                data = cacheEntities
+            )
             
-            file.writeText(root.toString())
+            val jsonFormat = Json { ignoreUnknownKeys = true }
+            file.writeText(jsonFormat.encodeToString(rootEntity))
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("MediaStoreClient", "Failed to save cache for $scope: ${e.message}")
         }
     }
@@ -93,25 +109,22 @@ class DefaultMediaStoreClient(
             val file = File(cacheDir, "$cacheKey.json")
             if (!file.exists()) return null
             
-            val root = JSONObject(file.readText())
-            val cachedAt = root.optLong("cachedAt", 0L)
-            if (System.currentTimeMillis() - cachedAt > CACHE_TTL_MS) {
+            val jsonFormat = Json { ignoreUnknownKeys = true }
+            val rootEntity = jsonFormat.decodeFromString<CacheRootEntity>(file.readText())
+            
+            if (System.currentTimeMillis() - rootEntity.cachedAt > CACHE_TTL_MS) {
                 return null // Stale cache
             }
             
-            val json = root.getJSONArray("data")
-            val list = mutableListOf<CategoryStorage>()
-            for (i in 0 until json.length()) {
-                val obj = json.getJSONObject(i)
-                val exts = mutableSetOf<String>()
-                val extArray = obj.getJSONArray("extensions")
-                for (j in 0 until extArray.length()) {
-                    exts.add(extArray.getString(j))
-                }
-                list.add(CategoryStorage(obj.getString("name"), obj.getLong("size"), exts))
+            return rootEntity.data.map { entity ->
+                CategoryStorage(
+                    name = entity.name,
+                    sizeBytes = entity.size,
+                    extensions = entity.extensions.toSet()
+                )
             }
-            return list
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("MediaStoreClient", "Cache read failed: ${e.message}")
             return null
         }
@@ -142,6 +155,7 @@ class DefaultMediaStoreClient(
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             android.util.Log.e("MediaStoreClient", "Cache invalidation error: ${e.message}")
             throw e
         }
@@ -225,8 +239,13 @@ class DefaultMediaStoreClient(
             val finalSortedList = filesList.sortedByDescending { it.lastModified }
 
             Result.success(finalSortedList)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -274,6 +293,7 @@ class DefaultMediaStoreClient(
                             }
                         }
                     } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                         android.util.Log.e("MediaStoreClient", "StorageStatsManager query failed for ${volume.name}", e)
                     }
                 }
@@ -355,8 +375,13 @@ class DefaultMediaStoreClient(
 
             saveCategorySizesToCache(scope, result)
             Result.success(result)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -440,8 +465,13 @@ class DefaultMediaStoreClient(
             
             val sortedFiles = filesList.sortedByDescending { it.lastModified }
             Result.success(sortedFiles)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -469,7 +499,6 @@ class DefaultMediaStoreClient(
                 // Assuming path is valid
                 if (rootDir.exists() && rootDir.isDirectory) {
                     rootDir.walkTopDown()
-                        .maxDepth(10)
                         .onEnter { dir ->
                             !dir.name.startsWith(".") && matchesScope(dir.canonicalPath, scope, volumes)
                         }
@@ -577,8 +606,13 @@ class DefaultMediaStoreClient(
             }
             
             Result.success(resultList)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 }

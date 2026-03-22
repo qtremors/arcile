@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -91,11 +92,32 @@ class TrashViewModelTest {
         assertNull(viewModel.state.value.error)
         assertFalse(viewModel.state.value.isLoading)
     }
+
+    @Test
+    fun `restoreSelectedTrash shows destination picker when DestinationRequiredException is thrown`() = runTest(mainDispatcherRule.dispatcher) {
+        val trashIds = listOf("1")
+        val repository = TrashFakeFileRepository(
+            trashFiles = listOf(trashItem("1", "Photo.jpg")),
+            restoreResult = Result.failure(dev.qtremors.arcile.domain.DestinationRequiredException(trashIds))
+        )
+        val viewModel = TrashViewModel(repository)
+
+        advanceUntilIdle()
+        viewModel.toggleSelection("1")
+        viewModel.restoreSelectedTrash()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.showDestinationPicker)
+        assertEquals(trashIds, viewModel.state.value.selectedTrashIdsForDestination)
+        assertFalse(viewModel.state.value.isLoading)
+        assertNull(viewModel.state.value.error)
+    }
 }
 
 private class TrashFakeFileRepository(
     private val trashFiles: List<TrashMetadata>,
-    private val restoreToDestinationResult: Result<Unit> = Result.success(Unit)
+    private val restoreToDestinationResult: Result<Unit> = Result.success(Unit),
+    private val restoreResult: Result<Unit> = Result.success(Unit)
 ) : FileRepository {
 
     private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
@@ -136,7 +158,7 @@ private class TrashFakeFileRepository(
     override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> {
-        return if (destinationPath != null) restoreToDestinationResult else Result.success(Unit)
+        return if (destinationPath != null) restoreToDestinationResult else restoreResult
     }
     override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(trashFiles)

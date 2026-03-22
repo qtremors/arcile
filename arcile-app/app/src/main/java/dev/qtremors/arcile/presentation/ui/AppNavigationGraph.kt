@@ -163,7 +163,7 @@ fun AppNavigationGraph(
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onResolvingConflicts = { viewModel.resolveConflicts(it) },
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() }
+                        nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
                 composable<AppRoutes.Trash> {
@@ -184,7 +184,7 @@ fun AppNavigationGraph(
                         onSelectAll = { viewModel.selectAll() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() }
+                        nativeRequestFlow = viewModel.nativeRequestFlow
                     )
 
                 }
@@ -209,9 +209,8 @@ fun AppNavigationGraph(
                         onRefresh = { viewModel.loadRecentFiles() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() },
-                        onLoadMore = { viewModel.loadMore() }
-
+                        onLoadMore = { viewModel.loadMore() },
+                        nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
                 composable<AppRoutes.Tools> {

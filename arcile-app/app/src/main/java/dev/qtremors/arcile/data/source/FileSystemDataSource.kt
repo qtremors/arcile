@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.data.source
 
+import dev.qtremors.arcile.domain.FileOperationException
+
 import android.content.Context
 import android.os.Environment
 import dev.qtremors.arcile.data.provider.VolumeProvider
@@ -98,8 +100,13 @@ class DefaultFileSystemDataSource(
                     .thenBy { it.name.lowercase() }
             )
             Result.success(sortedFiles)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -118,8 +125,13 @@ class DefaultFileSystemDataSource(
             } else {
                 Result.failure(Exception("Failed to create directory"))
             }
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -139,8 +151,13 @@ class DefaultFileSystemDataSource(
             } else {
                 Result.failure(Exception("Failed to create file"))
             }
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -166,8 +183,13 @@ class DefaultFileSystemDataSource(
             mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -195,9 +217,14 @@ class DefaultFileSystemDataSource(
              } else {
                  Result.failure(Exception("Failed to rename file"))
              }
-         } catch (e: Exception) {
-             Result.failure(e)
-         }
+         } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
+        }
     }
 
     override suspend fun detectCopyConflicts(
@@ -248,8 +275,13 @@ class DefaultFileSystemDataSource(
                 }
             }
             Result.success(conflicts)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -350,8 +382,13 @@ class DefaultFileSystemDataSource(
             mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 
@@ -423,6 +460,7 @@ class DefaultFileSystemDataSource(
                             }
                         }
                     } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                         if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
                         if (scannedPaths.isNotEmpty()) {
                             mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
@@ -437,8 +475,13 @@ class DefaultFileSystemDataSource(
             mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
             scanMediaFiles(*scannedPaths.toTypedArray())
             Result.success(Unit)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            Result.failure(e)
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
 }

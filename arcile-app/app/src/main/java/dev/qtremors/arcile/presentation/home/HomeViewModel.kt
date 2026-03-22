@@ -48,7 +48,8 @@ data class HomeState(
     val isCalculatingStorage: Boolean = false,
     val error: String? = null,
     val unclassifiedVolumes: List<StorageVolume> = emptyList(),
-    val showClassificationPrompt: Boolean = false
+    val showClassificationPrompt: Boolean = false,
+    val todayStart: Long = 0L
 )
 
 enum class HomeRefreshMode {
@@ -72,6 +73,13 @@ class HomeViewModel @Inject constructor(
     private val suppressedVolumeKeys = mutableSetOf<String>()
 
     init {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        _state.update { it.copy(todayStart = cal.timeInMillis) }
+
         viewModelScope.launch {
             @OptIn(FlowPreview::class)
             repository.observeStorageVolumes()
@@ -176,6 +184,7 @@ class HomeViewModel @Inject constructor(
                 )
                 suppressedVolumeKeys.remove(storageKey)
             } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                 // Revert optimistic update on failure
                 _state.update { currentState ->
                     val volume = currentState.allStorageVolumes.firstOrNull { it.storageKey == storageKey }

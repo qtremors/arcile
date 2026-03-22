@@ -12,6 +12,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import androidx.test.core.app.ApplicationProvider
+import android.content.Context
+import dev.qtremors.arcile.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RunWith(RobolectricTestRunner::class)
@@ -23,6 +26,7 @@ class ArcileTopBarTest {
 
     @Test
     fun `selection mode shows selection actions including rename for single item`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
         var selectedAction: TopBarAction? = null
         var cleared = false
 
@@ -40,14 +44,15 @@ class ArcileTopBarTest {
         }
 
         composeRule.onNodeWithText("1 selected").assertExists()
-        composeRule.onNodeWithContentDescription("Rename").performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_rename)).performClick()
         assertEquals(TopBarAction.Rename, selectedAction)
 
-        composeRule.onNodeWithContentDescription("Clear selection").assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.clear_selection)).assertExists()
     }
 
     @Test
     fun `clipboard tray exposes cancel and paste actions`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
         var cancelCount = 0
         var pasteCount = 0
 
@@ -66,8 +71,8 @@ class ArcileTopBarTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("Paste here").performClick()
-        composeRule.onNodeWithContentDescription("Cancel transfer").performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_paste_here)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_cancel_transfer)).performClick()
 
         assertEquals(1, pasteCount)
         assertEquals(1, cancelCount)
@@ -75,6 +80,7 @@ class ArcileTopBarTest {
 
     @Test
     fun `overflow menu dispatches grid view action`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
         var selectedAction: TopBarAction? = null
 
         composeRule.setContent {
@@ -90,7 +96,7 @@ class ArcileTopBarTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("More options").performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
         composeRule.onNodeWithText("Grid View").performClick()
 
         assertEquals(TopBarAction.GridView, selectedAction)

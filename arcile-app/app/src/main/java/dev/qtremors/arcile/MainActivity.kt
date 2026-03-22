@@ -1,6 +1,5 @@
 package dev.qtremors.arcile
 
-import android.Manifest
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -9,7 +8,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
@@ -41,12 +39,6 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var themePreferences: ThemePreferences
-
-    private val storagePermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        viewModel.checkPermission()
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
@@ -107,6 +99,11 @@ class MainActivity : ComponentActivity() {
     private fun openFile(path: String) {
         try {
             val file = File(path)
+            val canonicalPath = file.canonicalPath
+            if (canonicalPath.contains("/.arcile") || canonicalPath.startsWith(cacheDir.canonicalPath)) {
+                Toast.makeText(this, "Cannot open sensitive files", Toast.LENGTH_SHORT).show()
+                return
+            }
             val uri = FileProvider.getUriForFile(
                 this,
                 "${applicationContext.packageName}.fileprovider",
@@ -122,28 +119,23 @@ class MainActivity : ComponentActivity() {
             }
             startActivity(intent)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Log.e("Arcile", "Failed to open file: $path", e)
             Toast.makeText(this, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun requestStoragePermission() {
-        val intent = viewModel.getPermissionRequestIntent()
-        if (intent != null) {
-            try {
-                startActivity(intent)
-            } catch (e: Exception) {
-                val fallbackIntent = Intent()
-                fallbackIntent.action = android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-                startActivity(fallbackIntent)
-            }
-        } else {
-            storagePermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.READ_EXTERNAL_STORAGE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                )
-            )
+        val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+        intent.addCategory("android.intent.category.DEFAULT")
+        intent.data = android.net.Uri.parse(String.format("package:%s", packageName))
+        try {
+            startActivity(intent)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            val fallbackIntent = android.content.Intent()
+            fallbackIntent.action = android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+            startActivity(fallbackIntent)
         }
     }
 }

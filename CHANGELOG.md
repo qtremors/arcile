@@ -1,8 +1,45 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.8
+> **Version:** 0.5.0
 > **Last Updated:** 2026-03-21
+
+---
+
+## [0.5.0] - 2026-03-21
+
+### Security
+- **Trash Vault Encryption:** Replaced the plain-text `.arcile/.metadata` JSON storage with a secure AES256-GCM encryption layer. Keys are dynamically derived via hardware `ANDROID_ID`, ensuring that trash metadata stays perfectly hidden from other apps but fully survives app updates and reinstalls.
+- **FileProvider Sandbox:** Closed a structural vulnerability by removing the root `external_root` path from `file_provider_paths.xml`. The `FileProvider` now correctly restricts external URIs strictly to standard public media folders (Downloads, Documents, Pictures, etc.).
+- **Signing Credentials:** `build.gradle.kts` now securely loads signing properties from an excluded `signing.properties` file with proper presence validation, falling back to a clean debug configuration rather than failing the entire Gradle sync when keys are missing.
+- **Sensitive File Protection:** Explicitly blocked the ability to open or share internal `.arcile` metadata and application cache files via `MainActivity` and `ShareHelper`, preventing unintended system exposure.
+
+### Changed
+- **Target Platform:** Completely dropped support for Android 10 (API 29). `minSdk` officially raised to 30 (Android 11) to eliminate all scoped storage crash loops and align natively with `MANAGE_EXTERNAL_STORAGE` architecture.
+- **Code Quality:** Completely eliminated unstructured `org.json.JSONObject` usage. Extracted legacy JSON parsing into strictly-typed `@Serializable` entities across `StorageClassificationRepository`, `TrashManager`, and `MediaStoreClient` leveraging `kotlinx.serialization`.     
+- **Search Robustness:** Removed the arbitrary `.maxDepth(10)` limit on path-scoped searching. Deeply nested repository or archive folder structures can now be fully traversed, constrained solely by the 1000-item memory limit.
+- **Architectural Cleanup:** Decoupled platform-specific `IntentSender` objects from ViewModel `State` data classes. Native confirmation requests are now emitted via a one-shot `SharedFlow`, improving testability and adhering to MVI/Unidirectional Data Flow principles.
+- **Build Hardening:** Added specific R8/ProGuard keep rules for `kotlinx.serialization` and custom Coil fetchers to ensure release build stability.
+- **UI/UX Polish:** Replaced hardcoded padding and margin components across `HomeScreen.kt` and `StorageSummaryCards.kt` with strictly bounded `MaterialTheme.spacing` tokens to guarantee Material Design 3 scale compliance.
+- **Localization:** Extracted hardcoded "Delete" and "Cancel" strings in confirmation dialogs to standard `stringResource` references.      
+- **Accessibility:** Extracted massive swaths of hardcoded English texts, labels, and iconography `contentDescription` properties into `strings.xml`, instantly granting full TalkBack accessibility scaling for vision-impaired and non-English users.
+
+### Refactored
+- **Home Screen Architecture:** Severed `MainFoldersGrid` dependency on `Environment.getExternalStorageDirectory()`. The component now strictly reads folder targets injected by the ViewModel and dynamically filters out nodes that do not physically exist on the device.
+- **Code Quality:** Extracted the massive duplicated Pull-to-Refresh indicator layout logic trapped inside `HomeScreen.kt` and `FileManagerScreen.kt` into a new, universally shared `ArcilePullRefreshIndicator.kt` component.
+- **Error Handling:** Introduced typed `FileOperationException` (AccessDenied, IOError, NotFound, Unknown) replacing generic Exception returns in the repository layer to allow granular error recovery.
+
+### Fixed
+- **Recent Files Affordance:** Added a fully wired `PullToRefreshBox` wrap to `RecentFilesScreen` to finally expose the previously inaccessible `onRefresh` manual action to users.
+- **UI Performance:** Hoisted `Calendar` and `SimpleDateFormat` logic out of recomposition scopes in `HomeScreen` and `RecentFilesScreen` to prevent redundant instantiation and garbage collection.
+- **Date Formatting:** Introduced `rememberDateFormatter` in `DateUtils.kt` for reliable, locale-aware date string updates across the entire application interface.
+- **Error Surfacing:** `TrashScreen` now properly surfaces persistent operational failures and errors via unified non-blocking `Snackbar` overlays.
+- **Concurrency Safety:** Fixed unstructured concurrency leaks by properly re-throwing `CancellationException` inside Coroutines/Flows globally across the repository and UI layers, ensuring clean job termination.
+- **Data Initialization:** Corrected `ThemePreferences` Enum value lookups to safely fallback without throwing exceptions during DataStore initializations.
+
+### Testing
+- **UI Instrumentation:** Bootstrapped the `androidTest` layer with Robolectric Compose implementations, introducing `HomeScreenTest` and `NavigationTest` covering core layout visibility.
+- **ViewModel Coverage:** Expanded the JVM test suite handling high-risk branches, verifying edge cases including Rename collisions inside `BrowserViewModel`, missing volume destinations within `TrashViewModel` (along with an `assertTrue` import fix), and debounced volume emissions inside `HomeViewModel`.
 
 ---
 

@@ -1,4 +1,5 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
+import dev.qtremors.arcile.R
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

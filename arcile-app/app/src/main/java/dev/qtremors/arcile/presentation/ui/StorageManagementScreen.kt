@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -64,7 +67,7 @@ fun StorageManagementScreen(
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
         if (state.isLoading || state.isCalculatingStorage) {
-            delay(5)
+            delay(150)
             showLoading = true
         } else {
             showLoading = false
@@ -77,7 +80,7 @@ fun StorageManagementScreen(
                 title = { Text("Storage Management") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 scrollBehavior = scrollBehavior

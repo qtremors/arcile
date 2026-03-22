@@ -131,12 +131,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import java.io.File
-import java.text.SimpleDateFormat
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 
 /**
  * Full-featured file browser screen.
@@ -205,12 +205,12 @@ fun FileManagerScreen(
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
     onDismissConflictDialog: () -> Unit = {},
-    onClearNativeRequest: () -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     onSearchFiltersChange: (dev.qtremors.arcile.domain.SearchFilters) -> Unit = {},
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
-    onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {}
+    onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
+    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -234,11 +234,10 @@ fun FileManagerScreen(
                 null -> {}
             }
         }
-        onClearNativeRequest()
     }
 
-    LaunchedEffect(state.nativeRequest) {
-        state.nativeRequest?.let { sender ->
+    LaunchedEffect(nativeRequestFlow) {
+        nativeRequestFlow?.collect { sender ->
             launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
         }
     }
@@ -250,7 +249,7 @@ fun FileManagerScreen(
     var showLoading by remember(state.isLoading) { mutableStateOf(false) }
     LaunchedEffect(state.isLoading) {
         if (state.isLoading) {
-            delay(5)
+            delay(150)
             showLoading = true
         } else {
             showLoading = false
@@ -304,9 +303,9 @@ fun FileManagerScreen(
     // Show error as Snackbar instead of blocking dialog
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
+            onClearError()
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(errorMsg)
-                onClearError()
             }
         }
     }
@@ -421,7 +420,7 @@ fun FileManagerScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                             } else {
-                                val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                val formatter = rememberDateFormatter("MMM dd, yyyy")
                                 LazyColumn(modifier = Modifier.weight(1f)) {
                                     items(state.searchResults, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
                                         FileItemRow(
@@ -495,33 +494,10 @@ fun FileManagerScreen(
                                     .fillMaxWidth()
                                     .weight(1f),
                                 indicator = {
-                                    val pullDistance = pullRefreshState.distanceFraction
-                                    val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
-
-                                    if (isRefreshing || pullDistance > 0f) {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopCenter)
-                                                .graphicsLayer {
-                                                    translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
-                                                    alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
-                                                }
-                                                .padding(top = 8.dp)
-                                        ) {
-                                            Card(
-                                                shape = androidx.compose.foundation.shape.CircleShape,
-                                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier.padding(10.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    LoadingIndicator(modifier = Modifier.size(24.dp))
-                                                }
-                                            }
-                                        }
-                                    }
+                                    ArcilePullRefreshIndicator(
+                                        isRefreshing = isRefreshing,
+                                        state = pullRefreshState
+                                    )
                                 }
                             ) {
                                 if (showLoading && state.files.isEmpty() && !isRefreshing) {

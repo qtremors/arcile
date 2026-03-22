@@ -168,6 +168,7 @@ class DefaultVolumeProvider(
             val classifications = classificationRepo.observeClassifications().first()
             Result.success(mergeStorageClassifications(volumes, classifications))
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 
@@ -45,8 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
@@ -71,13 +71,13 @@ fun RecentFilesScreen(
     onRefresh: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
-    onClearNativeRequest: () -> Unit = {},
-    onLoadMore: () -> Unit = {}
+    onLoadMore: () -> Unit = {},
+    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
 
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()) }
+    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
 
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
@@ -88,11 +88,10 @@ fun RecentFilesScreen(
                 null -> {}
             }
         }
-        onClearNativeRequest()
     }
 
-    androidx.compose.runtime.LaunchedEffect(state.nativeRequest) {
-        state.nativeRequest?.let { sender ->
+    androidx.compose.runtime.LaunchedEffect(nativeRequestFlow) {
+        nativeRequestFlow?.collect { sender ->
             launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
         }
     }
@@ -157,7 +156,7 @@ fun RecentFilesScreen(
                     },
                     actions = {
                         IconButton(onClick = { showSearchBar = true }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search")
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
                         }
 
                     },
@@ -170,7 +169,7 @@ fun RecentFilesScreen(
         var showLoading by remember { mutableStateOf(false) }
         LaunchedEffect(state.isLoading) {
             if (state.isLoading) {
-                delay(5)
+                delay(150)
                 showLoading = true
             } else {
                 showLoading = false
@@ -212,26 +211,16 @@ fun RecentFilesScreen(
 
             } else {
                 val filesToDisplay = if (showSearchBar) state.searchResults else state.recentFiles
-                val groupedFiles = remember(filesToDisplay, showSearchBar) {
+                val groupFormat = rememberDateFormatter("EEEE, MMM dd")
+                val groupedFiles = remember(filesToDisplay, showSearchBar, state.todayStart, state.yesterdayStart, groupFormat) {
                 if (showSearchBar) {
                     // Don't group search results by date, just show flat
                     mapOf("" to filesToDisplay)
                 } else {
-                    val groupFormat = SimpleDateFormat("EEEE, MMM dd", Locale.getDefault())
-                    val cal = Calendar.getInstance()
-                    cal.set(Calendar.HOUR_OF_DAY, 0)
-                    cal.set(Calendar.MINUTE, 0)
-                    cal.set(Calendar.SECOND, 0)
-                    cal.set(Calendar.MILLISECOND, 0)
-                    val today = cal.timeInMillis
-                    
-                    cal.add(Calendar.DAY_OF_YEAR, -1)
-                    val yesterday = cal.timeInMillis
-
                     filesToDisplay.groupBy { file ->
                         when {
-                            file.lastModified >= today -> "Today"
-                            file.lastModified >= yesterday -> "Yesterday"
+                            file.lastModified >= state.todayStart -> "Today"
+                            file.lastModified >= state.yesterdayStart -> "Yesterday"
                             else -> groupFormat.format(Date(file.lastModified))
                         }
                     }
@@ -256,10 +245,24 @@ fun RecentFilesScreen(
                     }
                 }
 
-                LazyColumn(
+                val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+
+                androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+                    isRefreshing = state.isPullToRefreshing,
+                    onRefresh = onRefresh,
+                    state = pullRefreshState,
                     modifier = Modifier.fillMaxSize(),
-                    state = listState
+                    indicator = {
+                        ArcilePullRefreshIndicator(
+                            isRefreshing = state.isPullToRefreshing,
+                            state = pullRefreshState
+                        )
+                    }
                 ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState
+                    ) {
                     groupedFiles.forEach { (dateHeader, files) ->
                         @OptIn(ExperimentalFoundationApi::class)
                         if (dateHeader.isNotEmpty()) {
@@ -309,6 +312,7 @@ fun RecentFilesScreen(
                 }
             }
         }
+    }
     }
 
     if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {

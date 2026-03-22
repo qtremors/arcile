@@ -122,7 +122,6 @@ class RecentFilesViewModelTest {
         advanceUntilIdle()
 
         assertEquals(RecentNativeAction.TRASH, viewModel.state.value.pendingNativeAction)
-        assertNotNull(viewModel.state.value.nativeRequest)
         assertFalse(viewModel.state.value.isLoading)
     }
 }

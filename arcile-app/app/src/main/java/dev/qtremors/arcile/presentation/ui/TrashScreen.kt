@@ -35,6 +35,9 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -103,7 +106,7 @@ fun TrashScreen(
     onSelectAll: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
-    onClearNativeRequest: () -> Unit = {}
+    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val launcher = rememberLauncherForActivityResult(
@@ -121,27 +124,34 @@ fun TrashScreen(
                 null -> {}
             }
         }
-        onClearNativeRequest()
     }
 
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading) {
         if (state.isLoading) {
-            delay(5)
+            delay(150)
             showLoading = true
         } else {
             showLoading = false
         }
     }
 
-    LaunchedEffect(state.nativeRequest) {
-        state.nativeRequest?.let { sender ->
+    LaunchedEffect(nativeRequestFlow) {
+        nativeRequestFlow?.collect { sender ->
             launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 
     var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.error) {
+        state.error?.let { errorMsg ->
+            onClearError()
+            snackbarHostState.showSnackbar(errorMsg)
+        }
+    }
 
     BackHandler(enabled = isSelectionMode || showSearchBar) {
         if (isSelectionMode) {
@@ -156,6 +166,7 @@ fun TrashScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (showSearchBar) {
                 SearchTopBar(
@@ -201,7 +212,7 @@ fun TrashScreen(
                             }
                         } else {
                             IconButton(onClick = { showSearchBar = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search")
+                                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
                             }
                         }
                     },

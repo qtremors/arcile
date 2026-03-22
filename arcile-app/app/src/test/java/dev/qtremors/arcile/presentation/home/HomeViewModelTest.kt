@@ -157,6 +157,33 @@ class HomeViewModelTest {
         assertEquals(listOf(second), viewModel.state.value.unclassifiedVolumes)
         assertTrue(viewModel.state.value.showClassificationPrompt)
     }
+
+    @Test
+    fun `rapid storage volume emissions are debounced to prevent redundant data loads`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume1 = homeVolume("v1", "v1", "Vol1", "/v1", StorageKind.INTERNAL, true, false)
+        val volume2 = homeVolume("v2", "v2", "Vol2", "/v2", StorageKind.SD_CARD, false, true)
+        
+        val repository = HomeFakeFileRepository()
+        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore())
+        
+        advanceTimeBy(1_000)
+        advanceUntilIdle()
+        
+        val initialCalls = repository.getStorageInfoCalls
+        
+        repository.emitVolumes(listOf(volume1))
+        advanceTimeBy(500)
+        repository.emitVolumes(listOf(volume1, volume2))
+        advanceTimeBy(500)
+        repository.emitVolumes(listOf(volume2))
+        
+        assertEquals(initialCalls, repository.getStorageInfoCalls)
+        
+        advanceTimeBy(1_000)
+        advanceUntilIdle()
+        
+        assertEquals(initialCalls + 1, repository.getStorageInfoCalls)
+    }
 }
 
 private class HomeFakeFileRepository(
@@ -174,6 +201,11 @@ private class HomeFakeFileRepository(
     var lastSearchQuery: String? = null
     var lastSearchScope: StorageScope? = null
     var lastSearchFilters: SearchFilters? = null
+    var getStorageInfoCalls: Int = 0
+
+    fun emitVolumes(volumes: List<StorageVolume>) {
+        observedVolumes.tryEmit(volumes)
+    }
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
@@ -186,7 +218,10 @@ private class HomeFakeFileRepository(
     override suspend fun getVolumeForPath(path: String): Result<StorageVolume> = Result.failure(NotImplementedError())
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
     override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = recentFilesResult
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = storageInfoResult
+    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> {
+        getStorageInfoCalls++
+        return storageInfoResult
+    }
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = categoryStorageResult
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
 

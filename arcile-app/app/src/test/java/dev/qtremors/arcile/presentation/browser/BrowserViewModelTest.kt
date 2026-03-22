@@ -228,7 +228,6 @@ class BrowserViewModelTest {
         advanceUntilIdle()
 
         assertEquals(BrowserNativeAction.TRASH, viewModel.state.value.pendingNativeAction)
-        assertNotNull(viewModel.state.value.nativeRequest)
         assertFalse(viewModel.state.value.isLoading)
     }
 
@@ -254,6 +253,30 @@ class BrowserViewModelTest {
         assertEquals("category_Images", preferences.lastUpdatedPath)
         assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathSortOption)
         assertNull(preferences.lastUpdatedGlobalSortOption)
+    }
+
+    @Test
+    fun `renameFile handles collisions or append copy behavior without throwing error`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            renameResult = Result.success(browserFile("test - Copy.txt", "/storage/emulated/0/test - Copy.txt"))
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false))
+        )
+        
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/test.txt")
+        viewModel.renameFile("/storage/emulated/0/test.txt", "test - Copy.txt")
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertNull(viewModel.state.value.error)
+        assertEquals("/storage/emulated/0/test.txt", repo.lastRenamePath)
+        assertEquals("test - Copy.txt", repo.lastRenameNewName)
     }
 }
 
@@ -289,7 +312,8 @@ private class BrowserFakeFileRepository(
     private val filesByCategory: Map<String, List<FileModel>> = emptyMap(),
     private val searchResult: Result<List<FileModel>> = Result.success(emptyList()),
     private val conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
-    private val moveToTrashResult: Result<Unit> = Result.success(Unit)
+    private val moveToTrashResult: Result<Unit> = Result.success(Unit),
+    private val renameResult: Result<FileModel> = Result.failure(NotImplementedError())
 ) : FileRepository {
 
     private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
@@ -303,6 +327,8 @@ private class BrowserFakeFileRepository(
     var lastConflictSourcePaths: List<String>? = null
     var lastConflictDestination: String? = null
     var createDirectoryCalls: Int = 0
+    var lastRenamePath: String? = null
+    var lastRenameNewName: String? = null
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(filesByPath[path].orEmpty())
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> {
@@ -312,7 +338,11 @@ private class BrowserFakeFileRepository(
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
     override suspend fun deleteFile(path: String): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
+    override suspend fun renameFile(path: String, newName: String): Result<FileModel> {
+        lastRenamePath = path
+        lastRenameNewName = newName
+        return renameResult
+    }
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
     override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
