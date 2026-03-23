@@ -44,7 +44,7 @@ fun MainFoldersGrid(
         FolderShortcut("Music", Icons.Default.MusicNote, standardFolders["Music"]),
         FolderShortcut("Movies", Icons.Default.Movie, standardFolders["Movies"]),
         FolderShortcut("All Files", Icons.Default.Folder, null)
-    )
+    ).filter { it.path == null || java.io.File(it.path).exists() }
 
     Column(
         modifier = Modifier
@@ -52,11 +52,8 @@ fun MainFoldersGrid(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        val rows = listOf(
-            folders.subList(0, 3), 
-            folders.subList(3, 6), 
-            folders.subList(6, 7)
-        )
+        // Group the remaining folders into rows of 3
+        val rows = folders.chunked(3)
 
         rows.forEach { rowFolders ->
             Row(

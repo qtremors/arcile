@@ -139,8 +139,8 @@ fun AppNavigationGraph(
                         onCreateFolder = { viewModel.createFolder(it) },
                         onCreateFile = { viewModel.createFile(it) },
                         onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
-                        onConfirmTrash = { viewModel.moveSelectedToTrash() },
-                        onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
+                        onConfirmDelete = { viewModel.confirmDeleteSelected() },
+                        onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
                         onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
@@ -163,8 +163,7 @@ fun AppNavigationGraph(
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onResolvingConflicts = { viewModel.resolveConflicts(it) },
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
-                        onDeletePermanentlySelected = { viewModel.deleteSelectedPermanently() },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() }
+                        nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
                 composable<AppRoutes.Trash> {
@@ -180,8 +179,14 @@ fun AppNavigationGraph(
                         onClearError = { viewModel.clearError() },
                         onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
                         onRestoreToDestination = { ids, path -> viewModel.restoreToDestination(ids, path) },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() }
+                        onPermanentlyDeleteSelected = { viewModel.deletePermanentlySelected() },
+                        onDismissPermanentDelete = { viewModel.dismissPermanentDeleteConfirmation() },
+                        onSelectAll = { viewModel.selectAll() },
+                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                        onClearSearch = { viewModel.updateSearchQuery("") },
+                        nativeRequestFlow = viewModel.nativeRequestFlow
                     )
+
                 }
                 composable<AppRoutes.RecentFiles> {
                     val viewModel = hiltViewModel<RecentFilesViewModel>()
@@ -193,8 +198,8 @@ fun AppNavigationGraph(
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
-                        onConfirmTrash = { viewModel.moveSelectedToTrash() },
-                        onConfirmPermanentDelete = { viewModel.deleteSelectedPermanently() },
+                        onConfirmDelete = { viewModel.confirmDeleteSelected() },
+                        onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
                         onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onShareSelected = {
                             if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
@@ -202,7 +207,10 @@ fun AppNavigationGraph(
                             }
                         },
                         onRefresh = { viewModel.loadRecentFiles() },
-                        onClearNativeRequest = { viewModel.clearNativeRequest() }
+                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
+                        onClearSearch = { viewModel.updateSearchQuery("") },
+                        onLoadMore = { viewModel.loadMore() },
+                        nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
                 composable<AppRoutes.Tools> {
@@ -219,8 +227,11 @@ fun AppNavigationGraph(
                         onNavigateToAbout = { navController.navigate(AppRoutes.About) }
                     )
                 }
-                composable<AppRoutes.StorageManagement> {
-                    val viewModel = hiltViewModel<HomeViewModel>()
+                composable<AppRoutes.StorageManagement> { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        navController.getBackStackEntry<AppRoutes.Home>()
+                    }
+                    val viewModel = hiltViewModel<HomeViewModel>(parentEntry)
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     StorageManagementScreen(
                         state = state,

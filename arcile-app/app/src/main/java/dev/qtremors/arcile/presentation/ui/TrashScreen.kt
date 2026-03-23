@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,15 +35,26 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+
+
 import kotlinx.coroutines.delay
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
@@ -87,8 +101,14 @@ fun TrashScreen(
     onClearError: () -> Unit,
     onDismissDestinationPicker: () -> Unit,
     onRestoreToDestination: (List<String>, String) -> Unit,
-    onClearNativeRequest: () -> Unit = {}
+    onPermanentlyDeleteSelected: () -> Unit,
+    onDismissPermanentDelete: () -> Unit,
+    onSelectAll: () -> Unit,
+    onSearchQueryChange: (String) -> Unit = {},
+    onClearSearch: () -> Unit = {},
+    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val isSelectionMode = state.selectedFiles.isNotEmpty()
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -104,32 +124,41 @@ fun TrashScreen(
                 null -> {}
             }
         }
-        onClearNativeRequest()
     }
 
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading) {
         if (state.isLoading) {
-            delay(5)
+            delay(150)
             showLoading = true
         } else {
             showLoading = false
         }
     }
 
-    LaunchedEffect(state.nativeRequest) {
-        state.nativeRequest?.let { sender ->
+    LaunchedEffect(nativeRequestFlow) {
+        nativeRequestFlow?.collect { sender ->
             launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 
     var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
+    var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    BackHandler {
-        if (state.selectedFiles.isNotEmpty()) {
+    LaunchedEffect(state.error) {
+        state.error?.let { errorMsg ->
+            onClearError()
+            snackbarHostState.showSnackbar(errorMsg)
+        }
+    }
+
+    BackHandler(enabled = isSelectionMode || showSearchBar) {
+        if (isSelectionMode) {
             onClearSelection()
         } else {
-            onNavigateBack()
+            showSearchBar = false
+            onClearSearch()
         }
     }
 
@@ -137,71 +166,122 @@ fun TrashScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            LargeTopAppBar(
-                title = {
-                    Text(
-                        text = if (state.selectedFiles.isNotEmpty()) stringResource(R.string.selected_count, state.selectedFiles.size) else stringResource(R.string.trash_bin),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                scrollBehavior = scrollBehavior,
-                navigationIcon = {
-                    if (state.selectedFiles.isNotEmpty()) {
-                        IconButton(onClick = onClearSelection) {
-                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
-                        }
-                    } else {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                        }
-                    }
-                },
-                actions = {
-                    if (state.selectedFiles.isNotEmpty()) {
-                        IconButton(onClick = onRestoreSelected) {
-                            Icon(Icons.Default.Restore, contentDescription = stringResource(R.string.restore_selected))
-                        }
-                    } else if (state.trashFiles.isNotEmpty()) {
-                        IconButton(onClick = { showEmptyTrashConfirmation = true }) {
-                            Icon(Icons.Default.DeleteSweep, contentDescription = stringResource(R.string.empty_trash))
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (state.selectedFiles.isNotEmpty()) MaterialTheme.colorScheme.surfaceContainerHigh else androidx.compose.ui.graphics.Color.Transparent,
-                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
-        },
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-        ) {
-            if (showLoading && state.trashFiles.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
-                }
-            } else if (state.trashFiles.isEmpty() && !state.isLoading) {
-                 EmptyState(
-                    icon = Icons.Default.DeleteSweep,
-                    title = stringResource(R.string.trash_is_empty),
-                    description = stringResource(R.string.trash_empty_description),
-                    modifier = Modifier.fillMaxSize()
+            if (showSearchBar) {
+                SearchTopBar(
+                    query = state.searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    onClose = {
+                        showSearchBar = false
+                        onClearSearch()
+                    },
+                    placeholder = "Search trash bin..."
                 )
             } else {
-                TrashList(
-                    files = state.trashFiles,
-                    selectedFiles = state.selectedFiles,
-                    onToggleSelection = onToggleSelection
+                LargeTopAppBar(
+                    title = {
+                        Text(
+                            text = if (isSelectionMode) stringResource(R.string.selected_count, state.selectedFiles.size) else stringResource(R.string.trash_bin),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        if (isSelectionMode) {
+                            IconButton(onClick = onClearSelection) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
+                            }
+                        } else {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                            }
+                        }
+                    },
+                    actions = {
+                        if (isSelectionMode) {
+                            IconButton(onClick = onSelectAll) {
+                                Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
+                            }
+                            IconButton(onClick = onRestoreSelected) {
+                                Icon(Icons.Default.Restore, contentDescription = stringResource(R.string.restore))
+                            }
+                            IconButton(onClick = onPermanentlyDeleteSelected) {
+                                Icon(Icons.Default.DeleteForever, contentDescription = stringResource(R.string.delete_permanently))
+                            }
+                        } else {
+                            IconButton(onClick = { showSearchBar = true }) {
+                                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (isSelectionMode) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    )
                 )
+            }
+        },
+        floatingActionButton = {
+            if (!isSelectionMode && state.trashFiles.isNotEmpty() && !showSearchBar) {
+                ExtendedFloatingActionButton(
+                    text = { Text(stringResource(R.string.empty_trash)) },
+                    icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) },
+                    onClick = { showEmptyTrashConfirmation = true },
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    expanded = true
+                )
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (!isSelectionMode && !showSearchBar && state.trashFiles.isNotEmpty()) {
+                TrashInfoCard()
+            }
+
+            Box(modifier = Modifier.weight(1f)) {
+                if (showLoading && state.trashFiles.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                } else if (state.trashFiles.isEmpty() && !state.isLoading && !showSearchBar) {
+                    EmptyState(
+                        icon = Icons.Default.DeleteSweep,
+                        title = stringResource(R.string.trash_is_empty),
+                        description = stringResource(R.string.trash_empty_description),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (showSearchBar && state.isSearching) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                } else if (showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty()) {
+                    EmptyState(
+                        icon = Icons.Default.SearchOff,
+                        title = stringResource(R.string.no_results_found),
+                        description = stringResource(R.string.no_results_description, state.searchQuery),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    TrashList(
+                        files = if (showSearchBar) state.searchResults else state.trashFiles,
+                        selectedFiles = state.selectedFiles,
+                        onToggleSelection = onToggleSelection
+                    )
+                }
             }
         }
 
@@ -212,6 +292,17 @@ fun TrashScreen(
                     showEmptyTrashConfirmation = false
                     onEmptyTrash()
                 }
+            )
+        }
+
+        if (state.showPermanentDeleteConfirmation) {
+            dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog(
+                selectedCount = state.selectedFiles.size,
+                isPermanentDeleteChecked = true,
+                isPermanentDeleteToggleEnabled = false,
+                onConfirm = onPermanentlyDeleteSelected,
+                onDismiss = onDismissPermanentDelete,
+                onTogglePermanentDelete = {}
             )
         }
 
@@ -235,7 +326,7 @@ fun TrashScreen(
                     text = {
                         Column {
                             Text(stringResource(R.string.select_restore_destination_description))
-                            androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
                             LazyColumn {
                                 items(indexedVolumes) { volume ->
                                     ListItem(
@@ -258,6 +349,35 @@ fun TrashScreen(
                     }
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun TrashInfoCard() {
+    androidx.compose.material3.ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = androidx.compose.material3.CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.trash_info_title),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.trash_info_description),
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }

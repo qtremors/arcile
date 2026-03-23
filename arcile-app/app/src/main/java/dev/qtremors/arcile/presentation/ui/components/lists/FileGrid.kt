@@ -1,8 +1,12 @@
 package dev.qtremors.arcile.presentation.ui.components.lists
 
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
+
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,6 +38,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -47,9 +52,8 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
-import java.text.SimpleDateFormat
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -60,21 +64,23 @@ fun FileGrid(
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        columns = GridCells.Adaptive(minSize = 100.dp),
+        contentPadding = PaddingValues(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        state = gridState,
+        modifier = modifier.fillMaxWidth()
     ) {
-        items(files.size, key = { index -> files[index].absolutePath }) { index ->
+        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
             val file = files[index]
             FileGridItem(
                 modifier = Modifier.animateItem(),
@@ -125,8 +131,7 @@ fun FileGridItem(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
-            stiffness = 380f
-        ),
+            stiffness = Spring.StiffnessMediumLow),
         label = "gridItemScale"
     )
 
@@ -139,11 +144,11 @@ fun FileGridItem(
                 scaleX = scale
                 scaleY = scale
             }
-            .semantics(mergeDescendants = true) { 
-                contentDescription = contentDesc 
+            .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
+            .semantics(mergeDescendants = true) {
+                contentDescription = contentDesc
                 selected = isSelected
-            }
-            .combinedClickable(
+            }            .combinedClickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,
                 onClick = onClick,
@@ -167,7 +172,7 @@ fun FileGridItem(
             if (isMedia) {
                 AsyncImage(
                     model = File(file.absolutePath),
-                    contentDescription = "Thumbnail",
+                    contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f),

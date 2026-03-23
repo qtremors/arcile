@@ -4,12 +4,17 @@ import dev.qtremors.arcile.presentation.FileSortOption
 
 data class BrowserPreferences(
     val globalSortOption: FileSortOption = FileSortOption.NAME_ASC,
-    val pathSortOptions: Map<String, FileSortOption> = emptyMap()
+    val pathSortOptions: Map<String, FileSortOption> = emptyMap(),
+    val exactPathSortOptions: Map<String, FileSortOption> = emptyMap()
 ) {
     fun getSortOptionForPath(path: String): FileSortOption {
         var currentPath = path.trimEnd('/')
         if (currentPath.isEmpty()) currentPath = "/"
         
+        if (exactPathSortOptions.containsKey(currentPath)) {
+            return exactPathSortOptions[currentPath]!!
+        }
+
         while (currentPath.isNotEmpty()) {
             if (pathSortOptions.containsKey(currentPath)) {
                 return pathSortOptions[currentPath]!!
@@ -27,5 +32,9 @@ data class BrowserPreferences(
             }
         }
         return globalSortOption
+    }
+
+    fun getSortOptionForCategory(categoryName: String): FileSortOption {
+        return exactPathSortOptions["category_$categoryName"] ?: pathSortOptions["category_$categoryName"] ?: FileSortOption.DATE_NEWEST
     }
 }

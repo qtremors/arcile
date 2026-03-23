@@ -2,13 +2,13 @@ package dev.qtremors.arcile.presentation
 
 import dev.qtremors.arcile.domain.FileModel
 
-enum class FileSortOption(val label: String) {
-    NAME_ASC("Name (A-Z)"),
-    NAME_DESC("Name (Z-A)"),
-    DATE_NEWEST("Date (Newest)"),
-    DATE_OLDEST("Date (Oldest)"),
-    SIZE_LARGEST("Size (Largest)"),
-    SIZE_SMALLEST("Size (Smallest)")
+enum class FileSortOption {
+    NAME_ASC,
+    NAME_DESC,
+    DATE_NEWEST,
+    DATE_OLDEST,
+    SIZE_LARGEST,
+    SIZE_SMALLEST
 }
 
 fun filterAndSortFiles(

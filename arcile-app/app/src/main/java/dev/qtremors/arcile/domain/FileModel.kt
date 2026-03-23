@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.domain
 
+import androidx.compose.runtime.Immutable
+
 /**
  * Core domain model representing a single file or directory entry.
  *
@@ -15,6 +17,7 @@ package dev.qtremors.arcile.domain
  *   Empty string for directories or files without an extension.
  * @property isHidden `true` when the filename starts with a dot (Unix hidden-file convention).
  */
+@Immutable
 data class FileModel(
     val name: String,
     val absolutePath: String,

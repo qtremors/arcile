@@ -1,15 +1,44 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 0.4.5
-> **Last Updated:** 2026-03-19
+> **Version:** 0.5.0
+> **Last Updated:** 2026-03-23
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v0.5.0 Beta](#v050-beta) | 2026-03-23 | Security, Architecture & Target API Bump |
 | [v0.4.5 Beta](#v045-beta) | 2026-03-19 | Stability, Performance & Visual Polish |
 | [v0.4.0 Beta](#v040-beta) | 2026-03-16 | SD Card & OTG Support |
 | [v0.3.0 Beta](#v030-beta) | 2026-03-11 | Trash Bin & Copy/Paste |
 | [v0.2.0 Beta](#v020-beta) | 2026-03-06 | Material 3 Redesign |
+
+---
+
+# v0.5.0 Beta
+
+**Release Date:** March 23, 2026  
+**Previous release:** v0.4.5 Beta
+
+Welcome to **Arcile v0.5.0 Beta**! This release heavily focuses on security enhancements, code quality, and structural robustness. I've completely overhauled the encryption layer for the Trash Bin, locked down external URI exposures, and officially raised the minimum API level to Android 11 to ensure a modern, stable scoped storage architecture.
+
+## 🛡️ Security & Privacy
+- **Trash Vault Encryption:** Replaced the plain-text `.arcile/.metadata` JSON storage with a secure AES256-GCM encryption layer. Keys are dynamically derived via hardware `ANDROID_ID`, ensuring that trash metadata stays perfectly hidden from other apps but fully survives app updates and reinstalls.
+- **FileProvider Sandbox:** Closed a structural vulnerability by removing the root `external_root` path from `file_provider_paths.xml`. The `FileProvider` now correctly restricts external URIs strictly to standard public media folders (Downloads, Documents, Pictures, etc.).
+- **Sensitive File Protection:** Explicitly blocked the ability to open or share internal `.arcile` metadata and application cache files via `MainActivity` and `ShareHelper`, preventing unintended system exposure.
+- **Build Hardening & Credentials:** `build.gradle.kts` now securely loads signing properties, falling back to a clean debug configuration rather than failing when keys are missing. Added specific R8/ProGuard keep rules to ensure release build stability.
+
+## 🚀 What's New & Changed
+- **Target Platform:** Completely dropped support for Android 10 (API 29). `minSdk` officially raised to 30 (Android 11) to eliminate all scoped storage crash loops and align natively with `MANAGE_EXTERNAL_STORAGE` architecture.
+- **Search Robustness:** Removed the arbitrary `.maxDepth(10)` limit on path-scoped searching. Deeply nested repository or archive folder structures can now be fully traversed, constrained solely by the 1000-item memory limit.
+- **Accessibility & Localization:** Extracted massive swaths of hardcoded English texts, labels, and iconography `contentDescription` properties into `strings.xml`, instantly granting full TalkBack accessibility scaling for vision-impaired and non-English users.
+- **UI/UX Polish:** Replaced hardcoded padding and margin components with strictly bounded `MaterialTheme.spacing` tokens to guarantee Material Design 3 scale compliance. Extracted shared Pull-to-Refresh logic into `ArcilePullRefreshIndicator.kt`.
+
+## 🛠️ Fixes & Polish
+- **Recent Files Affordance:** Added a fully wired `PullToRefreshBox` wrap to `RecentFilesScreen` to finally expose the previously inaccessible `onRefresh` manual action to users.
+- **UI Performance & Formatting:** Hoisted `Calendar` and `SimpleDateFormat` logic out of recomposition scopes. Introduced reliable, locale-aware date string updates across the entire application interface.
+- **Error Handling:** `TrashScreen` now properly surfaces persistent operational failures and errors via unified non-blocking `Snackbar` overlays. Introduced typed `FileOperationException` for granular error recovery.
+- **Concurrency Safety:** Fixed unstructured concurrency leaks by properly re-throwing `CancellationException` inside Coroutines/Flows globally.
+- **Testing:** Bootstrapped the `androidTest` layer with Robolectric Compose implementations and expanded the JVM test suite to handle high-risk branches, verifying edge cases including rename collisions and missing volume destinations.
 
 ---
 
@@ -41,6 +70,25 @@ Welcome to **Arcile v0.4.5 Beta**! This release focuses heavily on smoothing out
 - **Double Refreshing Fixed:** I eliminated a persistent glitch where the Home and Recent Files screens would load their data twice.
 - **Silent Failures Patched:** I've fortified the core File Repository. If edge-case operations fail (like creating hidden `.nomedia` files for the Trash Bin, or dealing with locked media indices), they no longer crash silently in the background, making future debugging much easier.
 - **Test Suite Enhancements:** I started bridging the gaps in my automated testing suite, adding new core logic checks to ensure critical file naming conflicts (like copying duplicate files) are resolved correctly and safely.
+
+## 🐛 Known Issues (Beta)
+
+As this is an active Beta, please be aware of the following tracked issues:
+
+### 🚨 Critical
+- **Splash Screen Hang:** In rare cases of data corruption, the app may hang on the launch screen. (Workaround: Clear app data).
+- **Caching IOException:** On some devices, the new storage caching system may fail due to unsanitized volume identifiers.
+- **Category Navigation:** Home screen category shortcuts may not function correctly if the app language is set to anything other than English.
+
+### ⚠️ Medium
+- **Unscrollable Themes:** On small screens or in landscape mode, the new Accent Color selector may not scroll, hiding some theme options.
+- **Redundant Processing:** Opening Storage Management may trigger a redundant background calculation of storage statistics.
+
+### 🔵 Low
+- Minor missing translations in the Paste Conflict dialog.
+- Incorrect labeling for "Unclassified" drives in the Trash list.
+- Ongoing TalkBack accessibility refinements for the new theme swatches.
+- Background log-swallowing during file sharing operations.
 
 ---
 

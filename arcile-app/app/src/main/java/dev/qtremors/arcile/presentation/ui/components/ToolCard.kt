@@ -39,8 +39,7 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
         targetValue = if (isPressed) 0.98f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
-            stiffness = Spring.StiffnessLow
-        ),
+            stiffness = Spring.StiffnessMediumLow),
         label = "toolCardScale"
     )
 

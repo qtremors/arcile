@@ -1,8 +1,140 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.4.5
-> **Last Updated:** 2026-03-19
+> **Version:** 0.5.0
+> **Last Updated:** 2026-03-21
+
+---
+
+## [0.5.0] - 2026-03-21
+
+### Security
+- **Trash Vault Encryption:** Replaced the plain-text `.arcile/.metadata` JSON storage with a secure AES256-GCM encryption layer. Keys are dynamically derived via hardware `ANDROID_ID`, ensuring that trash metadata stays perfectly hidden from other apps but fully survives app updates and reinstalls.
+- **FileProvider Sandbox:** Closed a structural vulnerability by removing the root `external_root` path from `file_provider_paths.xml`. The `FileProvider` now correctly restricts external URIs strictly to standard public media folders (Downloads, Documents, Pictures, etc.).
+- **Signing Credentials:** `build.gradle.kts` now securely loads signing properties from an excluded `signing.properties` file with proper presence validation, falling back to a clean debug configuration rather than failing the entire Gradle sync when keys are missing.
+- **Sensitive File Protection:** Explicitly blocked the ability to open or share internal `.arcile` metadata and application cache files via `MainActivity` and `ShareHelper`, preventing unintended system exposure.
+
+### Changed
+- **Target Platform:** Completely dropped support for Android 10 (API 29). `minSdk` officially raised to 30 (Android 11) to eliminate all scoped storage crash loops and align natively with `MANAGE_EXTERNAL_STORAGE` architecture.
+- **Code Quality:** Completely eliminated unstructured `org.json.JSONObject` usage. Extracted legacy JSON parsing into strictly-typed `@Serializable` entities across `StorageClassificationRepository`, `TrashManager`, and `MediaStoreClient` leveraging `kotlinx.serialization`.     
+- **Search Robustness:** Removed the arbitrary `.maxDepth(10)` limit on path-scoped searching. Deeply nested repository or archive folder structures can now be fully traversed, constrained solely by the 1000-item memory limit.
+- **Architectural Cleanup:** Decoupled platform-specific `IntentSender` objects from ViewModel `State` data classes. Native confirmation requests are now emitted via a one-shot `SharedFlow`, improving testability and adhering to MVI/Unidirectional Data Flow principles.
+- **Build Hardening:** Added specific R8/ProGuard keep rules for `kotlinx.serialization` and custom Coil fetchers to ensure release build stability.
+- **UI/UX Polish:** Replaced hardcoded padding and margin components across `HomeScreen.kt` and `StorageSummaryCards.kt` with strictly bounded `MaterialTheme.spacing` tokens to guarantee Material Design 3 scale compliance.
+- **Localization:** Extracted hardcoded "Delete" and "Cancel" strings in confirmation dialogs to standard `stringResource` references.      
+- **Accessibility:** Extracted massive swaths of hardcoded English texts, labels, and iconography `contentDescription` properties into `strings.xml`, instantly granting full TalkBack accessibility scaling for vision-impaired and non-English users.
+
+### Refactored
+- **Home Screen Architecture:** Severed `MainFoldersGrid` dependency on `Environment.getExternalStorageDirectory()`. The component now strictly reads folder targets injected by the ViewModel and dynamically filters out nodes that do not physically exist on the device.
+- **Code Quality:** Extracted the massive duplicated Pull-to-Refresh indicator layout logic trapped inside `HomeScreen.kt` and `FileManagerScreen.kt` into a new, universally shared `ArcilePullRefreshIndicator.kt` component.
+- **Error Handling:** Introduced typed `FileOperationException` (AccessDenied, IOError, NotFound, Unknown) replacing generic Exception returns in the repository layer to allow granular error recovery.
+
+### Fixed
+- **Recent Files Affordance:** Added a fully wired `PullToRefreshBox` wrap to `RecentFilesScreen` to finally expose the previously inaccessible `onRefresh` manual action to users.
+- **UI Performance:** Hoisted `Calendar` and `SimpleDateFormat` logic out of recomposition scopes in `HomeScreen` and `RecentFilesScreen` to prevent redundant instantiation and garbage collection.
+- **Date Formatting:** Introduced `rememberDateFormatter` in `DateUtils.kt` for reliable, locale-aware date string updates across the entire application interface.
+- **Error Surfacing:** `TrashScreen` now properly surfaces persistent operational failures and errors via unified non-blocking `Snackbar` overlays.
+- **Concurrency Safety:** Fixed unstructured concurrency leaks by properly re-throwing `CancellationException` inside Coroutines/Flows globally across the repository and UI layers, ensuring clean job termination.
+- **Data Initialization:** Corrected `ThemePreferences` Enum value lookups to safely fallback without throwing exceptions during DataStore initializations.
+
+### Testing
+- **UI Instrumentation:** Bootstrapped the `androidTest` layer with Robolectric Compose implementations, introducing `HomeScreenTest` and `NavigationTest` covering core layout visibility.
+- **ViewModel Coverage:** Expanded the JVM test suite handling high-risk branches, verifying edge cases including Rename collisions inside `BrowserViewModel`, missing volume destinations within `TrashViewModel` (along with an `assertTrue` import fix), and debounced volume emissions inside `HomeViewModel`.
+
+---
+
+## [0.4.9] - 2026-03-21
+
+### Refactored
+- **Clean Architecture:** Completely modularized `LocalFileRepository.kt` into dedicated data sources (`VolumeProvider`, `TrashManager`, `MediaStoreClient`, `FileSystemDataSource`) and introduced Domain-level Use Cases.
+- **ViewModel Delegates:** Decomposed the massive `BrowserViewModel.kt` into `NavigationDelegate`, `ClipboardDelegate`, and `SearchDelegate` to cleanly isolate state management.
+- **UI Modularization:** Extracted complex inline dialogs and views from `FileManagerScreen.kt` into isolated Compose components, completing the eradication of "God Class" monoliths across the presentation and data layers.
+
+---
+
+## [0.4.8] - 2026-03-21
+
+### Fixed
+- **Recent Files Pagination:** Increased visibility of historical records in the Recent Files tab by replacing the arbitrary 50-file limit with an infinite-scrolling offset mechanism.
+- **Folder Navigation Delay:** Removed redundant `AnimatedContent` wrappers on the `FileManagerScreen` that were doubling composition loads, guaranteeing instantaneous snaps and stutter-free folder loading alongside the new 5ms indicator delay.
+- **Sort Dialog UX:** Fixed the "Sort By" bottom sheet dismissing prematurely upon radio selection before users could toggle the subfolder checkbox. Added active local state tracking with dedicated Apply/Cancel confirmation buttons.
+- **Filter Dialog Expansion:** Enforced `skipPartiallyExpanded = true` for the `SortOptionDialog` and `SearchFiltersBottomSheet` so that the dialogs immediately open to full height, preventing buttons and options from being hidden off-screen.
+
+### Changed
+- **Material 3 Expressive Filter UI:** Upgraded the `SearchFiltersBottomSheet` to M3 Expressive standards, replacing scattered `FilterChips` with cohesive, sliding `SingleChoiceSegmentedButtonRow` pills.
+- **Material 3 Expressive Sort UI:** Upgraded the `SortOptionDialog` to M3 Expressive, introducing robust interactive `Surface` elements that responsively color-fill with `secondaryContainer` highlights upon selection, grounded by a solid `FilledTonalButton`.
+
+### Performance
+- **Volume Discovery:** Added a memory cache to `discoverPlatformVolumes()` that precisely invalidates upon receiving explicit storage mount/unmount broadcasts, preventing severe redundant `StatFs` I/O during operations and startup.
+- **Search Optimization:** Pushed sort and limit logic for global MediaStore searches into the `ContentResolver` query to prevent memory bloat and unstructured result sets.
+- **Home Screen Efficiency:** Debounced and diffed incoming storage volume events to eliminate redundant Home screen data fetches on silent refreshes.
+- **Recent Files Performance:** Reduced the initial MediaStore query limit from 500 to 50 for the recent files screen to improve startup speed and reduce memory consumption.
+- **Compose Recomposition Fixes:** Added `@Immutable` annotations to `FileModel` and `BrowserState` to prevent excessive recompositions and sorting overhead.
+- **List Stability:** Implemented unique string keys for `LazyColumn` and `LazyVerticalGrid` elements to prevent item collision during rapid directory transitions.
+- **Refresh Rate Management:** Removed unconditional app-wide overrides for device refresh rates, allowing the system to handle display dynamics properly.
+
+### Smoothness
+- **Browser State Retention:** Handled volume updates by diffing the active volume and updating state accordingly, stopping the `BrowserViewModel` from destructively resetting path locations and UI selections whenever a volume re-enumerated.
+- **Home Screen Flicker:** Debounced and scoped `isCalculatingStorage` so `HomeViewModel.loadHomeData()` no longer forces UI shimmer and flickering on silent background updates.
+
+### Code Quality & Maintainability
+- **Sorting Localization:** Removed hardcoded English labels from `FileSortOption` and migrated `FileListControls` to use proper XML string resources for translation support.
+- **Validation Logic:** Eliminated duplicate filename validation checks (`/`, `\`, `..`) in `BrowserViewModel` to ensure the repository remains the single source of truth for file creation rules.
+- **Dead Code Removal:** Deleted the deprecated `presentation/SearchFilters.kt` typealias file to prevent confusing domain boundary imports.
+
+### Architecture
+- **Dependency Injection:** Hoisted `ThemePreferences` instantiation out of `MainActivity` and correctly wired it into the Hilt DI graph for better testability.
+- **State Management:** Extracted `MainActivity` permission handling and reactive states (`_hasPermission`) into a dedicated `MainViewModel`, cleanly separating application UI from core logic.
+- **ViewModel Sharing:** `StorageManagementScreen` now natively shares the same `HomeViewModel` instance anchored to the `Home` back stack entry, preventing duplicate `Home` data reloading and visual sync bugs.
+- **Dead State Pruning:** Removed the completely unused `StorageMountState` enum and its dependent initialization lines across the app and testing environments.
+- **Sort Settings Granularity:** Reworked `BrowserPreferencesStore` and its repository logic to fully support isolating folder sorting rules to a single directory (without corrupting the global state) or allowing subdirectories to inherit via standard propagation.
+
+---
+
+## [0.4.7] - 2026-03-20
+
+### Fixed
+- **Splash Screen Reliability:** Resolved an issue where the splash screen could hang indefinitely if the theme preference failed to load; added a `try/finally` safety guard.
+- **UI Overflow:** Fixed a layout bug in the Accent Color Selector where the color picker could overflow and become unreachable on small screens; implemented a vertical scroll container.
+- **Trash Bin Robustness:** Patched a potential crash in the Trash List when extracting parent paths from malformed or root-level files.
+- **External Storage Labeling:** Corrected a missing label for "Unclassified External" storage volumes in the Trash metadata view.
+- **Silent Share Failures:** Improved the `ShareHelper` by adding explicit error logging to diagnose failures when launching system share intents.
+- **Dependency Resolution:** Fixed a build error caused by an incorrect artifact name for the `material-kolor` library in the version catalog.
+- **File Size Formatting:** Corrected `formatFileSize` boundary rounding so values near unit thresholds no longer display awkward outputs like `1024.0 KB`.
+- **Browser Path Resolution:** Hardened browser volume-path matching so Android-style `/storage/...` paths resolve correctly regardless of the host file separator used by the runtime.
+
+### Added
+- **Accent Color Accessibility:** Enhanced the Accent Color Selector with full accessibility semantics, allowing screen readers to correctly identify and announce selected colors.
+- **Localization Polish:** Completed the localization of several previously hardcoded UI elements, including conflict resolution messages and category labels.
+- **Automated Test Coverage:** Added new JVM tests for `FormatUtils`, `CategoryColors`, `FileModel`, `StorageInfo`, `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, and `TrashViewModel`.
+- **Compose Component Tests:** Added Robolectric-backed Compose tests for DeleteConfirmationDialog, ArcileTopBar, and EmptyState.
+
+### Changed
+- **Internal Category IDs:** Decoupled visible category labels from internal logic IDs, ensuring navigation and filtering remain stable across different system languages.
+- **Browser Preferences Abstraction:** Introduced a `BrowserPreferencesStore` interface and wired it through DI so browser state logic can be unit tested without changing app behavior.
+- **JVM UI Test Setup:** Enabled Robolectric-backed Compose UI tests in the app module and version catalog, including Android-resource support for JVM test runs.
+
+---
+
+## [0.4.6] - 2026-03-20
+
+### Added
+- **Category Search Optimization:** Searching within categories (Images, Documents, etc.) is now natively executed at the database level for significantly faster and more accurate results.
+- **Unified Deletion Dialog:** Replaced split deletion prompts with a unified dialog. Includes a "Permanently delete" checkbox that auto-enables and disables itself if the target drive (e.g., OTG/USB) does not support a Trash Bin.
+- **Search Everywhere:** Added live, debounced search bars to the *Recent Files* and *Trash Bin* screens.
+- **Select All in Trash:** The Trash Bin now supports a "Select All" toggle for bulk restoration or permanent deletion.
+
+### Changed
+- **Modernized Filters UI:** The sorting and filtering menu has been overhauled from a generic alert popup into a polished Material 3 `ModalBottomSheet`. 
+- **Contextual Search place holders:** Search bars now dynamically reflect their context (e.g., displaying "Search images..." when inside the Images category). 
+- **Decoupled Category Sorting:** Navigating into a category now intelligently defaults to sorting by "Date Newest", completely decoupled from the generic A-Z sorting rules applied to standard folders.
+- **Hidden File Visualization:** Files and folders starting with a dot (e.g., `.nomedia`) now render at 50% opacity, providing an intuitive, "ghostly" visual cue that they are hidden system elements.
+
+### Fixed
+- **Loading Flicker:** Eliminated an artificial rendering delay on the Home Dashboard that caused the loading indicator to briefly flash before content appeared.
+- **Scroll Position Reset:** Changing the sort order of a folder or category now correctly scrolls the list back to the top, preventing users from getting lost in large directories.
+- **Sorting State Persistence:** Returning to a previously visited folder now correctly remembers and applies the user's specific sorting preference for that directory.
+- **Crash Prevention:** Removed a brittle `MimeTypeMap` lookup that could crash the app when encountering unindexed or malformed file extensions, replacing it with safe fallbacks.
 
 ---
 

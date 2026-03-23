@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui.components.home
 
+import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -41,7 +42,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,11 +131,11 @@ fun StorageSummaryCard(
                         text = primaryVolume?.name ?: stringResource(R.string.internal_storage),
                         style = MaterialTheme.typography.titleLargeBold
                     )
-                    Icon(Icons.Default.Storage, contentDescription = "Storage")
+                    Icon(Icons.Default.Storage, contentDescription = stringResource(R.string.desc_storage))
                 }
 
                 if (total > 0 || state.isCalculatingStorage) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
 
                     MultiColorStorageBar(
                         totalBytes = total,
@@ -138,7 +144,7 @@ fun StorageSummaryCard(
                         isCalculating = state.isCalculatingStorage
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -195,7 +201,7 @@ fun StorageVolumeCard(
         ),
         shape = MaterialTheme.shapes.extraLarge
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
+        Column(modifier = Modifier.padding(MaterialTheme.spacing.space20)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -217,7 +223,7 @@ fun StorageVolumeCard(
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
                                         imageVector = if (volume.kind == StorageKind.OTG) Icons.Default.Usb else Icons.Default.Info,
-                                        contentDescription = "Temporary",
+                                        contentDescription = stringResource(R.string.desc_temporary),
                                         modifier = Modifier.size(14.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -245,7 +251,7 @@ fun StorageVolumeCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
 
             MultiColorStorageBar(
                 totalBytes = volume.totalBytes,
@@ -254,7 +260,7 @@ fun StorageVolumeCard(
                 isCalculating = false // Individual volume status can be secondary or tied to global
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -286,8 +292,18 @@ fun MultiColorStorageBar(
     val hasData = totalBytes > 0
     
     // Global progress for the "revealing" animation when data first appears
+    var animationTrigger by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(isCalculating, hasData) {
+        if (!isCalculating && hasData) {
+            animationTrigger = true
+        } else if (isCalculating) {
+            animationTrigger = false
+        }
+    }
+
     val revealProgress by animateFloatAsState(
-        targetValue = if (hasData) 1f else 0f,
+        targetValue = if (animationTrigger) 1f else 0f,
         animationSpec = tween(1000, easing = LinearEasing),
         label = "storageBarReveal"
     )
@@ -298,15 +314,16 @@ fun MultiColorStorageBar(
             .height(barHeight)
             .clip(barShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .shimmer(visible = isCalculating && !hasData, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            .shimmer(visible = isCalculating, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
     ) {
         if (hasData || isCalculating) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Indeterminate Layer (Flowing colors)
                 AnimatedVisibility(
-                    visible = isCalculating && !hasData,
+                    visible = isCalculating,
                     enter = fadeIn(),
-                    exit = fadeOut(animationSpec = tween(1000))
+                    exit = fadeOut(animationSpec = tween(1000)),
+                    modifier = Modifier.fillMaxSize()
                 ) {
                     val infiniteTransition = rememberInfiniteTransition(label = "placeholderFlow")
                     val offset by infiniteTransition.animateFloat(
@@ -341,7 +358,7 @@ fun MultiColorStorageBar(
                 }
 
                 // Data Layer (Segments)
-                if (hasData) {
+                if (hasData && animationTrigger) {
                     Row(modifier = Modifier.fillMaxSize()) {
                         val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
                         val actualUsedBytes = totalBytes - freeBytes
@@ -355,7 +372,7 @@ fun MultiColorStorageBar(
                                 val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
                                 val animatedFraction by animateFloatAsState(
                                     targetValue = fraction * revealProgress,
-                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
                                     label = "cat_${cat.name}_animation"
                                 )
                                 val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
@@ -374,7 +391,7 @@ fun MultiColorStorageBar(
                             val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
                             val animatedOtherFraction by animateFloatAsState(
                                 targetValue = otherFraction * revealProgress,
-                                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+                                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
                                 label = "other_bytes_animation"
                             )
                             
@@ -382,9 +399,9 @@ fun MultiColorStorageBar(
                             val otherColor = if (categoryStorages.isEmpty()) {
                                 val usedPercent = (actualUsedBytes * 100) / totalBytes
                                 when {
-                                    usedPercent >= 90 -> Color(0xFFF44336) // Red
-                                    usedPercent >= 70 -> Color(0xFFFF9800) // Orange
-                                    else -> Color(0xFF4CAF50) // Green
+                                    usedPercent >= 90 -> MaterialTheme.colorScheme.error
+                                    usedPercent >= 70 -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.primary
                                 }
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)

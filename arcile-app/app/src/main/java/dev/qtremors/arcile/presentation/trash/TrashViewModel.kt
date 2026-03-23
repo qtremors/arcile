@@ -11,6 +11,7 @@ import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,12 +25,16 @@ data class TrashState(
     val error: String? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
-    val nativeRequest: IntentSender? = null,
     val pendingNativeAction: NativeAction? = null,
     val pendingDestinationPath: String? = null,
     val pendingRestoreIds: List<String> = emptyList(),
-    val availableVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList()
+    val availableVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
+    val searchQuery: String = "",
+    val searchResults: List<TrashMetadata> = emptyList(),
+    val isSearching: Boolean = false,
+    val showPermanentDeleteConfirmation: Boolean = false
 )
+
 
 @HiltViewModel
 class TrashViewModel @Inject constructor(
@@ -38,6 +43,9 @@ class TrashViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(TrashState())
     val state: StateFlow<TrashState> = _state.asStateFlow()
+
+    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
+    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     init {
         loadTrashFiles()
@@ -58,7 +66,12 @@ class TrashViewModel @Inject constructor(
                         isLoading = false, 
                         trashFiles = trashItems, 
                         error = null,
-                        selectedFiles = currentState.selectedFiles.filter { path -> trashItems.any { it.id == path } }.toSet()
+                        selectedFiles = currentState.selectedFiles.filter { path -> trashItems.any { it.id == path } }.toSet(),
+                        searchResults = if (currentState.searchQuery.isNotBlank()) {
+                            trashItems.filter { it.fileModel.name.contains(currentState.searchQuery, ignoreCase = true) }
+                        } else emptyList()
+
+
                     )
                 }
             }.onFailure { error ->
@@ -103,7 +116,8 @@ class TrashViewModel @Inject constructor(
                         }
                     }
                     is NativeConfirmationRequiredException -> {
-                        _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.RESTORE) }
+                        _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.RESTORE) }
+                        viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                     }
                     else -> {
                         _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
@@ -131,22 +145,18 @@ class TrashViewModel @Inject constructor(
                     _state.update { 
                         it.copy(
                             isLoading = false, 
-                            nativeRequest = error.intentSender, 
                             pendingNativeAction = NativeAction.RESTORE_TO_DESTINATION,
                             pendingDestinationPath = destinationPath,
                             pendingRestoreIds = trashIds
                         ) 
                     }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
                     loadTrashFiles()
                 }
             }
         }
-    }
-
-    fun clearNativeRequest() {
-        _state.update { it.copy(nativeRequest = null, pendingNativeAction = null, pendingDestinationPath = null, pendingRestoreIds = emptyList()) }
     }
 
     fun emptyTrash() {
@@ -157,7 +167,8 @@ class TrashViewModel @Inject constructor(
                 loadTrashFiles()
             }.onFailure { error ->
                 if (error is NativeConfirmationRequiredException) {
-                    _state.update { it.copy(isLoading = false, nativeRequest = error.intentSender, pendingNativeAction = NativeAction.EMPTY) }
+                    _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.EMPTY) }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
                     loadTrashFiles()
@@ -166,7 +177,62 @@ class TrashViewModel @Inject constructor(
         }
     }
 
+    fun selectAll() {
+        val allIds = _state.value.trashFiles.map { it.id }.toSet()
+        _state.update { it.copy(selectedFiles = allIds) }
+    }
+
+    fun requestDeletePermanentlySelected() {
+        if (_state.value.selectedFiles.isNotEmpty()) {
+            _state.update { it.copy(showPermanentDeleteConfirmation = true) }
+        }
+    }
+
+    fun dismissPermanentDeleteConfirmation() {
+        _state.update { it.copy(showPermanentDeleteConfirmation = false) }
+    }
+
+    fun deletePermanentlySelected() {
+        val selectedIds = _state.value.selectedFiles.toList()
+        if (selectedIds.isEmpty()) return
+
+        _state.update { it.copy(isLoading = true, error = null, showPermanentDeleteConfirmation = false) }
+        viewModelScope.launch {
+            repository.deletePermanentlyFromTrash(selectedIds).onSuccess {
+                clearSelection()
+                loadTrashFiles()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files permanently") }
+                loadTrashFiles()
+            }
+        }
+    }
+
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
+
+    private var searchJob: kotlinx.coroutines.Job? = null
+
+    fun updateSearchQuery(query: String) {
+        _state.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            searchJob?.cancel()
+        } else {
+            debouncedSearch(query)
+        }
+    }
+
+    private fun debouncedSearch(query: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(300)
+            _state.update { it.copy(isSearching = true) }
+            val filtered = _state.value.trashFiles.filter { it.fileModel.name.contains(query, ignoreCase = true) }
+            _state.update { it.copy(isSearching = false, searchResults = filtered) }
+
+        }
+    }
 }
+

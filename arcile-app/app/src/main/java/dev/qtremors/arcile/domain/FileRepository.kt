@@ -130,6 +130,7 @@ interface FileRepository {
     suspend fun getRecentFiles(
         scope: StorageScope = StorageScope.AllStorage,
         limit: Int = 10,
+        offset: Int = 0,
         minTimestamp: Long = 0L
     ): Result<List<FileModel>>
 
@@ -245,4 +246,11 @@ interface FileRepository {
      * See TASKS.md A4 for the associated correctness concern.
      */
     suspend fun getTrashFiles(): Result<List<TrashMetadata>>
+
+    /**
+     * Permanently deletes specific items from the trash.
+     *
+     * @param trashIds List of [TrashMetadata.id] values identifying items to delete permanently.
+     */
+    suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit>
 }

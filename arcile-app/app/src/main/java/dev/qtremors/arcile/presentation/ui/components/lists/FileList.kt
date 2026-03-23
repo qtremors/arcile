@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.lists
+package dev.qtremors.arcile.presentation.ui.components.lists
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -26,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -39,9 +42,8 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
-import java.text.SimpleDateFormat
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -52,15 +54,16 @@ fun FileList(
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()) }
+    val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
 
-    LazyColumn(modifier = modifier.fillMaxWidth()) {
-        items(files.size, key = { index -> files[index].absolutePath }) { index ->
+    LazyColumn(modifier = modifier.fillMaxWidth(), state = listState) {
+        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
             val file = files[index]
             FileItemRow(
                 modifier = Modifier.animateItem(),
@@ -125,11 +128,11 @@ fun FileItemRow(
         color = animatedSurfaceColor,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
-            .semantics(mergeDescendants = true) { 
-                contentDescription = contentDesc 
+            .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
+            .semantics(mergeDescendants = true) {
+                contentDescription = contentDesc
                 selected = isSelected
-            }
-            .combinedClickable(
+            }            .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
@@ -144,7 +147,7 @@ fun FileItemRow(
                 ) {
                     AsyncImage(
                         model = File(file.absolutePath),
-                        contentDescription = "Thumbnail",
+                        contentDescription = stringResource(R.string.desc_thumbnail),
                         modifier = Modifier
                             .size(40.dp)
                             .clip(MaterialTheme.shapes.extraLarge),

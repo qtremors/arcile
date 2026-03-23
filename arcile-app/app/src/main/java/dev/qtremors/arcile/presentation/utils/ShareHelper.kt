@@ -15,6 +15,10 @@ object ShareHelper {
             val uris = ArrayList<Uri>()
             for (path in filePaths) {
                 val file = File(path)
+                val canonicalPath = file.canonicalPath
+                if (canonicalPath.contains("/.arcile") || canonicalPath.startsWith(context.cacheDir.canonicalPath)) {
+                    continue
+                }
                 if (file.exists() && file.isFile) {
                     val uri = FileProvider.getUriForFile(
                         context,
@@ -37,6 +41,8 @@ object ShareHelper {
             context.startActivity(chooser)
             return true
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            android.util.Log.e("ShareHelper", "Failed to share files", e)
             return false
         }
     }

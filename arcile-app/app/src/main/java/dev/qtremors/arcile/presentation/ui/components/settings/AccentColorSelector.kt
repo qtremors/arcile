@@ -5,7 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ColorLens
@@ -17,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.titleMediumBold
@@ -79,6 +84,7 @@ fun AccentColorPickerSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 32.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 text = stringResource(R.string.select_accent_color),
@@ -128,6 +134,8 @@ fun AccentColorPickerSheet(
                             val isSelected = currentAccent == accent
                             val displayColor = accent.color ?: Color.Gray
 
+                            val accentLabel = stringResource(accentLabelRes(accent))
+
                             Box(
                                 contentAlignment = Alignment.Center,
                                 modifier = Modifier
@@ -140,6 +148,10 @@ fun AccentColorPickerSheet(
                                         shape = CircleShape
                                     )
                                     .clickable { onAccentSelected(accent) }
+                                    .semantics {
+                                        contentDescription = accentLabel
+                                        selected = isSelected
+                                    }
                             ) {
                                 if (isSelected) {
                                     Box(

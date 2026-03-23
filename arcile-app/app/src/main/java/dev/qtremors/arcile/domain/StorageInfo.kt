@@ -50,7 +50,6 @@ val StorageKind.showTemporaryStorageBadge: Boolean get() = policy.showTemporaryS
  * @property freeBytes Currently available (free) storage in bytes.
  * @property isPrimary `true` if this is the device's primary internal storage.
  * @property isRemovable `true` if this volume can be removed (e.g. SD card, USB).
- * @property mountState Current mount state of the volume.
  * @property kind The effective policy classification for this volume.
  * @property isUserClassified `true` if the user explicitly assigned this kind.
  */
@@ -63,11 +62,9 @@ data class StorageVolume(
     val freeBytes: Long,
     val isPrimary: Boolean,
     val isRemovable: Boolean,
-    val mountState: StorageMountState = StorageMountState.MOUNTED,
     val kind: StorageKind = if (isPrimary) StorageKind.INTERNAL else StorageKind.EXTERNAL_UNCLASSIFIED,
     val isUserClassified: Boolean = false
 )
-
 /**
  * Snapshot of the device's storage capacity across all volumes.
  *

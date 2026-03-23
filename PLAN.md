@@ -1,221 +1,188 @@
-# Arcile Project Plans
+# Arcile - Plans
 
-This document serves as a unified location for tracking project plans, implementation audits, and release notes for the Arcile project.
+## Comprehensive Test Suite Implementation Plan
 
----
+### Status Snapshot (Updated 2026-03-20)
 
-## 1. Storage Classification Build Plan
+#### Completed So Far
+- **Phase 1 foundation work:** Added JVM tests for `FormatUtils`, `CategoryColors`, `FileModel`, and `StorageInfo`.
+- **Phase 1 hardening:** Fixed an edge-case in `formatFileSize` so near-boundary values no longer render awkward unit transitions like `1024.0 KB`.
+- **Phase 2 test harness:** Added a reusable `MainDispatcherRule` for coroutine/ViewModel testing.
+- **Phase 2 ViewModel coverage:** Added JVM tests for `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, and `TrashViewModel`.
+- **Phase 2 delete-flow coverage:** Covered mixed delete policy handling, trash/permanent-delete branching, and native-confirmation state handoff in browser/recent/trash flows.
+- **Browser testability refactor:** Introduced a `BrowserPreferencesStore` interface and wired it through DI so browser state logic can be unit tested cleanly.
+- **Browser path robustness:** Hardened browser volume-path matching to support Android-style `/storage/...` paths consistently.
+- **Phase 3 component harness:** Enabled Robolectric-backed JVM Compose component tests with Android-resource support and a shared `ArcileTestTheme` wrapper.
+- **Phase 3 first component batch:** Added Compose tests for `DeleteConfirmationDialog`, `ArcileTopBar`, and `EmptyState`.
+- **Current JVM suite status:** `:app:testDebugUnitTest` passes with the current test set.
+- **Priority gap refinement from review:** the biggest remaining risks are navigation/state-restoration coverage, `FileManagerScreen` interaction coverage, and missing setup for future Flow/mock-heavy tests.
 
-### Document Purpose
+#### Current Coverage Additions Since This Plan Was Written
+**Domain Layer:**
+- `DeletePolicy` (`DeletePolicyTest.kt`)
+- `FileModel` (`FileModelTest.kt`)
+- `StorageInfo` and `StorageKind` policy behavior (`StorageInfoTest.kt`)
 
-This file is a comprehensive implementation-status document for the storage-classification work in this repo as of 2026-03-15.
+**Utilities:**
+- `FormatUtils` (`FormatUtilsTest.kt`)
+- `CategoryColors` (`CategoryColorsTest.kt`)
 
-It reflects:
+**Presentation Layer (Logic / State Management):**
+- `FilePresentation` (`FilePresentationTest.kt`)
+- `StorageScopeViewModel` (`StorageScopeViewModelTest.kt`)
+- `HomeViewModel` (`HomeViewModelTest.kt`)
+- `BrowserViewModel` (`BrowserViewModelTest.kt`)
+- `RecentFilesViewModel` (`RecentFilesViewModelTest.kt`)
+- `TrashViewModel` (`TrashViewModelTest.kt`)
 
-- what is fully implemented
-- what is implemented but still rough or incomplete
-- what is still missing
-- what was implemented incorrectly and has now been corrected
-- what has test coverage today
-- whether the feature is build-ready and whether it is actually user-ready
+**UI Components (Compose / Robolectric):**
+- `DeleteConfirmationDialog` (`DeleteConfirmationDialogTest.kt`)
+- `ArcileTopBar` (`ArcileTopBarTest.kt`)
+- `EmptyState` (`EmptyStateTest.kt`)
 
-Build verification performed during this audit:
-
-- `.\gradlew.bat testDebugUnitTest` from `arcile-app`
-- result: `BUILD SUCCESSFUL`
-
-### Executive Summary
-
-#### Overall State
-
-The storage-classification foundation is real and mostly implemented. The app now has:
-
-- explicit storage kinds and policy mapping
-- persistent classification storage
-- indexed-vs-browsable volume filtering
-- policy-aware delete behavior
-- per-volume trash roots for trash-enabled volumes
-- classification prompt and management UI
-- indexed/global surfaces excluding OTG and unclassified removable storage
-
-#### Current Readiness
-
-- Build-ready: **Yes**
-- Core architecture implemented: **Yes**
-- Fully complete against the original plan: **Yes** (with analytics caching explicitly deferred)
-- Safe to call user-ready for SD-card-as-second-storage usage: **Yes**
-- Safe to call fully user-ready without caveats: **Yes**
-
-#### Main Reasons It Is Not Fully Finished
-
-1. Analytics caching has been explicitly deferred from the initial build requirements.
-2. Reclassification refresh behavior is still relying on observer-driven re-query rather than a dedicated refresh/caching pipeline.
-
-### Status At A Glance
-
-#### Fully Implemented
-
-- `StorageKind` and `StoragePolicy`
-- `StorageVolume.kind`, `StorageVolume.isUserClassified`, `StorageVolume.storageKey`
-- UUID-first / canonical-path-second storage identity
-- DataStore-backed storage classification persistence
-- removable volumes defaulting to `EXTERNAL_UNCLASSIFIED`
-- centralized indexed/browsable/trash-enabled filtering in `LocalFileRepository`
-- indexed-only behavior for recents, categories, dashboard totals, and global search
-- browsable-only behavior for OTG and unclassified external storage
-- path-scoped browser search for OTG and unclassified storage
-- policy-aware delete routing
-- mixed-delete blocking
-- per-volume trash roots for internal and SD storage
-- restore destination picker when original restore target is unavailable
-- browser badges and temporary-storage messaging
-- Settings -> Storage Management UI
-- inline Home prompt for unclassified storage
-- MediaStore scan refresh calls after file operations
-- basic unit coverage for classification merge and volume filtering helpers
-- dashboard protection for temporary volumes
-- classification metadata persistence for first-time unindexed removable volume classification
-- focused unit coverage for delete-policy behavior
-- focused viewmodel coverage for restore destination fallback
-
-#### Partially Implemented
-
-- classification prompt flow
-- reclassification refresh consistency
-- restore fallback flow
-- test coverage across end-to-end classification behavior
-
-#### Missing Or Still Needed
-
-- lightweight caching / invalidation layer for indexed analytics
-- targeted tests for trash routing, restore fallback, and reclassification refresh
-
-### Original Goal
-
-Treat storage by effective policy rather than raw `isRemovable`.
-
-Expected policy:
-
-- `INTERNAL`: permanent, indexed, trash-enabled
-- `SD_CARD`: permanent, indexed, trash-enabled
-- `OTG`: temporary, browsable only, not indexed, no trash
-- `EXTERNAL_UNCLASSIFIED`: temporary by default until user decides
-
-That goal is largely implemented in the data/repository layer and in most user-facing surfaces.
-
-### Detailed Audit
-
-#### 1. Storage Classification Layer
-- **Status:** Mostly done.
-- **Implemented:** `StorageKind`, `StoragePolicy`, mapping behavior, and updating `StorageVolume` logic to derive policy correctly.
-
-#### 2. Persistent User Classification Overrides
-- **Status:** Implemented.
-- **Implemented:** DataStore-backed persistence handling resolution rules and identity (UUID-first, path-second) properly.
-
-#### 3. Classification Prompt UX
-- **Status:** Implemented in a lightweight form.
-- **Implemented:** Inline Home card prompts for classifying external volumes or deferring the decision.
-
-#### 4. Storage Management Surface
-- **Status:** Implemented.
-- **Implemented:** Settings screen handling classification modification (SD, OTG, Unclassified).
-
-#### 5. Browser Behavior
-- **Status:** Implemented well.
-- **Implemented:** Root list labels, informative banners, and path-scoped search working properly on unindexed temporary media.
-
-#### 6. Categories
-- **Status:** Implemented in repository behavior.
-- **Implemented:** Categories safely exclude OTG and unclassified temporary media.
-
-#### 7. Recent Files
-- **Status:** Implemented.
-- **Implemented:** Policy-aware filtering for recents and mixed-delete blocking applied.
-
-#### 8. Storage Dashboard
-- **Status:** Implemented for current product behavior.
-- **Implemented:** Dashboard safely blocks analytics of unindexed external storage, rendering fallback UI properly.
-
-#### 9. Search
-- **Status:** Implemented.
-- **Implemented:** MediaStore search handles permanent storage, path-scoped handles temporary storage.
-
-#### 10. Repository Refactor Around Indexed Volumes
-- **Status:** Implemented.
-- **Implemented:** `LocalFileRepository` successfully isolates browsable, indexed, and trash-enabled states.
-
-#### 11. Refresh And Stale Data Behavior
-- **Status:** Mostly implemented, but not finished to the level originally planned.
-- **Half-Baked:** Depends on simple re-querying rather than a dedicated pipeline.
-
-#### 12. Trash Split By Volume
-- **Status:** Implemented.
-- **Implemented:** Trash properly isolated to permanent volumes with `<volumeRoot>/.arcile/.trash`. Temporary items bypass trash entirely.
-
-#### 13. Delete UX
-- **Status:** Implemented.
-- **Implemented:** Centralized policy correctly routes to trash or permanent-delete based on volume. Mixed deletes are blocked correctly.
-
-#### 14. Restore Behavior
-- **Status:** Implemented, but still needs broader validation.
-- **Implemented:** Handles missing volumes by prompting user for a new destination volume.
-
-#### 15. Media Refresh And Caching
-- **Status:** Partially implemented.
-- **Missing:** Analytics caching is missing. Re-scanning happens on operations natively.
-
-#### 16. Public Interfaces / Type Changes
-- **Status:** Implemented enough for current use.
-- **Implemented:** Interfaces like `StorageVolume.kind` and `FileRepository.restoreFromTrash(..., destinationPath)` were updated successfully.
-
-#### 17. Test Coverage
-- **Status:** Partial.
-- **Implemented:** Key business logic coverage added across classifications, delete policy, and filtering.
-
-### Review and Next Steps
-
-#### Corrections Handled
-- Missing tests (TrashRoutingTest, ReclassificationBehaviorTest) added.
-- Analytics caching officially deferred.
-
-#### What Is Done Well
-- The core storage-policy model is clear and maintainable.
-- The repository now centralizes storage behavior.
-- Delete semantics are much safer than before.
-- Trash now respects storage policy properly.
-
-#### Recommended Next Work
-1. Add broader UI/viewmodel tests for classification prompt and dashboard restrictions.
-2. Address the deferred analytics caching for indexed dashboards/categories in a future milestone.
-
-#### Definition Of Done For This Feature
-- SD cards behave like internal storage.
-- OTG and unclassified removable volumes are browsable but excluded from indexed/global surfaces.
-- Delete flows never mix trash and permanent-delete semantics.
-- Trash aggregates correctly across mounted permanent volumes.
-
-#### Final Assessment
-The storage-classification project is **substantially implemented**, **build-ready**, and **safe for SD-card-as-second-storage usage**.
-
-Core implementation is fully in place and the major correctness gaps are fixed; missing tests have been added and caching has been officially deferred.
+#### In Progress Now
+- **Phase 3 expansion:** moving from the first Compose component batch into additional dialogs, controls, and filter/list components, with `FileManagerScreen` and navigation flows now the highest priority.
 
 ---
 
-## 2. Beta Release Notes & Known Issues
+### 1. Current Test Coverage Analysis
 
-### ⚠️ Things to Keep in Mind
-As I roll out these powerful new storage features, there are a few important details to watch out for:
+#### ✅ What is Currently Tested
+The current test coverage now includes core business logic, filtering, storage classification, several domain models/utilities, the main ViewModel state machines, and the first Compose component batch.
 
-* **Permanent Deletion on USB/OTG:** Drives classified as "OTG" or left "Unclassified" do not support the Trash Bin. Deleting files from these drives is permanent. Arcile will display an informational banner while you browse these drives to remind you.
-* **Excluded from Global Views:** To keep your main library fast and uncluttered, files on OTG/Unclassified drives will not show up in your global Search, Recent Files, or Storage Dashboard totals. You can still search them locally by navigating to the drive first!
-* **Trash Restore Fallback:** If you try to restore a file from the Trash Bin but the original drive (like an SD card) is no longer inserted, Arcile won't fail—it will simply prompt you to pick a new destination to restore the file to.
-* **Dashboard Loading Speeds:** I am still working on a caching layer for the Storage Dashboard. If you have massive amounts of files, you might notice a slight loading time when Arcile calculates the category sizes on the Home screen or Dashboard.
+**Domain Layer:**
+*   `DeletePolicy` (`DeletePolicyTest.kt`)
+*   `FileModel` (`FileModelTest.kt`)
+*   `StorageInfo` / `StorageKind` policies (`StorageInfoTest.kt`)
 
-### 🐛 Known Issues (Beta)
-As this is a Beta release, there are a few non-critical bugs and UI quirks you might encounter:
+**Data Layer (Business Rules & Routing):**
+*   Storage Classification logic (`CategoryScopeMatchingTest.kt`, `ReclassificationBehaviorTest.kt`, `StorageClassificationMergeTest.kt`)
+*   Filtering rules (`StorageFilteringTest.kt`)
+*   Trash routing (`TrashRoutingTest.kt`)
+*   Local File rules (`LocalFileOperationsTest.kt`)
 
-* **UI Glitches:** Sometimes the "Empty Folder" illustration might momentarily appear when opening the app directly to a storage volume's root before files load. Additionally, some screens might exhibit minor layout padding quirks.
-* **Light Theme Contrast:** A few "secondary" color pairs in the newly expanded Light Theme palettes may have low readability/contrast.
+**Utilities:**
+*   `FormatUtils` (`FormatUtilsTest.kt`)
+*   `CategoryColors` (`CategoryColorsTest.kt`)
+
+**Presentation Layer (Logic & State Management):**
+*   `FilePresentation` mapping (`FilePresentationTest.kt`)
+*   `StorageScopeViewModel` logic (`StorageScopeViewModelTest.kt`)
+*   `HomeViewModel` (`HomeViewModelTest.kt`)
+*   `BrowserViewModel` (`BrowserViewModelTest.kt`)
+*   `RecentFilesViewModel` (`RecentFilesViewModelTest.kt`)
+*   `TrashViewModel` (`TrashViewModelTest.kt`)
+
+**UI Layer (Compose Components):**
+*   `DeleteConfirmationDialog` (`DeleteConfirmationDialogTest.kt`)
+*   `ArcileTopBar` (`ArcileTopBarTest.kt`)
+*   `EmptyState` (`EmptyStateTest.kt`)
 
 ---
+
+#### ❌ What is NOT Tested (Remaining Gaps)
+Formal coverage is still missing primarily in repository implementations, Android-dependent utilities, navigation/state restoration, screen-level Compose flows, and most reusable UI components.
+
+**Data Layer (Implementations):**
+*   `BrowserPreferencesRepository` (real DataStore interactions)
+*   `LocalFileRepository` (broader Android `MediaStore`/File system interactions)
+*   `StorageClassificationRepository`
+
+**Domain Layer (Models & Use Cases):**
+*   `BrowserPreferences`, `ConflictModels`, `FileCategories`, `SearchFilters`, `StorageBrowserLocation`, `StorageScope`, `TrashMetadata`
+*   `FileRepository` interface contracts
+
+**Presentation Layer (Remaining State / Logic Gaps):**
+*   `ClipboardState`, presentation `SearchFilters`
+*   `BrowserViewModel` restore/init/back-stack branches (`restoreLocationFromState`, argument initialization, refresh path selection, multi-step navigate-back behavior)
+*   Additional edge branches in delete, paste, rename, and refresh flows where applicable
+
+**UI Layer (Jetpack Compose - remaining gaps):**
+*   `AboutScreen`, `AppNavigationGraph`, `ArcileAppShell`
+*   `FileManagerScreen` as the highest-risk untested screen due to search, back handling, pull-to-refresh, conflict dialogs, delete dialogs, snackbars, and native-confirmation orchestration
+*   `HomeScreen`, `RecentFilesScreen`, `SettingsScreen`
+*   `StorageDashboardScreen`, `StorageManagementScreen`, `ToolsScreen`, `TrashScreen`
+*   Most granular Compose `components/*` beyond the first tested batch
+
+**Utilities & Image Fetchers:**
+*   `ShareHelper`
+*   `ApkIconFetcher`, `AudioAlbumArtFetcher`
+
+**Navigation:**
+*   `AppRoutes` (route generation and parameter parsing)
+*   `AppNavigationGraph` route transitions, back-stack behavior, and screen wiring
+
+---
+
+### 2. Implementation Strategy for 100% Coverage
+
+To ensure "every single little UI/UX interaction" is covered, we will implement a robust testing pyramid:
+
+1.  **Unit Tests (Fast, Isolated):** For Domain models, Utility functions, and Data Layer mappings.
+2.  **ViewModel/Integration Tests:** Testing Coroutine flows, StateFlow emissions, and intention handling using `Turbine` and `kotlinx-coroutines-test`.
+3.  **UI Component Tests (Compose UI Tests):** Testing individual Compose elements for proper rendering, state changes, and accessibility semantics.
+4.  **UI Integration/Navigation Tests:** Testing screen-to-screen navigation and complex user flows using `ComposeTestRule` and Robolectric/Espresso.
+
+---
+
+### 3. Phased Implementation Plan
+
+#### Phase 1: Core Utilities, Models, and Data Repositories
+*   **Status:** Mostly completed for utility/model foundations; repository implementation coverage still pending.
+*   **Completed:**
+    *   Added tests for `FormatUtils`.
+    *   Added tests for `CategoryColors`.
+    *   Added tests validating `FileModel` and `StorageInfo` behaviors.
+*   **Remaining:**
+    *   Add tests for `ShareHelper`.
+    *   Add tests for image fetchers (`ApkIconFetcher`, `AudioAlbumArtFetcher`) using mocked `Context` or Robolectric.
+    *   Implement tests for `BrowserPreferencesRepository` (using a test DataStore instance).
+    *   Add direct tests for other remaining repository implementations and Android-dependent helpers once the component/screen backlog is under control.
+
+#### Phase 2: State Management & ViewModels
+*   **Status:** Substantially completed, but restore/navigation branches still leave meaningful risk.
+*   **Completed:**
+    *   Setup `MainDispatcherRule` for coroutine testing.
+    *   Tested `HomeViewModel` loading, search, classification prompt, and failure rollback states.
+    *   Tested `BrowserViewModel` navigation, search scoping, clipboard interactions, conflict flows, sort persistence, validation, and delete/native-confirmation branches.
+    *   Tested `RecentFilesViewModel` search, refresh, delete-policy, and native-confirmation branches.
+    *   Tested `TrashViewModel` restore, destination-picker, search, stale-selection cleanup, and native-confirmation state handling.
+*   **Remaining:**
+    *   Add explicit coverage for `BrowserViewModel` saved-state restoration, route initialization, and multi-step back-stack transitions.
+    *   Fill any remaining edge branches in browser/recent/trash delete, paste, rename, and refresh flows as needed.
+    *   Add `Turbine`-based flow assertions once the dependency is wired in so emission-level behavior can be asserted directly.
+
+#### Phase 3: UI Component & UX Interaction Tests (Jetpack Compose)
+*   **Status:** Started and active.
+*   **Goal:** Verify visual states and UX interactions locally.
+*   **Completed:**
+    *   Enabled JVM Compose component tests with Robolectric.
+    *   Added first component tests for `DeleteConfirmationDialog`, `ArcileTopBar`, and `EmptyState`.
+*   **Next Tasks:**
+    *   Prioritize `FileManagerScreen` coverage before broadening to lower-risk leaf components.
+    *   Create tests for additional high-value custom components in `components/*`, especially dialogs, list controls, search/filter UI, and settings selectors.
+    *   Verify click listeners, long-press actions, and scroll behaviors where applicable.
+    *   Ensure semantic labels are present and correct for accessibility testing.
+
+#### Phase 4: Screen & Navigation Flows (E2E Integration)
+*   **Status:** Not started and now confirmed as the largest remaining confidence gap.
+*   **Goal:** Test complete user journeys through the app.
+*   **Tasks:**
+    *   Test `AppNavigationGraph`: Verify routes transition correctly (e.g., Home -> Browser, Browser -> Settings).
+    *   Test process recreation / saved-state restore journeys so browser/category/root state survives correctly.
+    *   Test complete flows: e.g. Open App -> Navigate to Images -> Select File -> Copy -> Navigate to Internal Storage -> Paste.
+    *   Test permissions handling UI states.
+    *   Use Robolectric + Compose UI Test for fast, JVM-based UI integration tests where practical.
+
+### 4. Required Testing Setup (build.gradle.kts)
+**Currently integrated:**
+*   `org.robolectric:robolectric`
+*   `androidx.compose.ui:ui-test-junit4`
+*   `androidx.compose.ui:ui-test-manifest`
+*   `org.jetbrains.kotlinx:kotlinx-coroutines-test`
+
+**Still missing from the intended setup:**
+*   `io.mockk:mockk` (for mocking dependencies)
+*   `app.cash.turbine:turbine` (for Flow testing)
+
+The plan previously described the full intended toolset as if it were already present. Keep this section aligned with the real Gradle state so future coverage work is not planned on top of unavailable test libraries.

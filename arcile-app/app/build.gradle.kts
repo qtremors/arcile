@@ -14,28 +14,40 @@ android {
 
     defaultConfig {
         applicationId = "dev.qtremors.arcile"
-        minSdk = 24
+        minSdk = 30
         targetSdk = 36
-        versionCode = 29
-        versionName = "0.4.5"
+        versionCode = 34
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     val keystoreProperties = Properties()
-    val keystorePropertiesFile = rootProject.file("local.properties")
+    var keystorePropertiesFile = rootProject.file("signing.properties")
+    if (!keystorePropertiesFile.exists()) {
+        keystorePropertiesFile = rootProject.file("local.properties")
+    }
     if (keystorePropertiesFile.exists()) {
         keystorePropertiesFile.inputStream().use {
             keystoreProperties.load(it)
         }
     }
 
-    signingConfigs {
-        create("release") {
-            storeFile = keystoreProperties["signing.storeFile"]?.let { file(it as String) }
-            storePassword = keystoreProperties["signing.storePassword"] as String?
-            keyAlias = keystoreProperties["signing.keyAlias"] as String?
-            keyPassword = keystoreProperties["signing.keyPassword"] as String?
+    val storeFileProp = keystoreProperties["signing.storeFile"]?.toString()
+    val storePasswordProp = keystoreProperties["signing.storePassword"]?.toString()
+    val keyAliasProp = keystoreProperties["signing.keyAlias"]?.toString()
+    val keyPasswordProp = keystoreProperties["signing.keyPassword"]?.toString()
+
+    val hasSigningConfig = storeFileProp != null && storePasswordProp != null && keyAliasProp != null && keyPasswordProp != null
+
+    if (hasSigningConfig) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(storeFileProp!!)
+                storePassword = storePasswordProp
+                keyAlias = keyAliasProp
+                keyPassword = keyPasswordProp
+            }
         }
     }
 
@@ -46,7 +58,9 @@ android {
             manifestPlaceholders["appLabel"] = "Arcile Debug"
         }
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             manifestPlaceholders["appLabel"] = "Arcile"
@@ -63,6 +77,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 }
 
@@ -103,8 +120,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.material.color.utilities)
-    
+    implementation(libs.material.kolor)
+
     // Hilt DI
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
@@ -112,6 +129,10 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(platform(libs.androidx.compose.bom))
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    testImplementation(libs.androidx.compose.ui.test.manifest)
+    testImplementation(libs.org.robolectric.robolectric)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

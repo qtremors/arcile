@@ -10,7 +10,6 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
@@ -202,7 +201,6 @@ class StorageScopeViewModelTest {
         freeBytes = 40L,
         isPrimary = !removable,
         isRemovable = removable,
-        mountState = StorageMountState.MOUNTED,
         kind = kind,
         isUserClassified = removable
     )
@@ -258,7 +256,7 @@ private class FakeFileRepository(
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
 
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): Result<List<FileModel>> {
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
         requestedRecentScopes += scope
         return Result.success(recentFilesByScope[scope].orEmpty())
     }
@@ -297,6 +295,8 @@ private class FakeFileRepository(
     override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
 
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(emptyList())
+
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.success(Unit)
 }
 
 private class FakeStorageClassificationStore : StorageClassificationStore {

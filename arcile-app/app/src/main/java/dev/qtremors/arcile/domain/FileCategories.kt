@@ -55,8 +55,9 @@ object FileCategories {
         val normalizedExt = extension.lowercase()
 
         if (normalizedMime == null && normalizedExt.isNotEmpty()) {
-            normalizedMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(normalizedExt)?.lowercase()
+            normalizedMime = runCatching { MimeTypeMap.getSingleton().getMimeTypeFromExtension(normalizedExt) }.getOrNull()?.lowercase()
         }
+
 
         // 1. Try matching by MIME type prefix or full MIME type
         all.forEach { category ->

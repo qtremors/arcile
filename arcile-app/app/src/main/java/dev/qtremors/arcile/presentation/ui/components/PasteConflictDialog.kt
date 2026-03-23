@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -56,9 +58,7 @@ import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 
 /**
  * Full-screen dialog for resolving paste conflicts.
@@ -78,7 +78,7 @@ fun PasteConflictDialog(
     onDismiss: () -> Unit
 ) {
     val resolutions = remember { mutableMapOf<String, ConflictResolution>() }
-    val formatter = remember { SimpleDateFormat("MMM dd, yyyy · HH:mm", Locale.getDefault()) }
+    val formatter = rememberDateFormatter("MMM dd, yyyy Â· HH:mm")
     
     var currentIndex by remember { mutableStateOf(0) }
     var applyToAll by remember { mutableStateOf(false) }
@@ -111,7 +111,7 @@ fun PasteConflictDialog(
             ) {
                 // Title
                 Text(
-                    text = "${if (currentConflict.sourceFile.isDirectory) "Folder" else "File"} Conflict (${currentIndex + 1}/${conflicts.size})",
+                    text = if (currentConflict.sourceFile.isDirectory) stringResource(R.string.title_folder_conflict, currentIndex + 1, conflicts.size) else stringResource(R.string.title_file_conflict, currentIndex + 1, conflicts.size),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -139,7 +139,7 @@ fun PasteConflictDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "Do this for all remaining conflicts",
+                            stringResource(R.string.action_apply_to_all),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -170,24 +170,24 @@ fun PasteConflictDialog(
                     FilledTonalButton(
                         onClick = { handleAction(ConflictResolution.KEEP_BOTH) },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Keep Both", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    ) { Text(stringResource(R.string.action_keep_both), maxLines = 1, overflow = TextOverflow.Ellipsis) }
 
                     FilledTonalButton(
                         onClick = { handleAction(ConflictResolution.REPLACE) },
                         modifier = Modifier.weight(1f)
-                    ) { Text(if (currentConflict.sourceFile.isDirectory) "Merge" else "Replace", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    ) { Text(if (currentConflict.sourceFile.isDirectory) stringResource(R.string.action_merge) else stringResource(R.string.action_replace), maxLines = 1, overflow = TextOverflow.Ellipsis) }
 
                     FilledTonalButton(
                         onClick = { handleAction(ConflictResolution.SKIP) },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Skip", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    ) { Text(stringResource(R.string.action_skip), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                 }
 
                 TextButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Cancel Paste", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.action_cancel_paste), color = MaterialTheme.colorScheme.error)
                 }
             }
         }

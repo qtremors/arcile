@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.menus
+package dev.qtremors.arcile.presentation.ui.components.menus
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -80,7 +82,7 @@ fun ExpandableFabMenu(
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = "Create new",
+                contentDescription = stringResource(R.string.action_create_new),
                 modifier = Modifier.rotate(fabIconRotation)
             )
         }

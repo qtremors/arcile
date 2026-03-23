@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -46,7 +48,8 @@ data class HomeState(
     val isCalculatingStorage: Boolean = false,
     val error: String? = null,
     val unclassifiedVolumes: List<StorageVolume> = emptyList(),
-    val showClassificationPrompt: Boolean = false
+    val showClassificationPrompt: Boolean = false,
+    val todayStart: Long = 0L
 )
 
 enum class HomeRefreshMode {
@@ -70,10 +73,23 @@ class HomeViewModel @Inject constructor(
     private val suppressedVolumeKeys = mutableSetOf<String>()
 
     init {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        _state.update { it.copy(todayStart = cal.timeInMillis) }
+
         viewModelScope.launch {
-            repository.observeStorageVolumes().collectLatest {
-                loadHomeData(HomeRefreshMode.SILENT)
-            }
+            @OptIn(FlowPreview::class)
+            repository.observeStorageVolumes()
+                .debounce(1000L)
+                .collectLatest { volumes ->
+                    val currentState = _state.value
+                    if (currentState.allStorageVolumes != volumes) {
+                        loadHomeData(HomeRefreshMode.SILENT)
+                    }
+                }
         }
     }
 
@@ -88,7 +104,7 @@ class HomeViewModel @Inject constructor(
             it.copy(
                 isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
                 isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
-                isCalculatingStorage = true,
+                isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT,
                 error = null
             )
         }
@@ -168,6 +184,7 @@ class HomeViewModel @Inject constructor(
                 )
                 suppressedVolumeKeys.remove(storageKey)
             } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
                 // Revert optimistic update on failure
                 _state.update { currentState ->
                     val volume = currentState.allStorageVolumes.firstOrNull { it.storageKey == storageKey }

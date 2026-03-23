@@ -23,8 +23,8 @@ class ThemePreferences(private val context: Context) {
         val accentColorStr = preferences[ACCENT_COLOR_KEY] ?: AccentColor.DYNAMIC.name
 
         ThemeState(
-            themeMode = try { ThemeMode.valueOf(themeModeStr) } catch (e: Exception) { ThemeMode.SYSTEM },
-            accentColor = try { AccentColor.valueOf(accentColorStr) } catch (e: Exception) { AccentColor.DYNAMIC }
+            themeMode = ThemeMode.values().find { it.name == themeModeStr } ?: ThemeMode.SYSTEM,
+            accentColor = AccentColor.values().find { it.name == accentColorStr } ?: AccentColor.DYNAMIC
         )
     }
 

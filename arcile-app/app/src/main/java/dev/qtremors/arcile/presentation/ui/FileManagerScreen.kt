@@ -109,9 +109,11 @@ import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
 import dev.qtremors.arcile.presentation.ui.components.lists.ActiveFiltersRow
 import dev.qtremors.arcile.presentation.ui.components.lists.FileGrid
 import dev.qtremors.arcile.presentation.ui.components.lists.FileList
@@ -129,12 +131,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import java.io.File
-import java.text.SimpleDateFormat
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 
 /**
  * Full-featured file browser screen.
@@ -188,13 +190,13 @@ fun FileManagerScreen(
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
     onRequestDeleteSelected: () -> Unit,
-    onConfirmTrash: () -> Unit,
-    onConfirmPermanentDelete: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onTogglePermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onSortOptionChange: (FileSortOption, Boolean) -> Unit,
+    onSortOptionChange: (dev.qtremors.arcile.presentation.FileSortOption, Boolean) -> Unit,
     onGridViewChange: (Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
@@ -202,14 +204,13 @@ fun FileManagerScreen(
     onPasteFromClipboard: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
-    isRefreshing: Boolean,
-    onRefresh: () -> Unit,
-    onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
-    onResolvingConflicts: (Map<String, ConflictResolution>) -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
-    onDeletePermanentlySelected: () -> Unit = {},
-    onClearNativeRequest: () -> Unit = {}
+    isRefreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
+    onSearchFiltersChange: (dev.qtremors.arcile.domain.SearchFilters) -> Unit = {},
+    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
+    onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
+    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -229,15 +230,14 @@ fun FileManagerScreen(
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             when (state.pendingNativeAction) {
-                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmTrash()
+                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmDelete()
                 null -> {}
             }
         }
-        onClearNativeRequest()
     }
 
-    LaunchedEffect(state.nativeRequest) {
-        state.nativeRequest?.let { sender ->
+    LaunchedEffect(nativeRequestFlow) {
+        nativeRequestFlow?.collect { sender ->
             launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
         }
     }
@@ -249,7 +249,7 @@ fun FileManagerScreen(
     var showLoading by remember(state.isLoading) { mutableStateOf(false) }
     LaunchedEffect(state.isLoading) {
         if (state.isLoading) {
-            delay(5)
+            delay(150)
             showLoading = true
         } else {
             showLoading = false
@@ -262,6 +262,16 @@ fun FileManagerScreen(
     }
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
+    }
+
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+
+    LaunchedEffect(state.browserSortOption, state.currentPath, state.activeCategoryName) {
+        if (displayedFiles.isNotEmpty()) {
+            listState.scrollToItem(0)
+            gridState.scrollToItem(0)
+        }
     }
 
     LaunchedEffect(state.browserSearchQuery) {
@@ -293,9 +303,9 @@ fun FileManagerScreen(
     // Show error as Snackbar instead of blocking dialog
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
+            onClearError()
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(errorMsg)
-                onClearError()
             }
         }
     }
@@ -308,6 +318,11 @@ fun FileManagerScreen(
         topBar = {
             if (showSearchBar) {
                 Column {
+                    val searchPlaceholder = if (state.isCategoryScreen) {
+                        "Search ${state.activeCategoryName.lowercase()}..."
+                    } else {
+                        stringResource(R.string.search_placeholder)
+                    }
                     SearchTopBar(
                         query = state.browserSearchQuery,
                         onQueryChange = onSearchQueryChange,
@@ -316,8 +331,9 @@ fun FileManagerScreen(
                             onClearSearch()
                         },
                         onFilterClick = { onToggleSearchFilterMenu(true) },
-                        placeholder = stringResource(R.string.search_placeholder)
+                        placeholder = searchPlaceholder
                     )
+
                     ActiveFiltersRow(
                         filters = state.activeSearchFilters,
                         onClearFilter = { clearedFilters -> onSearchFiltersChange(clearedFilters) }
@@ -386,23 +402,15 @@ fun FileManagerScreen(
             // When search has completed, show search results instead of browse content
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
+            val targetKey = FileManagerContentKey(
+                isSearch = searchHasCompleted,
+                path = state.currentPath,
+                category = state.activeCategoryName,
+                isRoot = state.isVolumeRootScreen
+            )
+
             Column(modifier = Modifier.fillMaxSize()) {
-                AnimatedContent(
-                    targetState = FileManagerContentKey(
-                        isSearch = searchHasCompleted,
-                        path = state.currentPath,
-                        category = state.activeCategoryName,
-                        isRoot = state.isVolumeRootScreen
-                    ),
-                    transitionSpec = {
-                        fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) togetherWith
-                                fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow))
-                    },
-                    label = "FolderTransition",
-                    modifier = Modifier.weight(1f)
-                ) { targetKey ->
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        if (targetKey.isSearch) {
+                if (targetKey.isSearch) {
                             // Search results in the content area
                             if (state.searchResults.isEmpty()) {
                                 EmptyState(
@@ -412,9 +420,9 @@ fun FileManagerScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                             } else {
-                                val formatter = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+                                val formatter = rememberDateFormatter("MMM dd, yyyy")
                                 LazyColumn(modifier = Modifier.weight(1f)) {
-                                    items(state.searchResults, key = { it.absolutePath }) { file ->
+                                    items(state.searchResults, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
                                         FileItemRow(
                                             file = file,
                                             formattedDate = formatter.format(Date(file.lastModified)),
@@ -486,33 +494,10 @@ fun FileManagerScreen(
                                     .fillMaxWidth()
                                     .weight(1f),
                                 indicator = {
-                                    val pullDistance = pullRefreshState.distanceFraction
-                                    val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
-
-                                    if (isRefreshing || pullDistance > 0f) {
-                                        Box(
-                                            modifier = Modifier
-                                                .align(Alignment.TopCenter)
-                                                .graphicsLayer {
-                                                    translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
-                                                    alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
-                                                }
-                                                .padding(top = 8.dp)
-                                        ) {
-                                            Card(
-                                                shape = androidx.compose.foundation.shape.CircleShape,
-                                                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
-                                            ) {
-                                                Box(
-                                                    modifier = Modifier.padding(10.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    LoadingIndicator(modifier = Modifier.size(24.dp))
-                                                }
-                                            }
-                                        }
-                                    }
+                                    ArcilePullRefreshIndicator(
+                                        isRefreshing = isRefreshing,
+                                        state = pullRefreshState
+                                    )
                                 }
                             ) {
                                 if (showLoading && state.files.isEmpty() && !isRefreshing) {
@@ -543,7 +528,8 @@ fun FileManagerScreen(
                                         onOpenFile = onOpenFile,
                                         onToggleSelection = onToggleSelection,
                                         onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        gridState = gridState
                                     )
                                 } else {
                                     FileList(
@@ -553,12 +539,11 @@ fun FileManagerScreen(
                                         onOpenFile = onOpenFile,
                                         onToggleSelection = onToggleSelection,
                                         onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        listState = listState
                                     )
                                 }
                             }
-                        }
-                    }
                 }
             }
 
@@ -580,8 +565,10 @@ fun FileManagerScreen(
         SearchFiltersBottomSheet(
             currentFilters = state.activeSearchFilters,
             onApplyFilters = { onSearchFiltersChange(it) },
-            onDismiss = { onToggleSearchFilterMenu(false) }
+            onDismiss = { onToggleSearchFilterMenu(false) },
+            showCategoryFilter = !state.isCategoryScreen
         )
+
     }
 
     // Dialogs
@@ -595,64 +582,20 @@ fun FileManagerScreen(
             )
         }
 
-        if (state.showTrashConfirmation) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text(stringResource(R.string.delete_items_title, state.selectedFiles.size)) },
-                text = { Text(stringResource(R.string.delete_items_description)) },
-                confirmButton = {
-                    androidx.compose.material3.FilledTonalButton(
-                        onClick = onConfirmTrash,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
-
-        if (state.showPermanentDeleteConfirmation) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text(stringResource(R.string.delete_permanent_title, state.selectedFiles.size)) },
-                text = { Text(stringResource(R.string.delete_permanent_description)) },
-                confirmButton = {
-                    androidx.compose.material3.FilledTonalButton(
-                        onClick = onConfirmPermanentDelete,
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    ) {
-                        Text("Delete")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text("Cancel")
-                    }
-                }
+        if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
+            DeleteConfirmationDialog(
+                selectedCount = state.selectedFiles.size,
+                isPermanentDeleteChecked = state.isPermanentDeleteChecked,
+                isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
+                onConfirm = onConfirmDelete,
+                onDismiss = onDismissDeleteConfirmation,
+                onTogglePermanentDelete = onTogglePermanentDelete
             )
         }
 
         if (state.showMixedDeleteExplanation) {
-            androidx.compose.material3.AlertDialog(
-                onDismissRequest = onDismissDeleteConfirmation,
-                title = { Text(stringResource(R.string.mixed_selection_title)) },
-                text = { Text(stringResource(R.string.mixed_selection_description)) },
-                confirmButton = {
-                    TextButton(onClick = onDismissDeleteConfirmation) {
-                        Text(stringResource(R.string.ok))
-                    }
-                }
+            MixedDeleteExplanationDialog(
+                onDismiss = onDismissDeleteConfirmation
             )
         }
 
@@ -683,6 +626,7 @@ fun FileManagerScreen(
             SortOptionDialog(
                 title = stringResource(R.string.sort_folder_title),
                 selectedOption = state.browserSortOption,
+                showApplyToSubfolders = !state.isCategoryScreen,
                 onDismiss = { showSortDialog = false },
                 onOptionSelected = { option, applyToSubfolders ->
                     onSortOptionChange(option, applyToSubfolders)

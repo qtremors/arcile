@@ -1,7 +1,8 @@
 package dev.qtremors.arcile.data
 
+import dev.qtremors.arcile.data.util.*
+
 import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageMountState
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import org.junit.Assert.assertEquals
@@ -23,7 +24,6 @@ class CategoryScopeMatchingTest {
             freeBytes = 500L,
             isPrimary = id == "primary",
             isRemovable = id != "primary",
-            mountState = StorageMountState.MOUNTED,
             kind = if (id == "primary") StorageKind.INTERNAL else StorageKind.SD_CARD,
             isUserClassified = true
         )
@@ -114,10 +114,14 @@ class CategoryScopeMatchingTest {
         // Correct SD card path
         assertTrue(matchesScope(File("$sdPath/Movies/video.mp4").path, sdScope, volumes))
         
-        // Root SD card path
-        assertTrue(matchesScope(File(sdPath).path, sdScope, volumes))
+        // Root SD card path (folder is not a video)
+        assertFalse(matchesScope(File(sdPath).path, sdScope, volumes))
 
         // Path in another volume
         assertFalse(matchesScope(File("/storage/emulated/0/Download/movie.mp4").path, sdScope, volumes))
+        
+        // Correct volume but wrong category (image in videos scope)
+        assertFalse(matchesScope(File("$sdPath/Pictures/photo.jpg").path, sdScope, volumes))
     }
+
 }

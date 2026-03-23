@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.lists
+package dev.qtremors.arcile.presentation.ui.components.lists
+import dev.qtremors.arcile.R
+import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -76,7 +78,7 @@ fun VolumeItemRow(
             leadingContent = {
                 Icon(
                     imageVector = icon,
-                    contentDescription = "Volume Icon",
+                    contentDescription = stringResource(R.string.desc_volume_icon),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(40.dp)
                 )

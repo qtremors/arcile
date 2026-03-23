@@ -107,7 +107,7 @@ fun StorageDashboardScreen(
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
         if (state.isLoading || state.isCalculatingStorage) {
-            delay(5)
+            delay(150)
             showLoading = true
         } else {
             showLoading = false
