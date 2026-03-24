@@ -148,8 +148,8 @@ fun TrashScreen(
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
-            onClearError()
             snackbarHostState.showSnackbar(errorMsg)
+            onClearError()
         }
     }
 

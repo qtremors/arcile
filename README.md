@@ -72,7 +72,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.7-debug.apk
+adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-{versionName}-debug.apk
 ```
 
 ### Release Signing
@@ -161,7 +161,7 @@ Run these commands from inside the `arcile-app/` directory:
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-> **Note:** The project already includes a layered JVM test suite for domain logic, repository behavior, ViewModels, and a first batch of Robolectric-backed Compose component tests. Instrumented UI coverage is still minimal and currently limited to the generated example test.
+> **Note:** The project includes a layered JVM test suite with 55 test cases covering domain logic, data-layer business rules, ViewModel state machines, and Robolectric-backed Compose component tests. Instrumented UI coverage includes `HomeScreen` and `EmptyState` rendering tests.
 
 ---
 
@@ -170,8 +170,10 @@ Run these commands from inside the `arcile-app/` directory:
 | Document | Description |
 |----------|-------------|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Developer guide, architecture, and conventions |
+| [PLAN.md](PLAN.md) | Test implementation roadmap |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 | [TASKS.md](TASKS.md) | Audit findings, planned features, and known issues |
+| [PRIVACY.md](PRIVACY.md) | Privacy policy |
 | [LICENSE.md](LICENSE.md) | License terms and attribution |
 
 ---

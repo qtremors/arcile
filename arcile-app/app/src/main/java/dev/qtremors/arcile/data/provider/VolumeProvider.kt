@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
@@ -129,8 +130,11 @@ class DefaultVolumeProvider(
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> {
         val platformVolumesFlow = callbackFlow {
+            val scope = this
             fun emitVolumes() {
-                trySend(discoverPlatformVolumes())
+                scope.launch(Dispatchers.IO) {
+                    send(discoverPlatformVolumes())
+                }
             }
 
             val receiver = object : BroadcastReceiver() {
@@ -149,8 +153,8 @@ class DefaultVolumeProvider(
                 addDataScheme("file")
             }
 
-            emitVolumes()
             ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            emitVolumes()
             awaitClose { appContext.unregisterReceiver(receiver) }
         }.distinctUntilChanged()
 

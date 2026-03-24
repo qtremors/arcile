@@ -32,14 +32,22 @@ fun trashEnabledVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
     volumes.filter { it.kind.supportsTrash }
 
 fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVolume? {
-    val canonicalPath = runCatching { File(path).canonicalPath }.getOrElse { return null }
+    val canonicalPath = if (path.contains("/.") && (path.contains("/./") || path.contains("/../") || path.endsWith("/.") || path.endsWith("/.."))) {
+        runCatching { File(path).canonicalPath }.getOrElse { return null }
+    } else {
+        path
+    }
     return volumes
         .sortedByDescending { it.path.length }
         .firstOrNull { canonicalPath == it.path || canonicalPath.startsWith(it.path + File.separator) }
 }
 
 fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
-    val canonicalPath = runCatching { File(path).canonicalPath }.getOrNull() ?: return false
+    val canonicalPath = if (path.contains("/.") && (path.contains("/./") || path.contains("/../") || path.endsWith("/.") || path.endsWith("/.."))) {
+        runCatching { File(path).canonicalPath }.getOrNull() ?: return false
+    } else {
+        path
+    }
     return when (scope) {
         StorageScope.AllStorage -> resolveVolumeForPath(canonicalPath, volumes) != null
         is StorageScope.Volume -> {
@@ -53,7 +61,7 @@ fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>
         }
         is StorageScope.Category -> {
             if (path.contains("${File.separator}.") || path.contains("/.")) return false
-            
+
             // 1. Check volume if specified
             if (!scope.volumeId.isNullOrEmpty()) {
                 val volume = volumes.find { it.id == scope.volumeId } ?: return false
@@ -71,7 +79,6 @@ fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>
         }
     }
 }
-
 fun mergeStorageClassifications(
     volumes: List<StorageVolume>,
     classifications: Map<String, StorageClassification>

@@ -42,7 +42,7 @@ object ShareHelper {
             return true
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("ShareHelper", "Failed to share files", e)
+            android.util.Log.e("ShareHelper", "Failed to share files: ${e::class.java.simpleName}")
             return false
         }
     }

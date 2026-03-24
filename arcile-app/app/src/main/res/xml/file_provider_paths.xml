@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <!-- Mapped external paths -->
-    <external-path name="downloads" path="Download/" />
-    <external-path name="documents" path="Documents/" />
-    <external-path name="pictures" path="Pictures/" />
-    <external-path name="dcim" path="DCIM/" />
-    <external-path name="music" path="Music/" />
-    <external-path name="movies" path="Movies/" />
-    <external-path name="alarms" path="Alarms/" />
-    <external-path name="notifications" path="Notifications/" />
-    <external-path name="podcasts" path="Podcasts/" />
-    <external-path name="ringtones" path="Ringtones/" />
+    <external-path name="external_files" path="." />
 </paths>

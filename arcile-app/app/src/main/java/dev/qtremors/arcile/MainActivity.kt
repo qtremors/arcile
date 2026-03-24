@@ -31,6 +31,7 @@ import javax.inject.Inject
 
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -50,7 +51,9 @@ class MainActivity : ComponentActivity() {
         var keepSplashScreen = true
         lifecycleScope.launch {
             try {
-                themePreferences.themeState.first()
+                withTimeoutOrNull(2000L) {
+                    themePreferences.themeState.first()
+                }
             } finally {
                 keepSplashScreen = false
             }

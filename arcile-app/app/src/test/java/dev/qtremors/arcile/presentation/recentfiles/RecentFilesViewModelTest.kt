@@ -15,6 +15,7 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.testutil.MainDispatcherRule
+import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -193,9 +194,5 @@ private fun recentVolume(id: String, path: String, kind: StorageKind) = StorageV
 )
 
 private fun fakeIntentSender(): IntentSender {
-    val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")
-    field.isAccessible = true
-    val unsafe = field.get(null)
-    val allocateInstance = unsafe.javaClass.getMethod("allocateInstance", Class::class.java)
-    return allocateInstance.invoke(unsafe, IntentSender::class.java) as IntentSender
+    return mockk()
 }

@@ -2,7 +2,7 @@
 
 ## Comprehensive Test Suite Implementation Plan
 
-### Status Snapshot (Updated 2026-03-20)
+### Status Snapshot (Updated 2026-03-24)
 
 #### Completed So Far
 - **Phase 1 foundation work:** Added JVM tests for `FormatUtils`, `CategoryColors`, `FileModel`, and `StorageInfo`.
@@ -41,7 +41,8 @@
 - `EmptyState` (`EmptyStateTest.kt`)
 
 #### In Progress Now
-- **Phase 3 expansion:** moving from the first Compose component batch into additional dialogs, controls, and filter/list components, with `FileManagerScreen` and navigation flows now the highest priority.
+- **Phase 3 expansion:** Continuing from the first Compose component batch into additional dialogs, controls, and filter/list components. `FileManagerScreen` and navigation flows are the highest-priority screen-level targets.
+- **Data-layer coverage identified as critical gap:** A full audit confirmed that `FileSystemDataSource`, `TrashManager`, `MediaStoreClient`, and `LocalFileRepository` have zero test coverage. These files contain all destructive file operations and represent the most significant risk to regression safety.
 
 ---
 
@@ -182,7 +183,6 @@ To ensure "every single little UI/UX interaction" is covered, we will implement 
 *   `org.jetbrains.kotlinx:kotlinx-coroutines-test`
 
 **Still missing from the intended setup:**
-*   `io.mockk:mockk` (for mocking dependencies)
 *   `app.cash.turbine:turbine` (for Flow testing)
 
-The plan previously described the full intended toolset as if it were already present. Keep this section aligned with the real Gradle state so future coverage work is not planned on top of unavailable test libraries.
+> **Note:** `io.mockk:mockk` is already used in `RecentFilesViewModelTest` for `IntentSender` mocking. It is available but not yet widely adopted across the test suite.

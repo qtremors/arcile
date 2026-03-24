@@ -1,8 +1,37 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.0
-> **Last Updated:** 2026-03-21
+> **Version:** 0.5.1
+> **Last Updated:** 2026-03-24
+
+---
+
+## [0.5.1] - 2026-03-24
+
+### Security
+- **Trash Vault Encryption:** Migrated fallback key generation to use a securely generated, persisted salt instead of a hardcoded string. Re-engineered `TrashCryptoHelper` to use Android `KeyStore` natively with automatic retry logic to eliminate edge case crashes during key generation and cipher initialization. Fixed unstructured JSON sniffing vulnerabilities to prevent random IV collisions.
+
+### Performance
+- **Coil Image Memory Overhead:** Reined in severe GC memory thrashing during file list scrolling by explicitly clamping `AsyncImage` requests to a maximum `256px` thumbnail size via `ImageRequest.Builder`.
+- **String Allocations:** Substantially reduced UI stuttering by swapping redundant string allocations (`substringAfterLast`) in file list items with the natively pre-calculated `extension` properties exposed via `FileModel`.
+- **Media Store Disk I/O:** Bypassed expensive `File.canonicalPath` lookups inside core `MediaStoreClient` mapping arrays by leveraging absolute paths exclusively, dropping unnecessary internal symlink evaluations that bogged down high-density folders.
+- **Repository Latency:** Re-architected `loadHomeData` inside the `HomeViewModel` to run asynchronously across parallel `Dispatchers.IO` threads via `coroutineScope` and `awaitAll()`, substantially reducing cold-start fetch times for Home Dashboards.
+
+### Fixed
+- **FileProvider Sandbox:** Replaced strict, hardcoded standard directory entries (`Download/`, `Documents/`, etc.) in `file_provider_paths.xml` with a global `<external-path>` mapping, preventing `IllegalArgumentException` crashes when users attempted to share or open files located inside arbitrary unmapped external storage folders.
+- **Trash Bin Reliability:** Deprecated explicit string-based file path deletion (`DATA`) within the Android MediaStore content resolver inside `TrashManager`. The deletion cycle now correctly reverse-engineers the file's explicit Content URI `_ID`, guaranteeing execution on strict Android 11+ Scoped Storage boundaries.
+- **App Launch Hangs:** Implemented a `2000ms` strict Coroutine execution timeout explicitly wrapping the asynchronous `ThemeState` DataStore emission inside `MainActivity.kt`. If the filesystem stalls during cold boot, the Splash Screen unblocks itself gracefully, stopping permanent app loading freezes.
+- **UI State:** Resolved a bug in `RecentFilesViewModel` where pagination and error states would be clobbered by async state updates by utilizing captured state blocks.
+- **UI/UX:** Corrected the "Today" preset filter in `SearchFiltersBottomSheet` to correctly compute from local midnight rather than strictly a rolling 24-hour subtraction.
+- **UI/UX:** Re-ordered `Snackbar` display hierarchy in `TrashScreen` to ensure asynchronous UI feedback completes execution before state invalidation clears the active error stream.
+- **UI/UX:** Upgraded `DateUtils` to safely access active UI `ConfigurationCompat` locale settings dynamically instead of defaulting to hardcoded system fallbacks.
+- **Data Integrity:** Sanitized underlying filesystem exception logging inside `ShareHelper` to protect and obscure absolute path leakage from public logcats.
+
+### Architecture & Build
+- **Coroutines:** Enforced `Dispatchers.IO` launching to wrap previously blocking volume discovery calls inside `VolumeProvider.kt` and stabilized `callbackFlow` receivers against registration race conditions.
+- **State Flow:** Updated `BrowserViewModel` native request mechanisms to natively cache `replay = 1` inside `MutableSharedFlow` to survive and recover cleanly from device rotation / configuration changes.
+- **ProGuard:** Repaired aggressive ProGuard optimization syntax to correctly keep `@Serializable` class definitions natively, stopping R8 obfuscation crashes.
+- **Testing Setup:** Removed legacy `sun.misc.Unsafe` internal bypass usages inside JVM testing, officially migrating JVM test environments to `io.mockk:mockk` and standardizing `IntentSender` test doubles.
 
 ---
 

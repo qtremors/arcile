@@ -111,54 +111,62 @@ class HomeViewModel @Inject constructor(
         refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
 
-            val recentResult = repository.getRecentFiles(
-                scope = StorageScope.AllStorage,
-                limit = recentsPreviewLimit,
-                minTimestamp = oneWeekAgo
-            )
-            val allVolumesResult = repository.getStorageVolumes()
-            val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
-            val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
-            val standardFolders = repository.getStandardFolders()
-            val errorMsg = storageResult.exceptionOrNull()?.message 
-                ?: allVolumesResult.exceptionOrNull()?.message 
-                ?: recentResult.exceptionOrNull()?.message 
-                ?: categoryResult.exceptionOrNull()?.message
+            coroutineScope {
+                val recentResultDef = async { repository.getRecentFiles(
+                    scope = StorageScope.AllStorage,
+                    limit = recentsPreviewLimit,
+                    minTimestamp = oneWeekAgo
+                ) }
+                val allVolumesResultDef = async { repository.getStorageVolumes() }
+                val storageResultDef = async { repository.getStorageInfo(StorageScope.AllStorage) }
+                val categoryResultDef = async { repository.getCategoryStorageSizes(StorageScope.AllStorage) }
+                val standardFoldersDef = async { repository.getStandardFolders() }
 
-            val storageInfo = storageResult.getOrNull()
-            val allStorageVolumes = allVolumesResult.getOrNull().orEmpty()
+                val recentResult = recentResultDef.await()
+                val allVolumesResult = allVolumesResultDef.await()
+                val storageResult = storageResultDef.await()
+                val categoryResult = categoryResultDef.await()
+                val standardFolders = standardFoldersDef.await()
 
-            val categoryByVolume = coroutineScope {                storageInfo?.volumes
-                    ?.filter { it.kind.isIndexed }
-                    ?.map { volume ->
-                        async {
-                            volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                val errorMsg = storageResult.exceptionOrNull()?.message 
+                    ?: allVolumesResult.exceptionOrNull()?.message 
+                    ?: recentResult.exceptionOrNull()?.message 
+                    ?: categoryResult.exceptionOrNull()?.message
+
+                val storageInfo = storageResult.getOrNull()
+                val allStorageVolumes = allVolumesResult.getOrNull().orEmpty()
+
+                val categoryByVolume = storageInfo?.volumes
+                        ?.filter { it.kind.isIndexed }
+                        ?.map { volume ->
+                            async {
+                                volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                            }
                         }
-                    }
-                    ?.awaitAll()
-                    ?.toMap()
-                    ?: emptyMap()
-            }
+                        ?.awaitAll()
+                        ?.toMap()
+                        ?: emptyMap()
 
-            val unclassified = allStorageVolumes.filter {
-                it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
-            }
+                val unclassified = allStorageVolumes.filter {
+                    it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
+                }
 
-            _state.update { currentState ->
-                currentState.copy(
-                    isLoading = false,
-                    isPullToRefreshing = false,
-                    isCalculatingStorage = false,
-                    error = errorMsg,
-                    allStorageVolumes = allStorageVolumes,
-                    standardFolders = standardFolders,
-                    recentFiles = recentResult.getOrNull() ?: emptyList(),
-                    storageInfo = storageInfo,
-                    categoryStorages = categoryResult.getOrNull() ?: emptyList(),
-                    categoryStoragesByVolume = categoryByVolume,
-                    unclassifiedVolumes = unclassified,
-                    showClassificationPrompt = unclassified.isNotEmpty()
-                )
+                _state.update { currentState ->
+                    currentState.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        isCalculatingStorage = false,
+                        error = errorMsg,
+                        allStorageVolumes = allStorageVolumes,
+                        standardFolders = standardFolders,
+                        recentFiles = recentResult.getOrNull() ?: emptyList(),
+                        storageInfo = storageInfo,
+                        categoryStorages = categoryResult.getOrNull() ?: emptyList(),
+                        categoryStoragesByVolume = categoryByVolume,
+                        unclassifiedVolumes = unclassified,
+                        showClassificationPrompt = unclassified.isNotEmpty()
+                    )
+                }
             }
         }
     }

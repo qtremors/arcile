@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components.lists
+package dev.qtremors.arcile.presentation.ui.components.lists
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Folder
@@ -139,14 +140,19 @@ fun FileItemRow(
     ) {
         ListItem(
             leadingContent = {
-                if (!file.isDirectory &&
-                    (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                            FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                            FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                            FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
-                ) {
+                val isMedia = !file.isDirectory && file.extension != null && (
+                        FileCategories.Images.extensions.contains(file.extension) ||
+                        FileCategories.Videos.extensions.contains(file.extension) ||
+                        FileCategories.APKs.extensions.contains(file.extension) ||
+                        FileCategories.Audio.extensions.contains(file.extension)
+                )
+
+                if (isMedia) {
                     AsyncImage(
-                        model = File(file.absolutePath),
+                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(File(file.absolutePath))
+                            .size(256)
+                            .build(),
                         contentDescription = stringResource(R.string.desc_thumbnail),
                         modifier = Modifier
                             .size(40.dp)

@@ -13,7 +13,9 @@ import java.util.Locale
 @Composable
 fun rememberDateFormatter(pattern: String): SimpleDateFormat {
     val configuration = LocalConfiguration.current
-    return remember(pattern, configuration.locales) {
-        SimpleDateFormat(pattern, Locale.getDefault())
+    return remember(pattern, configuration) {
+        val locales = androidx.core.os.ConfigurationCompat.getLocales(configuration)
+        val locale = if (!locales.isEmpty) locales.get(0) else Locale.getDefault()
+        SimpleDateFormat(pattern, locale)
     }
 }

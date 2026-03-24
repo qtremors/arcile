@@ -86,9 +86,10 @@ class RecentFilesViewModel @Inject constructor(
 
 
     fun loadRecentFiles(pullToRefresh: Boolean = false, loadMore: Boolean = false) {
-        if (loadMore && (_state.value.isLoadingMore || !_state.value.hasMore)) return
+        val capturedState = _state.value
+        if (loadMore && (capturedState.isLoadingMore || !capturedState.hasMore)) return
         
-        val offset = if (loadMore) _state.value.currentOffset + 50 else 0
+        val offset = if (loadMore) capturedState.currentOffset + 50 else 0
         
         _state.update { 
             if (loadMore) {
@@ -98,10 +99,11 @@ class RecentFilesViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            val scope = _state.value.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
+            val scope = capturedState.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
             val result = repository.getRecentFiles(scope = scope, limit = 50, offset = offset)
             result.onSuccess { files ->
                 _state.update { 
+                    if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
                     val newFiles = if (loadMore) it.recentFiles + files else files
                     it.copy(
                         isLoading = false,
@@ -116,7 +118,10 @@ class RecentFilesViewModel @Inject constructor(
                     ) 
                 }
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, isPullToRefreshing = false, isLoadingMore = false, error = error.message ?: "Failed to load recent files") }
+                _state.update { 
+                    if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
+                    it.copy(isLoading = false, isPullToRefreshing = false, isLoadingMore = false, error = error.message ?: "Failed to load recent files") 
+                }
             }
         }
     }

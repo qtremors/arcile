@@ -127,24 +127,24 @@ fun SearchFiltersBottomSheet(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
             ) {
                 val now = System.currentTimeMillis()
+                val cal = java.util.Calendar.getInstance()
+                cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                cal.set(java.util.Calendar.MINUTE, 0)
+                cal.set(java.util.Calendar.SECOND, 0)
+                cal.set(java.util.Calendar.MILLISECOND, 0)
+                val todayMidnight = cal.timeInMillis
+
                 SingleChoiceSegmentedButtonRow {
                     val options = listOf(
                         "Any" to (null to null),
-                        "Today" to (now - dayMillis to null),
+                        "Today" to (todayMidnight to null),
                         "Last 7 days" to (now - 7 * dayMillis to null),
                         "Last 30 days" to (now - 30 * dayMillis to null)
                     )
                     options.forEachIndexed { index, (label, dateRange) ->
-                        val selected = if (label == "Any") {
-                            currentFilters.minDateMillis == null && currentFilters.maxDateMillis == null
-                        } else {
-                            currentFilters.minDateMillis != null && 
-                            currentFilters.minDateMillis >= dateRange.first!! - dayMillis && 
-                            currentFilters.minDateMillis <= dateRange.first!! + dayMillis
-                        }
-                        
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                        val selected = currentFilters.minDateMillis == dateRange.first && currentFilters.maxDateMillis == dateRange.second
+
+                        SegmentedButton(                            shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                             onClick = { onApplyFilters(currentFilters.copy(minDateMillis = dateRange.first, maxDateMillis = dateRange.second)) },
                             selected = selected
                         ) {

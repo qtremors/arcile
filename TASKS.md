@@ -2,61 +2,138 @@
 
 > **Project:** Arcile
 > **Version:** 0.5.0
-> **Last Updated:** 2026-03-23
+> **Last Updated:** 2026-03-24
 
 ---
 
-## Table of Contents
+### Security & Privacy
 
-1. [PR Review Findings](#1-pr-review-findings)
-2. [Architecture & Refactoring](#2-architecture--refactoring)
-3. [Performance & Efficiency](#3-performance--efficiency)
-4. [General & Code Quality](#4-general--code-quality)
-5. [Comprehensive Audit Findings](#5-comprehensive-audit-findings)
+- [ ] [Severity: Critical] [Category: Security] **Remove committed keystore `.jks` from VCS and rotate signing key**
+  - Location: `arcile-app/app/my-release-key.jks`
+  - Problem: Release signing keystore (2068 bytes) is checked into the repository. Anyone with repo access can sign APKs as the official app.
+  - Impact: Enables APK impersonation and supply-chain compromise.
+  - Fix: Remove from repo and Git history (BFG/filter-repo), add `*.jks` to `.gitignore`, rotate the keystore.
+  - Verification: Confirm `git log --all -- '*.jks'` returns nothing.
 
----
+- [ ] [Severity: High] [Category: Security] **Restrict FileProvider path scope from entire external storage**
+  - Location: `app/src/main/res/xml/file_provider_paths.xml`
+  - Problem: `<external-path name="external_files" path="."/>` grants URI generation capability for the entire external storage root.
+  - Impact: Overly broad attack surface; Play Store policy risk.
+  - Fix: Restrict to specific directories the app actually shares, or use scoped paths.
+  - Verification: Attempt to generate a FileProvider URI for `.arcile/.trash/` and confirm rejection.
 
-## 1. PR Review Findings
+- [ ] [Severity: Medium] [Category: Security] **Remove unnecessary `READ_EXTERNAL_STORAGE` permission declaration**
+  - Location: `AndroidManifest.xml` line 5
+  - Problem: Declared without `maxSdkVersion` but unused since `minSdk=30` with `MANAGE_EXTERNAL_STORAGE`.
+  - Fix: Remove the declaration or add `android:maxSdkVersion="29"`.
+  - Verification: `aapt dump permissions` output no longer includes `READ_EXTERNAL_STORAGE`.
 
-### Security & Encryption
-- [ ] **Decrypt before JSON sniffing**: In `TrashManager.kt`, parse trash metadata by decrypting before JSON sniffing. Avoid unsafe `startsWith("{")` checks that skip decryption on random IV collisions.
-- [ ] **Secure SALT Generation**: In `TrashManager.kt`, replace the hardcoded `SALT` constant with a securely generated random salt persisted per-device.
-- [ ] **Secure Encryption & KeyStore**: In `TrashManager.kt`, transition from `androidId` based key derivation to Android KeyStore for secure key management. Remove plaintext fallbacks in catch blocks; implement retry loops and log sanitized errors.
+- [ ] [Severity: Medium] [Category: Security] **Configure backup/data extraction rules to exclude sensitive data**
+  - Location: `app/src/main/res/xml/backup_rules.xml`, `data_extraction_rules.xml`
+  - Problem: Default templates with no exclusion rules. Trash crypto salt in `SharedPreferences` could be extracted via cloud backup.
+  - Fix: Add `<exclude>` rules for `trash_crypto_prefs`, DataStore files, and analytics cache.
+  - Verification: Run `adb shell bmgr backupnow` and verify excluded files aren't captured.
 
-### Architecture & Data
-- [ ] **Blocking Volume Discovery**: In `VolumeProvider.kt`, move blocking calls to `Dispatchers.IO` and fix the registration race in `callbackFlow`.
-- [ ] **Missing Import in Repository**: Add missing `kotlinx.serialization.decodeFromString` import in `StorageClassificationRepository.kt`.
+### Correctness & Reliability
 
-### ViewModels & State
-- [ ] **`_nativeRequestFlow` Replay**: In `BrowserViewModel.kt`, change `MutableSharedFlow` to use `replay = 1` for `IntentSender` to survive configuration changes.
-- [ ] **`loadRecentFiles` State Handling**: In `RecentFilesViewModel.kt`, prevent clobbering pagination and error states by capturing the previous state before updating.
+- [ ] [Severity: Medium] [Category: Correctness] **Add debounce/dedup to `RecentFilesViewModel` volume observation**
+  - Location: `presentation/recentfiles/RecentFilesViewModel.kt` lines 80-84
+  - Problem: Triggers `loadRecentFiles()` on every `observeStorageVolumes` emission with no debounce or diff check, unlike `HomeViewModel` which debounces by 1000ms.
+  - Impact: Redundant MediaStore queries, flickering loading state.
+  - Fix: Add `debounce(1000L)` and `distinctUntilChanged()` consistent with `HomeViewModel`.
+  - Verification: Rapidly classify/reclassify a volume and observe Recent Files doesn't reload excessively.
 
-### UI Components
-- [ ] **Lazy DSL Imports**: Add missing `items` and `animateItem` imports in `FileList.kt`.
-- [ ] **Midnight-based "Today" Preset**: In `SearchFiltersBottomSheet.kt`, use local midnight for the "Today" filter and exact equality checks for presets.
-- [ ] **Snackbar Order in Trash**: In `TrashScreen.kt`, ensure `showSnackbar` completes before calling `onClearError()` in the `LaunchedEffect`.
-- [ ] **Locale-aware Date Formatting**: In `DateUtils.kt`, use the active configuration locale for `SimpleDateFormat`.
+### Performance & Efficiency
 
-### Misc & Cleanup
-- [ ] **Incorrect ProGuard Rule**: Fix/remove the rule keeping members instead of classes for `@Serializable` in `proguard-rules.pro`.
-- [ ] **Sanitize Share Logging**: In `ShareHelper.kt`, sanitize exception logging to avoid leaking filesystem paths.
-- [ ] **Test Double for `IntentSender`**: In `RecentFilesViewModelTest.kt`, replace `sun.misc.Unsafe` usage with a proper test double (`TestIntentSender`).
+- [ ] [Severity: High] [Category: Performance] **Fix `getCategoryStorageSizes` full MediaStore scan when `requiresFullScan` is true**
+  - Location: `data/source/MediaStoreClient.kt` lines 252-386
+  - Problem: Categories without MIME prefix (Documents) set `requiresFullScan=true`, which nullifies the SQL selection and scans every file in MediaStore. This is called per-volume on home screen load.
+  - Impact: Multi-second blocking IO on devices with many files.
+  - Fix: Always build a selection query using OR clauses for known extensions/MIME types, even for the "full scan" case.
+  - Verification: Profile on a device with 50k+ MediaStore entries and measure query duration.
 
-## 5. Comprehensive Audit Findings
+- [ ] [Severity: Medium] [Category: Performance] **Limit `detectCopyConflicts` recursive directory walk**
+  - Location: `data/source/FileSystemDataSource.kt` lines 258-274
+  - Problem: For conflicting directories, walks the entire source tree checking each descendant file against destination, with no depth or count limit.
+  - Impact: Long UI freeze when pasting large directories.
+  - Fix: Show a summary conflict dialog for directories instead of enumerating every descendant.
+  - Verification: Paste a 1000+ file directory and measure the delay before conflict dialog.
 
-### Performance & Smoothness
-- [ ] **Coil Image Memory Overhead**: In `FileList.kt` and `FileGrid.kt`, `AsyncImage` directly loads `File(file.absolutePath)` for media files. This causes massive memory spikes, GC thrashing, and dropped frames during scrolling as full-resolution images/videos are loaded. Modify `ImageRequest` with explicit `.size()` constraints or switch to MediaStore `loadThumbnail`.
-- [ ] **Redundant String Allocations in Compose**: In `FileList.kt` and `FileGrid.kt`, the `isMedia` check repeatedly performs `file.name.substringAfterLast('.').lowercase()` during list item composition. Use the pre-calculated `extension` or `mimeType` properties already available in `FileModel` to reduce memory allocations and improve scrolling smoothness.
-- [ ] [NEW] **Excessive Disk I/O in MediaStore Loops**: In `MediaStoreClient.kt`, avoid calling `File.canonicalPath` inside cursor loops. This causes severe UI jank on devices with many files. Refactor `matchesScope` to use pre-calculated canonical roots.
-- [ ] [NEW] **Sequential Repository Fetches**: In `HomeViewModel.kt`, parallelize independent data fetches in `loadHomeData` using `async`/`awaitAll` to reduce perceived loading latency.
+### Architecture & Code Health
+
+- [ ] [Severity: Medium] [Category: Architecture] **Extract duplicated delete-policy flow into a shared `DeleteFlowDelegate`**
+  - Location: `BrowserViewModel.kt` (lines 226-309), `RecentFilesViewModel.kt` (lines 148-235)
+  - Problem: Delete-policy evaluation, confirmation state, and execution logic is copy-pasted across ViewModels.
+  - Impact: Bug fixes must be applied in 3 places; high regression risk.
+  - Fix: Extract a `DeleteFlowDelegate` similar to existing `ClipboardDelegate`.
+  - Verification: Change delete behavior in one place and confirm all screens adopt it.
+
+### Build / Release / Configuration
+
+- [ ] [Severity: High] [Category: Build] **Update Compose BOM from `2024.09.00` and align dependency versions**
+  - Location: `gradle/libs.versions.toml` lines 8-16
+  - Problem: Compose BOM is ~18 months outdated. Material3 `1.4.0-alpha08` overrides the BOM. Lifecycle versions are split (`2.10.0` vs `2.8.5`).
+  - Impact: Potential runtime incompatibilities, missing 18 months of bug fixes and security patches.
+  - Fix: Update BOM to latest stable, align all lifecycle artifacts to same version, update navigation-compose.
+  - Verification: Build and run; verify no `NoSuchMethodError` or runtime crashes.
+
+- [ ] [Severity: Medium] [Category: Build] **Replace overly broad ProGuard serialization rules with targeted ones**
+  - Location: `app/proguard-rules.pro` lines 24-27
+  - Problem: Keeps all classes/members in `kotlinx.serialization.**` including internals, preventing R8 shrinking.
+  - Impact: Increased APK size by several hundred KB.
+  - Fix: Use official kotlinx.serialization ProGuard rules.
+  - Verification: Compare release APK size before/after; verify deserialization still works.
+
+### Testing
+
+- [ ] [Severity: High] [Category: Testing] **Add integration tests for critical file operation flows**
+  - Location: Missing: `FileSystemDataSourceTest`, `TrashManagerTest`, `LocalFileRepositoryTest`
+  - Problem: The data layer (all destructive file operations) has zero test coverage. Acknowledged in `PLAN.md`.
+  - Impact: Regressions in copy/move/delete/trash are undetectable without manual testing.
+  - Fix: Write Robolectric or instrumented tests for `FileSystemDataSource` operations using temp directories.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with new tests.
+
+- [ ] [Severity: Medium] [Category: Testing] **Fix `LocalFileOperationsTest` to test actual production code, not a local copy**
+  - Location: `test/data/LocalFileOperationsTest.kt` lines 57-72
+  - Problem: Tests a `getUniqueFileName` helper copied into the test file, not the real `FileSystemDataSource` implementation. Changes to production code won't be caught.
+  - Fix: Import and test the actual `getUniqueFileName` from `FileSystemDataSource` (or its extracted utility).
+  - Verification: Intentionally break the production rename logic and confirm the test fails.
+
+- [ ] [Severity: Medium] [Category: Testing] **Consolidate 6 duplicated `FakeFileRepository` implementations into a shared test double**
+  - Location: `DeletePolicyTest`, `StorageScopeViewModelTest`, `BrowserViewModelTest`, `HomeViewModelTest`, `RecentFilesViewModelTest`, `TrashViewModelTest`
+  - Problem: Each test file has its own `FakeFileRepository` with ~30 duplicate stub methods. Bug-fix in the interface requires updating all 6.
+  - Fix: Create a shared `testutil/FakeFileRepository.kt` with configurable result overrides.
+  - Verification: All existing tests pass against the shared fake.
+
+- [ ] [Severity: Medium] [Category: Testing] **Add `MediaStoreClient` test coverage for category size queries**
+  - Location: Missing: `MediaStoreClientTest`
+  - Problem: 618 lines of MediaStore SQL query construction, cache management, and category size calculation have zero test coverage. The `requiresFullScan` performance bug cannot be regression-tested.
+  - Fix: Write Robolectric-backed tests using `ContentResolver` shadows for query verification.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with new `MediaStoreClientTest`.
+
+- [ ] [Severity: Low] [Category: Testing] **Remove or replace `ExampleInstrumentedTest` and rename `NavigationTest`**
+  - Location: `androidTest/ExampleInstrumentedTest.kt`, `androidTest/ui/NavigationTest.kt`
+  - Problem: `ExampleInstrumentedTest` is the default template. `NavigationTest` tests `EmptyState` rendering, not navigation.
+  - Fix: Delete the example test; rename `NavigationTest` to `EmptyStateInstrumentedTest`.
+  - Verification: `./gradlew connectedAndroidTest` passes.
+
+- [ ] [Severity: Low] [Category: Testing] **Standardize `IntentSender` mocking approach across tests**
+  - Location: `BrowserViewModelTest` and `TrashViewModelTest` use `sun.misc.Unsafe`; `RecentFilesViewModelTest` uses `mockk()`
+  - Problem: Inconsistent mocking; `sun.misc.Unsafe` is fragile and non-portable.
+  - Fix: Use `mockk()` consistently across all tests or extract a shared `fakeIntentSender()` utility.
+  - Verification: All tests pass on both JDK 11 and 17.
+
+### Documentation
+
+- [ ] [Severity: Medium] [Category: Docs] **Pin Tailwind CDN and Lucide versions in `docs/index.html`**
+  - Location: `docs/index.html` lines 636-637
+  - Problem: Uses `cdn.tailwindcss.com` (play CDN, not production) and `unpkg.com/lucide@latest` (unpinned). Both are fragile.
+  - Impact: Site could break from upstream changes; Tailwind play CDN adds ~300KB of JS.
+  - Fix: Build Tailwind via CLI/PostCSS or pin version. Pin Lucide to a specific version.
+  - Verification: Site loads correctly with pinned versions; verify in browser DevTools.
 
 ### Architecture & Background Processing
 - [ ] **Bulletproof Background Execution**: In `ClipboardDelegate.kt` (and `FileSystemDataSource.kt`), migrate bulk file operations (`copyFiles`, `moveFiles`) to `WorkManager` or a standard Foreground Service. Current `viewModelScope` execution will silently abort if the app is backgrounded and killed by the OS.
-
-### Core Functionality & Edge Cases
-- [ ] **FileProvider Path Restriction Crash**: In `file_provider_paths.xml`, the `<external-path>` entries are hardcoded to specific standard directories (e.g., `Download/`, `Documents/`). Opening or sharing a file from an unlisted custom directory (e.g., `/storage/emulated/0/MyFolder/`) will cause `FileProvider.getUriForFile` to throw an `IllegalArgumentException` and fail. Replace the specific paths with `<external-path name="external_files" path="." />` to support all accessible external storage files.
-- [ ] [NEW] **Deprecated MediaStore Deletion**: In `TrashManager.kt`, replace `ContentResolver.delete` based on `DATA` path with URI-based deletion using MediaStore IDs to ensure reliability on Android 11+.
-- [ ] [NEW] **Splash Screen Timeout**: In `MainActivity.kt`, add a timeout to the `themeState.first()` call in the splash screen logic to prevent permanent hangs on startup.
 
 ### App Size & Resource Optimization
 - [ ] **APK Size - Resource Configurations**: In `app/build.gradle.kts`, add `resConfigs("en", "es")` (for your supported languages) in `defaultConfig` to strip megabytes of unused translated strings and resources bundled by AndroidX and Material3 libraries.

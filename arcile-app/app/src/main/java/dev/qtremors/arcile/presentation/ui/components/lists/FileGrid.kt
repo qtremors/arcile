@@ -164,14 +164,19 @@ fun FileGridItem(
                 .fillMaxWidth()
                 .animateContentSize()
         ) {
-            val isMedia = !file.isDirectory && (FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                    FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                    FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                    FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
+            val isMedia = !file.isDirectory && file.extension != null && (
+                    FileCategories.Images.extensions.contains(file.extension) ||
+                    FileCategories.Videos.extensions.contains(file.extension) ||
+                    FileCategories.APKs.extensions.contains(file.extension) ||
+                    FileCategories.Audio.extensions.contains(file.extension)
+            )
 
             if (isMedia) {
                 AsyncImage(
-                    model = File(file.absolutePath),
+                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                        .data(File(file.absolutePath))
+                        .size(256)
+                        .build(),
                     contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier
                         .fillMaxWidth()

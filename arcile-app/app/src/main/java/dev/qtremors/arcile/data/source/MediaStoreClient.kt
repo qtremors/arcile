@@ -500,7 +500,7 @@ class DefaultMediaStoreClient(
                 if (rootDir.exists() && rootDir.isDirectory) {
                     rootDir.walkTopDown()
                         .onEnter { dir ->
-                            !dir.name.startsWith(".") && matchesScope(dir.canonicalPath, scope, volumes)
+                            !dir.name.startsWith(".") && matchesScope(dir.absolutePath, scope, volumes)
                         }
                         .filter { file ->
                             file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")

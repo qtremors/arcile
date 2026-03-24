@@ -47,49 +47,124 @@ private object TrashCryptoHelper {
     private const val ALGORITHM = "AES/GCM/NoPadding"
     private const val TAG_LENGTH_BIT = 128
     private const val IV_LENGTH_BYTE = 12
-    private const val SALT = "arcile_trash_salt_v1"
+    private const val PREFS_NAME = "trash_crypto_prefs"
+    private const val PREF_SALT = "crypto_salt"
+    private const val KEY_ALIAS = "arcile_trash_key"
 
-    private var secretKey: SecretKeySpec? = null
+    private var keystoreKey: javax.crypto.SecretKey? = null
+    private var fallbackKey: SecretKeySpec? = null
 
-    private fun getKey(context: Context): SecretKeySpec {
-        secretKey?.let { return it }
+    private fun getSalt(context: Context): ByteArray {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val saltString = prefs.getString(PREF_SALT, null)
+        if (saltString != null) {
+            return android.util.Base64.decode(saltString, android.util.Base64.DEFAULT)
+        }
+        val newSalt = ByteArray(32)
+        SecureRandom().nextBytes(newSalt)
+        prefs.edit().putString(PREF_SALT, android.util.Base64.encodeToString(newSalt, android.util.Base64.DEFAULT)).apply()
+        return newSalt
+    }
+
+    private fun getKeyStoreKey(): javax.crypto.SecretKey? {
+        if (keystoreKey != null) return keystoreKey
+        return try {
+            val keyStore = java.security.KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (!keyStore.containsAlias(KEY_ALIAS)) {
+                val keyGenerator = javax.crypto.KeyGenerator.getInstance(
+                    android.security.keystore.KeyProperties.KEY_ALGORITHM_AES,
+                    "AndroidKeyStore"
+                )
+                val keyGenParameterSpec = android.security.keystore.KeyGenParameterSpec.Builder(
+                    KEY_ALIAS,
+                    android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or android.security.keystore.KeyProperties.PURPOSE_DECRYPT
+                )
+                    .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE)
+                    .build()
+                keyGenerator.init(keyGenParameterSpec)
+                keyGenerator.generateKey()
+            }
+            val key = keyStore.getKey(KEY_ALIAS, null) as javax.crypto.SecretKey
+            keystoreKey = key
+            key
+        } catch (e: Exception) {
+            android.util.Log.e("TrashCryptoHelper", "KeyStore initialization failed")
+            null
+        }
+    }
+
+    private fun getFallbackKey(context: Context): SecretKeySpec {
+        fallbackKey?.let { return it }
         val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "fallback_id"
+        val salt = getSalt(context)
         val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-        val spec = PBEKeySpec(androidId.toCharArray(), SALT.toByteArray(), 10000, 256)
+        val spec = PBEKeySpec(androidId.toCharArray(), salt, 10000, 256)
         val tmp = factory.generateSecret(spec)
         val key = SecretKeySpec(tmp.encoded, "AES")
-        secretKey = key
+        fallbackKey = key
         return key
     }
 
+    private fun getKey(context: Context): javax.crypto.SecretKey {
+        return getKeyStoreKey() ?: getFallbackKey(context)
+    }
+
     fun encrypt(context: Context, plainText: String): ByteArray {
-        val key = getKey(context)
-        val cipher = Cipher.getInstance(ALGORITHM)
-        val iv = ByteArray(IV_LENGTH_BYTE)
-        SecureRandom().nextBytes(iv)
-        val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
-        cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec)
-        val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
-        
-        val byteBuffer = ByteBuffer.allocate(iv.size + cipherText.size)
-        byteBuffer.put(iv)
-        byteBuffer.put(cipherText)
-        return byteBuffer.array()
+        var retries = 3
+        var lastException: Exception? = null
+        while (retries > 0) {
+            try {
+                val key = getKey(context)
+                val cipher = Cipher.getInstance(ALGORITHM)
+                cipher.init(Cipher.ENCRYPT_MODE, key)
+                var iv = cipher.iv
+                if (iv == null || iv.size != IV_LENGTH_BYTE) {
+                     // Fallback/PBKDF2 key needs manual IV initialization
+                     iv = ByteArray(IV_LENGTH_BYTE)
+                     SecureRandom().nextBytes(iv)
+                     val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
+                     cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec)
+                }
+                val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+                
+                val byteBuffer = ByteBuffer.allocate(iv.size + cipherText.size)
+                byteBuffer.put(iv)
+                byteBuffer.put(cipherText)
+                return byteBuffer.array()
+            } catch (e: Exception) {
+                lastException = e
+                retries--
+            }
+        }
+        android.util.Log.e("TrashCryptoHelper", "Encryption failed after retries")
+        throw lastException ?: Exception("Encryption failed")
     }
 
     fun decrypt(context: Context, encryptedData: ByteArray): String {
-        val key = getKey(context)
-        val cipher = Cipher.getInstance(ALGORITHM)
-        val byteBuffer = ByteBuffer.wrap(encryptedData)
-        val iv = ByteArray(IV_LENGTH_BYTE)
-        byteBuffer.get(iv)
-        val cipherText = ByteArray(byteBuffer.remaining())
-        byteBuffer.get(cipherText)
-        
-        val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
-        cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec)
-        val plainText = cipher.doFinal(cipherText)
-        return String(plainText, Charsets.UTF_8)
+        var retries = 3
+        var lastException: Exception? = null
+        while (retries > 0) {
+            try {
+                val key = getKey(context)
+                val cipher = Cipher.getInstance(ALGORITHM)
+                val byteBuffer = ByteBuffer.wrap(encryptedData)
+                val iv = ByteArray(IV_LENGTH_BYTE)
+                byteBuffer.get(iv)
+                val cipherText = ByteArray(byteBuffer.remaining())
+                byteBuffer.get(cipherText)
+                
+                val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
+                cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec)
+                val plainText = cipher.doFinal(cipherText)
+                return String(plainText, Charsets.UTF_8)
+            } catch (e: Exception) {
+                lastException = e
+                retries--
+            }
+        }
+        android.util.Log.e("TrashCryptoHelper", "Decryption failed after retries")
+        throw lastException ?: Exception("Decryption failed")
     }
 }
 
@@ -187,8 +262,8 @@ class DefaultTrashManager(
                     destFile.writeBytes(encryptedBytes)
                 } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-                    // Fallback to plain text if encryption fails
-                    destFile.writeText(jsonString)
+                    android.util.Log.e("TrashManager", "Failed to encrypt trash metadata, aborting move to trash", e)
+                    return@withContext Result.failure(Exception("Failed to secure trash metadata: ${e.message}", e))
                 }
 
                 // Move abstracting name
@@ -225,7 +300,16 @@ class DefaultTrashManager(
                     // Explicitly delete from MediaStore so it doesn't linger via auto-updates
                     try {
                         val uri = MediaStore.Files.getContentUri("external")
-                        context.contentResolver.delete(uri, "${MediaStore.Files.FileColumns.DATA} = ?", arrayOf(file.absolutePath))
+                        val projection = arrayOf(MediaStore.Files.FileColumns._ID)
+                        val selection = "${MediaStore.Files.FileColumns.DATA} = ?"
+                        val selectionArgs = arrayOf(file.absolutePath)
+                        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+                            if (cursor.moveToFirst()) {
+                                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID))
+                                val itemUri = android.content.ContentUris.withAppendedId(uri, id)
+                                context.contentResolver.delete(itemUri, null, null)
+                            }
+                        }
                     } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
                         android.util.Log.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
@@ -272,15 +356,15 @@ class DefaultTrashManager(
                 val jsonFormat = Json { ignoreUnknownKeys = true }
                 val jsonString = try {
                     val bytes = metadataFile.readBytes()
-                    val text = String(bytes, Charsets.UTF_8)
-                    if (text.trimStart().startsWith("{")) {
-                        text // Legacy unencrypted JSON
-                    } else {
-                        TrashCryptoHelper.decrypt(context, bytes)
-                    }
+                    TrashCryptoHelper.decrypt(context, bytes)
                 } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-                    metadataFile.readText()
+                    val text = metadataFile.readText()
+                    if (text.trimStart().startsWith("{")) {
+                        text
+                    } else {
+                        throw Exception("Failed to decrypt or parse metadata", e)
+                    }
                 }
                 val entity = jsonFormat.decodeFromString<TrashMetadataEntity>(jsonString)
                 val originalPath = entity.originalPath
@@ -384,15 +468,15 @@ class DefaultTrashManager(
                                 val jsonFormat = Json { ignoreUnknownKeys = true }
                                 val jsonString = try {
                                     val bytes = metadataFile.readBytes()
-                                    val text = String(bytes, Charsets.UTF_8)
-                                    if (text.trimStart().startsWith("{")) {
-                                        text // Legacy unencrypted JSON
-                                    } else {
-                                        TrashCryptoHelper.decrypt(context, bytes)
-                                    }
+                                    TrashCryptoHelper.decrypt(context, bytes)
                                 } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-                                    metadataFile.readText()
+                                    val text = metadataFile.readText()
+                                    if (text.trimStart().startsWith("{")) {
+                                        text
+                                    } else {
+                                        throw Exception("Failed to decrypt or parse metadata", e)
+                                    }
                                 }
                                 val entity = jsonFormat.decodeFromString<TrashMetadataEntity>(jsonString)
                                 val id = entity.id

@@ -24,9 +24,7 @@
 -keepattributes *Annotation*, InnerClasses
 -keep,includedescriptorclasses class kotlinx.serialization.** { *; }
 -keepclassmembers class kotlinx.serialization.** { *; }
--keep class * {
-    @kotlinx.serialization.Serializable *;
-}
+-keep @kotlinx.serialization.Serializable class * { *; }
 
 # Coil Custom Fetchers
 -keep class dev.qtremors.arcile.image.** { *; }
