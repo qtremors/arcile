@@ -111,7 +111,7 @@ import dev.qtremors.arcile.presentation.ui.components.ToolCard
 import dev.qtremors.arcile.presentation.ui.components.ToolItem
 import dev.qtremors.arcile.presentation.ui.components.home.StorageSummaryCard
 import dev.qtremors.arcile.presentation.ui.components.home.CategoryGrid
-import dev.qtremors.arcile.presentation.ui.components.home.MainFoldersGrid
+import dev.qtremors.arcile.presentation.ui.components.home.QuickAccessGrid
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import java.io.File
@@ -260,6 +260,8 @@ fun HomeScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToRecentFiles: () -> Unit,
+    onNavigateToQuickAccess: () -> Unit,
+    onNavigateToSaf: (String) -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
@@ -372,22 +374,33 @@ fun HomeScreen(
                     item { CategoryGrid(state.categoryStorages, onCategoryClick) }
 
                     item {
-                        Text(
-                            text = stringResource(R.string.folders),
-                            style = MaterialTheme.typography.titleMediumBold,
-                            modifier = Modifier.padding(
-                                start = MaterialTheme.spacing.medium,
-                                top = MaterialTheme.spacing.large,
-                                end = MaterialTheme.spacing.medium,
-                                bottom = MaterialTheme.spacing.small
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = MaterialTheme.spacing.medium,
+                                    top = MaterialTheme.spacing.large,
+                                    end = MaterialTheme.spacing.medium,
+                                    bottom = MaterialTheme.spacing.small
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Quick Access", // Use string resource in the future if needed
+                                style = MaterialTheme.typography.titleMediumBold
                             )
-                        )
+                            TextButton(onClick = onNavigateToQuickAccess) {
+                                Text("Manage")
+                            }
+                        }
                     }
                     item {
-                        MainFoldersGrid(
-                            standardFolders = state.standardFolders,
+                        QuickAccessGrid(
+                            quickAccessItems = state.quickAccessItems,
                             onOpenFileBrowser = onOpenFileBrowser,
-                            onNavigateToPath = onNavigateToPath
+                            onNavigateToPath = onNavigateToPath,
+                            onNavigateToSaf = onNavigateToSaf
                         )
                     }
 

@@ -21,5 +21,6 @@ object AppRoutes {
     @Serializable data class RecentFiles(val volumeId: String? = null)
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageManagement
+    @Serializable object QuickAccess
     @Serializable object About
 }

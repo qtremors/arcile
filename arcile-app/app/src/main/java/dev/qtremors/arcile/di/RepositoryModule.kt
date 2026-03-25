@@ -120,4 +120,12 @@ object RepositoryModule {
     ): BrowserPreferencesStore {
         return repository
     }
+
+    @Provides
+    @Singleton
+    fun provideQuickAccessPreferencesRepository(
+        @ApplicationContext context: Context
+    ): dev.qtremors.arcile.data.QuickAccessPreferencesRepository {
+        return dev.qtremors.arcile.data.QuickAccessPreferencesRepository(context)
+    }
 }

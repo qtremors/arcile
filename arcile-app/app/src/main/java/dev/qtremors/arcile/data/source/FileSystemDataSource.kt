@@ -254,24 +254,6 @@ class DefaultFileSystemDataSource(
                             existingFile = targetFile.toFileModel()
                         )
                     )
-                    
-                    if (sourceFile.isDirectory && targetFile.isDirectory) {
-                        sourceFile.walkTopDown().forEach { descendant ->
-                            if (descendant.absolutePath != sourceFile.absolutePath) {
-                                val relativePath = descendant.relativeTo(sourceFile).path
-                                val targetDescendant = File(targetFile, relativePath)
-                                if (targetDescendant.exists()) {
-                                    conflicts.add(
-                                        FileConflict(
-                                            sourcePath = descendant.absolutePath,
-                                            sourceFile = descendant.toFileModel(),
-                                            existingFile = targetDescendant.toFileModel()
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
             Result.success(conflicts)

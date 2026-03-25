@@ -15,7 +15,7 @@
   - Fix: Remove from repo and Git history (BFG/filter-repo), add `*.jks` to `.gitignore`, rotate the keystore.
   - Verification: Confirm `git log --all -- '*.jks'` returns nothing.
 
-- [ ] [Severity: High] [Category: Security] **Restrict FileProvider path scope from entire external storage**
+- [x] [Severity: High] [Category: Security] **Restrict FileProvider path scope from entire external storage**
   - Location: `app/src/main/res/xml/file_provider_paths.xml`
   - Problem: `<external-path name="external_files" path="."/>` grants URI generation capability for the entire external storage root.
   - Impact: Overly broad attack surface; Play Store policy risk.
@@ -45,7 +45,7 @@
 
 ### Performance & Efficiency
 
-- [ ] [Severity: High] [Category: Performance] **Fix `getCategoryStorageSizes` full MediaStore scan when `requiresFullScan` is true**
+- [x] [Severity: High] [Category: Performance] **Fix `getCategoryStorageSizes` full MediaStore scan when `requiresFullScan` is true**
   - Location: `data/source/MediaStoreClient.kt` lines 252-386
   - Problem: Categories without MIME prefix (Documents) set `requiresFullScan=true`, which nullifies the SQL selection and scans every file in MediaStore. This is called per-volume on home screen load.
   - Impact: Multi-second blocking IO on devices with many files.
@@ -70,14 +70,14 @@
 
 ### Build / Release / Configuration
 
-- [ ] [Severity: High] [Category: Build] **Update Compose BOM from `2024.09.00` and align dependency versions**
+- [x] [Severity: High] [Category: Build] **Update Compose BOM from `2024.09.00` and align dependency versions**
   - Location: `gradle/libs.versions.toml` lines 8-16
   - Problem: Compose BOM is ~18 months outdated. Material3 `1.4.0-alpha08` overrides the BOM. Lifecycle versions are split (`2.10.0` vs `2.8.5`).
   - Impact: Potential runtime incompatibilities, missing 18 months of bug fixes and security patches.
   - Fix: Update BOM to latest stable, align all lifecycle artifacts to same version, update navigation-compose.
   - Verification: Build and run; verify no `NoSuchMethodError` or runtime crashes.
 
-- [ ] [Severity: Medium] [Category: Build] **Replace overly broad ProGuard serialization rules with targeted ones**
+- [x] [Severity: Medium] [Category: Build] **Replace overly broad ProGuard serialization rules with targeted ones**
   - Location: `app/proguard-rules.pro` lines 24-27
   - Problem: Keeps all classes/members in `kotlinx.serialization.**` including internals, preventing R8 shrinking.
   - Impact: Increased APK size by several hundred KB.
@@ -160,6 +160,8 @@
 - **Operation Queue & FAB Manager**: Implement a "Bank" for operations. A running operation replaces the floating action button (FAB) with a progress ring. Tapping it shows a queue of paused/running tasks with the ability to gracefully cancel (e.g., stop after 10 of 100 files are copied).
 
 ### Home Screen & UI Polish
+- **Material 3 Expressive - SplitButton Implementation**: Replace standard actions with `SplitButton` in areas where a main action consistently needs a secondary dropdown/overflow action (e.g., creating files vs folders, or sorting).
+- **Material 3 Expressive - WavyProgressIndicator**: Investigate and implement `WavyProgressIndicator` for long-running non-blocking background tasks if appropriate.
 - **Haptics & Interaction Quality**: Inject `HapticFeedback` via `LocalHapticFeedback`. Trigger subtle vibrations on long-press (selection mode), successful file operations, and error states to make the app feel alive and premium.
 - **Recent Media Carousel**: Replace the current recent files list on the Home screen with a horizontally-scrollable carousel of the 10 most recently modified images and videos.
 - **Customizable Quick Access**: Allow users to hardcode, add, remove, and restore pinned folders to the Quick Access section on the Home screen.

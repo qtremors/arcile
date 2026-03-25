@@ -18,6 +18,7 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
+import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -86,13 +87,38 @@ fun AppNavigationGraph(
                                 launchSingleTop = true
                             }
                         },
+                        onNavigateToSaf = { uriString ->
+                            try {
+                                val uri = android.net.Uri.parse(uriString)
+
+                                // directory MIME type, read permission flag, targeted at DocumentsUI
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+                                    // Target the system DocumentsUI package
+                                    val packageInfos = context.packageManager.getPackagesHoldingPermissions(
+                                        arrayOf(android.Manifest.permission.MANAGE_DOCUMENTS), 0
+                                    )
+                                    val documentsUiPackage = packageInfos.firstOrNull { it.packageName.endsWith(".documentsui") }?.packageName
+                                        ?: packageInfos.firstOrNull()?.packageName
+                                    documentsUiPackage?.let { setPackage(it) }
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        onNavigateToQuickAccess = {
+                            navController.navigate(AppRoutes.QuickAccess)
+                        },
                         onOpenStorageDashboard = { volumeId ->
-                            navController.navigate(AppRoutes.StorageDashboard(volumeId = volumeId)) {
+                            navController.navigate(AppRoutes.StorageDashboard(volumeId)) {
                                 popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
-                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onRefresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
@@ -123,8 +149,9 @@ fun AppNavigationGraph(
                 composable<AppRoutes.Explorer> {
                     val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
+                    val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
 
-                    FileManagerScreen(
+                    BrowserScreen(
                         state = state,
                         onNavigateBack = {
                             if (!viewModel.navigateBack()) {
@@ -163,6 +190,7 @@ fun AppNavigationGraph(
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onResolvingConflicts = { viewModel.resolveConflicts(it) },
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
+                        onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -243,6 +271,43 @@ fun AppNavigationGraph(
                 composable<AppRoutes.About> {
                     AboutScreen(
                         onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable<AppRoutes.QuickAccess> {
+                    val viewModel = hiltViewModel<QuickAccessViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    QuickAccessScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToPath = { path ->
+                            navController.navigate(AppRoutes.Explorer(path = path)) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onNavigateToSaf = { uriString ->
+                            try {
+                                val uri = android.net.Uri.parse(uriString)
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
+                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+                                    val packageInfos = context.packageManager.getPackagesHoldingPermissions(
+                                        arrayOf(android.Manifest.permission.MANAGE_DOCUMENTS), 0
+                                    )
+                                    val documentsUiPackage = packageInfos.firstOrNull { it.packageName.endsWith(".documentsui") }?.packageName
+                                        ?: packageInfos.firstOrNull()?.packageName
+                                    documentsUiPackage?.let { setPackage(it) }
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        },
+                        onTogglePin = { viewModel.togglePin(it) },
+                        onRemoveItem = { viewModel.removeCustomItem(it) },
+                        onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
+                        onAddSafFolder = { uri, label -> viewModel.addSafFolder(uri, label) }
                     )
                 }
             }

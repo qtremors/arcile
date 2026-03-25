@@ -29,10 +29,12 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.data.StorageClassificationStore
+import dev.qtremors.arcile.data.QuickAccessPreferencesRepository
+import dev.qtremors.arcile.domain.QuickAccessItem
 
 data class HomeState(
     val allStorageVolumes: List<StorageVolume> = emptyList(),
-    val standardFolders: Map<String, String?> = emptyMap(),
+    val quickAccessItems: List<QuickAccessItem> = emptyList(),
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
@@ -61,7 +63,8 @@ enum class HomeRefreshMode {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: FileRepository,
-    private val classificationRepo: StorageClassificationStore
+    private val classificationRepo: StorageClassificationStore,
+    private val quickAccessRepo: QuickAccessPreferencesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -79,6 +82,12 @@ class HomeViewModel @Inject constructor(
         cal.set(java.util.Calendar.SECOND, 0)
         cal.set(java.util.Calendar.MILLISECOND, 0)
         _state.update { it.copy(todayStart = cal.timeInMillis) }
+
+        viewModelScope.launch {
+            quickAccessRepo.quickAccessItems.collectLatest { items ->
+                _state.update { it.copy(quickAccessItems = items) }
+            }
+        }
 
         viewModelScope.launch {
             @OptIn(FlowPreview::class)
@@ -120,13 +129,11 @@ class HomeViewModel @Inject constructor(
                 val allVolumesResultDef = async { repository.getStorageVolumes() }
                 val storageResultDef = async { repository.getStorageInfo(StorageScope.AllStorage) }
                 val categoryResultDef = async { repository.getCategoryStorageSizes(StorageScope.AllStorage) }
-                val standardFoldersDef = async { repository.getStandardFolders() }
 
                 val recentResult = recentResultDef.await()
                 val allVolumesResult = allVolumesResultDef.await()
                 val storageResult = storageResultDef.await()
                 val categoryResult = categoryResultDef.await()
-                val standardFolders = standardFoldersDef.await()
 
                 val errorMsg = storageResult.exceptionOrNull()?.message 
                     ?: allVolumesResult.exceptionOrNull()?.message 
@@ -158,7 +165,6 @@ class HomeViewModel @Inject constructor(
                         isCalculatingStorage = false,
                         error = errorMsg,
                         allStorageVolumes = allStorageVolumes,
-                        standardFolders = standardFolders,
                         recentFiles = recentResult.getOrNull() ?: emptyList(),
                         storageInfo = storageInfo,
                         categoryStorages = categoryResult.getOrNull() ?: emptyList(),

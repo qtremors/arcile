@@ -21,7 +21,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
-import dev.qtremors.arcile.ui.theme.FileManagerTheme
+import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
 import kotlinx.coroutines.launch
@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val coroutineScope = rememberCoroutineScope()
 
-            FileManagerTheme(themeState = themeState) {
+            ArcileTheme(themeState = themeState) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

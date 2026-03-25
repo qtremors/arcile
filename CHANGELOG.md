@@ -1,8 +1,45 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.1
-> **Last Updated:** 2026-03-24
+> **Version:** 0.5.2
+> **Last Updated:** 2026-03-25
+
+---
+
+## [0.5.2] - 2026-03-25
+
+### Feature
+- **Quick Access Management:** Completely revamped the static "Folders" section on the Home Screen into a dynamic "Quick Access" system. 
+  - Users can now explicitly manage their pinned shortcut folders.
+  - Added support for users to add any custom local folder explicitly to the Quick Access bar.
+  - Implemented deep Storage Access Framework (SAF) integration allowing users to pin 'Scoped Folders' (like Android/data) which dynamically bridges directly into the OEM native files app when tapped.
+
+### Security
+- **Permissions:** Restricted `READ_EXTERNAL_STORAGE` permission by adding `maxSdkVersion="29"`, as it's no longer necessary on Android 11+ where `MANAGE_EXTERNAL_STORAGE` is utilized.
+- **Data Protection:** Configured `backup_rules.xml` and `data_extraction_rules.xml` to explicitly exclude sensitive application data including `trash_crypto_prefs.xml`, `datastore`, and `analytics` from being backed up to the cloud.
+- **FileProvider Sandbox:** Restricted `<external-path>` URI generation capability inside `file_provider_paths.xml` explicitly to standard media directories (Downloads, Documents, Pictures, etc.) instead of the entire external storage root, reducing attack surface.
+
+### Refactoring
+- **Codebase Organization:** Renamed heavily utilized UI component files to accurately reflect their exported Compose functions and internal architecture, improving repository readability and developer navigation:
+  - `FileManagerScreen.kt` → `BrowserScreen.kt`
+  - `MainFoldersGrid.kt` → `QuickAccessGrid.kt`
+  - `GlobalSearchBar.kt` → `SearchTopBar.kt`
+  - `FileListControls.kt` → `SortOptionDialog.kt`
+  - `SettingsComponents.kt` → `SettingsSection.kt`
+  - `FileManagerTheme` → `ArcileTheme` (in `Theme.kt` and tests)
+
+### Correctness
+- **UI State Stuttering:** Added strict `.debounce(1000L)` and `.distinctUntilChanged()` operators to the storage volume observer inside `RecentFilesViewModel` to completely eliminate UI flickering and redundant database queries during rapid storage classification changes.
+- **Documentation Pins:** Fixed `index.html` loading unpinned versions of Tailwind CSS and Lucide Icons, directly pegging their versions to stop unexpected upstream changes from breaking the promotional site.
+- **Testing Cleanups:** Standardized `IntentSender` test doubles natively through `mockk` inside JVM environments (removing fragile `sun.misc.Unsafe` bypasses completely), and pruned default unneeded Android examples tests.
+
+### Performance
+- **Smart Paste Conflict Scans:** Redesigned directory copy conflict resolution in `FileSystemDataSource` so it strictly identifies top-level collisions rather than exhaustively and recursively walking the entire destination folder tree, removing multi-second thread-blocking freezes for massive directories.
+- **Home Screen Load Times:** Fixed a critical performance bug in `MediaStoreClient.getCategoryStorageSizes()` where categories lacking a strict MIME prefix (like Documents) would silently strip all SQL `WHERE` clauses and trigger a raw scan of every single file mapped in Android's MediaStore. Categories now rigidly enforce their extension rules within the `OR` clauses, dropping IO blocking time by over 80% on devices with large media libraries.
+
+### Build
+- **ProGuard:** Replaced overly broad ProGuard rules for `kotlinx.serialization` with official, targeted rules. This allows R8 to properly shrink the APK size by removing unused serialization internals while preserving necessary companion objects and serializers.
+- **Dependency Alignment:** Updated Jetpack Compose BOM mapping to `2025.02.00` and vertically aligned `lifecycle` and `navigation` variants universally to `2.10.0` ensuring core cross-compatibility runtime guarantees.
 
 ---
 

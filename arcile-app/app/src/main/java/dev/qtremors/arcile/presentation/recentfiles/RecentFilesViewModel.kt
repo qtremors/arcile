@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import androidx.navigation.toRoute
@@ -78,9 +80,13 @@ class RecentFilesViewModel @Inject constructor(
         }
         _state.update { it.copy(currentVolumeId = volumeId?.takeIf { it.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
         viewModelScope.launch {
-            repository.observeStorageVolumes().collectLatest {
-                loadRecentFiles(false)
-            }
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            repository.observeStorageVolumes()
+                .debounce(1000L)
+                .distinctUntilChanged()
+                .collectLatest {
+                    loadRecentFiles(false)
+                }
         }
     }
 

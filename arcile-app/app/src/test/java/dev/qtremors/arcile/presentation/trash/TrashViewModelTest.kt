@@ -13,6 +13,7 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import io.mockk.mockk
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -182,9 +183,5 @@ private fun trashItem(id: String, name: String) = TrashMetadata(
 )
 
 private fun fakeIntentSender(): IntentSender {
-    val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")
-    field.isAccessible = true
-    val unsafe = field.get(null)
-    val allocateInstance = unsafe.javaClass.getMethod("allocateInstance", Class::class.java)
-    return allocateInstance.invoke(unsafe, IntentSender::class.java) as IntentSender
+    return mockk(relaxed = true)
 }

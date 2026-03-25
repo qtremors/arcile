@@ -1,8 +1,9 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
@@ -55,6 +56,7 @@ fun ArcileTopBar(
     showSortAction: Boolean = true,
     showGridViewAction: Boolean = false,
     showNewFolderAction: Boolean = true,
+    showPinAction: Boolean = false,
     showSettingsMenuAction: Boolean = false,
     showAboutAction: Boolean = false,
     isGridView: Boolean = false,
@@ -148,6 +150,16 @@ fun ArcileTopBar(
                             onClick = {
                                 showMenu = false
                                 onActionSelected(TopBarAction.NewFolder)
+                            }
+                        )
+                    }
+                    if (showPinAction) {
+                        DropdownMenuItem(
+                            text = { Text("Pin to Quick Access") },
+                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onActionSelected(TopBarAction.PinToQuickAccess)
                             }
                         )
                     }

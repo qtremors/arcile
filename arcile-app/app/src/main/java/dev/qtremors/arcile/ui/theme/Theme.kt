@@ -20,7 +20,7 @@ import androidx.core.view.WindowCompat
 // Baseline schemes moved to Color.kt
 
 @Composable
-fun FileManagerTheme(
+fun ArcileTheme(
     themeState: ThemeState,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit

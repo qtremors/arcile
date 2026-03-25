@@ -27,24 +27,39 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.domain.QuickAccessItem
+import dev.qtremors.arcile.domain.QuickAccessType
 
 @Composable
-fun MainFoldersGrid(
-    standardFolders: Map<String, String?>,
+fun QuickAccessGrid(
+    quickAccessItems: List<QuickAccessItem>,
     onOpenFileBrowser: () -> Unit,
-    onNavigateToPath: (String) -> Unit
+    onNavigateToPath: (String) -> Unit,
+    onNavigateToSaf: (String) -> Unit
 ) {
-    data class FolderShortcut(val name: String, val icon: ImageVector, val path: String?)
+    fun getIconForLabel(label: String): ImageVector {
+        return when (label.lowercase()) {
+            "dcim" -> Icons.Default.CameraAlt
+            "downloads", "download" -> Icons.Default.Download
+            "pictures", "images" -> Icons.Default.Image
+            "documents", "docs" -> Icons.Default.Description
+            "music", "audio" -> Icons.Default.MusicNote
+            "movies", "videos", "video" -> Icons.Default.Movie
+            else -> Icons.Default.Folder
+        }
+    }
 
-    val folders = listOf(
-        FolderShortcut("DCIM", Icons.Default.CameraAlt, standardFolders["DCIM"]),
-        FolderShortcut("Downloads", Icons.Default.Download, standardFolders["Downloads"]),
-        FolderShortcut("Pictures", Icons.Default.Image, standardFolders["Pictures"]),
-        FolderShortcut("Documents", Icons.Default.Description, standardFolders["Documents"]),
-        FolderShortcut("Music", Icons.Default.MusicNote, standardFolders["Music"]),
-        FolderShortcut("Movies", Icons.Default.Movie, standardFolders["Movies"]),
-        FolderShortcut("All Files", Icons.Default.Folder, null)
-    ).filter { it.path == null || java.io.File(it.path).exists() }
+    // Include "All Files" as the final fallback action
+    val allFilesItem = QuickAccessItem(
+        id = "internal_all_files",
+        label = "All Files",
+        path = "",
+        type = QuickAccessType.STANDARD,
+        isPinned = true,
+        isEnabled = true
+    )
+    
+    val folders = quickAccessItems.filter { it.isPinned } + allFilesItem
 
     Column(
         modifier = Modifier
@@ -52,7 +67,6 @@ fun MainFoldersGrid(
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Group the remaining folders into rows of 3
         val rows = folders.chunked(3)
 
         rows.forEach { rowFolders ->
@@ -65,10 +79,12 @@ fun MainFoldersGrid(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainer,
                         onClick = {
-                            if (folder.path != null) {
-                                onNavigateToPath(folder.path)
-                            } else {
+                            if (folder.id == "internal_all_files") {
                                 onOpenFileBrowser()
+                            } else if (folder.type == QuickAccessType.SAF_TREE) {
+                                onNavigateToSaf(folder.path)
+                            } else {
+                                onNavigateToPath(folder.path)
                             }
                         },
                         modifier = Modifier
@@ -82,13 +98,27 @@ fun MainFoldersGrid(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(folder.icon, contentDescription = folder.name, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                            Text(text = folder.name, style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                            Icon(
+                                imageVector = getIconForLabel(folder.label),
+                                contentDescription = folder.label,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            val displayLabel = folder.label.trimEnd('/').let { cleaned ->
+                                val lastSlash = cleaned.lastIndexOf('/')
+                                val lastColon = cleaned.lastIndexOf(':')
+                                val index = maxOf(lastSlash, lastColon)
+                                if (index != -1 && index < cleaned.length - 1) {
+                                    cleaned.substring(index + 1)
+                                } else {
+                                    cleaned
+                                }
+                            }
+                            Text(text = displayLabel, style = MaterialTheme.typography.labelLarge, maxLines = 1)
                         }
                     }
                 }
                 
-                // Add invisible spacer blocks to balance rows that aren't fully populated
                 if (rowFolders.size < 3) {
                     repeat(3 - rowFolders.size) {
                         Spacer(modifier = Modifier.weight(1f))

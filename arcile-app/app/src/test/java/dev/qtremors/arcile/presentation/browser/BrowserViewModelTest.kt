@@ -16,6 +16,7 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import io.mockk.mockk
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
 import dev.qtremors.arcile.domain.usecase.PasteFilesUseCase
@@ -405,9 +406,5 @@ private fun browserFile(name: String, path: String, isDirectory: Boolean = false
 )
 
 private fun fakeIntentSender(): IntentSender {
-    val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")
-    field.isAccessible = true
-    val unsafe = field.get(null)
-    val allocateInstance = unsafe.javaClass.getMethod("allocateInstance", Class::class.java)
-    return allocateInstance.invoke(unsafe, IntentSender::class.java) as IntentSender
+    return mockk(relaxed = true)
 }

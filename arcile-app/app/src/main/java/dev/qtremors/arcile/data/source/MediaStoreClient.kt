@@ -308,8 +308,7 @@ class DefaultMediaStoreClient(
             
             val selectionBuilder = StringBuilder()
             val selectionArgs = mutableListOf<String>()
-            var requiresFullScan = false
-            
+
             val clauses = mutableListOf<String>()
 
             FileCategories.all.forEachIndexed { index, cat ->
@@ -323,27 +322,24 @@ class DefaultMediaStoreClient(
                             clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
                             selectionArgs.add(prefix)
                         }
-                    } else {
-                        requiresFullScan = true
                     }
-                    
+
                     cat.extensions.forEach { ext ->
                         clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
                         selectionArgs.add("%.${ext}")
                     }
                 }
             }
-            
+
             if (clauses.isNotEmpty()) {
                 selectionBuilder.append(clauses.joinToString(" OR "))
             }
-            
-            val selection = if (requiresFullScan) null else selectionBuilder.toString().takeIf { it.isNotEmpty() }
-            val args = if (requiresFullScan) null else selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
-            
-            if (requiresFullScan || selection != null) {
-                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
-                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+
+            val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }
+            val args = selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
+
+            if (selection != null) {
+                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
                     val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                     

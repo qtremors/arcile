@@ -179,7 +179,7 @@ private data class FileManagerContentKey(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun FileManagerScreen(
+fun BrowserScreen(
     state: BrowserState,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
@@ -210,6 +210,7 @@ fun FileManagerScreen(
     onSearchFiltersChange: (dev.qtremors.arcile.domain.SearchFilters) -> Unit = {},
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
+    onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
@@ -347,6 +348,7 @@ fun FileManagerScreen(
                     showGridViewAction = true,
                     showSortAction = !state.isVolumeRootScreen,
                     showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
+                    showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath != null,
                     isGridView = state.isGridView,
                     hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
@@ -359,6 +361,15 @@ fun FileManagerScreen(
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
+                            TopBarAction.PinToQuickAccess -> {
+                                state.currentPath?.let { path ->
+                                    val label = java.io.File(path).name
+                                    onPinToQuickAccess(path, label)
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Pinned '$label' to Quick Access")
+                                    }
+                                }
+                            }
                             TopBarAction.DeleteSelected -> onRequestDeleteSelected()
                             TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
                             TopBarAction.GridView -> onGridViewChange(!state.isGridView)
@@ -376,18 +387,28 @@ fun FileManagerScreen(
             if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Box {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
-                        ExpandableFabMenu(
+                        dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
                             isExpanded = isFabExpanded,
                             onToggleExpand = { isFabExpanded = !isFabExpanded },
                             fabIconRotation = fabIconRotation,
-                            onCreateFileClick = {
-                                isFabExpanded = false
-                                showCreateFileDialog = true
-                            },
-                            onCreateFolderClick = {
-                                isFabExpanded = false
-                                showCreateFolderDialog = true
-                            }
+                            items = listOf(
+                                dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
+                                    label = "New Folder",
+                                    icon = androidx.compose.material.icons.Icons.Default.CreateNewFolder,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFolderDialog = true
+                                    }
+                                ),
+                                dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
+                                    label = "New File",
+                                    icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.InsertDriveFile,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFileDialog = true
+                                    }
+                                )
+                            )
                         )
                     }
                 }
