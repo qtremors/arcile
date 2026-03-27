@@ -211,6 +211,7 @@ fun BrowserScreen(
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
     onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
+    onNativeRequestResult: (Boolean) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
@@ -229,12 +230,7 @@ fun BrowserScreen(
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            when (state.pendingNativeAction) {
-                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmDelete()
-                null -> {}
-            }
-        }
+        onNativeRequestResult(result.resultCode == android.app.Activity.RESULT_OK)
     }
 
     LaunchedEffect(nativeRequestFlow) {

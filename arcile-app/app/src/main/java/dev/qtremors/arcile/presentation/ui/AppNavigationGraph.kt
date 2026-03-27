@@ -21,6 +21,7 @@ import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 
 @Composable
@@ -88,25 +89,7 @@ fun AppNavigationGraph(
                             }
                         },
                         onNavigateToSaf = { uriString ->
-                            try {
-                                val uri = android.net.Uri.parse(uriString)
-
-                                // directory MIME type, read permission flag, targeted at DocumentsUI
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
-                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
-                                    // Target the system DocumentsUI package
-                                    val packageInfos = context.packageManager.getPackagesHoldingPermissions(
-                                        arrayOf(android.Manifest.permission.MANAGE_DOCUMENTS), 0
-                                    )
-                                    val documentsUiPackage = packageInfos.firstOrNull { it.packageName.endsWith(".documentsui") }?.packageName
-                                        ?: packageInfos.firstOrNull()?.packageName
-                                    documentsUiPackage?.let { setPackage(it) }
-                                }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
+                            if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
                                 android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
                             }
                         },
@@ -191,6 +174,7 @@ fun AppNavigationGraph(
                         onResolvingConflicts = { viewModel.resolveConflicts(it) },
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
                         onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
+                        onNativeRequestResult = { confirmed -> viewModel.handleNativeActionResult(confirmed) },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -286,28 +270,18 @@ fun AppNavigationGraph(
                             }
                         },
                         onNavigateToSaf = { uriString ->
-                            try {
-                                val uri = android.net.Uri.parse(uriString)
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, android.provider.DocumentsContract.Document.MIME_TYPE_DIR)
-                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-
-                                    val packageInfos = context.packageManager.getPackagesHoldingPermissions(
-                                        arrayOf(android.Manifest.permission.MANAGE_DOCUMENTS), 0
-                                    )
-                                    val documentsUiPackage = packageInfos.firstOrNull { it.packageName.endsWith(".documentsui") }?.packageName
-                                        ?: packageInfos.firstOrNull()?.packageName
-                                    documentsUiPackage?.let { setPackage(it) }
-                                }
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
+                            ExternalFileAccessHelper.openInFilesApp(context, uriString)
                         },
                         onTogglePin = { viewModel.togglePin(it) },
                         onRemoveItem = { viewModel.removeCustomItem(it) },
                         onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
-                        onAddSafFolder = { uri, label -> viewModel.addSafFolder(uri, label) }
+                        onAddSafFolder = { uri, label ->
+                            if (label == "Android/data" || label == "Android/obb") {
+                                viewModel.addExternalHandoffFolder(uri, label)
+                            } else {
+                                viewModel.addSafFolder(uri, label)
+                            }
+                        }
                     )
                 }
             }

@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.5.3 | **Last Updated:** 2026-03-27
+**Version:** 0.5.4 | **Last Updated:** 2026-03-27
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -233,7 +233,7 @@ Arcile's interface is built on the cutting-edge **Material 3 Expressive** guidel
 - **Motion Physics:** Uses `spring()` over linear `tween()` animations to give cards and lists a bouncy, fluid feel.
 - **Morphing Fab:** The `ExpandableFabMenu` natively morphs its shape radius from an expressive squircle (16dp) to a perfect circle (28dp) when expanding its internal `ExtendedFloatingActionButton` options.
 - **Dynamic Colors:** `MaterialKolor` dynamically extracts visually compliant color palettes from user-selected accent themes (e.g., Cyan, Monochrome, OLED Dark).
-- **Internationalization (i18n):** Most shared UI strings are extracted to `res/values/strings.xml`, but some production hardcoded strings still remain and are tracked in `TASKS.md`. New UI text should always use string resources.
+- **Internationalization (i18n):** Audited production UI copy is extracted to `res/values/strings.xml`. New visible UI text should always use string resources, and `:app:checkProductionStrings` is available as a guardrail for the audited composables.
 
 ### Key UX Paradigms
 When adding new UI features, strictly adhere to these established paradigms:
@@ -329,7 +329,7 @@ When adding new UI features, strictly adhere to these established paradigms:
 ## Security Practices
 
 1. **Path Traversal Protection:** `validateFileName` middleware aggressively screens all file creations and renames for `../` escapes and null bytes.
-2. **FileProvider Exposure:** `file_provider_paths.xml` intentionally covers broad external roots so arbitrary user files can be opened and shared; changes here should be reviewed carefully because they affect both compatibility and URI exposure.
+2. **FileProvider Exposure:** `file_provider_paths.xml` is intentionally narrowed to staged cache handoff roots only. Outbound open/share URIs must go through the centralized allowlist and staging logic in `ExternalFileAccessHelper`.
 3. **Trash Indexing:** `.nomedia` files are automatically forced into the Trash directories so deleted photos don't accidentally appear in other Gallery apps.
 4. **Error Masking:** Network and disk I/O crashes are written to Android Logcat natively rather than silently dropped, but explicit path directories are masked from logs to protect user privacy.
 
@@ -440,9 +440,9 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-{versi
 
 | Component / Feature | Deliberate Weirdness | Rationalization |
 |---------------------|----------------------|-----------------|
-| `VariantOutputImpl` | Internal AGP API used in `androidComponents` block | This is a known build-tool workaround and remains a maintenance risk tracked in `TASKS.md`. |
 | Shared `.trash` storage | Trash lives on public roots rather than app-private `/data/` storage | Preserves trashed files across app uninstall, but it also carries privacy/security tradeoffs that remain under audit in `TASKS.md`. |
 | Robolectric Compose SDK pin | UI tests use `@Config(sdk = [35])` instead of tracking `compileSdk` directly | Keeps JVM UI tests stable while the app targets a newer SDK level than Robolectric fully supports. |
+| `android.disallowKotlinSourceSets=false` | Experimental AGP/KSP compatibility flag remains in `gradle.properties` | The current built-in Kotlin + KSP toolchain still requires it; removal is tracked in `TASKS.md` and should happen only once the upgrade path is verified. |
 
 ---
 
@@ -534,3 +534,8 @@ Examples: `feature/add-file-search`, `fix/permission-state-desync`
 <p align="center">
   <a href="README.md">← Back to README</a>
 </p>
+## Build Compatibility
+
+- Verified baseline: Gradle builds should rely only on supported AGP/Kotlin variant APIs in `arcile-app/app/build.gradle.kts`.
+- Run `./gradlew.bat :app:checkProductionStrings` before release prep when touching production composables with visible copy.
+- If future AGP/KSP upgrades require a new workaround, document the exact version pair and the removal condition next to the change instead of using an undocumented flag.

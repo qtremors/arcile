@@ -1,8 +1,37 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.3
+> **Version:** 0.5.4
 > **Last Updated:** 2026-03-27
+
+---
+
+## [0.5.4] - 2026-03-27
+
+### Reliability
+- **One-Shot Native Confirmations:** Browser native confirmation requests no longer replay stale `IntentSender` events after collector reattachment, and pending native actions are cleared as soon as the result is handled.
+- **Committed Browser Restore State:** Browser navigation persistence now writes the committed destination state after folder/category transitions so process recreation restores the target location instead of the previous one.
+- **Truthful Bulk Cancellation:** Foreground copy and move operations now cancel cooperatively through the worker pipeline, emit explicit cancelling/progress states, and only report cancellation after execution has actually stopped.
+
+### Security
+- **FileProvider Surface Narrowed:** Replaced broad filesystem `FileProvider` roots with a staged cache handoff model and centralized outbound allowlist validation, blocking cache, app-private, and `.arcile` paths from open/share flows.
+- **Unified External File Access:** Added `ExternalFileAccessHelper` so file opening, sharing, and Files-app handoff shortcuts all follow the same guarded external access rules.
+
+### UX
+- **Quick Access Handoff Modeling:** `Android/data` and `Android/obb` are now explicit external Files-app handoff entries with dedicated copy and visuals, clearly distinguishing them from folders Arcile can browse directly.
+- **Localization Sweep:** Extracted the remaining audited production UI strings from Quick Access, Storage Management, Recent Files, Trash, Home, and shared top bar/filter/sort components into `strings.xml`.
+
+### Performance
+- **Path Search Bounds:** Path-scoped browser search now uses bounded traversal with hidden-folder pruning and cancellation checkpoints instead of an unbounded `walkTopDown()` per query.
+
+### Build & Tooling
+- **Output API Cleanup:** Removed the internal `VariantOutputImpl` APK renaming dependency from the build, reducing upgrade risk around unsupported AGP APIs.
+- **Copy Guardrail:** Added a `checkProductionStrings` verification task to catch new hardcoded production copy in the audited composables.
+- **Compatibility Note:** The current AGP/KSP toolchain still requires `android.disallowKotlinSourceSets=false`; this remains documented as an upgrade gate rather than silently preserved.
+
+### Testing
+- **Browser Regression Coverage:** Added browser tests covering one-shot native confirmation delivery and committed navigation saved-state behavior.
+- **Interface Sync:** Updated repository and coordinator test doubles to cover the new bulk operation progress/cancellation contracts.
 
 ---
 

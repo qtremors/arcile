@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.domain
 
 import android.content.IntentSender
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -197,7 +198,12 @@ interface FileRepository {
      * @param destinationPath Absolute path of the target directory.
      * @param resolutions Per-file conflict resolutions keyed by source absolute path.
      */
-    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution> = emptyMap()): Result<Unit>
+    suspend fun copyFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution> = emptyMap(),
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit>
 
     /**
      * Moves files at [sourcePaths] to [destinationPath].
@@ -210,7 +216,12 @@ interface FileRepository {
      * @param destinationPath Absolute path of the target directory.
      * @param resolutions Per-file conflict resolutions keyed by source absolute path.
      */
-    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution> = emptyMap()): Result<Unit>
+    suspend fun moveFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution> = emptyMap(),
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit>
 
     // ─── Trash subsystem ─────────────────────────────────────────────────────
 

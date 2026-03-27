@@ -188,6 +188,7 @@ class NavigationDelegate(
 
     fun refresh(pullToRefresh: Boolean = false) {
         state.update { it.copy(isPullToRefreshing = pullToRefresh) }
+        saveNavState()
         when {
             state.value.isVolumeRootScreen -> openVolumeRoots()
             state.value.isCategoryScreen -> loadCategory(state.value.activeCategoryName, state.value.currentVolumeId)
@@ -209,7 +210,6 @@ class NavigationDelegate(
         if (clearHistory) {
             pathHistory.clear()
         }
-        saveNavState()
         state.update {
             it.copy(
                 isLoading = true,
@@ -221,6 +221,7 @@ class NavigationDelegate(
                 isVolumeRootScreen = false
             )
         }
+        saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             val sortOptionForPath = prefs.getSortOptionForPath(path)
@@ -248,7 +249,6 @@ class NavigationDelegate(
     }
 
     private fun loadCategory(categoryName: String, volumeId: String?) {
-        saveNavState()
         state.update {
             it.copy(
                 isLoading = true,
@@ -260,6 +260,7 @@ class NavigationDelegate(
                 selectedFiles = emptySet()
             )
         }
+        saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             val sortOptionForCategory = prefs.getSortOptionForCategory(categoryName)

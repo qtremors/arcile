@@ -18,6 +18,7 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.supportsTrash
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -121,16 +122,18 @@ class LocalFileRepository(
     override suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> =
-        fileSystemDataSource.copyFiles(sourcePaths, destinationPath, resolutions)
+        fileSystemDataSource.copyFiles(sourcePaths, destinationPath, resolutions, onProgress)
 
     override suspend fun moveFiles(
         sourcePaths: List<String>,
         destinationPath: String,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> =
-        fileSystemDataSource.moveFiles(sourcePaths, destinationPath, resolutions)
+        fileSystemDataSource.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
 
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> =
         trashManager.moveToTrash(paths)

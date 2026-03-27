@@ -35,6 +35,12 @@ class ClipboardDelegate(
                     is BulkFileOperationEvent.Started -> {
                         state.update { it.copy(isLoading = true, error = null) }
                     }
+                    is BulkFileOperationEvent.Progress -> {
+                        state.update { it.copy(isLoading = true, error = null) }
+                    }
+                    is BulkFileOperationEvent.Cancelling -> {
+                        state.update { it.copy(isLoading = true, error = null) }
+                    }
                     is BulkFileOperationEvent.Completed -> {
                         state.update { it.copy(isLoading = false, clipboardState = null) }
                         refreshAction()

@@ -81,7 +81,7 @@ fun QuickAccessGrid(
                         onClick = {
                             if (folder.id == "internal_all_files") {
                                 onOpenFileBrowser()
-                            } else if (folder.type == QuickAccessType.SAF_TREE) {
+                            } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF) {
                                 onNavigateToSaf(folder.path)
                             } else {
                                 onNavigateToPath(folder.path)

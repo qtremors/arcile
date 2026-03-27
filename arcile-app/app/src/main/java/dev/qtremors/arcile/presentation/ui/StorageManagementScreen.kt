@@ -77,7 +77,7 @@ fun StorageManagementScreen(
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text("Storage Management") },
+                title = { Text(stringResource(R.string.storage_management_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -104,12 +104,12 @@ fun StorageManagementScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
-                                text = "External storage defaults to temporary until you classify it.",
+                                text = stringResource(R.string.storage_management_intro_title),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "SD card volumes are indexed and use trash. OTG and unclassified volumes stay browsable only and deletions are permanent.",
+                                text = stringResource(R.string.storage_management_intro_body),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -121,8 +121,8 @@ fun StorageManagementScreen(
                     item {
                         EmptyState(
                             icon = Icons.Default.Storage,
-                            title = "No storage found",
-                            description = "No mounted storage volumes found on this device.",
+                            title = stringResource(R.string.storage_management_empty_title),
+                            description = stringResource(R.string.storage_management_empty_description),
                             modifier = Modifier.fillParentMaxSize()
                         )
                     }
@@ -190,10 +190,10 @@ private fun StorageManagementCard(
 
             Text(
                 text = when (volume.kind) {
-                    StorageKind.INTERNAL -> "Permanent device storage. Indexed and trash-enabled."
-                    StorageKind.SD_CARD -> "Permanent external storage. Indexed and trash-enabled."
-                    StorageKind.OTG -> "Temporary USB storage. Browsable only and deletions are permanent."
-                    StorageKind.EXTERNAL_UNCLASSIFIED -> "Temporary until classified. Browsable only and deletions are permanent."
+                    StorageKind.INTERNAL -> stringResource(R.string.storage_kind_internal_description)
+                    StorageKind.SD_CARD -> stringResource(R.string.storage_kind_sd_description)
+                    StorageKind.OTG -> stringResource(R.string.storage_kind_otg_description)
+                    StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.storage_kind_unclassified_description)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -205,14 +205,14 @@ private fun StorageManagementCard(
                     enabled = !volume.isPrimary && volume.kind != StorageKind.SD_CARD,
                     shape = CircleShape
                 ) {
-                    Text("Classify as SD")
+                    Text(stringResource(R.string.classify_as_sd))
                 }
                 TextButton(
                     onClick = { onSetVolumeClassification(volume.storageKey, StorageKind.OTG) },
                     enabled = !volume.isPrimary && volume.kind != StorageKind.OTG,
                     shape = CircleShape
                 ) {
-                    Text("Classify as OTG")
+                    Text(stringResource(R.string.classify_as_otg))
                 }
                 if (!volume.isPrimary) {
                     TextButton(
@@ -220,14 +220,14 @@ private fun StorageManagementCard(
                         enabled = volume.isUserClassified,
                         shape = CircleShape
                     ) {
-                        Text("Reset")
+                        Text(stringResource(R.string.reset))
                     }
                 }
             }
 
             if (volume.isUserClassified) {
                 Text(
-                    text = "User classification saved for this volume.",
+                    text = stringResource(R.string.storage_classification_saved),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable(enabled = false) {}
@@ -237,9 +237,10 @@ private fun StorageManagementCard(
     }
 }
 
+@Composable
 private fun storageKindLabel(kind: StorageKind): String = when (kind) {
-    StorageKind.INTERNAL -> "Internal"
-    StorageKind.SD_CARD -> "SD card"
-    StorageKind.OTG -> "OTG / USB"
-    StorageKind.EXTERNAL_UNCLASSIFIED -> "Unclassified"
+    StorageKind.INTERNAL -> stringResource(R.string.storage_kind_internal)
+    StorageKind.SD_CARD -> stringResource(R.string.storage_kind_sd)
+    StorageKind.OTG -> stringResource(R.string.storage_kind_otg)
+    StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.storage_kind_unclassified)
 }

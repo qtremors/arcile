@@ -22,9 +22,10 @@ import dev.qtremors.arcile.presentation.browser.delegate.SearchDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -79,7 +80,11 @@ class BrowserViewModel @Inject constructor(
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
 
-    private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>(replay = 1)
+    private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     private val searchDelegate = SearchDelegate(_state, viewModelScope, repository)
@@ -292,6 +297,16 @@ class BrowserViewModel @Inject constructor(
     fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
     fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
     fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
+
+    fun handleNativeActionResult(confirmed: Boolean) {
+        val pendingAction = _state.value.pendingNativeAction ?: return
+        _state.update { it.copy(pendingNativeAction = null) }
+        if (!confirmed) return
+
+        when (pendingAction) {
+            BrowserNativeAction.TRASH -> confirmDeleteSelected()
+        }
+    }
 
     fun renameFile(path: String, newName: String) {
         val invalidChars = listOf('/', '\\', '\u0000')

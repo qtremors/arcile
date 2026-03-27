@@ -266,8 +266,8 @@ private class HomeFakeFileRepository(
     }
 
     override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.failure(NotImplementedError())
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.failure(NotImplementedError())
+    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.failure(NotImplementedError())
+    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())

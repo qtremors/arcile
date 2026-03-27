@@ -27,6 +27,34 @@ class QuickAccessPreferencesRepository @Inject constructor(
 
     private val json = Json { ignoreUnknownKeys = true }
 
+    private fun createExternalHandoffItem(id: String, label: String, relativeDocPath: String) = QuickAccessItem(
+        id = id,
+        label = label,
+        path = buildAndroidTreeUri(relativeDocPath),
+        type = QuickAccessType.EXTERNAL_HANDOFF,
+        handoffDescription = "Opens in the Android Files app due to platform restrictions.",
+        isPinned = false,
+        isEnabled = true
+    )
+
+    private fun buildAndroidTreeUri(relativeDocPath: String): String {
+        val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(
+            "com.android.externalstorage.documents",
+            "primary"
+        )
+        return android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, "primary:$relativeDocPath").toString()
+    }
+
+    private fun migrateStoredItem(item: QuickAccessItem): QuickAccessItem {
+        if (item.type == QuickAccessType.SAF_TREE && (item.label == "Android/data" || item.label == "Android/obb")) {
+            return item.copy(
+                type = QuickAccessType.EXTERNAL_HANDOFF,
+                handoffDescription = "Opens in the Android Files app due to platform restrictions."
+            )
+        }
+        return item
+    }
+
     private val defaultItems: List<QuickAccessItem> by lazy {
         val root = Environment.getExternalStorageDirectory()
         listOf(
@@ -77,6 +105,16 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 type = QuickAccessType.STANDARD,
                 isPinned = false,
                 isEnabled = true
+            ),
+            createExternalHandoffItem(
+                id = "handoff_android_data",
+                label = "Android/data",
+                relativeDocPath = "Android/data"
+            ),
+            createExternalHandoffItem(
+                id = "handoff_android_obb",
+                label = "Android/obb",
+                relativeDocPath = "Android/obb"
             )
         )
     }
@@ -87,7 +125,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             defaultItems
         } else {
             try {
-                val storedItems = json.decodeFromString<List<QuickAccessItem>>(serialized)
+                val storedItems = json.decodeFromString<List<QuickAccessItem>>(serialized).map(::migrateStoredItem)
                 val merged = defaultItems.map { defaultItem ->
                     storedItems.find { it.id == defaultItem.id } ?: defaultItem
                 } + storedItems.filter { it.type != QuickAccessType.STANDARD }
@@ -111,7 +149,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 defaultItems
             } else {
                 try {
-                    json.decodeFromString<List<QuickAccessItem>>(currentStr)
+                    json.decodeFromString<List<QuickAccessItem>>(currentStr).map(::migrateStoredItem)
                 } catch (e: Exception) {
                     defaultItems
                 }

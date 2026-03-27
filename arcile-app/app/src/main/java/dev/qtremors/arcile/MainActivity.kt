@@ -15,17 +15,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
+import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.utils.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
 import kotlinx.coroutines.launch
-import java.io.File
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -101,26 +100,11 @@ class MainActivity : ComponentActivity() {
     // open a file via Intent.ACTION_VIEW using FileProvider
     private fun openFile(path: String) {
         try {
-            val file = File(path)
-            val canonicalPath = file.canonicalPath
-            if (canonicalPath.contains("/.arcile") || canonicalPath.startsWith(cacheDir.canonicalPath)) {
+            if (!ExternalFileAccessHelper.isAllowedUserFile(this, java.io.File(path))) {
                 Toast.makeText(this, "Cannot open sensitive files", Toast.LENGTH_SHORT).show()
                 return
             }
-            val uri = FileProvider.getUriForFile(
-                this,
-                "${applicationContext.packageName}.fileprovider",
-                file
-            )
-            val mimeType = MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(file.extension.lowercase())
-                ?: "*/*"
-
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mimeType)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(intent)
+            startActivity(ExternalFileAccessHelper.createOpenIntent(this, path))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e("Arcile", "Failed to open file", e)

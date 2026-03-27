@@ -127,7 +127,7 @@ fun SortOptionDialog(
                         checked = applyToSubfolders,
                         onCheckedChange = null // Handled by Row click
                     )
-                    Text("Apply to this folder and subfolders", style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.apply_to_folder_and_subfolders), style = MaterialTheme.typography.bodyLarge)
                 }
             }
             
@@ -145,7 +145,7 @@ fun SortOptionDialog(
                     onOptionSelected(tempSelectedOption, applyToSubfolders)
                     onDismiss()
                 }) {
-                    Text("Apply")
+                    Text(stringResource(R.string.apply))
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))

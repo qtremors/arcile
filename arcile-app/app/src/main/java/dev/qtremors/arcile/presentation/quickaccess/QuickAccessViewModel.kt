@@ -86,4 +86,19 @@ class QuickAccessViewModel @Inject constructor(
             quickAccessRepository.addItem(newItem)
         }
     }
+
+    fun addExternalHandoffFolder(uriString: String, label: String) {
+        viewModelScope.launch {
+            val newItem = QuickAccessItem(
+                id = "handoff_${UUID.randomUUID()}",
+                label = label,
+                path = uriString,
+                type = QuickAccessType.EXTERNAL_HANDOFF,
+                handoffDescription = "Opens in the Android Files app due to platform restrictions.",
+                isPinned = true,
+                isEnabled = true
+            )
+            quickAccessRepository.addItem(newItem)
+        }
+    }
 }

@@ -14,6 +14,8 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.utils.AppLogger
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -46,6 +48,11 @@ class DefaultMediaStoreClient(
     private val context: Context,
     private val volumeProvider: VolumeProvider
 ) : MediaStoreClient {
+    private companion object {
+        const val MAX_PATH_SEARCH_RESULTS = 1000
+        const val MAX_PATH_SEARCH_NODES = 10_000
+        const val PATH_SEARCH_CANCELLATION_GRANULARITY = 32
+    }
 
     private val appContext = context.applicationContext
     private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
@@ -493,19 +500,41 @@ class DefaultMediaStoreClient(
             
             if (scope is StorageScope.Path) {
                 val rootDir = File(scope.absolutePath)
-                // Assuming path is valid
                 if (rootDir.exists() && rootDir.isDirectory) {
-                    rootDir.walkTopDown()
-                        .onEnter { dir ->
-                            !dir.name.startsWith(".") && matchesScope(dir.absolutePath, scope, volumes)
+                    val pending = ArrayDeque<File>()
+                    pending.add(rootDir)
+                    var visitedNodes = 0
+
+                    while (pending.isNotEmpty() && filesList.size < MAX_PATH_SEARCH_RESULTS && visitedNodes < MAX_PATH_SEARCH_NODES) {
+                        currentCoroutineContext().ensureActive()
+                        val current = pending.removeFirst()
+                        visitedNodes += 1
+
+                        if (visitedNodes % PATH_SEARCH_CANCELLATION_GRANULARITY == 0) {
+                            currentCoroutineContext().ensureActive()
                         }
-                        .filter { file ->
-                            file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")
+
+                        if (!matchesScope(current.absolutePath, scope, volumes) || (current != rootDir && current.name.startsWith("."))) {
+                            continue
                         }
-                        .take(1000)
-                        .forEach { file ->
-                            filesList.add(file.toFileModel())
+
+                        if (current != rootDir && current.name.contains(query, ignoreCase = true) && !current.name.startsWith(".")) {
+                            filesList.add(current.toFileModel())
+                            if (filesList.size >= MAX_PATH_SEARCH_RESULTS) {
+                                break
+                            }
                         }
+
+                        if (current.isDirectory) {
+                            current.listFiles()
+                                ?.asSequence()
+                                ?.filterNot { it.name.startsWith(".") }
+                                ?.sortedBy { !it.isDirectory }
+                                ?.forEach { child ->
+                                    pending.addLast(child)
+                                }
+                        }
+                    }
                 }
             } else {
                 val uri = MediaStore.Files.getContentUri("external")

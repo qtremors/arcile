@@ -7,8 +7,13 @@ import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
 import java.io.File
 
 interface FileSystemDataSource {
@@ -19,8 +24,8 @@ interface FileSystemDataSource {
     suspend fun deletePermanently(paths: List<String>): Result<Unit>
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>>
-    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit>
-    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit>
+    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
+    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
 }
 
 class DefaultFileSystemDataSource(
@@ -75,6 +80,75 @@ class DefaultFileSystemDataSource(
         mediaStoreClient.invalidateCache(*paths)
         volumeProvider.invalidateCache()
         scanMediaFiles(*paths)
+    }
+
+    private suspend fun ensureOperationActive() {
+        currentCoroutineContext().ensureActive()
+    }
+
+    private suspend fun copyFileCancellable(source: File, target: File, overwrite: Boolean) {
+        ensureOperationActive()
+        target.parentFile?.mkdirs()
+        if (target.exists()) {
+            if (!overwrite) {
+                throw IllegalStateException("Target already exists: ${target.name}")
+            }
+            if (target.isDirectory) {
+                target.deleteRecursively()
+            } else if (!target.delete()) {
+                throw IllegalStateException("Failed to replace existing target: ${target.name}")
+            }
+        }
+
+        BufferedInputStream(source.inputStream()).use { input ->
+            BufferedOutputStream(target.outputStream()).use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    ensureOperationActive()
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                }
+            }
+        }
+        target.setLastModified(source.lastModified())
+    }
+
+    private suspend fun copyDirectoryCancellable(source: File, target: File, overwrite: Boolean) {
+        ensureOperationActive()
+        if (target.exists()) {
+            if (!overwrite && !target.isDirectory) {
+                throw IllegalStateException("Target already exists and is not a directory: ${target.name}")
+            }
+        } else if (!target.mkdirs()) {
+            throw IllegalStateException("Failed to create directory: ${target.absolutePath}")
+        }
+
+        source.listFiles()?.forEach { child ->
+            ensureOperationActive()
+            val childTarget = File(target, child.name)
+            if (child.isDirectory) {
+                copyDirectoryCancellable(child, childTarget, overwrite)
+            } else {
+                copyFileCancellable(child, childTarget, overwrite)
+            }
+        }
+        target.setLastModified(source.lastModified())
+    }
+
+    private suspend fun emitProgress(
+        onProgress: ((BulkFileOperationProgress) -> Unit)?,
+        completedItems: Int,
+        totalItems: Int,
+        currentPath: String
+    ) {
+        onProgress?.invoke(
+            BulkFileOperationProgress(
+                completedItems = completedItems,
+                totalItems = totalItems,
+                currentPath = currentPath
+            )
+        )
     }
 
     override fun getStandardFolders(): Map<String, String?> {
@@ -270,7 +344,8 @@ class DefaultFileSystemDataSource(
     override suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val destDir = File(destinationPath)
@@ -281,7 +356,10 @@ class DefaultFileSystemDataSource(
             }
 
             val scannedPaths = mutableListOf<String>()
+            val totalItems = sourcePaths.size.coerceAtLeast(1)
+            var completedItems = 0
             for (path in sourcePaths) {
+                ensureOperationActive()
                 val sourceFile = File(path)
                 validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
 
@@ -321,11 +399,13 @@ class DefaultFileSystemDataSource(
 
                 val overwrite = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
                 if (sourceFile.isDirectory) {
-                    sourceFile.copyRecursively(targetFile, overwrite = overwrite)
+                    copyDirectoryCancellable(sourceFile, targetFile, overwrite = overwrite)
                 } else {
-                    sourceFile.copyTo(targetFile, overwrite = overwrite)
+                    copyFileCancellable(sourceFile, targetFile, overwrite = overwrite)
                 }
                 scannedPaths.add(targetFile.absolutePath)
+                completedItems += 1
+                emitProgress(onProgress, completedItems, totalItems, targetFile.absolutePath)
             }
             finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
@@ -342,7 +422,8 @@ class DefaultFileSystemDataSource(
     override suspend fun moveFiles(
         sourcePaths: List<String>,
         destinationPath: String,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val destDir = File(destinationPath)
@@ -353,7 +434,10 @@ class DefaultFileSystemDataSource(
             }
 
             val scannedPaths = mutableListOf<String>()
+            val totalItems = sourcePaths.size.coerceAtLeast(1)
+            var completedItems = 0
             for (path in sourcePaths) {
+                ensureOperationActive()
                 val sourceFile = File(path)
                 validatePath(sourceFile).onFailure { return@withContext Result.failure(it) }
 
@@ -394,13 +478,15 @@ class DefaultFileSystemDataSource(
                     val overwrite = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
                     try {
                         if (sourceFile.isDirectory) {
-                            sourceFile.copyRecursively(targetFile, overwrite = overwrite)
+                            copyDirectoryCancellable(sourceFile, targetFile, overwrite = overwrite)
+                            ensureOperationActive()
                             if (!sourceFile.deleteRecursively()) {
                                 targetFile.deleteRecursively()
                                 return@withContext Result.failure(Exception("Failed to delete source directory after copy"))
                             }
                         } else {
-                            sourceFile.copyTo(targetFile, overwrite = overwrite)
+                            copyFileCancellable(sourceFile, targetFile, overwrite = overwrite)
+                            ensureOperationActive()
                             if (!sourceFile.delete()) {
                                 targetFile.delete()
                                 return@withContext Result.failure(Exception("Failed to delete source file after copy"))
@@ -417,6 +503,8 @@ class DefaultFileSystemDataSource(
                 }
                 scannedPaths.add(sourceFile.absolutePath)
                 scannedPaths.add(targetFile.absolutePath)
+                completedItems += 1
+                emitProgress(onProgress, completedItems, totalItems, targetFile.absolutePath)
             }
             finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)

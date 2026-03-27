@@ -83,7 +83,7 @@ fun ArcileTopBar(
         scrollBehavior = scrollBehavior,
         title = {
             Text(
-                text = if (selectionCount > 0) "$selectionCount selected" else title,
+                text = if (selectionCount > 0) stringResource(R.string.selected_count, selectionCount) else title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -145,7 +145,7 @@ fun ArcileTopBar(
                 ) {
                     if (showNewFolderAction) {
                         DropdownMenuItem(
-                            text = { Text("New Folder") },
+                            text = { Text(stringResource(R.string.new_folder)) },
                             leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
                             onClick = {
                                 showMenu = false
@@ -155,7 +155,7 @@ fun ArcileTopBar(
                     }
                     if (showPinAction) {
                         DropdownMenuItem(
-                            text = { Text("Pin to Quick Access") },
+                            text = { Text(stringResource(R.string.pin_to_quick_access)) },
                             leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
                             onClick = {
                                 showMenu = false
@@ -165,7 +165,7 @@ fun ArcileTopBar(
                     }
                     if (showSettingsMenuAction) {
                         DropdownMenuItem(
-                            text = { Text("Settings") },
+                            text = { Text(stringResource(R.string.settings_title)) },
                             leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                             onClick = {
                                 showMenu = false
@@ -175,7 +175,7 @@ fun ArcileTopBar(
                     }
                     if (showAboutAction) {
                         DropdownMenuItem(
-                            text = { Text("About") },
+                            text = { Text(stringResource(R.string.about_title)) },
                             leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                             onClick = {
                                 showMenu = false
@@ -185,7 +185,7 @@ fun ArcileTopBar(
                     }
                     if (showGridViewAction) {
                         DropdownMenuItem(
-                            text = { Text(if (isGridView) "List View" else "Grid View") },
+                            text = { Text(if (isGridView) stringResource(R.string.list_view) else stringResource(R.string.grid_view)) },
                             leadingIcon = {
                                 Icon(
                                     if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
@@ -211,7 +211,7 @@ fun ArcileTopBar(
                             Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.SelectAll) }) {
-                            Icon(Icons.Default.SelectAll, contentDescription = "Select All")
+                            Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.Copy) }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))

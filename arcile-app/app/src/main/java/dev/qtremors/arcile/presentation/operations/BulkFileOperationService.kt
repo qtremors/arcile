@@ -12,6 +12,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,15 +34,15 @@ class BulkFileOperationService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
+    private var currentOperationJob: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_CANCEL -> {
-                coordinator.onOperationCancelled(currentRequest)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                currentRequest?.let { coordinator.onOperationCancelling(it) }
+                currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
                 return START_NOT_STICKY
             }
             ACTION_START -> {
@@ -49,28 +50,39 @@ class BulkFileOperationService : Service() {
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
                 startForeground(NOTIFICATION_ID, buildNotification(request))
-                serviceScope.launch {
-                    val result = when (request.type) {
-                        BulkFileOperationType.COPY -> repository.copyFiles(
-                            request.sourcePaths,
-                            request.destinationPath,
-                            request.resolutions
-                        )
-                        BulkFileOperationType.MOVE -> repository.moveFiles(
-                            request.sourcePaths,
-                            request.destinationPath,
-                            request.resolutions
-                        )
-                    }
+                currentOperationJob = serviceScope.launch {
+                    try {
+                        val result = when (request.type) {
+                            BulkFileOperationType.COPY -> repository.copyFiles(
+                                request.sourcePaths,
+                                request.destinationPath,
+                                request.resolutions
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                            }
+                            BulkFileOperationType.MOVE -> repository.moveFiles(
+                                request.sourcePaths,
+                                request.destinationPath,
+                                request.resolutions
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                            }
+                        }
 
-                    result.onSuccess {
-                        coordinator.onOperationCompleted(request)
-                    }.onFailure { error ->
-                        if (error is CancellationException) throw error
-                        coordinator.onOperationFailed(request, error.message ?: "File operation failed")
+                        result.onSuccess {
+                            coordinator.onOperationCompleted(request)
+                        }.onFailure { error ->
+                            if (error is CancellationException) throw error
+                            coordinator.onOperationFailed(request, error.message ?: "File operation failed")
+                        }
+                    } catch (_: CancellationException) {
+                        coordinator.onOperationCancelled(request)
+                    } finally {
+                        currentRequest = null
+                        currentOperationJob = null
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf(startId)
                     }
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf(startId)
                 }
             }
         }

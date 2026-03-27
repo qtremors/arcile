@@ -29,6 +29,8 @@ interface BulkFileOperationCoordinator {
     ): Boolean
 
     fun cancelActiveOperation()
+    fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress)
+    fun onOperationCancelling(request: BulkFileOperationRequest)
     fun onOperationCompleted(request: BulkFileOperationRequest)
     fun onOperationFailed(request: BulkFileOperationRequest, message: String)
     fun onOperationCancelled(request: BulkFileOperationRequest?)
@@ -72,10 +74,25 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     }
 
     override fun cancelActiveOperation() {
+        _activeRequest.value?.let { request ->
+            _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
+        }
         val intent = Intent(context, BulkFileOperationService::class.java).apply {
             action = BulkFileOperationService.ACTION_CANCEL
         }
         context.startService(intent)
+    }
+
+    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+        if (_activeRequest.value?.operationId == request.operationId) {
+            _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
+        }
+    }
+
+    override fun onOperationCancelling(request: BulkFileOperationRequest) {
+        if (_activeRequest.value?.operationId == request.operationId) {
+            _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
+        }
     }
 
     override fun onOperationCompleted(request: BulkFileOperationRequest) {

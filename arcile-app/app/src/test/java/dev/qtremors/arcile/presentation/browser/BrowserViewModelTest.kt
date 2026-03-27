@@ -22,6 +22,7 @@ import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.FileSortOption
@@ -30,9 +31,12 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -236,6 +240,63 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun `native confirmation requests are not replayed and pending action clears after handling`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            moveToTrashResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+        val firstEvent = async { viewModel.nativeRequestFlow.first() }
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
+        viewModel.moveSelectedToTrash()
+        advanceUntilIdle()
+
+        assertNotNull(firstEvent.await())
+        assertNull(withTimeoutOrNull(50) { viewModel.nativeRequestFlow.first() })
+        viewModel.handleNativeActionResult(confirmed = false)
+        assertNull(viewModel.state.value.pendingNativeAction)
+    }
+
+    @Test
+    fun `navigation state saves committed destination`() = runTest(mainDispatcherRule.dispatcher) {
+        val savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
+                filesByCategory = mapOf("Images" to emptyList())
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = savedStateHandle
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", savedStateHandle.get<String>("currentPath"))
+        assertEquals("primary", savedStateHandle.get<String>("currentVolumeId"))
+        assertEquals(false, savedStateHandle.get<Boolean>("isCategoryScreen"))
+
+        viewModel.navigateToCategory("Images", "primary")
+        advanceUntilIdle()
+
+        assertEquals(true, savedStateHandle.get<Boolean>("isCategoryScreen"))
+        assertEquals("Images", savedStateHandle.get<String>("activeCategoryName"))
+        assertEquals("primary", savedStateHandle.get<String>("currentVolumeId"))
+    }
+
+    @Test
     fun `updateBrowserSortOption persists category sort key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val preferences = FakeBrowserPreferencesStore()
@@ -370,8 +431,8 @@ private class BrowserFakeFileRepository(
         lastConflictDestination = destinationPath
         return conflictsResult
     }
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.success(Unit)
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.success(Unit)
+    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.success(Unit)
+    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.success(Unit)
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = moveToTrashResult
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.failure(NotImplementedError())
     override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
@@ -401,6 +462,14 @@ private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         val request = _activeRequest.value
         _activeRequest.value = null
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
+    }
+
+    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+        _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
+    }
+
+    override fun onOperationCancelling(request: BulkFileOperationRequest) {
+        _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
     }
 
     override fun onOperationCompleted(request: BulkFileOperationRequest) {

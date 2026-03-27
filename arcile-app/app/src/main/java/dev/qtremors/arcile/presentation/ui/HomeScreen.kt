@@ -387,11 +387,11 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "Quick Access", // Use string resource in the future if needed
+                                text = stringResource(R.string.quick_access),
                                 style = MaterialTheme.typography.titleMediumBold
                             )
                             TextButton(onClick = onNavigateToQuickAccess) {
-                                Text("Manage")
+                                Text(stringResource(R.string.manage))
                             }
                         }
                     }

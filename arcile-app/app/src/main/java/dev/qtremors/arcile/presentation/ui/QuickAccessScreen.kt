@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderSpecial
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
@@ -54,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.QuickAccessItem
 import dev.qtremors.arcile.domain.QuickAccessType
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessState
@@ -77,6 +80,14 @@ fun QuickAccessScreen(
     var tempPath by remember { mutableStateOf("") }
     var tempLabel by remember { mutableStateOf("") }
 
+    fun buildRestrictedFolderUri(relativeDocPath: String): String {
+        val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(
+            "com.android.externalstorage.documents",
+            "primary"
+        )
+        return android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, "primary:$relativeDocPath").toString()
+    }
+
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
@@ -95,13 +106,13 @@ fun QuickAccessScreen(
     if (showCustomDialog) {
         AlertDialog(
             onDismissRequest = { showCustomDialog = false },
-            title = { Text("Add Custom Folder") },
+            title = { Text(stringResource(R.string.quick_access_add_custom_title)) },
             text = {
                 Column {
                     OutlinedTextField(
                         value = tempLabel,
                         onValueChange = { tempLabel = it },
-                        label = { Text("Label (e.g. Projects)") },
+                        label = { Text(stringResource(R.string.quick_access_label_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -109,7 +120,7 @@ fun QuickAccessScreen(
                     OutlinedTextField(
                         value = tempPath,
                         onValueChange = { tempPath = it },
-                        label = { Text("Absolute Path") },
+                        label = { Text(stringResource(R.string.quick_access_path_hint)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -124,11 +135,11 @@ fun QuickAccessScreen(
                         }
                     }
                 ) {
-                    Text("Add")
+                    Text(stringResource(R.string.add))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCustomDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showCustomDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -136,10 +147,10 @@ fun QuickAccessScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Manage Quick Access") },
+                title = { Text(stringResource(R.string.quick_access_manage_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
             )
@@ -153,7 +164,7 @@ fun QuickAccessScreen(
                         fabIconRotation = fabIconRotation,
                         items = listOf(
                             FabMenuItem(
-                                label = "Select Folder",
+                                label = stringResource(R.string.select_folder),
                                 icon = Icons.Default.FolderOpen,
                                 onClick = {
                                     isFabExpanded = false
@@ -161,7 +172,7 @@ fun QuickAccessScreen(
                                 }
                             ),
                             FabMenuItem(
-                                label = "Add Custom Path",
+                                label = stringResource(R.string.add_custom_path),
                                 icon = Icons.Default.Add,
                                 onClick = {
                                     isFabExpanded = false
@@ -171,23 +182,19 @@ fun QuickAccessScreen(
                                 }
                             ),
                             FabMenuItem(
-                                label = "Add Android/data",
+                                label = stringResource(R.string.add_android_data),
                                 icon = Icons.Default.FolderSpecial,
                                 onClick = {
                                     isFabExpanded = false
-                                    val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri("com.android.externalstorage.documents", "primary")
-                                    val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, "primary:Android/data")
-                                    onAddSafFolder(docUri.toString(), "Android/data")
+                                    onAddSafFolder(buildRestrictedFolderUri("Android/data"), "Android/data")
                                 }
                             ),
                             FabMenuItem(
-                                label = "Add Android/obb",
+                                label = stringResource(R.string.add_android_obb),
                                 icon = Icons.Default.FolderSpecial,
                                 onClick = {
                                     isFabExpanded = false
-                                    val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri("com.android.externalstorage.documents", "primary")
-                                    val docUri = android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, "primary:Android/obb")
-                                    onAddSafFolder(docUri.toString(), "Android/obb")
+                                    onAddSafFolder(buildRestrictedFolderUri("Android/obb"), "Android/obb")
                                 }
                             )
                         )
@@ -207,9 +214,10 @@ fun QuickAccessScreen(
                 val systemFolders = state.items.filter { it.type == QuickAccessType.STANDARD }
                 val customFolders = state.items.filter { it.type == QuickAccessType.CUSTOM }
                 val scopedFolders = state.items.filter { it.type == QuickAccessType.SAF_TREE }
+                val handoffFolders = state.items.filter { it.type == QuickAccessType.EXTERNAL_HANDOFF }
 
                 if (systemFolders.isNotEmpty()) {
-                    item { SectionHeader("System Folders") }
+                    item { SectionHeader(stringResource(R.string.quick_access_section_system)) }
                     items(systemFolders, key = { it.id }) { item ->
                         QuickAccessListItem(
                             item = item,
@@ -221,7 +229,7 @@ fun QuickAccessScreen(
                 }
 
                 if (customFolders.isNotEmpty()) {
-                    item { SectionHeader("Custom Folders") }
+                    item { SectionHeader(stringResource(R.string.quick_access_section_custom)) }
                     items(customFolders, key = { it.id }) { item ->
                         QuickAccessListItem(
                             item = item,
@@ -233,8 +241,20 @@ fun QuickAccessScreen(
                 }
 
                 if (scopedFolders.isNotEmpty()) {
-                    item { SectionHeader("Scoped Storage") }
+                    item { SectionHeader(stringResource(R.string.quick_access_section_scoped)) }
                     items(scopedFolders, key = { it.id }) { item ->
+                        QuickAccessListItem(
+                            item = item,
+                            onNavigate = { onNavigateToSaf(item.path) },
+                            onTogglePin = { onTogglePin(item) },
+                            onRemove = { onRemoveItem(item) }
+                        )
+                    }
+                }
+
+                if (handoffFolders.isNotEmpty()) {
+                    item { SectionHeader(stringResource(R.string.quick_access_section_handoff)) }
+                    items(handoffFolders, key = { it.id }) { item ->
                         QuickAccessListItem(
                             item = item,
                             onNavigate = { onNavigateToSaf(item.path) },
@@ -292,8 +312,8 @@ fun QuickAccessListItem(
     if (showRemoveDialog) {
         AlertDialog(
             onDismissRequest = { showRemoveDialog = false },
-            title = { Text("Remove Folder") },
-            text = { Text("Are you sure you want to remove '${item.label}' from Quick Access?") },
+            title = { Text(stringResource(R.string.quick_access_remove_title)) },
+            text = { Text(stringResource(R.string.quick_access_remove_message, item.label)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -301,11 +321,11 @@ fun QuickAccessListItem(
                         showRemoveDialog = false
                     }
                 ) {
-                    Text("Remove")
+                    Text(stringResource(R.string.remove))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRemoveDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { showRemoveDialog = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -336,7 +356,11 @@ fun QuickAccessListItem(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = if (item.type == QuickAccessType.SAF_TREE) Icons.Default.FolderSpecial else Icons.Default.Folder,
+                            imageVector = when (item.type) {
+                                QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
+                                QuickAccessType.EXTERNAL_HANDOFF -> Icons.Default.OpenInNew
+                                else -> Icons.Default.Folder
+                            },
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(24.dp)
@@ -353,7 +377,7 @@ fun QuickAccessListItem(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (item.type == QuickAccessType.SAF_TREE) "Scoped Android Data" else item.path,
+                        text = item.handoffDescription ?: if (item.type == QuickAccessType.SAF_TREE) stringResource(R.string.quick_access_scoped_description) else item.path,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -378,7 +402,7 @@ fun QuickAccessListItem(
                 IconButton(onClick = onTogglePin) {
                     Icon(
                         imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = "Toggle Pin",
+                        contentDescription = stringResource(R.string.toggle_pin),
                         tint = if (item.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -387,7 +411,7 @@ fun QuickAccessListItem(
                     IconButton(onClick = { showRemoveDialog = true }) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Remove",
+                            contentDescription = stringResource(R.string.remove),
                             tint = MaterialTheme.colorScheme.error
                         )
                     }

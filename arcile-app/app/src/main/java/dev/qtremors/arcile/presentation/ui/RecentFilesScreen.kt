@@ -78,6 +78,8 @@ fun RecentFilesScreen(
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
+    val todayLabel = stringResource(R.string.today)
+    val yesterdayLabel = stringResource(R.string.yesterday)
 
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
@@ -144,7 +146,7 @@ fun RecentFilesScreen(
                         showSearchBar = false
                         onClearSearch()
                     },
-                    placeholder = "Search recent files..."
+                    placeholder = stringResource(R.string.search_recent_files_placeholder)
                 )
             } else {
                 TopAppBar(
@@ -212,15 +214,15 @@ fun RecentFilesScreen(
             } else {
                 val filesToDisplay = if (showSearchBar) state.searchResults else state.recentFiles
                 val groupFormat = rememberDateFormatter("EEEE, MMM dd")
-                val groupedFiles = remember(filesToDisplay, showSearchBar, state.todayStart, state.yesterdayStart, groupFormat) {
+                val groupedFiles = remember(filesToDisplay, showSearchBar, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
                 if (showSearchBar) {
                     // Don't group search results by date, just show flat
                     mapOf("" to filesToDisplay)
                 } else {
                     filesToDisplay.groupBy { file ->
                         when {
-                            file.lastModified >= state.todayStart -> "Today"
-                            file.lastModified >= state.yesterdayStart -> "Yesterday"
+                            file.lastModified >= state.todayStart -> todayLabel
+                            file.lastModified >= state.yesterdayStart -> yesterdayLabel
                             else -> groupFormat.format(Date(file.lastModified))
                         }
                     }

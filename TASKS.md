@@ -1,67 +1,10 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.5.3
+> **Version:** 0.5.4
 > **Last Updated:** 2026-03-27
 
 ---
-
-### Security & Privacy
-
-- [x] [Severity: Critical] [Category: Security] **FileProvider paths are incomplete — opening/sharing most files crashes**
-  - Location: `res/xml/file_provider_paths.xml`, `MainActivity.kt` line 110, `ShareHelper.kt` line 23
-  - Problem: `file_provider_paths.xml` only declares 11 specific `<external-path>` entries (Downloads, Documents, Pictures, etc.). Any file outside these directories throws `IllegalArgumentException` when `FileProvider.getUriForFile()` is called — crashing share and silently failing open.
-  - Impact: Opening or sharing any file outside the 11 hardcoded directories fails. For a file manager, this affects the majority of user files.
-  - Fix: Add `<external-path name="external_root" path="." />` and `<root-path name="all_files" path="." />` to cover all external storage and mounted volumes.
-  - Verification: Open and share a file from the root of internal storage or from an SD card — should succeed without crash.
-
-- [x] [Severity: High] [Category: Security] **`.gitignore` has corrupted UTF-16 bytes — `signing.properties` may not be ignored**
-  - Location: `.gitignore` line 62-63, `arcile-app/.gitignore` line 16-17
-  - Problem: Both `.gitignore` files have the `signing.properties` pattern encoded in UTF-16LE with null bytes, which git cannot interpret. If `signing.properties` is created, it would be tracked and potentially committed with keystore passwords.
-  - Impact: Risk of signing credential exposure if `signing.properties` is ever created.
-  - Fix: Replace the corrupted lines with proper ASCII: `signing.properties`.
-  - Verification: `echo "test" > signing.properties && git status` should show the file as ignored.
-
-- [x] [Severity: Medium] [Category: Security] **Log statements in release builds expose internal paths and error details**
-  - Location: `TrashManager.kt` (19 log calls), `MediaStoreClient.kt` (7 log calls), `StorageClassificationRepository.kt` (2 log calls), `ShareHelper.kt`, `MainActivity.kt`
-  - Problem: ~30 `android.util.Log.e/w` calls exist throughout the data layer, including file paths, volume names, trash IDs, and crypto state. These are present in release builds.
-  - Impact: Any user with logcat access can see internal file paths and operational details.
-  - Fix: Wrap all log calls in `if (BuildConfig.DEBUG)` guards, or use a logging abstraction that strips in release.
-  - Verification: Build release APK, reproduce a trash operation, and verify no sensitive output in logcat.
-
-### Correctness & Reliability
-
-- [x] [Severity: Medium] [Category: Correctness] **`TrashManager.restoreFromTrash` doesn't verify copy success before deleting source on cross-volume fallback**
-  - Location: `data/manager/TrashManager.kt` lines 398-407
-  - Problem: In the fallback path (when `renameTo` fails), `copyRecursively` then `deleteRecursively` are called, but the delete return value is not checked and the copy is not verified before deletion.
-  - Impact: Potential for duplicate files or data left in trash after a failed cross-volume restore.
-  - Fix: Check `deleteRecursively()` return value and verify target file existence/size before deleting source.
-  - Verification: Force a cross-filesystem restore and simulate a delete failure.
-
-- [x] [Severity: Medium] [Category: Correctness] **`VolumeProvider.discoverPlatformVolumes` caches volumes permanently — `StatFs` values become stale**
-  - Location: `data/provider/VolumeProvider.kt` lines 50-52
-  - Problem: `discoverPlatformVolumes()` returns cached data if non-null. The cache is only cleared on media mount/unmount broadcasts, but never after file operations. Free space reporting becomes increasingly inaccurate.
-  - Impact: Storage dashboard shows stale free space. After delete/copy operations, storage info does not refresh.
-  - Fix: Invalidate the cache after file operations, or add a short TTL, or recalculate `StatFs` values independently.
-  - Verification: Delete a large file, navigate to home dashboard, and verify free space updates.
-
-### Performance & Efficiency
-
-- [x] [Severity: Medium] [Category: Performance] **Limit `detectCopyConflicts` recursive directory walk**
-  - Location: `data/source/FileSystemDataSource.kt` lines 258-274
-  - Problem: For conflicting directories, walks the entire source tree checking each descendant file against destination, with no depth or count limit.
-  - Impact: Long UI freeze when pasting large directories.
-  - Fix: Show a summary conflict dialog for directories instead of enumerating every descendant.
-  - Verification: Paste a 1000+ file directory and measure the delay before conflict dialog.
-
-### Architecture & Code Health
-
-- [x] [Severity: Medium] [Category: Architecture] **Wire existing `DeleteFlowDelegate` into ViewModels — it exists but is unused**
-  - Location: `presentation/delegate/DeleteFlowDelegate.kt` (unused), `BrowserViewModel.kt` (lines 226-309), `RecentFilesViewModel.kt` (lines 148-235)
-  - Problem: `DeleteFlowDelegate` was created to consolidate delete flow logic, but is never instantiated or referenced. Delete logic remains duplicated across 2 ViewModels (~80 lines each).
-  - Impact: Bug fixes must be applied in 2 places; `DeleteFlowDelegate` is dead code.
-  - Fix: Wire `DeleteFlowDelegate` into both ViewModels, or delete the unused delegate.
-  - Verification: Change delete behavior in one place and confirm all screens adopt it.
 
 ### Testing
 
@@ -71,12 +14,6 @@
   - Impact: Regressions in copy/move/delete/trash are undetectable without manual testing.
   - Fix: Write Robolectric or instrumented tests for `FileSystemDataSource` operations using temp directories.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with new tests.
-
-- [x] [Severity: Medium] [Category: Testing] **Fix `LocalFileOperationsTest` to test actual production code, not a local copy**
-  - Location: `test/data/LocalFileOperationsTest.kt` lines 57-72
-  - Problem: Tests a `getUniqueFileName` helper copied into the test file, not the real `FileSystemDataSource` implementation. Changes to production code won't be caught.
-  - Fix: Import and test the actual `getUniqueFileName` from `FileSystemDataSource` (or its extracted utility).
-  - Verification: Intentionally break the production rename logic and confirm the test fails.
 
 - [ ] [Severity: Medium] [Category: Testing] **Consolidate 6 duplicated `FakeFileRepository` implementations into a shared test double**
   - Location: `DeletePolicyTest`, `StorageScopeViewModelTest`, `BrowserViewModelTest`, `HomeViewModelTest`, `RecentFilesViewModelTest`, `TrashViewModelTest`
@@ -125,30 +62,64 @@
   - Fix: Add `app.cash.turbine:turbine` to the test dependencies and use it for selected Flow/event tests.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with Turbine-backed flow assertions.
 
+### Audit Remediation Backlog
 
-### Architecture & Background Processing
-- [x] **Bulletproof Background Execution**: In `ClipboardDelegate.kt` (and `FileSystemDataSource.kt`), migrate bulk file operations (`copyFiles`, `moveFiles`) to `WorkManager` or a standard Foreground Service. Current `viewModelScope` execution will silently abort if the app is backgrounded and killed by the OS.
+- [x] [Severity: Medium] [Category: UX & Architecture] **Model `Android/data` and `Android/obb` Quick Access entries explicitly as native Files-app handoff shortcuts**
+  - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/data/QuickAccessPreferencesRepository.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt`
+  - Problem: The current `Android/data` and `Android/obb` shortcuts intentionally rely on Android Files / DocumentsUI handoff because Arcile cannot directly own access to those restricted folders, but they are currently mixed into the same shortcut model as regular Quick Access entries.
+  - Impact: The implementation works as a practical non-root access path, but the product model can confuse future maintenance and user expectations about what Arcile can actually browse itself versus what opens externally.
+  - Fix: Keep the current handoff approach, but represent these entries as a distinct external/native handoff type in the data model and UI, with copy that makes it clear they open in the Android Files app due to platform restrictions.
+  - Verification: Completed in `0.5.4`. Native handoff entries now use an explicit external-handoff type, route through Files-app launch helpers, and display distinct explanatory copy in Quick Access.
 
-### Build / Release / Configuration
+- [x] [Severity: High] [Category: Reliability] **Make browser native-confirmation events one-shot and clear pending action state after handling**
+  - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/BrowserViewModel.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt`
+  - Problem: Browser uses `MutableSharedFlow<IntentSender>(replay = 1)` for native requests and never clears `pendingNativeAction`, so a new collector can replay an already-consumed `IntentSender`.
+  - Impact: Configuration changes or collector reattachment can relaunch stale system confirmation flows and repeat destructive prompts unexpectedly.
+  - Fix: Remove replay from the native-request flow, model confirmation requests as consumable one-shot events, and clear the pending action once the result is handled.
+  - Verification: Completed in `0.5.4`. `BrowserViewModelTest` now covers one-shot delivery and pending-action clearing after handling.
 
-- [x] [Severity: High] [Category: Build] **ProGuard rules may not preserve Navigation-Compose route serialization**
-  - Location: `proguard-rules.pro`
-  - Problem: The rules only handle generic `kotlinx.serialization` keeps and Coil fetchers. `AppRoutes.*` `@Serializable` data classes and `TrashMetadataEntity` may have fields renamed/stripped by R8, breaking route deserialization and trash metadata persistence in release builds.
-  - Impact: Potential release-only crash when navigating to Explorer with arguments, or when reading/writing trash metadata.
-  - Fix: Verify via release APK testing. If routes break, add `-keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }` and `-keep class dev.qtremors.arcile.data.manager.TrashMetadataEntity { *; }`.
-  - Verification: Build release APK, navigate to all routes with arguments, perform trash and restore operations.
+- [x] [Severity: High] [Category: Correctness] **Write browser navigation state after target location is committed so process-death restore cannot reopen the previous folder**
+  - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/delegate/NavigationDelegate.kt`
+  - Problem: `loadDirectory()` and `loadCategory()` call `saveNavState()` before updating `currentPath`, `currentVolumeId`, and category flags, so `SavedStateHandle` can temporarily hold the previous screen while a new load is already in progress.
+  - Impact: If the process dies during navigation or refresh, restore can land the user in the wrong folder/category and break the "return to exact location" contract documented in `DEVELOPMENT.md`.
+  - Fix: Save the destination state after synchronously updating the in-memory state, and add explicit restore tests for directory navigation, category navigation, and in-flight refresh.
+  - Verification: Completed in `0.5.4`. Navigation now persists committed destination state, and `BrowserViewModelTest` covers directory/category restore state persistence.
 
-- [x] [Severity: Medium] [Category: Build] **`HomeViewModel.loadHomeData` launches unbounded concurrent coroutines with no timeout**
-  - Location: `presentation/home/HomeViewModel.kt` lines 120-177
-  - Problem: Launches 4+ `async` calls (recent, volumes, storage, categories) plus N per-volume category fetches, with no timeout. If any MediaStore query hangs, the home screen loading spinner shows indefinitely.
-  - Impact: Home screen could block indefinitely on devices with slow or problematic MediaStore.
-  - Fix: Add `withTimeout(15_000)` around the `coroutineScope` block and fail gracefully with partial data.
-  - Verification: Simulate a slow ContentResolver query and verify the home screen eventually shows partial data or an error.
+- [x] [Severity: High] [Category: Reliability] **Make bulk copy/move cancellation truthful and cooperative instead of only dismissing the foreground service**
+  - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationCoordinator.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileSystemDataSource.kt`
+  - Problem: `ACTION_CANCEL` stops the service and emits a cancelled event, but the underlying file operation is executed as a single blocking repository call with no cooperative cancellation checkpoints or progress reporting.
+  - Impact: Users can be told an operation was cancelled while file I/O may still continue, leaving partial filesystem changes and unreliable UI state around long-running moves/copies.
+  - Fix: Thread cancellation tokens or coroutine checkpoints through copy/move loops, surface real progress, and only emit cancellation after the worker has actually stopped and cleanup is complete.
+  - Verification: Completed in `0.5.4` for the production pipeline. Copy/move now cooperate with coroutine cancellation and emit progress/cancelling/cancelled states; dedicated filesystem integration tests are still tracked separately under Testing.
 
-- [x] [Severity: Medium] [Category: Build] **README version badge shows `0.5.0` while `build.gradle.kts` and `TASKS.md` show `0.5.2`**
-  - Location: `README.md` line 17
-  - Fix: Update the README badge to `0.5.2`.
-  - Verification: `grep -r "0.5.0" .` returns no stale references.
+- [x] [Severity: Medium] [Category: Security & Privacy] **Narrow `FileProvider` exposure to supported share/open roots instead of exposing the entire filesystem**
+  - Location: `arcile-app/app/src/main/res/xml/file_provider_paths.xml`, `arcile-app/app/src/main/java/dev/qtremors/arcile/MainActivity.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ShareHelper.kt`
+  - Problem: `file_provider_paths.xml` includes both `<external-path path=\".\"/>` and `<root-path path=\".\"/>`, while the open/share call sites only block `.arcile` and `cacheDir` by convention.
+  - Impact: Any future bug or unexpected code path that passes an internal or non-user file into `FileProvider.getUriForFile()` can grant a third-party app read access far beyond the intended share surface.
+  - Fix: Remove the global root mappings, replace them with the minimal set of external/app-specific roots the app truly needs, and centralize allowlist validation before generating URIs.
+  - Verification: Completed in `0.5.4`. FileProvider now exposes only staged cache handoff roots, with centralized outbound allowlist checks in `ExternalFileAccessHelper`.
+
+- [x] [Severity: Medium] [Category: Performance] **Profile and optimize path-scoped browser search so sparse queries do not walk entire directory trees on every keystroke**
+  - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/MediaStoreClient.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/delegate/SearchDelegate.kt`
+  - Problem: Path-scoped search falls back to `File.walkTopDown()` for every query, with no indexing, pruning beyond hidden folders, or cooperative cancellation during deep traversal.
+  - Impact: Searching inside large trees can become slow, battery-heavy, and difficult to interrupt, especially when the first 1000 matches are sparse.
+  - Fix: Profile the current traversal on large folders, add cancellation checkpoints and traversal limits, and consider a more incremental or indexed search strategy for path-scoped queries.
+  - Verification: Completed in `0.5.4` for production behavior. Path-scoped search now uses bounded traversal with hidden-folder pruning and explicit cancellation checkpoints; deeper profiling/indexing remains future optimization work if needed.
+
+- [x] [Severity: Medium] [Category: UX & Documentation] **Finish string-resource extraction for production UI so localization and accessibility stay consistent**
+  - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/StorageManagementScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/ArcileTopBar.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/SearchFiltersBottomSheet.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/SortOptionDialog.kt`
+  - Problem: Multiple production screens and shared components still hardcode visible labels, placeholders, and content descriptions instead of using `strings.xml`.
+  - Impact: Localization coverage is incomplete, TalkBack phrasing becomes inconsistent, and future copy changes stay scattered across Kotlin files instead of one resource surface.
+  - Fix: Extract the remaining hardcoded UI text into string resources and add a lightweight lint/checklist step to keep new production copy out of composables.
+  - Verification: Completed in `0.5.4`. Remaining targeted production copy was extracted to `strings.xml`, and `:app:checkProductionStrings` now guards the audited composables.
+
+- [ ] [Severity: Medium] [Category: Build & Release] **Finish toolchain cleanup by removing the remaining AGP/KSP workaround before the next upgrade**
+  - Location: `arcile-app/gradle.properties`, `arcile-app/app/build.gradle.kts`
+  - Problem: The internal `VariantOutputImpl` APK rename dependency has been removed, but the current AGP/KSP combination still requires the experimental `android.disallowKotlinSourceSets=false` compatibility flag to build.
+  - Impact: Future Android Gradle Plugin or KSP upgrades can still break builds unexpectedly until the remaining workaround is retired.
+  - Fix: Track the upstream KSP/AGP compatibility point where built-in Kotlin no longer requires the flag, then remove it and re-verify debug/release builds under the upgraded toolchain.
+  - Verification: `./gradlew :app:compileDebugKotlin` and `./gradlew :app:compileDebugUnitTestKotlin` succeed without `android.disallowKotlinSourceSets=false`.
+
 
 ### App Size & Resource Optimization
 - [ ] **APK Size - Resource Configurations**: In `app/build.gradle.kts`, add `resConfigs("en", "es")` (for your supported languages) in `defaultConfig` to strip megabytes of unused translated strings and resources bundled by AndroidX and Material3 libraries.

@@ -14,7 +14,7 @@
 
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.5.2-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.5.4-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
