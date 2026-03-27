@@ -16,8 +16,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 37
-        versionName = "0.5.3"
+        versionCode = 40
+        versionName = "0.5.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -70,6 +70,8 @@ android {
             )
         }
     }
+
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -80,6 +82,18 @@ android {
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
+                // versionName already includes the "-debug" suffix from versionNameSuffix
+                val version = variant.outputs.first().versionName.get() ?: "0.0.0"
+                output.outputFileName.set("Arcile-$version.apk")
+            }
+        }
     }
 }
 

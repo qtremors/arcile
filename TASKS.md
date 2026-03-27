@@ -8,31 +8,18 @@
 
 ### Testing
 
-- [ ] [Severity: High] [Category: Testing] **Add integration tests for critical file operation flows**
+- [x] [Severity: High] [Category: Testing] **Add integration tests for critical file operation flows**
   - Location: Missing: `FileSystemDataSourceTest`, `TrashManagerTest`, `LocalFileRepositoryTest`
   - Problem: The data layer (all destructive file operations) has zero test coverage.
   - Impact: Regressions in copy/move/delete/trash are undetectable without manual testing.
   - Fix: Write Robolectric or instrumented tests for `FileSystemDataSource` operations using temp directories.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with new tests.
 
-- [x] [Severity: Medium] [Category: Testing] **Consolidate 6 duplicated `FakeFileRepository` implementations into a shared test double**
-  - Location: `DeletePolicyTest`, `StorageScopeViewModelTest`, `BrowserViewModelTest`, `HomeViewModelTest`, `RecentFilesViewModelTest`, `TrashViewModelTest`
-  - Problem: Each test file has its own `FakeFileRepository` with ~30 duplicate stub methods. Bug-fix in the interface requires updating all 6.
-  - Fix: Create a shared `testutil/FakeFileRepository.kt` with configurable result overrides.
-  - Verification: All existing tests pass against the shared fake.
-
 - [ ] [Severity: Medium] [Category: Testing] **Add `MediaStoreClient` test coverage for category size queries**
   - Location: Missing: `MediaStoreClientTest`
   - Problem: 618 lines of MediaStore SQL query construction, cache management, and category size calculation have zero test coverage. The `requiresFullScan` performance bug cannot be regression-tested.
   - Fix: Write Robolectric-backed tests using `ContentResolver` shadows for query verification.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with new `MediaStoreClientTest`.
-
-- [x] [Severity: Medium] [Category: Testing] **Add repository and helper coverage for Android-dependent storage utilities**
-  - Location: Missing: `BrowserPreferencesRepositoryTest`, `StorageClassificationRepositoryTest`, `ShareHelperTest`
-  - Problem: DataStore-backed preferences, classification parsing, and share intent/file-provider behavior still rely mostly on manual verification.
-  - Impact: Regressions in persisted browser settings, corrupted classification recovery, or share launch behavior can slip through local refactors.
-  - Fix: Add Robolectric/JVM tests covering DataStore reads/writes, parse-failure cleanup, and `ShareHelper` success/failure cases.
-  - Verification: `./gradlew :app:testDebugUnitTest` passes with the new repository/helper tests.
 
 - [ ] [Severity: Medium] [Category: Testing] **Add fetcher coverage for rich media preview components**
   - Location: Missing: `ApkIconFetcherTest`, `AudioAlbumArtFetcherTest`
@@ -54,13 +41,6 @@
   - Impact: Search/back handling, snackbars, dialogs, pull-to-refresh, and screen wiring can regress without fast feedback.
   - Fix: Add Robolectric Compose tests for the highest-risk screens first, especially browser and navigation flows.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with the new screen-level tests.
-
-- [x] [Severity: Low] [Category: Testing] **Add Turbine for direct Flow emission assertions where state timing matters**
-  - Location: `arcile-app/app/build.gradle.kts`, ViewModel and coordinator test suites
-  - Problem: Flow-heavy behavior is currently tested mostly through final state snapshots rather than direct emission assertions.
-  - Impact: Timing-sensitive regressions in one-shot events and multi-emission flows are harder to catch precisely.
-  - Fix: Add `app.cash.turbine:turbine` to the test dependencies and use it for selected Flow/event tests.
-  - Verification: `./gradlew :app:testDebugUnitTest` passes with Turbine-backed flow assertions.
 
 
 ### App Size & Resource Optimization

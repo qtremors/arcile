@@ -218,7 +218,7 @@ fun QuickAccessScreen(
 
                 if (systemFolders.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.quick_access_section_system)) }
-                    items(systemFolders, key = { it.id }) { item ->
+                    items(systemFolders, key = { "system_${it.id}" }) { item ->
                         QuickAccessListItem(
                             item = item,
                             onNavigate = { onNavigateToPath(item.path) },
@@ -230,7 +230,7 @@ fun QuickAccessScreen(
 
                 if (customFolders.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.quick_access_section_custom)) }
-                    items(customFolders, key = { it.id }) { item ->
+                    items(customFolders, key = { "custom_${it.id}_${it.path}" }) { item ->
                         QuickAccessListItem(
                             item = item,
                             onNavigate = { onNavigateToPath(item.path) },
@@ -242,7 +242,7 @@ fun QuickAccessScreen(
 
                 if (scopedFolders.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.quick_access_section_scoped)) }
-                    items(scopedFolders, key = { it.id }) { item ->
+                    items(scopedFolders, key = { "scoped_${it.id}_${it.path}" }) { item ->
                         QuickAccessListItem(
                             item = item,
                             onNavigate = { onNavigateToSaf(item.path) },
@@ -254,7 +254,7 @@ fun QuickAccessScreen(
 
                 if (handoffFolders.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.quick_access_section_handoff)) }
-                    items(handoffFolders, key = { it.id }) { item ->
+                    items(handoffFolders, key = { "handoff_${it.id}_${it.path}" }) { item ->
                         QuickAccessListItem(
                             item = item,
                             onNavigate = { onNavigateToSaf(item.path) },

@@ -126,9 +126,10 @@ class QuickAccessPreferencesRepository @Inject constructor(
         } else {
             try {
                 val storedItems = json.decodeFromString<List<QuickAccessItem>>(serialized).map(::migrateStoredItem)
-                val merged = defaultItems.map { defaultItem ->
+                val defaultItemIds = defaultItems.map { it.id }.toSet()
+                val merged = (defaultItems.map { defaultItem ->
                     storedItems.find { it.id == defaultItem.id } ?: defaultItem
-                } + storedItems.filter { it.type != QuickAccessType.STANDARD }
+                } + storedItems.filter { it.id !in defaultItemIds }).distinctBy { it.id }
                 merged
             } catch (e: Exception) {
                 defaultItems
