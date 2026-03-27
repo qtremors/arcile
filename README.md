@@ -14,7 +14,7 @@
 
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.5.0-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.5.2-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
@@ -170,7 +170,6 @@ Run these commands from inside the `arcile-app/` directory:
 | Document | Description |
 |----------|-------------|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Developer guide, architecture, and conventions |
-| [PLAN.md](PLAN.md) | Test implementation roadmap |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 | [TASKS.md](TASKS.md) | Audit findings, planned features, and known issues |
 | [PRIVACY.md](PRIVACY.md) | Privacy policy |
@@ -191,3 +190,4 @@ See [LICENSE.md](LICENSE.md) for full terms.
 <p align="center">
   Made with ❤️ by <a href="https://github.com/qtremors">Tremors</a>
 </p>
+

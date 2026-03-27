@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.data.source
 
 import dev.qtremors.arcile.domain.FileOperationException
-
 import android.content.Context
 import android.os.Environment
 import dev.qtremors.arcile.data.provider.VolumeProvider
@@ -35,7 +34,7 @@ class DefaultFileSystemDataSource(
         val isAllowed = volumeProvider.activeStorageRoots.any { root ->
             canonical == root || canonical.startsWith(root + File.separator)
         }
-        
+
         if (!isAllowed) {
             return Result.failure(SecurityException("Access denied: path outside storage boundaries"))
         }
@@ -70,6 +69,12 @@ class DefaultFileSystemDataSource(
     private fun scanMediaFiles(vararg paths: String) {
         if (paths.isEmpty()) return
         android.media.MediaScannerConnection.scanFile(context.applicationContext, paths, null, null)
+    }
+
+    private suspend fun finalizeMutation(vararg paths: String) {
+        mediaStoreClient.invalidateCache(*paths)
+        volumeProvider.invalidateCache()
+        scanMediaFiles(*paths)
     }
 
     override fun getStandardFolders(): Map<String, String?> {
@@ -120,7 +125,7 @@ class DefaultFileSystemDataSource(
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
             }
             if (newDir.mkdirs()) {
-                mediaStoreClient.invalidateCache(newDir.absolutePath)
+                finalizeMutation(newDir.absolutePath)
                 Result.success(newDir.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create directory"))
@@ -145,8 +150,7 @@ class DefaultFileSystemDataSource(
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
             }
             if (newFile.createNewFile()) {
-                mediaStoreClient.invalidateCache(newFile.absolutePath)
-                scanMediaFiles(newFile.absolutePath)
+                finalizeMutation(newFile.absolutePath)
                 Result.success(newFile.toFileModel())
             } else {
                 Result.failure(Exception("Failed to create file"))
@@ -173,15 +177,13 @@ class DefaultFileSystemDataSource(
                 val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
                 if (!success) {
                     if (scannedPaths.isNotEmpty()) {
-                        mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-                        scanMediaFiles(*scannedPaths.toTypedArray())
+                        finalizeMutation(*scannedPaths.toTypedArray())
                     }
                     return@withContext Result.failure(Exception("Failed to permanently delete file: ${file.name}"))
                 }
                 scannedPaths.add(path)
             }
-            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-            scanMediaFiles(*scannedPaths.toTypedArray())
+            finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: SecurityException) {
             Result.failure(FileOperationException.AccessDenied(cause = e))
@@ -209,10 +211,9 @@ class DefaultFileSystemDataSource(
              if (newFile.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File with that name already exists"))
              }
-             
+
              if (file.renameTo(newFile)) {
-                 mediaStoreClient.invalidateCache(file.absolutePath, newFile.absolutePath)
-                 scanMediaFiles(file.absolutePath, newFile.absolutePath)
+                 finalizeMutation(file.absolutePath, newFile.absolutePath)
                  Result.success(newFile.toFileModel())
              } else {
                  Result.failure(Exception("Failed to rename file"))
@@ -245,7 +246,6 @@ class DefaultFileSystemDataSource(
                 if (!sourceFile.exists()) continue
 
                 val targetFile = File(destDir, sourceFile.name)
-
                 if (targetFile.exists()) {
                     conflicts.add(
                         FileConflict(
@@ -265,40 +265,6 @@ class DefaultFileSystemDataSource(
             if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(FileOperationException.Unknown(cause = e))
         }
-    }
-
-    private fun generateKeepBothName(destDir: File, sourceFile: File): File {
-        val originalName = sourceFile.nameWithoutExtension
-        val ext = if (sourceFile.extension.isNotEmpty()) ".${sourceFile.extension}" else ""
-        
-        val copyPattern = Regex("""^(.*?)(?: \((\d+)\))?$""")
-        val matchResult = copyPattern.matchEntire(originalName)
-
-        val baseName: String
-        var copyIndex = 1
-
-        if (matchResult != null) {
-            val matchedBase = matchResult.groupValues[1]
-            val matchedNumber = matchResult.groupValues[2]
-            
-            if (matchedNumber.isNotEmpty()) {
-                baseName = matchedBase
-                copyIndex = matchedNumber.toInt() + 1
-            } else {
-                baseName = originalName
-            }
-        } else {
-            baseName = originalName
-        }
-
-        var target: File
-        do {
-            val suffix = " ($copyIndex)"
-            target = File(destDir, "$baseName$suffix$ext")
-            copyIndex++
-        } while (target.exists())
-        
-        return target
     }
 
     override suspend fun copyFiles(
@@ -338,11 +304,11 @@ class DefaultFileSystemDataSource(
                     when (resolutions[sourceFile.absolutePath]) {
                         ConflictResolution.SKIP -> continue
                         ConflictResolution.KEEP_BOTH -> {
-                            targetFile = generateKeepBothName(destDir, sourceFile)
+                            targetFile = FileConflictNameGenerator.generateKeepBothTarget(destDir, sourceFile)
                         }
                         ConflictResolution.REPLACE -> {
                             if (sourceFile.absolutePath == targetFile.absolutePath) {
-                                continue 
+                                continue
                             }
                         }
                         null -> {
@@ -361,8 +327,7 @@ class DefaultFileSystemDataSource(
                 }
                 scannedPaths.add(targetFile.absolutePath)
             }
-            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-            scanMediaFiles(*scannedPaths.toTypedArray())
+            finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: SecurityException) {
             Result.failure(FileOperationException.AccessDenied(cause = e))
@@ -407,13 +372,13 @@ class DefaultFileSystemDataSource(
                 var targetFile = File(destDir, sourceFile.name)
                 validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
 
-                if (sourceFile.absolutePath == targetFile.absolutePath) continue 
+                if (sourceFile.absolutePath == targetFile.absolutePath) continue
 
                 if (targetFile.exists()) {
                     when (resolutions[sourceFile.absolutePath]) {
                         ConflictResolution.SKIP -> continue
                         ConflictResolution.KEEP_BOTH -> {
-                            targetFile = generateKeepBothName(destDir, sourceFile)
+                            targetFile = FileConflictNameGenerator.generateKeepBothTarget(destDir, sourceFile)
                         }
                         ConflictResolution.REPLACE -> {
                             if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
@@ -431,22 +396,21 @@ class DefaultFileSystemDataSource(
                         if (sourceFile.isDirectory) {
                             sourceFile.copyRecursively(targetFile, overwrite = overwrite)
                             if (!sourceFile.deleteRecursively()) {
-                                targetFile.deleteRecursively() 
+                                targetFile.deleteRecursively()
                                 return@withContext Result.failure(Exception("Failed to delete source directory after copy"))
                             }
                         } else {
                             sourceFile.copyTo(targetFile, overwrite = overwrite)
                             if (!sourceFile.delete()) {
-                                targetFile.delete() 
+                                targetFile.delete()
                                 return@withContext Result.failure(Exception("Failed to delete source file after copy"))
                             }
                         }
                     } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
                         if (scannedPaths.isNotEmpty()) {
-                            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-                            scanMediaFiles(*scannedPaths.toTypedArray())
+                            finalizeMutation(*scannedPaths.toTypedArray())
                         }
                         return@withContext Result.failure(e)
                     }
@@ -454,8 +418,7 @@ class DefaultFileSystemDataSource(
                 scannedPaths.add(sourceFile.absolutePath)
                 scannedPaths.add(targetFile.absolutePath)
             }
-            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-            scanMediaFiles(*scannedPaths.toTypedArray())
+            finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: SecurityException) {
             Result.failure(FileOperationException.AccessDenied(cause = e))

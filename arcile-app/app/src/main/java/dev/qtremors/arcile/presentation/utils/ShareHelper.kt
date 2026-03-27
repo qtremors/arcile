@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import dev.qtremors.arcile.utils.AppLogger
 import java.io.File
 import java.util.ArrayList
 
@@ -42,8 +43,10 @@ object ShareHelper {
             return true
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("ShareHelper", "Failed to share files: ${e::class.java.simpleName}")
+            AppLogger.e("ShareHelper", "Failed to share files", e)
             return false
         }
     }
 }
+
+

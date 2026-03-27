@@ -29,6 +29,7 @@ interface VolumeProvider {
     fun observeStorageVolumes(): Flow<List<StorageVolume>>
     suspend fun getStorageVolumes(): Result<List<StorageVolume>>
     suspend fun currentVolumes(): List<StorageVolume>
+    fun invalidateCache()
 }
 
 class DefaultVolumeProvider(
@@ -45,6 +46,10 @@ class DefaultVolumeProvider(
 
     init {
         _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+    }
+
+    override fun invalidateCache() {
+        cachedVolumes.set(null)
     }
 
     private fun discoverPlatformVolumes(): List<StorageVolume> {
@@ -139,7 +144,7 @@ class DefaultVolumeProvider(
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    cachedVolumes.set(null)
+                    invalidateCache()
                     emitVolumes()
                 }
             }

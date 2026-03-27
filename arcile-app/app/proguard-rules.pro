@@ -53,3 +53,6 @@
 
 # Coil Custom Fetchers
 -keep class dev.qtremors.arcile.image.** { *; }
+-keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }
+-keep class dev.qtremors.arcile.data.manager.TrashMetadataEntity { *; }
+

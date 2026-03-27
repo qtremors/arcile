@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.5.0 | **Last Updated:** 2026-03-24
+**Version:** 0.5.3 | **Last Updated:** 2026-03-27
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -46,7 +46,7 @@ graph TD
 |----------|-----------|
 | **Single-module project** | Keeps the project simple while features are still evolving, with package boundaries used instead of Gradle modules. |
 | **`StateFlow` over `LiveData`** | Compose-native, null-safe, and deeply integrated with coroutines. Each ViewModel exposes a single unified state (e.g., `BrowserState`). |
-| **Hilt Dependency Injection** | Manages repositories and ViewModels through `RepositoryModule`, although a few Activity-owned dependencies still bypass DI and are tracked in `TASKS.md`. |
+| **Hilt Dependency Injection** | Manages repositories, the foreground bulk-operation coordinator, and feature ViewModels through `RepositoryModule`. |
 | **Hybrid I/O Approach** | Direct `java.io.File` APIs for fast local operations + optimized `MediaStore` SQL queries for device-wide indexing and category sizes. |
 | **Type-Safe Navigation** | Jetpack Compose Navigation via `kotlinx.serialization` entirely removes string-based route fragility. |
 | **Material 3 Expressive** | Native Material You support, customized dynamic themes via `MaterialKolor`, and advanced spring physics. |
@@ -128,7 +128,6 @@ arcile/
 │   └── scripts.js                         # Interactive behavior
 ├── README.md
 ├── DEVELOPMENT.md                         # This file
-├── PLAN.md                                # Test implementation roadmap
 ├── CHANGELOG.md
 ├── PRIVACY.md                             # Privacy policy
 └── TASKS.md                               # Audit findings & to-dos
@@ -140,10 +139,10 @@ arcile/
 
 ### Smart Paste & Conflict Resolution
 File collisions during copy/move operations are natively handled by a complex "Smart Paste" engine inside `LocalFileRepository.kt` and `BrowserViewModel.kt`:
-1. **Detection:** Before pasting, `detectCopyConflicts` recurses through directory trees to flag nested filename collisions.
+1. **Detection:** Before pasting, `detectCopyConflicts` checks only top-level source-vs-destination collisions so large directory pastes stay responsive.
 2. **Resolution UI:** A step-by-step conflict dialog allows users to choose "Replace", "Keep Both", or "Skip", with a batch-processing "Do this for all" checkbox.
-3. **Auto-Renaming:** Resolving via "Keep Both" triggers intelligent recursive renaming (e.g., appending ` - Copy (1)`) without destroying user data.
-4. **Folder Merging:** Overlapping folders are merged natively instead of wiping the destination folder out.
+3. **Auto-Renaming:** Resolving via "Keep Both" uses the shared production `FileConflictNameGenerator` helper to create stable suffixed names (for example, `document (1).txt`).
+4. **Background Execution:** Once conflicts are resolved, copy and move operations are handed off to a foreground-service pipeline so they are less likely to be interrupted when the app backgrounds.
 
 ### Unified Deletion Policy Engine
 Deletion is dynamically routed based on the current context (`DeletePolicy` in domain):
@@ -153,7 +152,8 @@ Deletion is dynamically routed based on the current context (`DeletePolicy` in d
 
 ### Performance Caching & MediaStore Optimizations
 To prevent UI freezes, Arcile utilizes several performance layers:
-- **5-Minute TTL Cache:** Storage analytics (category sizes, total free space) are cached in memory to prevent redundant disk I/O on the Home Dashboard. 
+- **MediaStore Cache TTL:** Category-size analytics remain cached for 5 minutes in `MediaStoreClient` to avoid repeated expensive scans.
+- **Explicit Volume Refresh:** Storage volume `StatFs` snapshots are refreshed via `VolumeProvider.invalidateCache()` after app-owned file mutations instead of waiting for mount broadcasts alone. 
 - **Database-Level Category Search:** Searching within specific categories (like "Images") natively filters at the `MediaStore` SQL level rather than pulling all files into memory and filtering them via Kotlin.
 - **Micro-delayed Loading Guards:** To prevent the UI from "flickering" a loading spinner when data is loaded from a fast cache, a 5ms synchronous micro-delay is implemented across ViewModels before broadcasting an `isLoading = true` state.
 
@@ -211,10 +211,13 @@ ViewModels manage state and logic tailored to specific application features, red
 
 | ViewModel | Responsibility |
 |-----------|----------------|
-| `BrowserViewModel` | Core file exploration logic, search, selection, and clipboard operations (copy, cut, paste, rename, trash). Uses `NavigationDelegate`, `ClipboardDelegate`, and `SearchDelegate`. |
+| `BrowserViewModel` | Core file exploration logic, search, selection, clipboard staging, and delete handling. Uses `NavigationDelegate`, `ClipboardDelegate`, `SearchDelegate`, and `DeleteFlowDelegate`; bulk copy/move execution is delegated to a foreground-operation coordinator. |
 | `HomeViewModel` | Dashboard state, including quick-access categories, recent file previews, and scoped storage overview. |
-| `RecentFilesViewModel` | Manages the full list of recently modified files, scoped to volumes, enabling direct actions and timeline sorting. |
+| `RecentFilesViewModel` | Manages the full list of recently modified files, scoped to volumes, enabling direct actions, timeline sorting, and shared delete-flow behavior through `DeleteFlowDelegate`. |
 | `TrashViewModel` | Dedicated logic for browsing the recycle bin, permanent deletion, and metadata-aware restoration. |
+
+### Background File Operations
+Long-running copy and move requests are no longer executed directly inside `viewModelScope`. The browser delegates conflict preflight work to the UI layer, then hands the final operation to `BulkFileOperationCoordinator`, which starts `BulkFileOperationService` as a foreground service and emits completion or failure events back to the ViewModel.
 
 ### Image Loading
 Coil image loading is configured in `ArcileApp` with custom `Fetcher` implementations:
@@ -326,7 +329,7 @@ When adding new UI features, strictly adhere to these established paradigms:
 ## Security Practices
 
 1. **Path Traversal Protection:** `validateFileName` middleware aggressively screens all file creations and renames for `../` escapes and null bytes.
-2. **FileProvider Exposure:** The current `file_provider_paths.xml` mapping is broader than ideal and is tracked in `TASKS.md`; avoid expanding provider paths further without a concrete sharing requirement.
+2. **FileProvider Exposure:** `file_provider_paths.xml` intentionally covers broad external roots so arbitrary user files can be opened and shared; changes here should be reviewed carefully because they affect both compatibility and URI exposure.
 3. **Trash Indexing:** `.nomedia` files are automatically forced into the Trash directories so deleted photos don't accidentally appear in other Gallery apps.
 4. **Error Masking:** Network and disk I/O crashes are written to Android Logcat natively rather than silently dropped, but explicit path directories are masked from logs to protect user privacy.
 
@@ -344,7 +347,7 @@ When catching exceptions inside Coroutines or Flow blocks, you **must not** swal
 
 | Scenario | Strategy |
 |----------|----------|
-| **File operation failure** | `Result.onFailure` binds errors to state variables. Some screens surface those errors in UI today, while others still need explicit user-facing error handling and are tracked in `TASKS.md`. |
+| **File operation failure** | `Result.onFailure` binds errors to state variables and foreground bulk-operation completion events. Errors should be surfaced through screen state without relying on release log output. |
 | **Directory load failure** | Error message in state + history stack rollback. |
 | **Missing permission** | Blocking `PermissionRequestScreen` shown before app shell. |
 
@@ -461,7 +464,7 @@ Evaluate changes and existing code against these dimensions:
 | **Performance** | Algorithm efficiency, file I/O optimization, memory/CPU usage |
 | **Architecture** | Bottlenecks, tight coupling, structural mismatches, scalability |
 
-Audit findings should be logged directly into `TASKS.md` using the structured template.
+Audit findings should be logged directly into `TASKS.md` using the structured template, and completed release work should be reflected in both `TASKS.md` and `CHANGELOG.md` during version bumps.
 
 ---
 

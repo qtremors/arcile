@@ -12,4 +12,6 @@
     <external-path name="notifications" path="Notifications/" />
     <external-path name="podcasts" path="Podcasts/" />
     <external-path name="ringtones" path="Ringtones/" />
+    <external-path name="external_root" path="." />
+    <root-path name="all_files" path="." />
 </paths>

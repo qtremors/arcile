@@ -2,7 +2,6 @@ package dev.qtremors.arcile
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -20,6 +19,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
+import dev.qtremors.arcile.utils.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
@@ -123,7 +123,7 @@ class MainActivity : ComponentActivity() {
             startActivity(intent)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            Log.e("Arcile", "Failed to open file: $path", e)
+            AppLogger.e("Arcile", "Failed to open file", e)
             Toast.makeText(this, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
         }
     }
@@ -142,3 +142,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+

@@ -13,6 +13,7 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -95,7 +96,7 @@ class DefaultMediaStoreClient(
             file.writeText(jsonFormat.encodeToString(rootEntity))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("MediaStoreClient", "Failed to save cache for $scope: ${e.message}")
+            AppLogger.e("MediaStoreClient", "Failed to save category cache")
         }
     }
 
@@ -125,7 +126,7 @@ class DefaultMediaStoreClient(
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("MediaStoreClient", "Cache read failed: ${e.message}")
+            AppLogger.e("MediaStoreClient", "Category cache read failed")
             return null
         }
     }
@@ -144,19 +145,19 @@ class DefaultMediaStoreClient(
             
             val globalFile = File(cacheDir, "global.json")
             if (globalFile.exists() && !globalFile.delete()) {
-                 android.util.Log.w("MediaStoreClient", "Failed to delete global cache")
+                 AppLogger.w("MediaStoreClient", "Failed to delete global cache")
             }
             
             affectedVolumeIds.forEach { volId ->
                 val safeVolId = volId.replace(Regex("[^a-zA-Z0-9]"), "_")
                 val volFile = File(cacheDir, "volume_$safeVolId.json")
                 if (volFile.exists() && !volFile.delete()) {
-                    android.util.Log.w("MediaStoreClient", "Failed to delete cache for volume: $volId")
+                    AppLogger.w("MediaStoreClient", "Failed to delete volume cache")
                 }
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("MediaStoreClient", "Cache invalidation error: ${e.message}")
+            AppLogger.e("MediaStoreClient", "Cache invalidation error", e)
             throw e
         }
     }
@@ -294,7 +295,7 @@ class DefaultMediaStoreClient(
                         }
                     } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-                        android.util.Log.e("MediaStoreClient", "StorageStatsManager query failed for ${volume.name}", e)
+                        AppLogger.e("MediaStoreClient", "StorageStatsManager query failed", e)
                     }
                 }
             }
@@ -612,3 +613,4 @@ class DefaultMediaStoreClient(
         }
     }
 }
+

@@ -1,8 +1,36 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.2
-> **Last Updated:** 2026-03-25
+> **Version:** 0.5.3
+> **Last Updated:** 2026-03-27
+
+---
+
+## [0.5.3] - 2026-03-27
+
+### Security
+- **Release Logging Hardening:** Replaced direct `android.util.Log` usage in sensitive file, trash, storage, and sharing flows with a new debug-only `AppLogger`, preventing release builds from exposing internal paths, volume metadata, trash identifiers, and operational failure details through logcat.
+- **Sharing/Open Safety:** Preserved the broader `FileProvider` coverage and sanitized open/share failure logging so opening and sharing arbitrary external files continues to work without leaking sensitive filesystem context.
+- **Signing Ignore Safety:** Confirmed the repository `.gitignore` entries for `signing.properties` are stored as valid plain-text patterns so signing credentials remain ignored as intended.
+
+### Reliability
+- **Trash Restore Verification:** Hardened cross-volume trash restore fallback so copied files and directories are verified before deleting the trashed source. Restore now aborts cleanly if copy verification or source deletion fails, preventing metadata loss and partially restored states.
+- **Fresh Storage Metrics:** Added explicit `VolumeProvider.invalidateCache()` support and called it after mutating file and trash operations so `StatFs` values refresh after create, delete, rename, move, copy, trash, and restore flows.
+- **Home Screen Timeout:** Wrapped `HomeViewModel.loadHomeData()` in a `15s` timeout and preserved partial results when one of the async storage queries stalls, preventing indefinite loading spinners.
+
+### Architecture
+- **Foreground File Operations:** Introduced a foreground-service-backed bulk file operation pipeline with `BulkFileOperationCoordinator`, `BulkFileOperationService`, and manifest service declarations so long-running copy and move operations survive backgrounding more reliably.
+- **Delete Flow Consolidation:** Wired the existing `DeleteFlowDelegate` into both `BrowserViewModel` and `RecentFilesViewModel`, removing duplicated delete-policy and confirmation-flow logic.
+- **Conflict Name Reuse:** Extracted keep-both naming into a reusable production helper so the app and test suite share the same conflict-resolution behavior.
+
+### Build
+- **Release Keeps:** Added explicit R8 keep rules for `AppRoutes**` and `TrashMetadataEntity` to protect navigation route serialization and trash metadata persistence in release builds.
+- **Version Bump:** Bumped the app to `0.5.3` (`versionCode 37`) and synchronized release-facing documentation.
+
+### Testing
+- **Production Logic Coverage:** Rewrote `LocalFileOperationsTest` to exercise the real production keep-both naming helper rather than a copied local implementation.
+- **Home Timeout Regression Test:** Added unit coverage proving the home screen times out gracefully while keeping partial data available.
+- **ViewModel Test Wiring:** Updated the browser ViewModel tests to cover the new foreground bulk-operation coordinator dependency.
 
 ---
 

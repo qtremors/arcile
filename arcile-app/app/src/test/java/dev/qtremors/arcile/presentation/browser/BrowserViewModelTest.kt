@@ -19,8 +19,11 @@ import dev.qtremors.arcile.domain.TrashMetadata
 import io.mockk.mockk
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
-import dev.qtremors.arcile.domain.usecase.PasteFilesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,7 +58,7 @@ class BrowserViewModelTest {
             savedStateHandle = savedStateHandle,
             getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
             moveToTrashUseCase = MoveToTrashUseCase(repository),
-            pasteFilesUseCase = PasteFilesUseCase(repository)
+            bulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
         )
     }
 
@@ -376,6 +379,46 @@ private class BrowserFakeFileRepository(
     override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.failure(NotImplementedError())
 }
 
+private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
+    private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
+    override val activeRequest = _activeRequest
+    private val _events = MutableSharedFlow<BulkFileOperationEvent>()
+    override val events = _events
+
+    override fun startOperation(
+        type: BulkFileOperationType,
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ): Boolean {
+        val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions)
+        _activeRequest.value = request
+        _events.tryEmit(BulkFileOperationEvent.Started(request))
+        return true
+    }
+
+    override fun cancelActiveOperation() {
+        val request = _activeRequest.value
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
+    }
+
+    override fun onOperationCompleted(request: BulkFileOperationRequest) {
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Completed(request))
+    }
+
+    override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Failed(request, message))
+    }
+
+    override fun onOperationCancelled(request: BulkFileOperationRequest?) {
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
+    }
+}
+
 private fun browserVolume(
     id: String,
     name: String,
@@ -408,3 +451,5 @@ private fun browserFile(name: String, path: String, isDirectory: Boolean = false
 private fun fakeIntentSender(): IntentSender {
     return mockk(relaxed = true)
 }
+
+

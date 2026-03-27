@@ -11,6 +11,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.supportsTrash
+import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -89,7 +90,7 @@ private object TrashCryptoHelper {
             keystoreKey = key
             key
         } catch (e: Exception) {
-            android.util.Log.e("TrashCryptoHelper", "KeyStore initialization failed")
+            AppLogger.e("TrashCryptoHelper", "KeyStore initialization failed")
             null
         }
     }
@@ -120,14 +121,13 @@ private object TrashCryptoHelper {
                 cipher.init(Cipher.ENCRYPT_MODE, key)
                 var iv = cipher.iv
                 if (iv == null || iv.size != IV_LENGTH_BYTE) {
-                     // Fallback/PBKDF2 key needs manual IV initialization
-                     iv = ByteArray(IV_LENGTH_BYTE)
-                     SecureRandom().nextBytes(iv)
-                     val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
-                     cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec)
+                    iv = ByteArray(IV_LENGTH_BYTE)
+                    SecureRandom().nextBytes(iv)
+                    val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
+                    cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec)
                 }
                 val cipherText = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
-                
+
                 val byteBuffer = ByteBuffer.allocate(iv.size + cipherText.size)
                 byteBuffer.put(iv)
                 byteBuffer.put(cipherText)
@@ -137,7 +137,7 @@ private object TrashCryptoHelper {
                 retries--
             }
         }
-        android.util.Log.e("TrashCryptoHelper", "Encryption failed after retries")
+        AppLogger.e("TrashCryptoHelper", "Encryption failed after retries")
         throw lastException ?: Exception("Encryption failed")
     }
 
@@ -153,7 +153,7 @@ private object TrashCryptoHelper {
                 byteBuffer.get(iv)
                 val cipherText = ByteArray(byteBuffer.remaining())
                 byteBuffer.get(cipherText)
-                
+
                 val parameterSpec = GCMParameterSpec(TAG_LENGTH_BIT, iv)
                 cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec)
                 val plainText = cipher.doFinal(cipherText)
@@ -163,7 +163,7 @@ private object TrashCryptoHelper {
                 retries--
             }
         }
-        android.util.Log.e("TrashCryptoHelper", "Decryption failed after retries")
+        AppLogger.e("TrashCryptoHelper", "Decryption failed after retries")
         throw lastException ?: Exception("Decryption failed")
     }
 }
@@ -181,10 +181,10 @@ class DefaultTrashManager(
         if (!trashDir.exists()) {
             trashDir.mkdirs()
             try {
-                File(trashDir, ".nomedia").createNewFile() // Hide from gallery
+                File(trashDir, ".nomedia").createNewFile()
             } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                android.util.Log.e("TrashManager", "Failed to create .nomedia in trash", e)
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                AppLogger.e("TrashManager", "Failed to create .nomedia in trash", e)
             }
         }
         return trashDir
@@ -205,17 +205,29 @@ class DefaultTrashManager(
         android.media.MediaScannerConnection.scanFile(context.applicationContext, paths, null, null)
     }
 
-    // path traversal guard
+    private suspend fun finalizeMutation(vararg paths: String) {
+        mediaStoreClient.invalidateCache(*paths)
+        volumeProvider.invalidateCache()
+        scanMediaFiles(*paths)
+    }
+
     private fun validatePath(file: File): Result<Unit> {
         val canonical = file.canonicalPath
         val isAllowed = volumeProvider.activeStorageRoots.any { root ->
             canonical == root || canonical.startsWith(root + File.separator)
         }
-        
+
         if (!isAllowed) {
             return Result.failure(SecurityException("Access denied: path outside storage boundaries"))
         }
         return Result.success(Unit)
+    }
+
+    private fun verifyRestoreCopy(source: File, target: File): Boolean {
+        if (!target.exists()) return false
+        if (source.isFile && (!target.isFile || source.length() != target.length())) return false
+        if (source.isDirectory && !target.isDirectory) return false
+        return true
     }
 
     override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
@@ -235,18 +247,15 @@ class DefaultTrashManager(
                         IllegalStateException("Trash is not supported on this storage. Use permanent delete instead.")
                     )
                 }
-                
+
                 val trashDir = getTrashDirForVolume(sourceVolume)
                 val trashMetadataDir = getTrashMetadataDirForVolume(sourceVolume)
-
-                // Don't trash the trash
                 val arcileDir = File(sourceVolume.path, ".arcile")
                 if (file.absolutePath.startsWith(arcileDir.absolutePath)) continue
 
                 val trashId = java.util.UUID.randomUUID().toString()
                 val targetTrashFile = File(trashDir, trashId)
-                
-                // Write metadata JSON
+
                 val metadataEntity = TrashMetadataEntity(
                     id = trashId,
                     originalPath = file.absolutePath,
@@ -261,16 +270,14 @@ class DefaultTrashManager(
                     val encryptedBytes = TrashCryptoHelper.encrypt(context, jsonString)
                     destFile.writeBytes(encryptedBytes)
                 } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                    android.util.Log.e("TrashManager", "Failed to encrypt trash metadata, aborting move to trash", e)
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    AppLogger.e("TrashManager", "Failed to encrypt trash metadata, aborting move to trash", e)
                     return@withContext Result.failure(Exception("Failed to secure trash metadata: ${e.message}", e))
                 }
 
-                // Move abstracting name
                 val success = file.renameTo(targetTrashFile)
                 var fallbackSuccess = false
                 if (!success) {
-                    // Fallback
                     try {
                         if (file.isDirectory) {
                             file.copyRecursively(targetTrashFile, overwrite = true)
@@ -281,23 +288,20 @@ class DefaultTrashManager(
                         }
                         fallbackSuccess = true
                     } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                        // Revert metadata and partial copy on failure
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         File(trashMetadataDir, "$trashId.json").delete()
                         if (targetTrashFile.exists()) {
                             if (targetTrashFile.isDirectory) targetTrashFile.deleteRecursively() else targetTrashFile.delete()
                         }
                         if (scannedPaths.isNotEmpty()) {
-                            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-                            scanMediaFiles(*scannedPaths.toTypedArray())
+                            finalizeMutation(*scannedPaths.toTypedArray())
                         }
                         return@withContext Result.failure(Exception("Failed to move ${file.name} to trash: ${e.message}", e))
                     }
                 }
-                
+
                 if (success || fallbackSuccess) {
                     scannedPaths.add(file.absolutePath)
-                    // Explicitly delete from MediaStore so it doesn't linger via auto-updates
                     try {
                         val uri = MediaStore.Files.getContentUri("external")
                         val projection = arrayOf(MediaStore.Files.FileColumns._ID)
@@ -311,13 +315,12 @@ class DefaultTrashManager(
                             }
                         }
                     } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                        android.util.Log.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        AppLogger.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
                     }
                 }
             }
-            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-            scanMediaFiles(*scannedPaths.toTypedArray())
+            finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -328,29 +331,29 @@ class DefaultTrashManager(
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val volumes = volumeProvider.currentVolumes()
-            
+
             val legacyIds = trashIds.filter { it.startsWith("legacy:") || !it.contains(":") }.map { it.removePrefix("legacy:") }
             val scannedPaths = mutableListOf<String>()
             val idsRequiringDestination = mutableListOf<String>()
-            
+
             for (id in legacyIds) {
                 var metadataFile: File? = null
                 var trashedFile: File? = null
-                
+
                 for (volume in trashEnabledVolumes(volumes)) {
                     val mdDir = getTrashMetadataDirForVolume(volume)
                     val trDir = getTrashDirForVolume(volume)
-                    
+
                     val candidateMd = File(mdDir, "$id.json")
                     val candidateTr = File(trDir, id)
-                    
+
                     if (candidateMd.exists() && candidateTr.exists()) {
                         metadataFile = candidateMd
                         trashedFile = candidateTr
                         break
                     }
                 }
-                
+
                 if (metadataFile == null || trashedFile == null) continue
 
                 val jsonFormat = Json { ignoreUnknownKeys = true }
@@ -358,7 +361,7 @@ class DefaultTrashManager(
                     val bytes = metadataFile.readBytes()
                     TrashCryptoHelper.decrypt(context, bytes)
                 } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     val text = metadataFile.readText()
                     if (text.trimStart().startsWith("{")) {
                         text
@@ -368,7 +371,7 @@ class DefaultTrashManager(
                 }
                 val entity = jsonFormat.decodeFromString<TrashMetadataEntity>(jsonString)
                 val originalPath = entity.originalPath
-                
+
                 val originalFileContext = File(originalPath)
                 var targetFile = if (destinationPath != null) {
                     File(destinationPath, originalFileContext.name)
@@ -399,10 +402,24 @@ class DefaultTrashManager(
                 if (!success) {
                     if (trashedFile.isDirectory) {
                         trashedFile.copyRecursively(targetFile, overwrite = true)
-                        trashedFile.deleteRecursively()
+                        if (!verifyRestoreCopy(trashedFile, targetFile)) {
+                            if (targetFile.exists()) targetFile.deleteRecursively()
+                            return@withContext Result.failure(IOException("Failed to verify restored directory copy for ${targetFile.name}"))
+                        }
+                        if (!trashedFile.deleteRecursively()) {
+                            if (targetFile.exists()) targetFile.deleteRecursively()
+                            return@withContext Result.failure(IOException("Failed to delete trashed directory after restore copy"))
+                        }
                     } else {
                         trashedFile.copyTo(targetFile, overwrite = true)
-                        trashedFile.delete()
+                        if (!verifyRestoreCopy(trashedFile, targetFile)) {
+                            if (targetFile.exists()) targetFile.delete()
+                            return@withContext Result.failure(IOException("Failed to verify restored file copy for ${targetFile.name}"))
+                        }
+                        if (!trashedFile.delete()) {
+                            if (targetFile.exists()) targetFile.delete()
+                            return@withContext Result.failure(IOException("Failed to delete trashed file after restore copy"))
+                        }
                     }
                 }
 
@@ -416,8 +433,7 @@ class DefaultTrashManager(
                 return@withContext Result.failure(dev.qtremors.arcile.domain.DestinationRequiredException(idsRequiringDestination))
             }
 
-            mediaStoreClient.invalidateCache(*scannedPaths.toTypedArray())
-            scanMediaFiles(*scannedPaths.toTypedArray())
+            finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -432,7 +448,7 @@ class DefaultTrashManager(
             for (volume in trashEnabledVolumes(volumes)) {
                 val trashDir = getTrashDirForVolume(volume)
                 val metadataDir = getTrashMetadataDirForVolume(volume)
-                
+
                 if (trashDir.exists()) {
                     trashDir.listFiles()?.forEach { file ->
                         if (file.name != ".metadata" && file.name != ".nomedia") {
@@ -444,7 +460,7 @@ class DefaultTrashManager(
                     metadataDir.listFiles()?.forEach { it.delete() }
                 }
             }
-            mediaStoreClient.invalidateCache()
+            finalizeMutation()
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -456,11 +472,11 @@ class DefaultTrashManager(
         try {
             val list = mutableListOf<TrashMetadata>()
             val volumes = volumeProvider.currentVolumes()
-            
+
             for (volume in trashEnabledVolumes(volumes)) {
                 val trashDir = getTrashDirForVolume(volume)
                 val trashMetadataDir = getTrashMetadataDirForVolume(volume)
-                
+
                 if (trashDir.exists() && trashMetadataDir.exists()) {
                     trashMetadataDir.listFiles()?.forEach { metadataFile ->
                         if (metadataFile.isFile && metadataFile.extension == "json") {
@@ -470,7 +486,7 @@ class DefaultTrashManager(
                                     val bytes = metadataFile.readBytes()
                                     TrashCryptoHelper.decrypt(context, bytes)
                                 } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     val text = metadataFile.readText()
                                     if (text.trimStart().startsWith("{")) {
                                         text
@@ -485,7 +501,7 @@ class DefaultTrashManager(
                                 val sourceVolId = entity.sourceVolumeId ?: volume.id
                                 val sourceVolKindStr = entity.sourceStorageKind ?: volume.kind.name
                                 val sourceVolKind = dev.qtremors.arcile.domain.StorageKind.entries.find { it.name == sourceVolKindStr } ?: volume.kind
-                                
+
                                 val trashedFile = File(trashDir, id)
                                 if (trashedFile.exists()) {
                                     val originalFileContext = File(originalPath)
@@ -498,15 +514,15 @@ class DefaultTrashManager(
                                        extension = originalFileContext.extension,
                                        isHidden = false
                                     )
-                                    
+
                                     list.add(TrashMetadata(id, originalPath, deletionTime, spoofedModel, sourceVolId, sourceVolKind))
                                 } else {
-                                    android.util.Log.w("TrashManager", "Deleting orphaned trash metadata for id: $id")
-                                    metadataFile.delete() 
+                                    AppLogger.w("TrashManager", "Deleting orphaned trash metadata")
+                                    metadataFile.delete()
                                 }
                             } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                                android.util.Log.e("TrashManager", "Deleting corrupted trash metadata: ${metadataFile.name}", e)
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                AppLogger.e("TrashManager", "Deleting corrupted trash metadata", e)
                                 metadataFile.delete()
                             }
                         }
@@ -528,10 +544,10 @@ class DefaultTrashManager(
                 for (volume in trashEnabledVolumes(volumes)) {
                     val trashDir = getTrashDirForVolume(volume)
                     val metadataDir = getTrashMetadataDirForVolume(volume)
-                    
+
                     val trashedFile = File(trashDir, trashId)
                     val metadataFile = File(metadataDir, "$trashId.json")
-                    
+
                     if (trashedFile.exists() || metadataFile.exists()) {
                         if (trashedFile.isDirectory) trashedFile.deleteRecursively() else trashedFile.delete()
                         metadataFile.delete()
@@ -540,10 +556,10 @@ class DefaultTrashManager(
                     }
                 }
                 if (!found) {
-                    android.util.Log.w("TrashManager", "Trash item $trashId not found for deletion")
+                    AppLogger.w("TrashManager", "Trash item not found for deletion")
                 }
             }
-            mediaStoreClient.invalidateCache()
+            finalizeMutation()
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e

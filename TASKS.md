@@ -1,58 +1,53 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.5.0
-> **Last Updated:** 2026-03-24
+> **Version:** 0.5.3
+> **Last Updated:** 2026-03-27
 
 ---
 
 ### Security & Privacy
 
-- [ ] [Severity: Critical] [Category: Security] **Remove committed keystore `.jks` from VCS and rotate signing key**
-  - Location: `arcile-app/app/my-release-key.jks`
-  - Problem: Release signing keystore (2068 bytes) is checked into the repository. Anyone with repo access can sign APKs as the official app.
-  - Impact: Enables APK impersonation and supply-chain compromise.
-  - Fix: Remove from repo and Git history (BFG/filter-repo), add `*.jks` to `.gitignore`, rotate the keystore.
-  - Verification: Confirm `git log --all -- '*.jks'` returns nothing.
+- [x] [Severity: Critical] [Category: Security] **FileProvider paths are incomplete — opening/sharing most files crashes**
+  - Location: `res/xml/file_provider_paths.xml`, `MainActivity.kt` line 110, `ShareHelper.kt` line 23
+  - Problem: `file_provider_paths.xml` only declares 11 specific `<external-path>` entries (Downloads, Documents, Pictures, etc.). Any file outside these directories throws `IllegalArgumentException` when `FileProvider.getUriForFile()` is called — crashing share and silently failing open.
+  - Impact: Opening or sharing any file outside the 11 hardcoded directories fails. For a file manager, this affects the majority of user files.
+  - Fix: Add `<external-path name="external_root" path="." />` and `<root-path name="all_files" path="." />` to cover all external storage and mounted volumes.
+  - Verification: Open and share a file from the root of internal storage or from an SD card — should succeed without crash.
 
-- [x] [Severity: High] [Category: Security] **Restrict FileProvider path scope from entire external storage**
-  - Location: `app/src/main/res/xml/file_provider_paths.xml`
-  - Problem: `<external-path name="external_files" path="."/>` grants URI generation capability for the entire external storage root.
-  - Impact: Overly broad attack surface; Play Store policy risk.
-  - Fix: Restrict to specific directories the app actually shares, or use scoped paths.
-  - Verification: Attempt to generate a FileProvider URI for `.arcile/.trash/` and confirm rejection.
+- [x] [Severity: High] [Category: Security] **`.gitignore` has corrupted UTF-16 bytes — `signing.properties` may not be ignored**
+  - Location: `.gitignore` line 62-63, `arcile-app/.gitignore` line 16-17
+  - Problem: Both `.gitignore` files have the `signing.properties` pattern encoded in UTF-16LE with null bytes, which git cannot interpret. If `signing.properties` is created, it would be tracked and potentially committed with keystore passwords.
+  - Impact: Risk of signing credential exposure if `signing.properties` is ever created.
+  - Fix: Replace the corrupted lines with proper ASCII: `signing.properties`.
+  - Verification: `echo "test" > signing.properties && git status` should show the file as ignored.
 
-- [ ] [Severity: Medium] [Category: Security] **Remove unnecessary `READ_EXTERNAL_STORAGE` permission declaration**
-  - Location: `AndroidManifest.xml` line 5
-  - Problem: Declared without `maxSdkVersion` but unused since `minSdk=30` with `MANAGE_EXTERNAL_STORAGE`.
-  - Fix: Remove the declaration or add `android:maxSdkVersion="29"`.
-  - Verification: `aapt dump permissions` output no longer includes `READ_EXTERNAL_STORAGE`.
-
-- [ ] [Severity: Medium] [Category: Security] **Configure backup/data extraction rules to exclude sensitive data**
-  - Location: `app/src/main/res/xml/backup_rules.xml`, `data_extraction_rules.xml`
-  - Problem: Default templates with no exclusion rules. Trash crypto salt in `SharedPreferences` could be extracted via cloud backup.
-  - Fix: Add `<exclude>` rules for `trash_crypto_prefs`, DataStore files, and analytics cache.
-  - Verification: Run `adb shell bmgr backupnow` and verify excluded files aren't captured.
+- [x] [Severity: Medium] [Category: Security] **Log statements in release builds expose internal paths and error details**
+  - Location: `TrashManager.kt` (19 log calls), `MediaStoreClient.kt` (7 log calls), `StorageClassificationRepository.kt` (2 log calls), `ShareHelper.kt`, `MainActivity.kt`
+  - Problem: ~30 `android.util.Log.e/w` calls exist throughout the data layer, including file paths, volume names, trash IDs, and crypto state. These are present in release builds.
+  - Impact: Any user with logcat access can see internal file paths and operational details.
+  - Fix: Wrap all log calls in `if (BuildConfig.DEBUG)` guards, or use a logging abstraction that strips in release.
+  - Verification: Build release APK, reproduce a trash operation, and verify no sensitive output in logcat.
 
 ### Correctness & Reliability
 
-- [ ] [Severity: Medium] [Category: Correctness] **Add debounce/dedup to `RecentFilesViewModel` volume observation**
-  - Location: `presentation/recentfiles/RecentFilesViewModel.kt` lines 80-84
-  - Problem: Triggers `loadRecentFiles()` on every `observeStorageVolumes` emission with no debounce or diff check, unlike `HomeViewModel` which debounces by 1000ms.
-  - Impact: Redundant MediaStore queries, flickering loading state.
-  - Fix: Add `debounce(1000L)` and `distinctUntilChanged()` consistent with `HomeViewModel`.
-  - Verification: Rapidly classify/reclassify a volume and observe Recent Files doesn't reload excessively.
+- [x] [Severity: Medium] [Category: Correctness] **`TrashManager.restoreFromTrash` doesn't verify copy success before deleting source on cross-volume fallback**
+  - Location: `data/manager/TrashManager.kt` lines 398-407
+  - Problem: In the fallback path (when `renameTo` fails), `copyRecursively` then `deleteRecursively` are called, but the delete return value is not checked and the copy is not verified before deletion.
+  - Impact: Potential for duplicate files or data left in trash after a failed cross-volume restore.
+  - Fix: Check `deleteRecursively()` return value and verify target file existence/size before deleting source.
+  - Verification: Force a cross-filesystem restore and simulate a delete failure.
+
+- [x] [Severity: Medium] [Category: Correctness] **`VolumeProvider.discoverPlatformVolumes` caches volumes permanently — `StatFs` values become stale**
+  - Location: `data/provider/VolumeProvider.kt` lines 50-52
+  - Problem: `discoverPlatformVolumes()` returns cached data if non-null. The cache is only cleared on media mount/unmount broadcasts, but never after file operations. Free space reporting becomes increasingly inaccurate.
+  - Impact: Storage dashboard shows stale free space. After delete/copy operations, storage info does not refresh.
+  - Fix: Invalidate the cache after file operations, or add a short TTL, or recalculate `StatFs` values independently.
+  - Verification: Delete a large file, navigate to home dashboard, and verify free space updates.
 
 ### Performance & Efficiency
 
-- [x] [Severity: High] [Category: Performance] **Fix `getCategoryStorageSizes` full MediaStore scan when `requiresFullScan` is true**
-  - Location: `data/source/MediaStoreClient.kt` lines 252-386
-  - Problem: Categories without MIME prefix (Documents) set `requiresFullScan=true`, which nullifies the SQL selection and scans every file in MediaStore. This is called per-volume on home screen load.
-  - Impact: Multi-second blocking IO on devices with many files.
-  - Fix: Always build a selection query using OR clauses for known extensions/MIME types, even for the "full scan" case.
-  - Verification: Profile on a device with 50k+ MediaStore entries and measure query duration.
-
-- [ ] [Severity: Medium] [Category: Performance] **Limit `detectCopyConflicts` recursive directory walk**
+- [x] [Severity: Medium] [Category: Performance] **Limit `detectCopyConflicts` recursive directory walk**
   - Location: `data/source/FileSystemDataSource.kt` lines 258-274
   - Problem: For conflicting directories, walks the entire source tree checking each descendant file against destination, with no depth or count limit.
   - Impact: Long UI freeze when pasting large directories.
@@ -61,39 +56,23 @@
 
 ### Architecture & Code Health
 
-- [ ] [Severity: Medium] [Category: Architecture] **Extract duplicated delete-policy flow into a shared `DeleteFlowDelegate`**
-  - Location: `BrowserViewModel.kt` (lines 226-309), `RecentFilesViewModel.kt` (lines 148-235)
-  - Problem: Delete-policy evaluation, confirmation state, and execution logic is copy-pasted across ViewModels.
-  - Impact: Bug fixes must be applied in 3 places; high regression risk.
-  - Fix: Extract a `DeleteFlowDelegate` similar to existing `ClipboardDelegate`.
+- [x] [Severity: Medium] [Category: Architecture] **Wire existing `DeleteFlowDelegate` into ViewModels — it exists but is unused**
+  - Location: `presentation/delegate/DeleteFlowDelegate.kt` (unused), `BrowserViewModel.kt` (lines 226-309), `RecentFilesViewModel.kt` (lines 148-235)
+  - Problem: `DeleteFlowDelegate` was created to consolidate delete flow logic, but is never instantiated or referenced. Delete logic remains duplicated across 2 ViewModels (~80 lines each).
+  - Impact: Bug fixes must be applied in 2 places; `DeleteFlowDelegate` is dead code.
+  - Fix: Wire `DeleteFlowDelegate` into both ViewModels, or delete the unused delegate.
   - Verification: Change delete behavior in one place and confirm all screens adopt it.
-
-### Build / Release / Configuration
-
-- [x] [Severity: High] [Category: Build] **Update Compose BOM from `2024.09.00` and align dependency versions**
-  - Location: `gradle/libs.versions.toml` lines 8-16
-  - Problem: Compose BOM is ~18 months outdated. Material3 `1.4.0-alpha08` overrides the BOM. Lifecycle versions are split (`2.10.0` vs `2.8.5`).
-  - Impact: Potential runtime incompatibilities, missing 18 months of bug fixes and security patches.
-  - Fix: Update BOM to latest stable, align all lifecycle artifacts to same version, update navigation-compose.
-  - Verification: Build and run; verify no `NoSuchMethodError` or runtime crashes.
-
-- [x] [Severity: Medium] [Category: Build] **Replace overly broad ProGuard serialization rules with targeted ones**
-  - Location: `app/proguard-rules.pro` lines 24-27
-  - Problem: Keeps all classes/members in `kotlinx.serialization.**` including internals, preventing R8 shrinking.
-  - Impact: Increased APK size by several hundred KB.
-  - Fix: Use official kotlinx.serialization ProGuard rules.
-  - Verification: Compare release APK size before/after; verify deserialization still works.
 
 ### Testing
 
 - [ ] [Severity: High] [Category: Testing] **Add integration tests for critical file operation flows**
   - Location: Missing: `FileSystemDataSourceTest`, `TrashManagerTest`, `LocalFileRepositoryTest`
-  - Problem: The data layer (all destructive file operations) has zero test coverage. Acknowledged in `PLAN.md`.
+  - Problem: The data layer (all destructive file operations) has zero test coverage.
   - Impact: Regressions in copy/move/delete/trash are undetectable without manual testing.
   - Fix: Write Robolectric or instrumented tests for `FileSystemDataSource` operations using temp directories.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with new tests.
 
-- [ ] [Severity: Medium] [Category: Testing] **Fix `LocalFileOperationsTest` to test actual production code, not a local copy**
+- [x] [Severity: Medium] [Category: Testing] **Fix `LocalFileOperationsTest` to test actual production code, not a local copy**
   - Location: `test/data/LocalFileOperationsTest.kt` lines 57-72
   - Problem: Tests a `getUniqueFileName` helper copied into the test file, not the real `FileSystemDataSource` implementation. Changes to production code won't be caught.
   - Fix: Import and test the actual `getUniqueFileName` from `FileSystemDataSource` (or its extracted utility).
@@ -111,29 +90,65 @@
   - Fix: Write Robolectric-backed tests using `ContentResolver` shadows for query verification.
   - Verification: `./gradlew :app:testDebugUnitTest` passes with new `MediaStoreClientTest`.
 
-- [ ] [Severity: Low] [Category: Testing] **Remove or replace `ExampleInstrumentedTest` and rename `NavigationTest`**
-  - Location: `androidTest/ExampleInstrumentedTest.kt`, `androidTest/ui/NavigationTest.kt`
-  - Problem: `ExampleInstrumentedTest` is the default template. `NavigationTest` tests `EmptyState` rendering, not navigation.
-  - Fix: Delete the example test; rename `NavigationTest` to `EmptyStateInstrumentedTest`.
-  - Verification: `./gradlew connectedAndroidTest` passes.
+- [ ] [Severity: Medium] [Category: Testing] **Add repository and helper coverage for Android-dependent storage utilities**
+  - Location: Missing: `BrowserPreferencesRepositoryTest`, `StorageClassificationRepositoryTest`, `ShareHelperTest`
+  - Problem: DataStore-backed preferences, classification parsing, and share intent/file-provider behavior still rely mostly on manual verification.
+  - Impact: Regressions in persisted browser settings, corrupted classification recovery, or share launch behavior can slip through local refactors.
+  - Fix: Add Robolectric/JVM tests covering DataStore reads/writes, parse-failure cleanup, and `ShareHelper` success/failure cases.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with the new repository/helper tests.
 
-- [ ] [Severity: Low] [Category: Testing] **Standardize `IntentSender` mocking approach across tests**
-  - Location: `BrowserViewModelTest` and `TrashViewModelTest` use `sun.misc.Unsafe`; `RecentFilesViewModelTest` uses `mockk()`
-  - Problem: Inconsistent mocking; `sun.misc.Unsafe` is fragile and non-portable.
-  - Fix: Use `mockk()` consistently across all tests or extract a shared `fakeIntentSender()` utility.
-  - Verification: All tests pass on both JDK 11 and 17.
+- [ ] [Severity: Medium] [Category: Testing] **Add fetcher coverage for rich media preview components**
+  - Location: Missing: `ApkIconFetcherTest`, `AudioAlbumArtFetcherTest`
+  - Problem: Custom Coil fetchers for APK icons and album art have no automated coverage.
+  - Impact: Preview regressions can break silently and only surface on-device when browsing media-heavy folders.
+  - Fix: Add Robolectric-backed tests for fetcher factory matching and decode/load behavior with mocked package manager and media metadata inputs.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with the new fetcher tests.
 
-### Documentation
+- [ ] [Severity: Medium] [Category: Testing] **Add navigation and saved-state restore coverage for type-safe routes**
+  - Location: Missing: `AppRoutesTest`, `AppNavigationGraphTest`, additional saved-state tests for `BrowserViewModel`
+  - Problem: Route serialization, argument parsing, and browser state restoration are only partially covered.
+  - Impact: Navigation regressions and process-death restore bugs can escape into release builds.
+  - Fix: Add tests for route encoding/decoding, key navigation transitions, and saved-state restoration branches.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with route and restore coverage.
 
-- [ ] [Severity: Medium] [Category: Docs] **Pin Tailwind CDN and Lucide versions in `docs/index.html`**
-  - Location: `docs/index.html` lines 636-637
-  - Problem: Uses `cdn.tailwindcss.com` (play CDN, not production) and `unpkg.com/lucide@latest` (unpinned). Both are fragile.
-  - Impact: Site could break from upstream changes; Tailwind play CDN adds ~300KB of JS.
-  - Fix: Build Tailwind via CLI/PostCSS or pin version. Pin Lucide to a specific version.
-  - Verification: Site loads correctly with pinned versions; verify in browser DevTools.
+- [ ] [Severity: Medium] [Category: Testing] **Add screen-level Compose interaction coverage for primary flows**
+  - Location: Missing: `BrowserScreenTest`, expanded coverage for `HomeScreen`, `RecentFilesScreen`, `SettingsScreen`, `StorageDashboardScreen`, `StorageManagementScreen`, `ToolsScreen`, `TrashScreen`, `ArcileAppShell`
+  - Problem: Most full-screen Compose flows still lack automated UI interaction coverage.
+  - Impact: Search/back handling, snackbars, dialogs, pull-to-refresh, and screen wiring can regress without fast feedback.
+  - Fix: Add Robolectric Compose tests for the highest-risk screens first, especially browser and navigation flows.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with the new screen-level tests.
+
+- [ ] [Severity: Low] [Category: Testing] **Add Turbine for direct Flow emission assertions where state timing matters**
+  - Location: `arcile-app/app/build.gradle.kts`, ViewModel and coordinator test suites
+  - Problem: Flow-heavy behavior is currently tested mostly through final state snapshots rather than direct emission assertions.
+  - Impact: Timing-sensitive regressions in one-shot events and multi-emission flows are harder to catch precisely.
+  - Fix: Add `app.cash.turbine:turbine` to the test dependencies and use it for selected Flow/event tests.
+  - Verification: `./gradlew :app:testDebugUnitTest` passes with Turbine-backed flow assertions.
+
 
 ### Architecture & Background Processing
-- [ ] **Bulletproof Background Execution**: In `ClipboardDelegate.kt` (and `FileSystemDataSource.kt`), migrate bulk file operations (`copyFiles`, `moveFiles`) to `WorkManager` or a standard Foreground Service. Current `viewModelScope` execution will silently abort if the app is backgrounded and killed by the OS.
+- [x] **Bulletproof Background Execution**: In `ClipboardDelegate.kt` (and `FileSystemDataSource.kt`), migrate bulk file operations (`copyFiles`, `moveFiles`) to `WorkManager` or a standard Foreground Service. Current `viewModelScope` execution will silently abort if the app is backgrounded and killed by the OS.
+
+### Build / Release / Configuration
+
+- [x] [Severity: High] [Category: Build] **ProGuard rules may not preserve Navigation-Compose route serialization**
+  - Location: `proguard-rules.pro`
+  - Problem: The rules only handle generic `kotlinx.serialization` keeps and Coil fetchers. `AppRoutes.*` `@Serializable` data classes and `TrashMetadataEntity` may have fields renamed/stripped by R8, breaking route deserialization and trash metadata persistence in release builds.
+  - Impact: Potential release-only crash when navigating to Explorer with arguments, or when reading/writing trash metadata.
+  - Fix: Verify via release APK testing. If routes break, add `-keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }` and `-keep class dev.qtremors.arcile.data.manager.TrashMetadataEntity { *; }`.
+  - Verification: Build release APK, navigate to all routes with arguments, perform trash and restore operations.
+
+- [x] [Severity: Medium] [Category: Build] **`HomeViewModel.loadHomeData` launches unbounded concurrent coroutines with no timeout**
+  - Location: `presentation/home/HomeViewModel.kt` lines 120-177
+  - Problem: Launches 4+ `async` calls (recent, volumes, storage, categories) plus N per-volume category fetches, with no timeout. If any MediaStore query hangs, the home screen loading spinner shows indefinitely.
+  - Impact: Home screen could block indefinitely on devices with slow or problematic MediaStore.
+  - Fix: Add `withTimeout(15_000)` around the `coroutineScope` block and fail gracefully with partial data.
+  - Verification: Simulate a slow ContentResolver query and verify the home screen eventually shows partial data or an error.
+
+- [x] [Severity: Medium] [Category: Build] **README version badge shows `0.5.0` while `build.gradle.kts` and `TASKS.md` show `0.5.2`**
+  - Location: `README.md` line 17
+  - Fix: Update the README badge to `0.5.2`.
+  - Verification: `grep -r "0.5.0" .` returns no stale references.
 
 ### App Size & Resource Optimization
 - [ ] **APK Size - Resource Configurations**: In `app/build.gradle.kts`, add `resConfigs("en", "es")` (for your supported languages) in `defaultConfig` to strip megabytes of unused translated strings and resources bundled by AndroidX and Material3 libraries.
@@ -170,7 +185,10 @@
 - **Shape Customization Toggle**: Add a setting to toggle UI element shapes (e.g., heavily rounded "squircle" vs. standard rounded corners for cards and buttons).
 
 ### Browsing & Organization
-- **Rich Media Previews**: Implement custom Coil `Fetcher` components to extract APK icons (using `PackageManager`) and PDF thumbnails, making the grid view visually rich regardless of file type.
+- **Rich Media Previews**: Implement custom Coil `Fetcher` components to extract APK icons (using `PackageManager`) and PDF thumbnails.
+  - [x] APK icons implemented (`ApkIconFetcher.kt`)
+  - [ ] PDF thumbnails pending
+  - Goal: Making the grid view visually rich regardless of file type.
 - **Starred / Favorited Files**: Add a "Starred" section to the Home screen and a star toggle on individual files/folders.
 - **Enhanced Category Browsing**: When opening a file category, display all related folders containing matching files with a tabbed or segmented navigation bar.
 - **Storage Analyzer ("Filelight" view)**: A dedicated radial map or sunburst chart to visualize storage usage by folder/file type (similar to Filelight or WinDirStat).

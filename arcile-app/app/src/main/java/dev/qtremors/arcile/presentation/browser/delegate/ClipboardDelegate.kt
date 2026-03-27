@@ -2,10 +2,12 @@ package dev.qtremors.arcile.presentation.browser.delegate
 
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.usecase.PasteFilesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.browser.BrowserState
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -15,9 +17,39 @@ class ClipboardDelegate(
     private val state: MutableStateFlow<BrowserState>,
     private val viewModelScope: CoroutineScope,
     private val repository: FileRepository,
-    private val pasteFilesUseCase: PasteFilesUseCase,
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val refreshAction: () -> Unit
 ) {
+    init {
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.activeRequest.collect { activeRequest ->
+                if (activeRequest == null && state.value.isLoading && state.value.clipboardState == null) {
+                    state.update { it.copy(isLoading = false) }
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.events.collect { event ->
+                when (event) {
+                    is BulkFileOperationEvent.Started -> {
+                        state.update { it.copy(isLoading = true, error = null) }
+                    }
+                    is BulkFileOperationEvent.Completed -> {
+                        state.update { it.copy(isLoading = false, clipboardState = null) }
+                        refreshAction()
+                    }
+                    is BulkFileOperationEvent.Failed -> {
+                        state.update { it.copy(isLoading = false, error = event.message) }
+                    }
+                    is BulkFileOperationEvent.Cancelled -> {
+                        state.update { it.copy(isLoading = false) }
+                    }
+                }
+            }
+        }
+    }
+
     fun copySelectedToClipboard() {
         val selected = state.value.selectedFiles.toList()
         if (selected.isNotEmpty()) {
@@ -43,6 +75,7 @@ class ClipboardDelegate(
     }
 
     fun cancelClipboard() {
+        bulkFileOperationCoordinator.cancelActiveOperation()
         state.update { it.copy(clipboardState = null) }
     }
 
@@ -92,14 +125,20 @@ class ClipboardDelegate(
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>
     ) {
-        val isMove = clipboard.operation == ClipboardOperation.CUT
-        val result = pasteFilesUseCase(clipboard.sourcePaths, destinationPath, isMove, resolutions)
+        val operationType = if (clipboard.operation == ClipboardOperation.CUT) {
+            BulkFileOperationType.MOVE
+        } else {
+            BulkFileOperationType.COPY
+        }
+        val started = bulkFileOperationCoordinator.startOperation(
+            type = operationType,
+            sourcePaths = clipboard.sourcePaths,
+            destinationPath = destinationPath,
+            resolutions = resolutions
+        )
 
-        result.onSuccess {
-            state.update { it.copy(clipboardState = null) }
-            refreshAction()
-        }.onFailure { error ->
-            state.update { it.copy(isLoading = false, error = error.message ?: "Failed to paste files") }
+        if (!started) {
+            state.update { it.copy(isLoading = false, error = "Another file operation is already running") }
         }
     }
 }

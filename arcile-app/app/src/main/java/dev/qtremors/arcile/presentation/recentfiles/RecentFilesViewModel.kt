@@ -3,23 +3,26 @@ package dev.qtremors.arcile.presentation.recentfiles
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageScope
-import dev.qtremors.arcile.domain.supportsTrash
-import kotlinx.coroutines.flow.collectLatest
+import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
+import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import androidx.navigation.toRoute
-import dev.qtremors.arcile.navigation.AppRoutes
 
 enum class RecentNativeAction { TRASH }
 
@@ -46,9 +49,6 @@ data class RecentFilesState(
     val yesterdayStart: Long = 0L
 )
 
-
-
-
 @HiltViewModel
 class RecentFilesViewModel @Inject constructor(
     private val repository: FileRepository,
@@ -58,8 +58,67 @@ class RecentFilesViewModel @Inject constructor(
     private val _state = MutableStateFlow(RecentFilesState())
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
-    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
-    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+    private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>()
+    val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+
+    private val deleteFlowDelegate = DeleteFlowDelegate(
+        coroutineScope = viewModelScope,
+        repository = repository,
+        callbacks = object : DeleteStateCallbacks {
+            override fun getSelectedFiles(): List<String> = _state.value.selectedFiles.toList()
+            override fun isPermanentDeleteChecked(): Boolean = _state.value.isPermanentDeleteChecked
+            override fun isPermanentDeleteToggleEnabled(): Boolean = _state.value.isPermanentDeleteToggleEnabled
+            override fun setLoading(isLoading: Boolean) {
+                _state.update { it.copy(isLoading = isLoading) }
+            }
+            override fun showMixedDeleteExplanation() {
+                _state.update { it.copy(showMixedDeleteExplanation = true) }
+            }
+            override fun showPermanentDeleteConfirmation() {
+                _state.update {
+                    it.copy(
+                        showPermanentDeleteConfirmation = true,
+                        isPermanentDeleteChecked = true,
+                        isPermanentDeleteToggleEnabled = false
+                    )
+                }
+            }
+            override fun showTrashConfirmation() {
+                _state.update {
+                    it.copy(
+                        showTrashConfirmation = true,
+                        isPermanentDeleteChecked = false,
+                        isPermanentDeleteToggleEnabled = true
+                    )
+                }
+            }
+            override fun togglePermanentDeleteChecked() {
+                _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
+            }
+            override fun dismissDeleteConfirmation() {
+                _state.update {
+                    it.copy(
+                        showTrashConfirmation = false,
+                        showPermanentDeleteConfirmation = false,
+                        showMixedDeleteExplanation = false
+                    )
+                }
+            }
+            override fun setError(error: String) {
+                _state.update { it.copy(error = error) }
+            }
+            override fun setPendingNativeAction() {
+                _state.update { it.copy(pendingNativeAction = RecentNativeAction.TRASH) }
+            }
+            override fun clearSelection() {
+                _state.update { it.copy(selectedFiles = emptySet()) }
+            }
+        },
+        executeMoveToTrash = { selected -> repository.moveToTrash(selected) },
+        emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
+        onSuccess = { loadRecentFiles(false) },
+        onFailure = { loadRecentFiles(false) }
+    )
 
     init {
         val cal = java.util.Calendar.getInstance()
@@ -78,7 +137,7 @@ class RecentFilesViewModel @Inject constructor(
             if (e is kotlinx.coroutines.CancellationException) throw e
             savedStateHandle.get<String>("volumeId")
         }
-        _state.update { it.copy(currentVolumeId = volumeId?.takeIf { it.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
+        _state.update { it.copy(currentVolumeId = volumeId?.takeIf { value -> value.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
         viewModelScope.launch {
             @OptIn(kotlinx.coroutines.FlowPreview::class)
             repository.observeStorageVolumes()
@@ -90,14 +149,13 @@ class RecentFilesViewModel @Inject constructor(
         }
     }
 
-
     fun loadRecentFiles(pullToRefresh: Boolean = false, loadMore: Boolean = false) {
         val capturedState = _state.value
         if (loadMore && (capturedState.isLoadingMore || !capturedState.hasMore)) return
-        
+
         val offset = if (loadMore) capturedState.currentOffset + 50 else 0
-        
-        _state.update { 
+
+        _state.update {
             if (loadMore) {
                 it.copy(isLoadingMore = true, error = null)
             } else {
@@ -108,7 +166,7 @@ class RecentFilesViewModel @Inject constructor(
             val scope = capturedState.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
             val result = repository.getRecentFiles(scope = scope, limit = 50, offset = offset)
             result.onSuccess { files ->
-                _state.update { 
+                _state.update {
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
                     val newFiles = if (loadMore) it.recentFiles + files else files
                     it.copy(
@@ -119,14 +177,14 @@ class RecentFilesViewModel @Inject constructor(
                         currentOffset = offset,
                         hasMore = files.size == 50,
                         searchResults = if (it.searchQuery.isNotBlank()) {
-                             newFiles.filter { f -> f.name.contains(it.searchQuery, ignoreCase = true) }
+                            newFiles.filter { file -> file.name.contains(it.searchQuery, ignoreCase = true) }
                         } else emptyList()
-                    ) 
+                    )
                 }
             }.onFailure { error ->
-                _state.update { 
+                _state.update {
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
-                    it.copy(isLoading = false, isPullToRefreshing = false, isLoadingMore = false, error = error.message ?: "Failed to load recent files") 
+                    it.copy(isLoading = false, isPullToRefreshing = false, isLoadingMore = false, error = error.message ?: "Failed to load recent files")
                 }
             }
         }
@@ -151,95 +209,12 @@ class RecentFilesViewModel @Inject constructor(
         _state.update { it.copy(selectedFiles = emptySet()) }
     }
 
-    fun requestDeleteSelected() {
-        val selectedFiles = _state.value.selectedFiles.toList()
-        if (selectedFiles.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-
-            val policyResult = dev.qtremors.arcile.domain.evaluateDeletePolicy(selectedFiles, repository)
-
-            when (policyResult) {
-                is dev.qtremors.arcile.domain.DeletePolicyResult.MixedSelection -> {
-                    _state.update { it.copy(isLoading = false, showMixedDeleteExplanation = true) }
-                }
-                is dev.qtremors.arcile.domain.DeletePolicyResult.PermanentDelete -> {
-                    _state.update { it.copy(
-                        isLoading = false, 
-                        showPermanentDeleteConfirmation = true,
-                        isPermanentDeleteChecked = true,
-                        isPermanentDeleteToggleEnabled = false
-                    ) }
-                }
-                is dev.qtremors.arcile.domain.DeletePolicyResult.Trash -> {
-                    _state.update { it.copy(
-                        isLoading = false, 
-                        showTrashConfirmation = true,
-                        isPermanentDeleteChecked = false,
-                        isPermanentDeleteToggleEnabled = true
-                    ) }
-                }
-            }
-        }
-    }
-
-    fun togglePermanentDelete() {
-        if (_state.value.isPermanentDeleteToggleEnabled) {
-            _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
-        }
-    }
-
-    fun confirmDeleteSelected() {
-        if (_state.value.isPermanentDeleteChecked) {
-            deleteSelectedPermanently()
-        } else {
-            moveSelectedToTrash()
-        }
-    }
-
-    fun dismissDeleteConfirmation() {
-        _state.update { it.copy(showTrashConfirmation = false, showPermanentDeleteConfirmation = false, showMixedDeleteExplanation = false) }
-    }
-
-    fun moveSelectedToTrash() {
-        val selected = _state.value.selectedFiles.toList()
-        if (selected.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
-            val result = repository.moveToTrash(selected)
-            result.onSuccess {
-                clearSelection()
-                loadRecentFiles(false)
-            }.onFailure { error ->
-                if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
-                    _state.update { it.copy(isLoading = false, pendingNativeAction = RecentNativeAction.TRASH) }
-                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
-                } else {
-                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                    loadRecentFiles(false)
-                }
-            }
-        }
-    }
-
-    fun deleteSelectedPermanently() {
-        val selected = _state.value.selectedFiles.toList()
-        if (selected.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
-            val result = repository.deletePermanently(selected)
-            result.onSuccess {
-                clearSelection()
-                loadRecentFiles(false)
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files") }
-                loadRecentFiles(false)
-            }
-        }
-    }
+    fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
+    fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
+    fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
+    fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
+    fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
+    fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
 
     fun clearError() {
         _state.update { it.copy(error = null) }

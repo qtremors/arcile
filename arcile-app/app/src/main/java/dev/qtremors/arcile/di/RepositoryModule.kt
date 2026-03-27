@@ -20,6 +20,8 @@ import dev.qtremors.arcile.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.data.source.FileSystemDataSource
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import javax.inject.Singleton
 
@@ -119,6 +121,14 @@ object RepositoryModule {
         repository: BrowserPreferencesRepository
     ): BrowserPreferencesStore {
         return repository
+    }
+
+    @Provides
+    @Singleton
+    fun provideBulkFileOperationCoordinator(
+        coordinator: ForegroundBulkFileOperationCoordinator
+    ): BulkFileOperationCoordinator {
+        return coordinator
     }
 
     @Provides

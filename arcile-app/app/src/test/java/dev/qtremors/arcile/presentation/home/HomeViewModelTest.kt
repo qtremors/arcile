@@ -16,6 +16,7 @@ import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -168,28 +169,49 @@ class HomeViewModelTest {
     fun `rapid storage volume emissions are debounced to prevent redundant data loads`() = runTest(mainDispatcherRule.dispatcher) {
         val volume1 = homeVolume("v1", "v1", "Vol1", "/v1", StorageKind.INTERNAL, true, false)
         val volume2 = homeVolume("v2", "v2", "Vol2", "/v2", StorageKind.SD_CARD, false, true)
-        
+
         val repository = HomeFakeFileRepository()
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
-        
+
         advanceTimeBy(1_000)
         advanceUntilIdle()
-        
+
         val initialCalls = repository.getStorageInfoCalls
-        
+
         repository.emitVolumes(listOf(volume1))
         advanceTimeBy(500)
         repository.emitVolumes(listOf(volume1, volume2))
         advanceTimeBy(500)
         repository.emitVolumes(listOf(volume2))
-        
+
         assertEquals(initialCalls, repository.getStorageInfoCalls)
-        
+
         advanceTimeBy(1_000)
         advanceUntilIdle()
-        
+
         assertEquals(initialCalls + 1, repository.getStorageInfoCalls)
+    }
+
+    @Test
+    fun `loadHomeData times out and preserves partial results`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume("primary", "primary", "Internal", "/storage/emulated/0", StorageKind.INTERNAL, true, false)
+        val repository = HomeFakeFileRepository(
+            volumes = listOf(volume),
+            recentFilesResult = Result.success(listOf(homeFile("recent.txt"))),
+            hangStorageInfo = true
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+
+        viewModel.loadHomeData()
+        advanceTimeBy(15_000)
+        advanceUntilIdle()
+
+        assertEquals("Home data loading timed out. Showing partial data.", viewModel.state.value.error)
+        assertEquals(listOf("recent.txt"), viewModel.state.value.recentFiles.map { it.name })
+        assertFalse(viewModel.state.value.isLoading)
+        assertFalse(viewModel.state.value.isCalculatingStorage)
     }
 }
 
@@ -198,7 +220,8 @@ private class HomeFakeFileRepository(
     private val storageInfoResult: Result<StorageInfo> = Result.success(StorageInfo(volumes.filter { it.kind.isIndexed })),
     private val recentFilesResult: Result<List<FileModel>> = Result.success(emptyList()),
     private val categoryStorageResult: Result<List<CategoryStorage>> = Result.success(emptyList()),
-    private val searchFilesResult: Result<List<FileModel>> = Result.success(listOf(homeFile("holiday.jpg")))
+    private val searchFilesResult: Result<List<FileModel>> = Result.success(listOf(homeFile("holiday.jpg"))),
+    private val hangStorageInfo: Boolean = false
 ) : FileRepository {
 
     private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
@@ -227,6 +250,9 @@ private class HomeFakeFileRepository(
     override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = recentFilesResult
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> {
         getStorageInfoCalls++
+        if (hangStorageInfo) {
+            delay(20_000)
+        }
         return storageInfoResult
     }
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = categoryStorageResult
