@@ -15,9 +15,9 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import io.mockk.mockk
 import dev.qtremors.arcile.testutil.MainDispatcherRule
+import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.testFile
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -37,7 +37,9 @@ class TrashViewModelTest {
     @Test
     fun `loadTrashFiles drops stale selections that no longer exist`() = runTest(mainDispatcherRule.dispatcher) {
         val items = listOf(trashItem("keep-1", "keep.txt"))
-        val repository = TrashFakeFileRepository(trashFiles = items)
+        val repository = FakeFileRepository().apply {
+            trashFilesResult = Result.success(items)
+        }
         val viewModel = TrashViewModel(repository)
 
         advanceUntilIdle()
@@ -52,13 +54,13 @@ class TrashViewModelTest {
 
     @Test
     fun `updateSearchQuery filters trash items after debounce and clears on blank`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = TrashFakeFileRepository(
-            trashFiles = listOf(
+        val repository = FakeFileRepository().apply {
+            trashFilesResult = Result.success(listOf(
                 trashItem("1", "Photo.jpg"),
                 trashItem("2", "notes.txt"),
                 trashItem("3", "photo-backup.png")
-            )
-        )
+            ))
+        }
         val viewModel = TrashViewModel(repository)
 
         advanceUntilIdle()
@@ -77,10 +79,13 @@ class TrashViewModelTest {
 
     @Test
     fun `restoreToDestination stores pending native confirmation context`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = TrashFakeFileRepository(
-            trashFiles = listOf(trashItem("1", "Photo.jpg")),
-            restoreToDestinationResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
-        )
+        val repository = FakeFileRepository().apply {
+            trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
+            restoreFromTrashResultProvider = { _, destinationPath ->
+                if (destinationPath != null) Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
+                else Result.success(Unit)
+            }
+        }
         val viewModel = TrashViewModel(repository)
 
         advanceUntilIdle()
@@ -97,10 +102,13 @@ class TrashViewModelTest {
     @Test
     fun `restoreSelectedTrash shows destination picker when DestinationRequiredException is thrown`() = runTest(mainDispatcherRule.dispatcher) {
         val trashIds = listOf("1")
-        val repository = TrashFakeFileRepository(
-            trashFiles = listOf(trashItem("1", "Photo.jpg")),
-            restoreResult = Result.failure(dev.qtremors.arcile.domain.DestinationRequiredException(trashIds))
-        )
+        val repository = FakeFileRepository().apply {
+            trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
+            restoreFromTrashResultProvider = { _, destinationPath ->
+                if (destinationPath == null) Result.failure(dev.qtremors.arcile.domain.DestinationRequiredException(trashIds))
+                else Result.success(Unit)
+            }
+        }
         val viewModel = TrashViewModel(repository)
 
         advanceUntilIdle()
@@ -115,69 +123,11 @@ class TrashViewModelTest {
     }
 }
 
-private class TrashFakeFileRepository(
-    private val trashFiles: List<TrashMetadata>,
-    private val restoreToDestinationResult: Result<Unit> = Result.success(Unit),
-    private val restoreResult: Result<Unit> = Result.success(Unit)
-) : FileRepository {
-
-    private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        tryEmit(
-            listOf(
-                StorageVolume(
-                    id = "primary",
-                    storageKey = "primary",
-                    name = "Internal",
-                    path = "/storage/emulated/0",
-                    totalBytes = 100L,
-                    freeBytes = 20L,
-                    isPrimary = true,
-                    isRemovable = false,
-                    kind = StorageKind.INTERNAL
-                )
-            )
-        )
-    }
-
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override suspend fun deleteFile(path: String): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> = Result.failure(NotImplementedError())
-    override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = Result.failure(NotImplementedError())
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = Result.failure(NotImplementedError())
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.failure(NotImplementedError())
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> {
-        return if (destinationPath != null) restoreToDestinationResult else restoreResult
-    }
-    override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(trashFiles)
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-}
-
 private fun trashItem(id: String, name: String) = TrashMetadata(
     id = id,
     originalPath = "/storage/emulated/0/$name",
     deletionTime = 1L,
-    fileModel = FileModel(
-        name = name,
-        absolutePath = "/trash/$name",
-        size = 1L,
-        lastModified = 1L,
-        extension = name.substringAfterLast('.', ""),
-        isHidden = false
-    ),
+    fileModel = testFile(name = name, path = "/trash/$name"),
     sourceVolumeId = "primary",
     sourceStorageKind = StorageKind.INTERNAL
 )

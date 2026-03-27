@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.5.4 | **Last Updated:** 2026-03-27
+**Version:** 0.5.5 | **Last Updated:** 2026-03-27
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -363,16 +363,16 @@ When catching exceptions inside Coroutines or Flow blocks, you **must not** swal
 
 ## Testing
 
-Arcile maintains a layered JVM test suite with **55 test cases across 22 files**, covering domain logic, data-layer business rules, ViewModel state machines, and Robolectric-backed Compose component tests.
+Arcile maintains a layered JVM test suite covering domain logic, data-layer business rules, repository routing, ViewModel state machines, navigation serialization, and Robolectric-backed Compose/component tests.
 
 ### Current Coverage Snapshot
 
 | Layer | Coverage | Test Files |
 |-------|----------|------------|
 | **Domain** | `DeletePolicy`, `FileModel`, `StorageInfo`, `StorageKind` | 3 files, 10 tests |
-| **Data (Business Rules)** | Scope matching, classification merging, storage filtering, trash routing, unique filename generation | 6 files, 18 tests |
+| **Data (Business Rules)** | Scope matching, classification merging, storage filtering, trash routing, unique filename generation, filesystem mutation routing | Expanded in `data/` and `data/source/` |
 | **Utilities** | `FormatUtils`, `CategoryColors` | 2 files, 6 tests |
-| **ViewModels** | `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, `TrashViewModel`, `StorageScopeViewModel`, `FilePresentation` | 6 files, 30 tests |
+| **ViewModels** | `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, `TrashViewModel`, `StorageScopeViewModel`, `FilePresentation` | Shared `FakeFileRepository` backed |
 | **UI Components** | `DeleteConfirmationDialog`, `ArcileTopBar`, `EmptyState` (Robolectric + Compose UI) | 3 files, 6 tests |
 | **Instrumented** | `HomeScreen` rendering, `EmptyState` rendering | 3 files, 3 tests |
 
@@ -380,7 +380,8 @@ Arcile maintains a layered JVM test suite with **55 test cases across 22 files**
 - Pure unit and coroutine tests live under `app/src/test` and run with `testDebugUnitTest`.
 - Robolectric is enabled for JVM Compose component tests.
 - `unitTests.isIncludeAndroidResources = true` is required so Robolectric-backed Compose tests can resolve app resources.
-- Shared test helpers include `MainDispatcherRule` (coroutine dispatcher override) and `ArcileTestTheme` (Compose theme wrapper).
+- Shared test helpers include `MainDispatcherRule` (coroutine dispatcher override), `ArcileTestTheme` (Compose theme wrapper), `FakeFileRepository` (configurable repository double), and `TestFixtures` storage/file builders.
+- Turbine is available for Flow assertion work where emission order matters, and is now used for one-shot native confirmation coverage in browser tests.
 
 ### Running Tests
 ```bash

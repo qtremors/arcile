@@ -21,6 +21,7 @@ coreSplashScreen = "1.0.1"
 material-kolor = "4.1.1"
 robolectric = "4.14.1"
 mockk = "1.13.10"
+turbine = "1.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -53,6 +54,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 material-kolor = { group = "com.materialkolor", name = "material-kolor", version.ref = "material-kolor" }
 org-robolectric-robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 io-mockk-mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+app-cash-turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

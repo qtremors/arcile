@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.browser
 
 import android.content.IntentSender
+import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.BrowserPreferences
@@ -26,20 +27,17 @@ import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.async
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -251,19 +249,21 @@ class BrowserViewModelTest {
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
-        val firstEvent = async { viewModel.nativeRequestFlow.first() }
 
-        advanceUntilIdle()
-        viewModel.navigateToSpecificFolder("/storage/emulated/0")
-        advanceUntilIdle()
-        viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
-        viewModel.moveSelectedToTrash()
-        advanceUntilIdle()
+        viewModel.nativeRequestFlow.test {
+            advanceUntilIdle()
+            viewModel.navigateToSpecificFolder("/storage/emulated/0")
+            advanceUntilIdle()
+            viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
+            viewModel.moveSelectedToTrash()
+            advanceUntilIdle()
 
-        assertNotNull(firstEvent.await())
-        assertNull(withTimeoutOrNull(50) { viewModel.nativeRequestFlow.first() })
-        viewModel.handleNativeActionResult(confirmed = false)
-        assertNull(viewModel.state.value.pendingNativeAction)
+            awaitItem()
+            expectNoEvents()
+            viewModel.handleNativeActionResult(confirmed = false)
+            assertNull(viewModel.state.value.pendingNativeAction)
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     @Test
@@ -373,71 +373,80 @@ private class FakeBrowserPreferencesStore(
 
 private class BrowserFakeFileRepository(
     volumes: List<StorageVolume> = emptyList(),
-    private val filesByPath: Map<String, List<FileModel>> = emptyMap(),
-    private val filesByCategory: Map<String, List<FileModel>> = emptyMap(),
-    private val searchResult: Result<List<FileModel>> = Result.success(emptyList()),
-    private val conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
-    private val moveToTrashResult: Result<Unit> = Result.success(Unit),
-    private val renameResult: Result<FileModel> = Result.failure(NotImplementedError())
+    filesByPath: Map<String, List<FileModel>> = emptyMap(),
+    filesByCategory: Map<String, List<FileModel>> = emptyMap(),
+    searchResult: Result<List<FileModel>> = Result.success(emptyList()),
+    conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
+    moveToTrashResult: Result<Unit> = Result.success(Unit),
+    renameResult: Result<FileModel> = Result.failure(NotImplementedError())
 ) : FileRepository {
+    private val delegate = FakeFileRepository(
+        volumes = volumes,
+        initialFilesByPath = filesByPath,
+        initialFilesByCategory = filesByCategory
+    ).apply {
+        searchFilesResultProvider = { _, _, _ -> searchResult }
+        detectCopyConflictsResultProvider = { _, _ -> conflictsResult }
+        moveToTrashResultProvider = { moveToTrashResult }
+        renameFileResultProvider = { _, _ -> renameResult }
+    }
 
-    private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        tryEmit(volumes)
-    }
-    private val volumeList = volumes
+    val lastSearchQuery: String?
+        get() = delegate.searchRequests.lastOrNull()?.query
+    val lastSearchScope: StorageScope?
+        get() = delegate.searchRequests.lastOrNull()?.scope
+    val lastSearchFilters: SearchFilters?
+        get() = delegate.searchRequests.lastOrNull()?.filters
+    val lastConflictSourcePaths: List<String>?
+        get() = delegate.copyConflictRequests.lastOrNull()?.sourcePaths
+    val lastConflictDestination: String?
+        get() = delegate.copyConflictRequests.lastOrNull()?.destinationPath
+    val createDirectoryCalls: Int
+        get() = delegate.createDirectoryRequests.size
+    val lastRenamePath: String?
+        get() = delegate.renameRequests.lastOrNull()?.first
+    val lastRenameNewName: String?
+        get() = delegate.renameRequests.lastOrNull()?.second
 
-    var lastSearchQuery: String? = null
-    var lastSearchScope: StorageScope? = null
-    var lastSearchFilters: SearchFilters? = null
-    var lastConflictSourcePaths: List<String>? = null
-    var lastConflictDestination: String? = null
-    var createDirectoryCalls: Int = 0
-    var lastRenamePath: String? = null
-    var lastRenameNewName: String? = null
-
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(filesByPath[path].orEmpty())
-    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> {
-        createDirectoryCalls += 1
-        return Result.success(browserFile(name, "$parentPath/$name", isDirectory = true))
-    }
-    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override suspend fun deleteFile(path: String): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> {
-        lastRenamePath = path
-        lastRenameNewName = newName
-        return renameResult
-    }
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
-        val volume = volumeList.sortedByDescending { it.path.length }
-            .firstOrNull { path == it.path || path.startsWith(it.path + "/") }
-        return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
-    }
-    override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = Result.failure(NotImplementedError())
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = Result.failure(NotImplementedError())
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.success(filesByCategory[categoryName].orEmpty())
-    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?): Result<List<FileModel>> {
-        lastSearchQuery = query
-        lastSearchScope = scope
-        lastSearchFilters = filters
-        return searchResult
-    }
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> {
-        lastConflictSourcePaths = sourcePaths
-        lastConflictDestination = destinationPath
-        return conflictsResult
-    }
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.success(Unit)
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.success(Unit)
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = moveToTrashResult
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.failure(NotImplementedError())
+    override suspend fun listFiles(path: String) = delegate.listFiles(path)
+    override suspend fun createDirectory(parentPath: String, name: String) = delegate.createDirectory(parentPath, name)
+    override suspend fun createFile(parentPath: String, name: String) = delegate.createFile(parentPath, name)
+    override suspend fun deleteFile(path: String) = delegate.deleteFile(path)
+    override suspend fun deletePermanently(paths: List<String>) = delegate.deletePermanently(paths)
+    override suspend fun renameFile(path: String, newName: String) = delegate.renameFile(path, newName)
+    override fun observeStorageVolumes() = delegate.observeStorageVolumes()
+    override suspend fun getStorageVolumes() = delegate.getStorageVolumes()
+    override suspend fun getVolumeForPath(path: String) = delegate.getVolumeForPath(path)
+    override fun getStandardFolders() = delegate.getStandardFolders()
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long) =
+        delegate.getRecentFiles(scope, limit, offset, minTimestamp)
+    override suspend fun getStorageInfo(scope: StorageScope) = delegate.getStorageInfo(scope)
+    override suspend fun getCategoryStorageSizes(scope: StorageScope) = delegate.getCategoryStorageSizes(scope)
+    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String) =
+        delegate.getFilesByCategory(scope, categoryName)
+    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?) =
+        delegate.searchFiles(query, scope, filters)
+    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String) =
+        delegate.detectCopyConflicts(sourcePaths, destinationPath)
+    override suspend fun copyFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) = delegate.copyFiles(sourcePaths, destinationPath, resolutions, onProgress)
+    override suspend fun moveFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) = delegate.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
+    override suspend fun moveToTrash(paths: List<String>) = delegate.moveToTrash(paths)
+    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?) =
+        delegate.restoreFromTrash(trashIds, destinationPath)
+    override suspend fun emptyTrash() = delegate.emptyTrash()
+    override suspend fun getTrashFiles() = delegate.getTrashFiles()
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
+        delegate.deletePermanentlyFromTrash(trashIds)
 }
 
 private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {

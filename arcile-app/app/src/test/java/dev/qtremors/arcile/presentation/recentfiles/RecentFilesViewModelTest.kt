@@ -15,10 +15,11 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.testutil.MainDispatcherRule
+import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.testFile
+import dev.qtremors.arcile.testutil.testVolume
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -42,7 +43,9 @@ class RecentFilesViewModelTest {
             recentFile("notes.txt"),
             recentFile("holiday-plan.pdf")
         )
-        val repository = RecentFakeFileRepository(recentFiles = files)
+        val repository = FakeFileRepository(
+            initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
+        )
         val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
 
         advanceUntilIdle()
@@ -59,7 +62,9 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `blank search query clears recent file search state immediately`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = RecentFakeFileRepository(recentFiles = listOf(recentFile("Holiday.jpg")))
+        val repository = FakeFileRepository(
+            initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("Holiday.jpg")))
+        )
         val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
 
         advanceUntilIdle()
@@ -75,15 +80,17 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `pull to refresh reloads files and resets refresh flag`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = RecentFakeFileRepository(recentFiles = listOf(recentFile("Holiday.jpg")))
+        val repository = FakeFileRepository(
+            initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("Holiday.jpg")))
+        )
         val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
 
         advanceUntilIdle()
         viewModel.loadRecentFiles(pullToRefresh = true)
         advanceUntilIdle()
 
-        assertEquals(2, repository.requestedScopes.size)
-        assertEquals(StorageScope.AllStorage, repository.requestedScopes.last())
+        assertEquals(2, repository.requestedRecentScopes.size)
+        assertEquals(StorageScope.AllStorage, repository.requestedRecentScopes.last())
         assertFalse(viewModel.state.value.isPullToRefreshing)
         assertFalse(viewModel.state.value.isLoading)
     }
@@ -91,9 +98,11 @@ class RecentFilesViewModelTest {
     @Test
     fun `requestDeleteSelected shows trash confirmation for trash-capable volume`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = recentVolume("primary", "/storage/emulated/0", StorageKind.INTERNAL)
-        val repository = RecentFakeFileRepository(
-            recentFiles = listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg")),
-            volumes = listOf(internal)
+        val repository = FakeFileRepository(
+            volumes = listOf(internal),
+            initialRecentFilesByScope = mapOf(
+                StorageScope.AllStorage to listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg"))
+            )
         )
         val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
 
@@ -110,11 +119,14 @@ class RecentFilesViewModelTest {
     @Test
     fun `moveSelectedToTrash surfaces native confirmation request`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = recentVolume("primary", "/storage/emulated/0", StorageKind.INTERNAL)
-        val repository = RecentFakeFileRepository(
-            recentFiles = listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg")),
+        val repository = FakeFileRepository(
             volumes = listOf(internal),
-            moveToTrashResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
-        )
+            initialRecentFilesByScope = mapOf(
+                StorageScope.AllStorage to listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg"))
+            )
+        ).apply {
+            moveToTrashResultProvider = { Result.failure(NativeConfirmationRequiredException(fakeIntentSender())) }
+        }
         val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
 
         advanceUntilIdle()
@@ -127,61 +139,9 @@ class RecentFilesViewModelTest {
     }
 }
 
-private class RecentFakeFileRepository(
-    private val recentFiles: List<FileModel>,
-    volumes: List<StorageVolume> = emptyList(),
-    private val moveToTrashResult: Result<Unit> = Result.success(Unit)
-) : FileRepository {
+private fun recentFile(name: String, path: String = "/storage/emulated/0/$name") = testFile(name = name, path = path)
 
-    private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        tryEmit(volumes)
-    }
-    private val volumeList = volumes
-
-    val requestedScopes = mutableListOf<StorageScope>()
-
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override suspend fun deleteFile(path: String): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(volumeList)
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
-        val volume = volumeList.sortedByDescending { it.path.length }
-            .firstOrNull { path == it.path || path.startsWith(it.path + "/") }
-        return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
-    }
-    override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
-        requestedScopes += scope
-        return Result.success(recentFiles)
-    }
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = Result.failure(NotImplementedError())
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = Result.failure(NotImplementedError())
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.failure(NotImplementedError())
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = moveToTrashResult
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-}
-
-private fun recentFile(name: String, path: String = "/storage/emulated/0/$name") = FileModel(
-    name = name,
-    absolutePath = path,
-    size = 1L,
-    lastModified = 1L,
-    extension = name.substringAfterLast('.', ""),
-    isHidden = false
-)
-
-private fun recentVolume(id: String, path: String, kind: StorageKind) = StorageVolume(
+private fun recentVolume(id: String, path: String, kind: StorageKind) = testVolume(
     id = id,
     storageKey = id,
     name = id,

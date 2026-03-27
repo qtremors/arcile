@@ -1,8 +1,21 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.4
+> **Version:** 0.5.5
 > **Last Updated:** 2026-03-27
+
+---
+
+## [0.5.5] - 2026-03-27
+
+### Testing
+- **Shared Repository Test Double:** Consolidated the duplicated `FileRepository` test fakes into a reusable `FakeFileRepository` plus shared storage/file fixture helpers, reducing interface-drift risk across browser, home, recent-files, trash, delete-policy, and storage-scope tests.
+- **Data-Layer Coverage Expansion:** Added Robolectric/JVM coverage for `LocalFileRepository`, `DefaultFileSystemDataSource`, `BrowserPreferencesRepository`, `StorageClassificationRepository`, `ShareHelper`, and route serialization to catch regressions in destructive operations, DataStore-backed preferences, classification persistence, and share flows.
+- **Flow Assertion Upgrade:** Added Turbine to the test stack and used it for one-shot native confirmation flow assertions in `BrowserViewModel`, improving precision around event delivery timing.
+- **Test Suite Verification:** `:app:testDebugUnitTest` now passes with the expanded JVM coverage and the migrated shared test infrastructure.
+
+### Maintenance
+- **Task Tracker Sync:** Marked the completed testing checklist items in `TASKS.md` and bumped the project task/changelog version metadata to `0.5.5`.
 
 ---
 
