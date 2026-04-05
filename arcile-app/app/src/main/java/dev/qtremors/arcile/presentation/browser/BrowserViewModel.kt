@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -48,7 +50,9 @@ data class BrowserState(
     val isSearching: Boolean = false,
     val browserSearchQuery: String = "",
     val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
-    val isGridView: Boolean = false,
+    val browserViewMode: BrowserViewMode = BrowserViewMode.LIST,
+    val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+    val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
@@ -244,25 +248,36 @@ class BrowserViewModel @Inject constructor(
     fun updateSearchFilters(filters: SearchFilters) = searchDelegate.updateSearchFilters(filters)
     fun toggleSearchFilterMenu(visible: Boolean) = searchDelegate.toggleSearchFilterMenu(visible)
 
-    fun updateBrowserSortOption(sortOption: FileSortOption, applyToSubfolders: Boolean) {
+    fun updateBrowserPresentation(
+        presentation: BrowserPresentationPreferences,
+        applyToSubfolders: Boolean
+    ) {
         if (_state.value.isVolumeRootScreen) return
-        _state.update { it.copy(browserSortOption = sortOption) }
+        val normalized = presentation.normalized()
+        _state.update {
+            it.copy(
+                browserSortOption = normalized.sortOption,
+                browserViewMode = normalized.viewMode,
+                browserListZoom = normalized.listZoom,
+                browserGridMinCellSize = normalized.gridMinCellSize
+            )
+        }
         viewModelScope.launch {
             if (_state.value.isCategoryScreen) {
-                browserPreferencesRepository.updatePathSortOption("category_${_state.value.activeCategoryName}", sortOption, applyToSubfolders = false)
+                browserPreferencesRepository.updatePathPresentation(
+                    path = "category_${_state.value.activeCategoryName}",
+                    presentation = normalized,
+                    applyToSubfolders = false
+                )
             } else {
                 val path = _state.value.currentPath
                 if (path.isNotEmpty()) {
-                    browserPreferencesRepository.updatePathSortOption(path, sortOption, applyToSubfolders)
+                    browserPreferencesRepository.updatePathPresentation(path, normalized, applyToSubfolders)
                 } else if (applyToSubfolders) {
-                    browserPreferencesRepository.updateGlobalSortOption(sortOption)
+                    browserPreferencesRepository.updateGlobalPresentation(normalized)
                 }
             }
         }
-    }
-
-    fun setGridView(enabled: Boolean) {
-        _state.update { it.copy(isGridView = enabled) }
     }
 
     fun createFolder(name: String) {

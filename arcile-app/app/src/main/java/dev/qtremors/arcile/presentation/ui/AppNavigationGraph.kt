@@ -155,8 +155,9 @@ fun AppNavigationGraph(
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
-                        onSortOptionChange = { option, applyToSubfolders -> viewModel.updateBrowserSortOption(option, applyToSubfolders) },
-                        onGridViewChange = { viewModel.setGridView(it) },
+                        onPresentationChange = { presentation, applyToSubfolders ->
+                            viewModel.updateBrowserPresentation(presentation, applyToSubfolders)
+                        },
                         onClearError = { viewModel.clearError() },
                         onCopySelected = { viewModel.copySelectedToClipboard() },
                         onCutSelected = { viewModel.cutSelectedToClipboard() },

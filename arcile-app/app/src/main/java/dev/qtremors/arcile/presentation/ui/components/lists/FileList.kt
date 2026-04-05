@@ -1,9 +1,7 @@
 package dev.qtremors.arcile.presentation.ui.components.lists
-import dev.qtremors.arcile.R
-import androidx.compose.ui.res.stringResource
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,14 +34,17 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
-import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -56,7 +57,8 @@ fun FileList(
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
-    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    zoom: Float = 1f
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -71,6 +73,7 @@ fun FileList(
                 file = file,
                 formattedDate = formatter.format(Date(file.lastModified)),
                 isSelected = selectedFiles.contains(file.absolutePath),
+                zoom = zoom,
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -106,13 +109,9 @@ fun FileItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    zoom: Float = 1f
 ) {
-    val animatedSurfaceColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-        label = "listItemColor"
-    )
-
     val animatedHorizontalPadding by animateDpAsState(
         targetValue = if (isSelected) 8.dp else 0.dp,
         label = "listItemHPadding"
@@ -121,31 +120,38 @@ fun FileItemRow(
         targetValue = if (isSelected) 4.dp else 0.dp,
         label = "listItemVPadding"
     )
+    val animatedScale by animateFloatAsState(targetValue = zoom, label = "listZoom")
 
+    val iconSize = (40.dp * animatedScale).coerceIn(32.dp, 56.dp)
+    val contentPadding = (10.dp * animatedScale).coerceIn(8.dp, 16.dp)
+    val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale)
+    val headlineStyle = MaterialTheme.typography.bodyLarge.scaled(animatedScale)
     val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else formatFileSize(file.size)}, Modified $formattedDate"
 
     Surface(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
-        color = animatedSurfaceColor,
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
             .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
             .semantics(mergeDescendants = true) {
                 contentDescription = contentDesc
                 selected = isSelected
-            }            .combinedClickable(
+            }
+            .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
     ) {
         ListItem(
+            modifier = Modifier.padding(vertical = contentPadding / 2),
             leadingContent = {
-                val isMedia = !file.isDirectory && file.extension != null && (
-                        FileCategories.Images.extensions.contains(file.extension) ||
+                val isMedia = !file.isDirectory && (
+                    FileCategories.Images.extensions.contains(file.extension) ||
                         FileCategories.Videos.extensions.contains(file.extension) ||
                         FileCategories.APKs.extensions.contains(file.extension) ||
                         FileCategories.Audio.extensions.contains(file.extension)
-                )
+                    )
 
                 if (isMedia) {
                     AsyncImage(
@@ -155,7 +161,7 @@ fun FileItemRow(
                             .build(),
                         contentDescription = stringResource(R.string.desc_thumbnail),
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(iconSize)
                             .clip(MaterialTheme.shapes.extraLarge),
                         contentScale = ContentScale.Crop
                     )
@@ -164,16 +170,23 @@ fun FileItemRow(
                         imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
                         contentDescription = if (file.isDirectory) "Folder" else "File",
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(iconSize)
                     )
                 }
             },
-            headlineContent = { Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            headlineContent = {
+                Text(
+                    text = file.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = headlineStyle
+                )
+            },
             supportingContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(formattedDate)
+                    Text(text = formattedDate, style = supportStyle)
                     if (!file.isDirectory) {
-                        Text(formatFileSize(file.size))
+                        Text(text = formatFileSize(file.size), style = supportStyle)
                     }
                 }
             },
@@ -181,3 +194,9 @@ fun FileItemRow(
         )
     }
 }
+
+private fun TextStyle.scaled(zoom: Float): TextStyle = copy(
+    fontSize = fontSize * zoom,
+    lineHeight = lineHeight * zoom
+)
+

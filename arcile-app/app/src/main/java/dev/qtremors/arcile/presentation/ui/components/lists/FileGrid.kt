@@ -1,24 +1,20 @@
 package dev.qtremors.arcile.presentation.ui.components.lists
 
-import dev.qtremors.arcile.R
-import androidx.compose.ui.res.stringResource
-
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -37,22 +33,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
-import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -65,7 +64,8 @@ fun FileGrid(
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
-    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
+    minCellSize: Dp = 100.dp
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -73,7 +73,7 @@ fun FileGrid(
     LaunchedEffect(files) { lastInteractedIndex = null }
 
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 100.dp),
+        columns = GridCells.Adaptive(minSize = minCellSize),
         contentPadding = PaddingValues(16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -131,7 +131,8 @@ fun FileGridItem(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
-            stiffness = Spring.StiffnessMediumLow),
+            stiffness = Spring.StiffnessMediumLow
+        ),
         label = "gridItemScale"
     )
 
@@ -148,9 +149,10 @@ fun FileGridItem(
             .semantics(mergeDescendants = true) {
                 contentDescription = contentDesc
                 selected = isSelected
-            }            .combinedClickable(
+            }
+            .combinedClickable(
                 interactionSource = interactionSource,
-                indication = androidx.compose.foundation.LocalIndication.current,
+                indication = LocalIndication.current,
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
@@ -164,12 +166,12 @@ fun FileGridItem(
                 .fillMaxWidth()
                 .animateContentSize()
         ) {
-            val isMedia = !file.isDirectory && file.extension != null && (
-                    FileCategories.Images.extensions.contains(file.extension) ||
+            val isMedia = !file.isDirectory && (
+                FileCategories.Images.extensions.contains(file.extension) ||
                     FileCategories.Videos.extensions.contains(file.extension) ||
                     FileCategories.APKs.extensions.contains(file.extension) ||
                     FileCategories.Audio.extensions.contains(file.extension)
-            )
+                )
 
             if (isMedia) {
                 AsyncImage(
@@ -199,7 +201,7 @@ fun FileGridItem(
                     )
                 }
             }
-            
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -229,3 +231,4 @@ fun FileGridItem(
         }
     }
 }
+

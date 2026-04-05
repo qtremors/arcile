@@ -5,6 +5,7 @@ import androidx.navigation.toRoute
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
@@ -106,7 +107,7 @@ class NavigationDelegate(
         pathHistory.clear()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            val sortOption = prefs.getSortOptionForPath("/")
+            val presentation = prefs.getPresentationForPath("/")
             state.update {
                 it.copy(
                     currentPath = "",
@@ -117,7 +118,10 @@ class NavigationDelegate(
                     files = volumeFiles(),
                     selectedFiles = emptySet(),
                     error = errorMessage,
-                    browserSortOption = sortOption,
+                    browserSortOption = presentation.sortOption,
+                    browserViewMode = presentation.viewMode,
+                    browserListZoom = presentation.listZoom,
+                    browserGridMinCellSize = presentation.gridMinCellSize,
                     isLoading = false,
                     isPullToRefreshing = false
                 )
@@ -224,8 +228,7 @@ class NavigationDelegate(
         saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            val sortOptionForPath = prefs.getSortOptionForPath(path)
-            state.update { it.copy(browserSortOption = sortOptionForPath) }
+            applyPresentation(prefs.getPresentationForPath(path))
 
             repository.listFiles(path).onSuccess { files ->
                 state.update {
@@ -263,7 +266,7 @@ class NavigationDelegate(
         saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            val sortOptionForCategory = prefs.getSortOptionForCategory(categoryName)
+            val categoryPresentation = prefs.getPresentationForCategory(categoryName)
 
             val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
@@ -272,7 +275,10 @@ class NavigationDelegate(
                         isLoading = false,
                         isPullToRefreshing = false,
                         files = files,
-                        browserSortOption = sortOptionForCategory
+                        browserSortOption = categoryPresentation.sortOption,
+                        browserViewMode = categoryPresentation.viewMode,
+                        browserListZoom = categoryPresentation.listZoom,
+                        browserGridMinCellSize = categoryPresentation.gridMinCellSize
                     )
                 }
                 saveNavState()
@@ -285,6 +291,17 @@ class NavigationDelegate(
                     )
                 }
             }
+        }
+    }
+
+    private fun applyPresentation(presentation: BrowserPresentationPreferences) {
+        state.update {
+            it.copy(
+                browserSortOption = presentation.sortOption,
+                browserViewMode = presentation.viewMode,
+                browserListZoom = presentation.listZoom,
+                browserGridMinCellSize = presentation.gridMinCellSize
+            )
         }
     }
 }

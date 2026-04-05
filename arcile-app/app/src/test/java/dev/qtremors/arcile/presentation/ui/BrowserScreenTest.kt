@@ -1,8 +1,10 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
@@ -51,8 +53,7 @@ class BrowserScreenTest {
                     onRenameFile = { _, _ -> },
                     onSearchQueryChange = {},
                     onClearSearch = { clearSearchCalls += 1 },
-                    onSortOptionChange = { _, _ -> },
-                    onGridViewChange = {},
+                    onPresentationChange = { _, _ -> },
                     onClearError = {},
                     onCopySelected = {},
                     onCutSelected = {},
@@ -96,8 +97,7 @@ class BrowserScreenTest {
                     onRenameFile = { _, _ -> },
                     onSearchQueryChange = {},
                     onClearSearch = {},
-                    onSortOptionChange = { _, _ -> },
-                    onGridViewChange = {},
+                    onPresentationChange = { _, _ -> },
                     onClearError = {},
                     onCopySelected = {},
                     onCutSelected = {},
@@ -111,6 +111,48 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("Internal").performClick()
 
         assertEquals("/storage/emulated/0", navigatedPath)
+    }
+
+    @Test
+    fun `browser controls sheet shows grid controls when opened`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        browserViewMode = BrowserViewMode.GRID,
+                        files = listOf(browserFile("photo.jpg", "/storage/emulated/0/Download/photo.jpg"))
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Sort").performClick()
+        composeRule.onNodeWithText("Grid size").assertExists()
+        composeRule.onNodeWithText("Grid View").assertExists()
     }
 }
 

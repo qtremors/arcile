@@ -137,6 +137,8 @@ import java.util.Date
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
 
 /**
  * Full-featured file browser screen.
@@ -196,8 +198,7 @@ fun BrowserScreen(
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onSortOptionChange: (dev.qtremors.arcile.presentation.FileSortOption, Boolean) -> Unit,
-    onGridViewChange: (Boolean) -> Unit,
+    onPresentationChange: (BrowserPresentationPreferences, Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
     onCutSelected: () -> Unit,
@@ -256,6 +257,19 @@ fun BrowserScreen(
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
+    }
+    val currentPresentation = remember(
+        state.browserSortOption,
+        state.browserViewMode,
+        state.browserListZoom,
+        state.browserGridMinCellSize
+    ) {
+        BrowserPresentationPreferences(
+            sortOption = state.browserSortOption,
+            viewMode = state.browserViewMode,
+            listZoom = state.browserListZoom,
+            gridMinCellSize = state.browserGridMinCellSize
+        )
     }
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
@@ -341,11 +355,10 @@ fun BrowserScreen(
                     title = stringResource(R.string.browse_title),
                     selectionCount = state.selectedFiles.size,
                     showBackArrow = true,
-                    showGridViewAction = true,
                     showSortAction = !state.isVolumeRootScreen,
                     showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
-                    showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath != null,
-                    isGridView = state.isGridView,
+                    showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty(),
+                    isGridView = state.browserViewMode == BrowserViewMode.GRID,
                     hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
                     onBackClick = onNavigateBack,
@@ -368,7 +381,6 @@ fun BrowserScreen(
                             }
                             TopBarAction.DeleteSelected -> onRequestDeleteSelected()
                             TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
-                            TopBarAction.GridView -> onGridViewChange(!state.isGridView)
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
@@ -537,29 +549,31 @@ fun BrowserScreen(
                                         description = stringResource(R.string.empty_directory_description),
                                         modifier = Modifier.fillMaxSize()
                                     )
-                                } else if (state.isGridView && !state.isVolumeRootScreen) {
-                                    FileGrid(
+                                } else if (state.browserViewMode == BrowserViewMode.GRID && !state.isVolumeRootScreen) {
+                                     FileGrid(
+                                         files = displayedFiles,
+                                         selectedFiles = state.selectedFiles,
+                                        onNavigateTo = onNavigateTo,
+                                        onOpenFile = onOpenFile,
+                                         onToggleSelection = onToggleSelection,
+                                         onSelectMultiple = onSelectMultiple,
+                                         modifier = Modifier.fillMaxSize(),
+                                         gridState = gridState,
+                                         minCellSize = state.browserGridMinCellSize.dp
+                                     )
+                                 } else {
+                                     FileList(
                                         files = displayedFiles,
                                         selectedFiles = state.selectedFiles,
                                         onNavigateTo = onNavigateTo,
                                         onOpenFile = onOpenFile,
-                                        onToggleSelection = onToggleSelection,
-                                        onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize(),
-                                        gridState = gridState
-                                    )
-                                } else {
-                                    FileList(
-                                        files = displayedFiles,
-                                        selectedFiles = state.selectedFiles,
-                                        onNavigateTo = onNavigateTo,
-                                        onOpenFile = onOpenFile,
-                                        onToggleSelection = onToggleSelection,
-                                        onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize(),
-                                        listState = listState
-                                    )
-                                }
+                                         onToggleSelection = onToggleSelection,
+                                         onSelectMultiple = onSelectMultiple,
+                                         modifier = Modifier.fillMaxSize(),
+                                         listState = listState,
+                                         zoom = state.browserListZoom
+                                     )
+                                 }
                             }
                 }
             }
@@ -642,11 +656,11 @@ fun BrowserScreen(
         if (showSortDialog) {
             SortOptionDialog(
                 title = stringResource(R.string.sort_folder_title),
-                selectedOption = state.browserSortOption,
+                selectedPreferences = currentPresentation,
                 showApplyToSubfolders = !state.isCategoryScreen,
                 onDismiss = { showSortDialog = false },
-                onOptionSelected = { option, applyToSubfolders ->
-                    onSortOptionChange(option, applyToSubfolders)
+                onApply = { presentation, applyToSubfolders ->
+                    onPresentationChange(presentation, applyToSubfolders)
                     showSortDialog = false
                 }
             )

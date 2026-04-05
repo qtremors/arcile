@@ -1,8 +1,27 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.5
-> **Last Updated:** 2026-03-27
+> **Version:** 0.5.7
+> **Last Updated:** 2026-04-05
+
+---
+
+## [0.5.7] - 2026-04-05
+
+### UX
+- **Unified Browser Controls:** Replaced the separate sort sheet and grid toggle with a single Material 3 expressive browser controls sheet that manages sort mode, view mode, list zoom, and adaptive grid sizing in one place.
+- **Cleaner Layout Tuning:** Browser list density and grid sizing now respond live while browsing, making it easier to dial in a compact or relaxed layout without leaving the file view.
+
+### Persistence
+- **Per-Location Layout Memory:** Browser presentation settings now persist alongside sort preferences for folders and categories, including recursive inheritance when applied to subfolders.
+- **Smarter Restore Flow:** Opening a folder, category, or volume root now restores the full browser presentation state instead of only restoring sort order.
+
+### Testing
+- **Browser Preference Coverage:** Expanded JVM coverage for browser presentation persistence and fallback behavior.
+- **Browser UI Coverage:** Added focused Compose coverage for the unified browser controls entry point and supporting browser state updates.
+
+### Documentation
+- **Release Sync:** Updated tasks, docs, and website copy to reflect the new unified browser layout controls and bumped the project to `0.5.7`.
 
 ---
 

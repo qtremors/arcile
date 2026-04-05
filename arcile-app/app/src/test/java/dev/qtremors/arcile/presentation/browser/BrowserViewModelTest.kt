@@ -4,7 +4,9 @@ import android.content.IntentSender
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
@@ -69,7 +71,12 @@ class BrowserViewModelTest {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)
         val preferences = FakeBrowserPreferencesStore(
-            BrowserPreferences(globalSortOption = FileSortOption.NAME_ASC, pathSortOptions = mapOf("/" to FileSortOption.SIZE_LARGEST))
+            BrowserPreferences(
+                globalPresentation = BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC),
+                pathPresentationOptions = mapOf(
+                    "/" to BrowserPresentationPreferences(sortOption = FileSortOption.SIZE_LARGEST)
+                )
+            )
         )
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, sd)),
@@ -82,6 +89,7 @@ class BrowserViewModelTest {
         assertTrue(viewModel.state.value.isVolumeRootScreen)
         assertEquals(listOf("Internal", "SD Card"), viewModel.state.value.files.map { it.name })
         assertEquals(FileSortOption.SIZE_LARGEST, viewModel.state.value.browserSortOption)
+        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
         assertFalse(viewModel.state.value.isLoading)
     }
 
@@ -342,7 +350,9 @@ class BrowserViewModelTest {
             ),
             browserPreferencesRepository = FakeBrowserPreferencesStore(
                 BrowserPreferences(
-                    pathSortOptions = mapOf("category_Images" to FileSortOption.DATE_OLDEST)
+                    pathPresentationOptions = mapOf(
+                        "category_Images" to BrowserPresentationPreferences(sortOption = FileSortOption.DATE_OLDEST)
+                    )
                 )
             ),
             savedStateHandle = SavedStateHandle(
@@ -361,11 +371,12 @@ class BrowserViewModelTest {
         assertEquals("Images", viewModel.state.value.activeCategoryName)
         assertEquals("primary", viewModel.state.value.currentVolumeId)
         assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
+        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
         assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
     }
 
     @Test
-    fun `updateBrowserSortOption persists category sort key`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `updateBrowserPresentation persists category presentation key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val preferences = FakeBrowserPreferencesStore()
         val viewModel = createViewModel(
@@ -380,11 +391,20 @@ class BrowserViewModelTest {
         advanceUntilIdle()
         viewModel.navigateToCategory("Images", "primary")
         advanceUntilIdle()
-        viewModel.updateBrowserSortOption(FileSortOption.DATE_OLDEST, applyToSubfolders = true)
+        viewModel.updateBrowserPresentation(
+            BrowserPresentationPreferences(
+                sortOption = FileSortOption.DATE_OLDEST,
+                viewMode = BrowserViewMode.GRID,
+                listZoom = 1.1f,
+                gridMinCellSize = 144f
+            ),
+            applyToSubfolders = true
+        )
         advanceUntilIdle()
 
         assertEquals("category_Images", preferences.lastUpdatedPath)
-        assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathSortOption)
+        assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathPresentation?.sortOption)
+        assertEquals(BrowserViewMode.GRID, preferences.lastUpdatedPathPresentation?.viewMode)
         assertNull(preferences.lastUpdatedGlobalSortOption)
     }
 
@@ -421,21 +441,34 @@ private class FakeBrowserPreferencesStore(
 
     var lastUpdatedGlobalSortOption: FileSortOption? = null
     var lastUpdatedPath: String? = null
-    var lastUpdatedPathSortOption: FileSortOption? = null
+    var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
 
-    override suspend fun updateGlobalSortOption(sortOption: FileSortOption) {
-        lastUpdatedGlobalSortOption = sortOption
-        _preferencesFlow.value = _preferencesFlow.value.copy(globalSortOption = sortOption)
+    override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
+        lastUpdatedGlobalSortOption = presentation.sortOption
+        _preferencesFlow.value = _preferencesFlow.value.copy(globalPresentation = presentation)
     }
 
-    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?, applyToSubfolders: Boolean) {
+    override suspend fun updatePathPresentation(
+        path: String,
+        presentation: BrowserPresentationPreferences?,
+        applyToSubfolders: Boolean
+    ) {
         lastUpdatedPath = path
-        lastUpdatedPathSortOption = sortOption
-        _preferencesFlow.value = _preferencesFlow.value.copy(
-            pathSortOptions = _preferencesFlow.value.pathSortOptions.toMutableMap().apply {
-                if (sortOption == null) remove(path) else put(path, sortOption)
+        lastUpdatedPathPresentation = presentation
+        val updatedMap = if (applyToSubfolders) {
+            _preferencesFlow.value.pathPresentationOptions.toMutableMap().apply {
+                if (presentation == null) remove(path) else put(path, presentation)
             }
-        )
+        } else {
+            _preferencesFlow.value.exactPathPresentationOptions.toMutableMap().apply {
+                if (presentation == null) remove(path) else put(path, presentation)
+            }
+        }
+        _preferencesFlow.value = if (applyToSubfolders) {
+            _preferencesFlow.value.copy(pathPresentationOptions = updatedMap)
+        } else {
+            _preferencesFlow.value.copy(exactPathPresentationOptions = updatedMap)
+        }
     }
 }
 

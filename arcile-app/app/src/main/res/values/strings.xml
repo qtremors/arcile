@@ -192,6 +192,13 @@
     <string name="sort_date_oldest">Oldest First</string>
     <string name="sort_size_largest">Largest First</string>
     <string name="sort_size_smallest">Smallest First</string>
+    <string name="browser_layout_summary">%1$s in %2$s</string>
+    <string name="browser_layout_view_mode">View mode</string>
+    <string name="browser_layout_list_zoom">List zoom</string>
+    <string name="browser_layout_list_zoom_value">%1$d%% density</string>
+    <string name="browser_layout_grid_size">Grid size</string>
+    <string name="browser_layout_grid_columns_value">%1$d columns at this width</string>
+    <string name="browser_layout_persistence_hint">Keep this layout for nested folders too</string>
     <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
     <string name="clipboard_copied">copied</string>
     <string name="clipboard_cut">cut</string>

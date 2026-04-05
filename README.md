@@ -14,7 +14,7 @@
 
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.5.4-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.5.7-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
@@ -33,6 +33,7 @@
 | 📂 **Multi-Volume Support** | Seamlessly manage Internal Storage, SD Cards, and USB OTG devices |
 | 🗂️ **Breadcrumb Navigation** | Visual path breadcrumbs with auto-scroll and tap-to-navigate |
 | ✅ **Batch Operations** | Multi-select files for copy, cut, move, or permanent delete |
+| 🎛️ **Unified Browser Controls** | Adjust sort order, list/grid mode, list zoom, and adaptive grid sizing from one expressive browser sheet |
 | 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
 | 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
@@ -72,7 +73,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-adb install app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-{versionName}-debug.apk
+  adb install app/build/outputs/apk/debug/Arcile-0.5.7-debug.apk
 ```
 
 ### Release Signing
@@ -161,7 +162,7 @@ Run these commands from inside the `arcile-app/` directory:
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-> **Note:** The project includes a layered JVM test suite with 55 test cases covering domain logic, data-layer business rules, ViewModel state machines, and Robolectric-backed Compose component tests. Instrumented UI coverage includes `HomeScreen` and `EmptyState` rendering tests.
+> **Note:** The project includes an expanded layered JVM test suite covering domain logic, data-layer business rules, ViewModel state machines, DataStore-backed browser preferences, and Robolectric-backed Compose browser/component tests.
 
 ---
 
