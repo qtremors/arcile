@@ -297,6 +297,74 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun `restores saved directory location and back history`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val savedStateHandle = SavedStateHandle(
+            mapOf(
+                "currentPath" to "/storage/emulated/0/Download",
+                "currentVolumeId" to "primary",
+                "isCategoryScreen" to false,
+                "isVolumeRootScreen" to false,
+                "pathHistory" to arrayOf("/storage/emulated/0")
+            )
+        )
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf(
+                    "/storage/emulated/0/Download" to listOf(browserFile("hello.txt", "/storage/emulated/0/Download/hello.txt")),
+                    "/storage/emulated/0" to listOf(browserFile("Download", "/storage/emulated/0/Download", isDirectory = true))
+                )
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = savedStateHandle
+        )
+
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
+        assertEquals(listOf("hello.txt"), viewModel.state.value.files.map { it.name })
+
+        assertTrue(viewModel.navigateBack())
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0", viewModel.state.value.currentPath)
+        assertEquals(listOf("Download"), viewModel.state.value.files.map { it.name })
+    }
+
+    @Test
+    fun `restores saved category location with stored category sort`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByCategory = mapOf("Images" to listOf(browserFile("pic.jpg", "/storage/emulated/0/DCIM/pic.jpg")))
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(
+                BrowserPreferences(
+                    pathSortOptions = mapOf("category_Images" to FileSortOption.DATE_OLDEST)
+                )
+            ),
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "isCategoryScreen" to true,
+                    "activeCategoryName" to "Images",
+                    "currentVolumeId" to "primary",
+                    "isVolumeRootScreen" to false
+                )
+            )
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isCategoryScreen)
+        assertEquals("Images", viewModel.state.value.activeCategoryName)
+        assertEquals("primary", viewModel.state.value.currentVolumeId)
+        assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
+        assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
+    }
+
+    @Test
     fun `updateBrowserSortOption persists category sort key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val preferences = FakeBrowserPreferencesStore()
