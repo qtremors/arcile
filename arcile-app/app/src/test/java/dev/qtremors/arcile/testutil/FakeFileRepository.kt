@@ -7,7 +7,9 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
@@ -50,6 +52,7 @@ class FakeFileRepository(
     var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
+    var selectionPropertiesResultProvider: (suspend (List<String>) -> Result<SelectionProperties>)? = null
     var moveToTrashResultProvider: (suspend (List<String>) -> Result<Unit>)? = null
     var restoreFromTrashResultProvider: (suspend (List<String>, String?) -> Result<Unit>)? = null
     var emptyTrashResult: Result<Unit> = Result.failure(NotImplementedError())
@@ -119,6 +122,26 @@ class FakeFileRepository(
     }
 
     override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> = folderStatUpdates
+
+    override suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties> =
+        selectionPropertiesResultProvider?.invoke(paths) ?: Result.success(
+            SelectionProperties(
+                displayName = if (paths.size == 1) File(paths.first()).name else "${paths.size} items",
+                pathSummary = File(paths.first()).parent.orEmpty(),
+                itemCount = paths.size,
+                fileCount = paths.size,
+                folderCount = 0,
+                totalBytes = paths.size.toLong(),
+                newestModifiedAt = 1L,
+                oldestModifiedAt = 1L,
+                mimeTypeSummary = null,
+                extensionSummary = null,
+                hiddenCount = 0,
+                accessStatus = PropertiesAccessStatus.Full,
+                isSingleItem = paths.size == 1,
+                isDirectory = false
+            )
+        )
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> {
         createDirectoryRequests += parentPath to name

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 
 enum class FolderStatsStatus {
     Ready,
+    Partial,
     Unavailable
 }
 

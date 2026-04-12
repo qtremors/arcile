@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -57,7 +58,8 @@ fun Breadcrumbs(
     Row(
         modifier = Modifier
             .horizontalScroll(scrollState)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .height(48.dp)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // volume root segment
@@ -65,8 +67,8 @@ fun Breadcrumbs(
         Text(
             text = volumeName,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isAtRoot) FontWeight.Bold else FontWeight.Normal,
-            color = if (isAtRoot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
+            color = if (isAtRoot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             modifier = Modifier.clickable(enabled = !isAtRoot && volumeRootPath.isNotEmpty()) {
                 onPathSegmentClick(volumeRootPath)
             }
@@ -88,8 +90,8 @@ fun Breadcrumbs(
             Text(
                 text = segment,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
-                color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
+                color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier.clickable(enabled = !isLast) {
                     onPathSegmentClick(segmentPath)
                 }

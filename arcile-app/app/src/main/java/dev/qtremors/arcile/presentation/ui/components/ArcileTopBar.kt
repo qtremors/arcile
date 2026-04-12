@@ -224,10 +224,27 @@ fun ArcileTopBar(
                                 Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.action_rename))
                             }
                         }
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                        }
                         IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
                             Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete_selected))
                         }
                     }
+                }
+                DropdownMenu(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.properties_title)) },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                        onClick = {
+                            showMenu = false
+                            onActionSelected(TopBarAction.Properties)
+                        }
+                    )
                 }
             }
         },

@@ -1,9 +1,35 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.8
-> **Last Updated:** 2026-04-12
+> **Version:** 0.5.9
+> **Last Updated:** 2026-04-19
 
+---
+
+## [0.5.9] - 2026-04-19
+
+### UX & Navigation
+- **Breadcrumb Alignment:** Fixed a 1px vertical shift that occurred when breadcrumbs appeared in the browser header.
+- **Swipe to Browse:** Added a swipe-left gesture to the Home Screen to quickly open the file browser.
+- **Swipe to Go Back:** Added a swipe-right gesture to the Browser Screen to quickly navigate back or return to the Home Screen.
+- **Improved File List UI:** Redesigned the file list items to match modern file manager aesthetics, featuring larger icons inside circular containers and cleaner, better-aligned typography.
+- **Open Source Licenses:** Added a dedicated licenses screen listing all third-party libraries used by the app with their license types and project links.
+
+### Browser UX
+- **Instant Folder Subtitles:** Folder rows no longer show `Calculating…`; they render a neutral `Folder` subtitle immediately and upgrade silently when stats arrive.
+- **Best-Effort Scoped Storage Stats:** Folder subtitle aggregation now keeps readable counts and size totals even when scoped storage blocks some descendants, preventing `Android`-style folders from standing out as total failures.
+- **Limited Access Copy:** Partially readable folders now surface a short `Limited access` hint instead of a generic unavailable/loading state.
+
+### Properties
+- **Selection Properties Dialog:** Added a read-only Properties surface for single- and multi-select file/folder selections, exposed from the browser selection 3-dot overflow.
+- **Repository-Backed Metadata Summary:** Properties now aggregate file/folder counts, total size, path/location, modification timestamps, hidden-item counts, and access state from the repository layer rather than ad hoc UI logic.
+
+### Architecture
+- **Shared Folder Stats Calculator:** Extracted best-effort folder aggregation into a shared calculator so cached browser subtitles and Properties metadata use the same traversal rules.
+- **Browser State Wiring:** `BrowserViewModel` and `BrowserScreen` now own explicit Properties dialog state, loading flow, and dismissal behavior.
+
+### Documentation
+- **Release Sync:** Synchronized README, development docs, task metadata, and changelog references around version `0.5.9`.
 ---
 
 ## [0.5.8] - 2026-04-12

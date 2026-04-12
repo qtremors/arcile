@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.5.8 | **Last Updated:** 2026-04-12
+**Version:** 0.5.9 | **Last Updated:** 2026-04-19
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -154,6 +154,7 @@ Deletion is dynamically routed based on the current context (`DeletePolicy` in d
 To prevent UI freezes, Arcile utilizes several performance layers:
 - **MediaStore Cache TTL:** Category-size analytics remain cached for 5 minutes in `MediaStoreClient` to avoid repeated expensive scans.
 - **Folder Stats Cache/Store:** Browser folder subtitles use `FolderStatsStore` to cache aggregate file-count and byte-size calculations, emit incremental updates, and avoid recomputing the same directory totals on every recomposition.
+- **Repository-Backed Properties:** `FileRepository.getSelectionProperties()` supplies read-only file/folder metadata for the browser Properties dialog so Compose remains a thin rendering layer.
 - **Explicit Volume Refresh:** Storage volume `StatFs` snapshots are refreshed via `VolumeProvider.invalidateCache()` after app-owned file mutations instead of waiting for mount broadcasts alone. 
 - **Database-Level Category Search:** Searching within specific categories (like "Images") natively filters at the `MediaStore` SQL level rather than pulling all files into memory and filtering them via Kotlin.
 - **Micro-delayed Loading Guards:** To prevent the UI from "flickering" a loading spinner when data is loaded from a fast cache, a 5ms synchronous micro-delay is implemented across ViewModels before broadcasting an `isLoading = true` state.
@@ -161,7 +162,14 @@ To prevent UI freezes, Arcile utilizes several performance layers:
 ### Folder Metadata Aggregation Rules
 - Browser folder totals intentionally exclude descendant directories named `.thumbnails` so aggregate counts and sizes reflect user-meaningful content in media folders.
 - The exclusion only applies when calculating a parent directory's aggregate stats. If the user opens a `.thumbnails` folder directly, Arcile still calculates and shows that folder's own metadata.
+- Aggregate scans are best-effort: if Arcile can read part of a folder tree but not every descendant, the result is published as partial instead of collapsing to total failure.
 - `BrowserViewModel` subscribes to folder-stat update events once during initialization and filters updates down to the currently visible directory paths before updating UI state.
+- Folder rows never render a loading placeholder; uncached folders show `Folder` immediately and silently upgrade once cached stats arrive.
+
+### Browser Properties Dialog
+- The browser selection state exposes a dedicated 3-dot overflow entry for `Properties` without removing the existing quick actions.
+- Single-item properties show direct path, size, modified time, extension/MIME summary when available, and folder aggregate data for directories.
+- Multi-select properties summarize item count, file/folder split, total size, hidden-item count, and aggregate access state across the selection.
 
 ---
 

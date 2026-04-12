@@ -18,7 +18,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -44,6 +43,7 @@ private data class FolderStatsCacheEntity(
 @Singleton
 class DefaultFolderStatsStore @Inject constructor(
     @ApplicationContext context: Context,
+    private val calculator: (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null
 ) : FolderStatsStore {
@@ -52,7 +52,6 @@ class DefaultFolderStatsStore @Inject constructor(
         const val FRESH_TTL_MS = 30L * 60L * 1000L
         const val FAILURE_TTL_MS = 5L * 60L * 1000L
         private const val MAX_PERSISTED_ENTRIES = 2_000
-        private val EXCLUDED_DESCENDANT_FOLDERS = setOf(".thumbnails")
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -135,40 +134,12 @@ class DefaultFolderStatsStore @Inject constructor(
     }
 
     private fun calculate(path: String): FolderStats {
-        val root = File(path)
-        val now = System.currentTimeMillis()
         return try {
-            if (!root.exists() || !root.isDirectory) {
-                FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
-            } else {
-                var fileCount = 0L
-                var totalBytes = 0L
-                val pending = ArrayDeque<File>()
-                pending.add(root)
-
-                while (pending.isNotEmpty()) {
-                    val current = pending.removeFirst()
-                    val children = current.listFiles()
-                        ?: throw IOException("Unable to read directory: ${current.absolutePath}")
-                    children.forEach { child ->
-                        if (child.isDirectory) {
-                            if (child.name in EXCLUDED_DESCENDANT_FOLDERS) {
-                                return@forEach
-                            }
-                            pending.addLast(child)
-                        } else {
-                            fileCount += 1L
-                            totalBytes += child.length()
-                        }
-                    }
-                }
-
-                FolderStats(fileCount, totalBytes, now, FolderStatsStatus.Ready)
-            }
+            calculator(File(path))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.w("FolderStatsStore", "Folder stats calculation failed for $path", e)
-            FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
+            FolderStats(0L, 0L, System.currentTimeMillis(), FolderStatsStatus.Unavailable)
         }
     }
 

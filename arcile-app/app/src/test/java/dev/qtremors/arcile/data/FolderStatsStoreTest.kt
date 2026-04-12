@@ -3,6 +3,7 @@ package dev.qtremors.arcile.data
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.domain.FolderStatsStatus
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -109,5 +110,53 @@ class FolderStatsStoreTest {
         assertEquals(1L, thumbnailsStats.fileCount)
         assertEquals(10L, thumbnailsStats.totalBytes)
         assertEquals(FolderStatsStatus.Ready, thumbnailsStats.status)
+    }
+
+    @Test
+    fun `partial calculator result is persisted and published`() = runBlocking {
+        val folder = File(root, "Android").apply { mkdirs() }
+        val store = DefaultFolderStatsStore(
+            context = context,
+            calculator = {
+                FolderStats(
+                    fileCount = 2L,
+                    totalBytes = 512L,
+                    cachedAt = System.currentTimeMillis(),
+                    status = FolderStatsStatus.Partial
+                )
+            }
+        )
+
+        val updateDeferred = async { store.observeUpdates().first { it.path == folder.absolutePath } }
+        store.queue(listOf(folder.absolutePath))
+        val update = updateDeferred.await()
+
+        assertEquals(2L, update.stats.fileCount)
+        assertEquals(512L, update.stats.totalBytes)
+        assertEquals(FolderStatsStatus.Partial, update.stats.status)
+        assertEquals(FolderStatsStatus.Partial, store.getCached(listOf(folder.absolutePath))[folder.absolutePath]?.status)
+    }
+
+    @Test
+    fun `unavailable calculator result is persisted and published`() = runBlocking {
+        val folder = File(root, "Restricted").apply { mkdirs() }
+        val store = DefaultFolderStatsStore(
+            context = context,
+            calculator = {
+                FolderStats(
+                    fileCount = 0L,
+                    totalBytes = 0L,
+                    cachedAt = System.currentTimeMillis(),
+                    status = FolderStatsStatus.Unavailable
+                )
+            }
+        )
+
+        val updateDeferred = async { store.observeUpdates().first { it.path == folder.absolutePath } }
+        store.queue(listOf(folder.absolutePath))
+        val update = updateDeferred.await()
+
+        assertEquals(FolderStatsStatus.Unavailable, update.stats.status)
+        assertEquals(FolderStatsStatus.Unavailable, store.getCached(listOf(folder.absolutePath))[folder.absolutePath]?.status)
     }
 }

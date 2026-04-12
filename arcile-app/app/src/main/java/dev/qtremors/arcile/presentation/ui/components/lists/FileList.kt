@@ -5,6 +5,15 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -37,15 +46,14 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FolderStats
-import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -132,12 +140,19 @@ fun FileItemRow(
     )
     val animatedScale by animateFloatAsState(targetValue = zoom, label = "listZoom")
 
-    val iconSize = (38.dp * animatedScale).coerceIn(32.dp, 52.dp)
-    val contentPadding = (6.dp * animatedScale).coerceIn(4.dp, 10.dp)
-    val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale)
-    val headlineStyle = MaterialTheme.typography.bodyLarge.scaled(animatedScale)
+    // Increased icon size and layout padding to match the reference image
+    val iconSize = (48.dp * animatedScale).coerceIn(40.dp, 64.dp)
+    val contentPadding = (16.dp * animatedScale).coerceIn(12.dp, 20.dp)
+    
+    val titleStyle = MaterialTheme.typography.titleMedium.scaled(animatedScale).copy(
+        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+    )
+    val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale).copy(
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    
     val folderSubtitle = if (file.isDirectory) {
-        folderSubtitleText(folderStats, isFolderStatsLoading)
+        folderSubtitleText(folderStats)
     } else {
         null
     }
@@ -172,9 +187,22 @@ fun FileItemRow(
                 onLongClick = onLongClick
             )
     ) {
-        ListItem(
-            modifier = Modifier.padding(vertical = contentPadding / 2),
-            leadingContent = {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = contentPadding, vertical = contentPadding * 0.75f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon container with background (matches reference image style)
+            Box(
+                modifier = Modifier
+                    .size(iconSize)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
                 val isMedia = !file.isDirectory && (
                     FileCategories.Images.extensions.contains(file.extension) ||
                         FileCategories.Videos.extensions.contains(file.extension) ||
@@ -190,43 +218,56 @@ fun FileItemRow(
                             .build(),
                         contentDescription = stringResource(R.string.desc_thumbnail),
                         modifier = Modifier
-                            .size(iconSize)
-                            .clip(MaterialTheme.shapes.extraLarge),
+                            .fillMaxSize()
+                            .clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 } else {
                     Icon(
                         imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
                         contentDescription = if (file.isDirectory) "Folder" else "File",
-                        tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(iconSize)
+                        tint = if (file.isDirectory) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(iconSize * 0.5f)
                     )
                 }
-            },
-            headlineContent = {
+            }
+
+            Spacer(modifier = Modifier.width(contentPadding))
+
+            // Text Content (Title and Subtitle)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = file.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = headlineStyle
+                    style = titleStyle,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-            },
-            supportingContent = {
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // File count/size section
                     Text(
                         text = if (file.isDirectory) {
-                            folderSubtitle ?: stringResource(R.string.folder_stats_loading)
+                            folderSubtitle ?: stringResource(R.string.folder_label)
                         } else {
                             formatFileSize(file.size)
                         },
                         style = supportStyle,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
+                        overflow = TextOverflow.Ellipsis
                     )
+                    
+                    Spacer(modifier = Modifier.weight(1f))
+                    
+                    // Date section aligned to the right
                     Text(
                         text = formattedDate,
                         style = supportStyle,
@@ -235,23 +276,9 @@ fun FileItemRow(
                         textAlign = TextAlign.End
                     )
                 }
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-        )
+            }
+        }
     }
-}
-
-@Composable
-private fun folderSubtitleText(folderStats: FolderStats?, isFolderStatsLoading: Boolean): String? {
-    if (isFolderStatsLoading && folderStats == null) {
-        return stringResource(R.string.folder_stats_loading)
-    }
-    if (folderStats == null) return null
-    if (folderStats.status == FolderStatsStatus.Unavailable) {
-        return stringResource(R.string.folder_stats_unavailable)
-    }
-    val filesLabel = pluralStringResource(R.plurals.folder_stats_files, folderStats.fileCount.toInt(), folderStats.fileCount)
-    return "$filesLabel • ${formatFileSize(folderStats.totalBytes)}"
 }
 
 private fun TextStyle.scaled(zoom: Float): TextStyle = copy(

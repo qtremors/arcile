@@ -29,6 +29,7 @@
     <string name="action_cut">Cut</string>
     <string name="action_rename">Rename</string>
     <string name="action_delete_selected">Delete selected</string>
+    <string name="action_properties">Properties</string>
     <string name="action_navigate_to">Navigate to</string>
     <string name="action_keep_both">Keep Both</string>
     <string name="action_replace">Replace</string>
@@ -62,9 +63,19 @@
     <string name="section_privacy">Privacy</string>
     <string name="privacy_policy">Privacy Policy</string>
     <string name="privacy_description">"Arcile respects your privacy. It is an offline-first file manager and does not collect or share your personal data with any third-party services."</string>
-    <string name="section_changelogs">Changelogs</string>
+    <string name="section_changelogs">Changelogs &amp; Support</string>
     <string name="view_releases">View Releases</string>
-    <string name="view_releases_description">"Check out the latest updates and release notes on GitHub"</string>
+    <string name="view_releases_description">"See what's new in the latest version."</string>
+    <string name="report_issue">Report an Issue</string>
+    <string name="report_issue_description">"Found a bug? Let us know on GitHub."</string>
+    <string name="report_issue_url">"https://github.com/qtremors/arcile/issues/new"</string>
+    <string name="privacy_policy_url">"https://github.com/qtremors/arcile/blob/main/PRIVACY.md"</string>
+    <string name="open_source_licenses">Open Source Licenses</string>
+    <string name="open_source_licenses_description">"View third-party software details."</string>
+    <string name="open_source_licenses_url">"https://github.com/qtremors/arcile/blob/main/LICENSE.md"</string>
+    <string name="licenses_notice">"This application is built with the following open source libraries. Each library is the property of its respective owner and is used under the terms of its license."</string>
+    <string name="licenses_section_libraries">Libraries</string>
+    <string name="copied_to_clipboard">Copied to clipboard</string>
     
     <!-- Settings Screen -->
     <string name="settings_title">Settings</string>
@@ -142,7 +153,6 @@
     <string name="conflict_resolution_keep_both">Will rename incoming file</string>
     <string name="conflict_resolution_replace">Will overwrite existing file</string>
     <string name="conflict_resolution_skip">Will skip this file</string>
-    <string name="folder_label">Folder</string>
     <string name="thumbnail">Thumbnail</string>
 
     <string name="folders">Folders</string>
@@ -202,8 +212,28 @@
     <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
     <string name="clipboard_copied">copied</string>
     <string name="clipboard_cut">cut</string>
-    <string name="folder_stats_loading">Calculating…</string>
-    <string name="folder_stats_unavailable">Stats unavailable</string>
+    <string name="folder_label">Folder</string>
+    <string name="folder_stats_limited_access">Limited access</string>
+    <string name="folder_stats_unavailable">Folder • Limited access</string>
+    <string name="properties_title">Properties</string>
+    <string name="properties_loading">Loading properties…</string>
+    <string name="properties_name">Name</string>
+    <string name="properties_location">Location</string>
+    <string name="properties_items">Items</string>
+    <string name="properties_files">Files</string>
+    <string name="properties_folders">Folders</string>
+    <string name="properties_size">Size</string>
+    <string name="properties_modified">Modified</string>
+    <string name="properties_oldest_modified">Oldest modified</string>
+    <string name="properties_type">Type</string>
+    <string name="properties_extension">Extension</string>
+    <string name="properties_hidden_items">Hidden items</string>
+    <string name="properties_access">Access</string>
+    <string name="properties_access_full">Full</string>
+    <string name="properties_access_partial">Partial</string>
+    <string name="properties_access_limited">Limited</string>
+    <string name="properties_contains">Contains</string>
+    <string name="properties_contains_value">%1$d files • %2$s</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>

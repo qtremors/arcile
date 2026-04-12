@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -71,6 +75,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -313,10 +319,38 @@ fun HomeScreen(
     ) { padding ->
 
         val pullRefreshState = rememberPullToRefreshState()
+        var offsetX by remember { mutableFloatStateOf(0f) }
+        val animatedOffsetX by animateFloatAsState(
+            targetValue = offsetX,
+            label = "swipeOffset",
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offsetX = 0f },
+                        onDragEnd = {
+                            if (offsetX < -150f) {
+                                onOpenFileBrowser()
+                            }
+                            offsetX = 0f
+                        },
+                        onDragCancel = { offsetX = 0f },
+                        onHorizontalDrag = { _, dragAmount ->
+                            val newOffset = offsetX + dragAmount
+                            if (newOffset <= 0f) {
+                                offsetX = newOffset
+                            } else {
+                                offsetX = 0f
+                            }
+                        }
+                    )
+                }
         ) {
             PullToRefreshBox(
                 isRefreshing = state.isPullToRefreshing,

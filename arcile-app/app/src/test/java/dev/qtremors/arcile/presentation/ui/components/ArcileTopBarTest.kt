@@ -28,7 +28,6 @@ class ArcileTopBarTest {
     fun `selection mode shows selection actions including rename for single item`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         var selectedAction: TopBarAction? = null
-        var cleared = false
 
         composeRule.setContent {
             ArcileTestTheme {
@@ -100,6 +99,30 @@ class ArcileTopBarTest {
         composeRule.onNodeWithText("Grid View").performClick()
 
         assertEquals(TopBarAction.GridView, selectedAction)
+    }
+
+    @Test
+    fun `selection overflow menu dispatches properties action`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        var selectedAction: TopBarAction? = null
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                ArcileTopBar(
+                    title = "Files",
+                    selectionCount = 2,
+                    onClearSelection = {},
+                    onSearchClick = {},
+                    onSortClick = {},
+                    onActionSelected = { selectedAction = it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.properties_title)).performClick()
+
+        assertEquals(TopBarAction.Properties, selectedAction)
     }
 }
 

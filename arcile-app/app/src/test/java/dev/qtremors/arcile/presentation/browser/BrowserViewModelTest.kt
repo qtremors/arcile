@@ -15,7 +15,9 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
+import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
@@ -530,6 +532,48 @@ class BrowserViewModelTest {
         assertEquals("/storage/emulated/0/Pictures", viewModel.state.value.currentPath)
     }
 
+    @Test
+    fun `openPropertiesForSelection loads repository-backed properties`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            selectionPropertiesResult = Result.success(
+                SelectionProperties(
+                    displayName = "Docs",
+                    pathSummary = "/storage/emulated/0/Download/Docs",
+                    itemCount = 1,
+                    fileCount = 0,
+                    folderCount = 1,
+                    totalBytes = 2048L,
+                    newestModifiedAt = 20L,
+                    oldestModifiedAt = 20L,
+                    mimeTypeSummary = null,
+                    extensionSummary = null,
+                    hiddenCount = 0,
+                    accessStatus = PropertiesAccessStatus.Partial,
+                    folderStats = FolderStats(3L, 2048L, System.currentTimeMillis()),
+                    isSingleItem = true,
+                    isDirectory = true
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/Download/Docs")
+        viewModel.openPropertiesForSelection()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isPropertiesVisible)
+        assertFalse(viewModel.state.value.isPropertiesLoading)
+        assertEquals("Docs", viewModel.state.value.properties?.title)
+        assertEquals(PropertiesAccessStatus.Partial, viewModel.state.value.properties?.accessStatus)
+    }
+
 }
 
 private class FakeBrowserPreferencesStore(
@@ -579,7 +623,8 @@ private class BrowserFakeFileRepository(
     searchResult: Result<List<FileModel>> = Result.success(emptyList()),
     conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
     moveToTrashResult: Result<Unit> = Result.success(Unit),
-    renameResult: Result<FileModel> = Result.failure(NotImplementedError())
+    renameResult: Result<FileModel> = Result.failure(NotImplementedError()),
+    selectionPropertiesResult: Result<SelectionProperties> = Result.failure(NotImplementedError())
 ) : FileRepository {
     private val delegate = FakeFileRepository(
         volumes = volumes,
@@ -591,6 +636,7 @@ private class BrowserFakeFileRepository(
         detectCopyConflictsResultProvider = { _, _ -> conflictsResult }
         moveToTrashResultProvider = { moveToTrashResult }
         renameFileResultProvider = { _, _ -> renameResult }
+        selectionPropertiesResultProvider = { selectionPropertiesResult }
     }
 
     val lastSearchQuery: String?
@@ -616,6 +662,7 @@ private class BrowserFakeFileRepository(
     override suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.getCachedFolderStats(paths)
     override fun queueFolderStats(paths: List<String>) = delegate.queueFolderStats(paths)
     override fun observeFolderStatUpdates() = delegate.observeFolderStatUpdates()
+    override suspend fun getSelectionProperties(paths: List<String>) = delegate.getSelectionProperties(paths)
     override suspend fun createDirectory(parentPath: String, name: String) = delegate.createDirectory(parentPath, name)
     override suspend fun createFile(parentPath: String, name: String) = delegate.createFile(parentPath, name)
     override suspend fun deleteFile(path: String) = delegate.deleteFile(path)

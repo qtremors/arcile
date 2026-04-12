@@ -23,4 +23,5 @@ object AppRoutes {
     @Serializable object StorageManagement
     @Serializable object QuickAccess
     @Serializable object About
+    @Serializable object Licenses
 }

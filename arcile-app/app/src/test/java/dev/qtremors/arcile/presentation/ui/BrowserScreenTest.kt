@@ -1,11 +1,14 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
@@ -200,6 +203,153 @@ class BrowserScreenTest {
         }
 
         composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
+    }
+
+    @Test
+    fun `folder rows show neutral subtitle immediately without calculating placeholder`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android"))
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Folder").assertExists()
+        composeRule.onAllNodesWithText("Calculating…").assertCountEquals(0)
+    }
+
+    @Test
+    fun `folder rows show partial access subtitle`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android")),
+                        folderStatsByPath = mapOf(
+                            "/storage/emulated/0/Download/Android" to FolderStats(
+                                fileCount = 3,
+                                totalBytes = 2048L,
+                                cachedAt = System.currentTimeMillis(),
+                                status = FolderStatsStatus.Partial
+                            )
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("3 files • 2.0 KB • Limited access").assertExists()
+    }
+
+    @Test
+    fun `properties dialog opens from selection overflow`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        selectedFiles = setOf("/storage/emulated/0/Download/Docs"),
+                        isPropertiesVisible = true,
+                        properties = dev.qtremors.arcile.presentation.browser.PropertiesUiModel(
+                            title = "Docs",
+                            pathSummary = "/storage/emulated/0/Download/Docs",
+                            itemCount = 1,
+                            fileCount = 0,
+                            folderCount = 1,
+                            totalBytes = 2048L,
+                            newestModifiedAt = 20L,
+                            oldestModifiedAt = 20L,
+                            mimeTypeSummary = null,
+                            extensionSummary = null,
+                            hiddenCount = 0,
+                            accessStatus = dev.qtremors.arcile.domain.PropertiesAccessStatus.Partial,
+                            folderFileCount = 3,
+                            folderTotalBytes = 2048L,
+                            isSingleItem = true,
+                            isDirectory = true
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onOpenProperties = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Properties").assertExists()
+        composeRule.onNodeWithText("Docs").assertExists()
     }
 }
 

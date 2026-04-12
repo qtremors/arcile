@@ -1,9 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.5.7
-> **Last Updated:** 2026-04-05
-> **Source:** Engineering audit refresh based on the current repository state, passing JVM tests, successful debug compilation, failing `:app:assembleRelease`, and failing `:app:lintDebug`.
+> **Version:** 0.5.9
+> **Last Updated:** 2026-04-19
 
 ---
 
@@ -34,12 +33,10 @@
 > A repository for future ideas, enhancements, and unprioritized features.
 
 ### Storage & Access
-- **Advanced Storage Access (SAF)**: Implement a `DocumentFile` / Storage Access Framework fallback DataSource specifically for restricted directories (`Android/data`, `Android/obb`), allowing users to modify app data folders like top-tier file managers.
 - **Root Access Mode**: Offer an opt-in root shell for power users, enabling access to system directories, permission changes, and operations beyond standard Android file APIs.
 - **Storage Health Diagnostics**: Basic S.M.A.R.T. status checks, disk health metrics, and repair/trim suggestions for mounted volumes.
 
 ### File Operations & Automation
-- **File/Folder Properties Dialog**: Display detailed metadata for selected items.
 - **Compress & Extract Archives**: Add support for creating and extracting ZIP, TAR.GZ, and 7z archives directly within the file browser.
 - **Automated Task Rules**: Implement trigger-based operations, for example auto-moving video files from Camera to Videos daily.
 - **Operation Queue & FAB Manager**: Implement a bank for operations. A running operation replaces the floating action button with a progress ring. Tapping it shows a queue of paused/running tasks with the ability to gracefully cancel.
@@ -60,7 +57,6 @@
 - **Starred / Favorited Files**: Add a starred section to the Home screen and a star toggle on individual files and folders.
 - **Enhanced Category Browsing**: When opening a file category, display all related folders containing matching files with tabbed or segmented navigation.
 - **Storage Analyzer ("Filelight" view)**: A dedicated radial map or sunburst chart to visualize storage usage by folder and file type.
-- **Folder Subtitle Metadata**: Display a compact subtitle below each folder name showing item count and total size.
 
 ### Tools & Development
 - **Operation Logs Page**: A dedicated page tracking the history of all major file manipulations for auditing purposes.
@@ -70,8 +66,6 @@
 
 ### Settings & About
 - **Interactive Petal Accent Picker**: Redesign the accent color picker into an interactive flower petal UI.
-- **Combined Changelog & Version**: Streamline the About screen by merging the version info and changelog buttons into a cleaner layout.
-- **External Link Indicators**: Update the About page so all external links explicitly show an open-in-browser trailing icon.
 
 ### Multi-Window & Layout
 - **Multi-Window / Split-Screen Support**: Ensure the app works correctly in Android multi-window mode, with proper layout reflow.

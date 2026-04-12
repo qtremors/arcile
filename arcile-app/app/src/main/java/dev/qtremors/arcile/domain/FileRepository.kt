@@ -3,6 +3,7 @@ package dev.qtremors.arcile.domain
 import android.content.IntentSender
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 
@@ -49,6 +50,7 @@ interface FileRepository {
     suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats>
     fun queueFolderStats(paths: List<String>)
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
+    suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
 
     // ─── File mutations ──────────────────────────────────────────────────────
 

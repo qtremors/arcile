@@ -14,7 +14,10 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.FolderStatsStatus
+import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
@@ -24,6 +27,7 @@ import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class LocalFileRepository(
     private val volumeProvider: VolumeProvider,
@@ -72,6 +76,100 @@ class LocalFileRepository(
 
     override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> =
         folderStatsStore.observeUpdates()
+
+    override suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties> = withContext(Dispatchers.IO) {
+        try {
+            val selectedFiles = paths.distinct().map(::File)
+            if (selectedFiles.isEmpty()) {
+                return@withContext Result.failure(IllegalArgumentException("No items selected"))
+            }
+
+            val existingFiles = selectedFiles.filter(File::exists)
+            if (existingFiles.isEmpty()) {
+                return@withContext Result.failure(IllegalArgumentException("Selected items are no longer available"))
+            }
+
+            val statsByPath = existingFiles
+                .filter(File::isDirectory)
+                .associate { file -> file.absolutePath to FolderStatsCalculator.calculate(file) }
+
+            val fileCount = existingFiles.count { it.isFile }
+            val folderCount = existingFiles.count { it.isDirectory }
+            val hiddenCount = existingFiles.count { it.name.startsWith(".") }
+            val totalBytes = existingFiles.sumOf { file ->
+                if (file.isFile) {
+                    file.length()
+                } else {
+                    statsByPath[file.absolutePath]?.totalBytes ?: 0L
+                }
+            }
+            val newestModifiedAt = existingFiles.maxOfOrNull(File::lastModified)
+            val oldestModifiedAt = existingFiles.minOfOrNull(File::lastModified)
+            val hasUnavailableDirectory = statsByPath.values.any { it.status == FolderStatsStatus.Unavailable }
+            val hasPartialDirectory = statsByPath.values.any { it.status == FolderStatsStatus.Partial }
+            val accessStatus = when {
+                hasUnavailableDirectory -> PropertiesAccessStatus.Limited
+                hasPartialDirectory -> PropertiesAccessStatus.Partial
+                else -> PropertiesAccessStatus.Full
+            }
+
+            val result = if (existingFiles.size == 1) {
+                val file = existingFiles.first()
+                val extension = file.extension.lowercase()
+                SelectionProperties(
+                    displayName = file.name,
+                    pathSummary = file.absolutePath,
+                    itemCount = 1,
+                    fileCount = if (file.isFile) 1 else 0,
+                    folderCount = if (file.isDirectory) 1 else 0,
+                    totalBytes = if (file.isFile) file.length() else statsByPath[file.absolutePath]?.totalBytes ?: 0L,
+                    newestModifiedAt = file.lastModified(),
+                    oldestModifiedAt = file.lastModified(),
+                    mimeTypeSummary = if (file.isFile) {
+                        android.webkit.MimeTypeMap.getSingleton()
+                            .getMimeTypeFromExtension(extension.ifEmpty { "" })
+                            ?.takeIf { extension.isNotEmpty() }
+                    } else {
+                        null
+                    },
+                    extensionSummary = extension.ifEmpty { null },
+                    hiddenCount = hiddenCount,
+                    accessStatus = if (file.isDirectory) accessStatus else PropertiesAccessStatus.Full,
+                    folderStats = statsByPath[file.absolutePath],
+                    isSingleItem = true,
+                    isDirectory = file.isDirectory
+                )
+            } else {
+                val commonParent = existingFiles
+                    .mapNotNull { it.parent }
+                    .distinct()
+                    .singleOrNull()
+                    ?: existingFiles.first().parent.orEmpty()
+                SelectionProperties(
+                    displayName = "${existingFiles.size} items",
+                    pathSummary = commonParent,
+                    itemCount = existingFiles.size,
+                    fileCount = fileCount,
+                    folderCount = folderCount,
+                    totalBytes = totalBytes,
+                    newestModifiedAt = newestModifiedAt,
+                    oldestModifiedAt = oldestModifiedAt,
+                    mimeTypeSummary = null,
+                    extensionSummary = null,
+                    hiddenCount = hiddenCount,
+                    accessStatus = accessStatus,
+                    folderStats = null,
+                    isSingleItem = false,
+                    isDirectory = null
+                )
+            }
+
+            Result.success(result)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createDirectory(parentPath, name)

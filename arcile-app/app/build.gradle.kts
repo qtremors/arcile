@@ -16,8 +16,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 42
-        versionName = "0.5.8"
+        versionCode = 43
+        versionName = "0.5.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

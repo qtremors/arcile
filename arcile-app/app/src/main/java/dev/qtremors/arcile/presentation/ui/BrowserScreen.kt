@@ -29,6 +29,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -110,6 +116,7 @@ import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
@@ -205,6 +212,8 @@ fun BrowserScreen(
     onPasteFromClipboard: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
+    onOpenProperties: () -> Unit = {},
+    onDismissProperties: () -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
@@ -385,6 +394,7 @@ fun BrowserScreen(
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
                             TopBarAction.SelectAll -> onSelectMultiple(displayedFiles.map { it.absolutePath })
+                            TopBarAction.Properties -> onOpenProperties()
                             else -> {}
                         }
                     }
@@ -423,10 +433,38 @@ fun BrowserScreen(
             }
         }
     ) { padding ->
+        var offsetX by remember { mutableFloatStateOf(0f) }
+        val animatedOffsetX by animateFloatAsState(
+            targetValue = offsetX,
+            label = "swipeOffset",
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+        )
+
         Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offsetX = 0f },
+                        onDragEnd = {
+                            if (offsetX > 150f) {
+                                onNavigateBack()
+                            }
+                            offsetX = 0f
+                        },
+                        onDragCancel = { offsetX = 0f },
+                        onHorizontalDrag = { _, dragAmount ->
+                            val newOffset = offsetX + dragAmount
+                            if (newOffset >= 0f) {
+                                offsetX = newOffset
+                            } else {
+                                offsetX = 0f
+                            }
+                        }
+                    )
+                }
         ) {
             // When search has completed, show search results instead of browse content
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
@@ -675,6 +713,14 @@ fun BrowserScreen(
                 conflicts = state.pasteConflicts,
                 onResolve = onResolvingConflicts,
                 onDismiss = onDismissConflictDialog
+            )
+        }
+
+        if (state.isPropertiesVisible) {
+            PropertiesDialog(
+                properties = state.properties,
+                isLoading = state.isPropertiesLoading,
+                onDismiss = onDismissProperties
             )
         }
 

@@ -168,6 +168,8 @@ fun AppNavigationGraph(
                                 viewModel.clearSelection()
                             }
                         },
+                        onOpenProperties = { viewModel.openPropertiesForSelection() },
+                        onDismissProperties = { viewModel.dismissProperties() },
                         isRefreshing = state.isPullToRefreshing,
                         onRefresh = { viewModel.refresh(pullToRefresh = true) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
@@ -255,6 +257,12 @@ fun AppNavigationGraph(
                 }
                 composable<AppRoutes.About> {
                     AboutScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToLicenses = { navController.navigate(AppRoutes.Licenses) }
+                    )
+                }
+                composable<AppRoutes.Licenses> {
+                    LicensesScreen(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }

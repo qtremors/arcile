@@ -71,7 +71,10 @@ data class BrowserState(
     val showMixedDeleteExplanation: Boolean = false,
     val isPermanentDeleteChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: BrowserNativeAction? = null
+    val pendingNativeAction: BrowserNativeAction? = null,
+    val isPropertiesVisible: Boolean = false,
+    val isPropertiesLoading: Boolean = false,
+    val properties: PropertiesUiModel? = null
 )
 
 @HiltViewModel
@@ -256,19 +259,36 @@ class BrowserViewModel @Inject constructor(
             } else {
                 currentState.selectedFiles + path
             }
-            currentState.copy(selectedFiles = updatedSelection)
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     fun selectMultiple(paths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
-            currentState.copy(selectedFiles = currentState.selectedFiles + paths)
+            currentState.copy(
+                selectedFiles = currentState.selectedFiles + paths,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     fun clearSelection() {
-        _state.update { it.copy(selectedFiles = emptySet()) }
+        _state.update {
+            it.copy(
+                selectedFiles = emptySet(),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
     }
 
     fun updateBrowserSearchQuery(query: String) = searchDelegate.updateBrowserSearchQuery(query)
@@ -370,6 +390,50 @@ class BrowserViewModel @Inject constructor(
 
     fun clearError() {
         _state.update { it.copy(error = null) }
+    }
+
+    fun openPropertiesForSelection() {
+        val selectedPaths = _state.value.selectedFiles.toList()
+        if (selectedPaths.isEmpty()) return
+
+        _state.update {
+            it.copy(
+                isPropertiesVisible = true,
+                isPropertiesLoading = true,
+                properties = null
+            )
+        }
+
+        viewModelScope.launch {
+            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = true,
+                        isPropertiesLoading = false,
+                        properties = properties.toUiModel()
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = false,
+                        isPropertiesLoading = false,
+                        properties = null,
+                        error = error.message ?: "Failed to load properties"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissProperties() {
+        _state.update {
+            it.copy(
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
     }
 
     fun copySelectedToClipboard() = clipboardDelegate.copySelectedToClipboard()

@@ -42,7 +42,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -51,7 +50,6 @@ import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FolderStats
-import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -146,7 +144,7 @@ fun FileGridItem(
     )
 
     val folderSubtitle = if (file.isDirectory) {
-        folderSubtitleText(folderStats, isFolderStatsLoading)
+        folderSubtitleText(folderStats)
     } else {
         null
     }
@@ -244,7 +242,7 @@ fun FileGridItem(
                 )
                 Text(
                     text = if (file.isDirectory) {
-                        folderSubtitle ?: stringResource(R.string.folder_stats_loading)
+                        folderSubtitle ?: stringResource(R.string.folder_label)
                     } else {
                         formatFileSize(file.size)
                     },
@@ -265,16 +263,4 @@ fun FileGridItem(
     }
 }
 
-@Composable
-private fun folderSubtitleText(folderStats: FolderStats?, isFolderStatsLoading: Boolean): String? {
-    if (isFolderStatsLoading && folderStats == null) {
-        return stringResource(R.string.folder_stats_loading)
-    }
-    if (folderStats == null) return null
-    if (folderStats.status == FolderStatsStatus.Unavailable) {
-        return stringResource(R.string.folder_stats_unavailable)
-    }
-    val filesLabel = pluralStringResource(R.plurals.folder_stats_files, folderStats.fileCount.toInt(), folderStats.fileCount)
-    return "$filesLabel • ${formatFileSize(folderStats.totalBytes)}"
-}
 

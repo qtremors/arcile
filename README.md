@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.5.8-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.5.9-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
@@ -32,7 +32,8 @@
 | 🗂️ **Breadcrumb Navigation** | Visual path breadcrumbs with auto-scroll and tap-to-navigate |
 | ✅ **Batch Operations** | Multi-select files for copy, cut, move, or permanent delete |
 | 🎛️ **Unified Browser Controls** | Adjust sort order, list/grid mode, list zoom, and adaptive grid sizing from one expressive browser sheet |
-| 📊 **Instant Folder Metadata** | Browser folder rows surface cached total file counts and aggregate size inline, with background refreshes for deeper directories |
+| 📊 **Instant Folder Metadata** | Browser folder rows show a subtitle immediately, then upgrade to best-effort file counts and total size in the background without flashing loading text |
+| ℹ️ **Selection Properties** | Open a dedicated Properties dialog from the browser 3-dot selection menu for single or multi-select file and folder metadata |
 | 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
 | 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
@@ -72,7 +73,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-  adb install app/build/outputs/apk/debug/Arcile-0.5.8-debug.apk
+  adb install app/build/outputs/apk/debug/Arcile-0.5.9-debug.apk
 ```
 
 ### Release Signing
