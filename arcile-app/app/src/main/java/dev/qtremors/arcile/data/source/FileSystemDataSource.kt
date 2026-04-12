@@ -3,6 +3,7 @@ package dev.qtremors.arcile.data.source
 import dev.qtremors.arcile.domain.FileOperationException
 import android.content.Context
 import android.os.Environment
+import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
@@ -31,7 +32,8 @@ interface FileSystemDataSource {
 class DefaultFileSystemDataSource(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
-    private val mediaStoreClient: MediaStoreClient
+    private val mediaStoreClient: MediaStoreClient,
+    private val folderStatsStore: FolderStatsStore
 ) : FileSystemDataSource {
 
     private fun validatePath(file: File): Result<Unit> {
@@ -79,7 +81,35 @@ class DefaultFileSystemDataSource(
     private suspend fun finalizeMutation(vararg paths: String) {
         mediaStoreClient.invalidateCache(*paths)
         volumeProvider.invalidateCache()
+        folderStatsStore.invalidate(paths.flatMap(::pathWithAncestors))
         scanMediaFiles(*paths)
+    }
+
+    private fun pathWithAncestors(path: String): List<String> {
+        val file = File(path)
+        val roots = volumeProvider.activeStorageRoots
+        val canonical = try {
+            file.canonicalFile
+        } catch (e: Exception) {
+            file.absoluteFile
+        }
+        val matchingRoot = roots
+            .map(::File)
+            .map { runCatching { it.canonicalFile }.getOrDefault(it.absoluteFile) }
+            .filter { root ->
+                canonical.path == root.path || canonical.path.startsWith(root.path + File.separator)
+            }
+            .maxByOrNull { it.path.length }
+            ?: return listOf(canonical.absolutePath)
+
+        val result = mutableListOf<String>()
+        var current: File? = canonical
+        while (current != null) {
+            result += current.absolutePath
+            if (current.path == matchingRoot.path) break
+            current = current.parentFile
+        }
+        return result
     }
 
     private suspend fun ensureOperationActive() {

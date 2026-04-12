@@ -11,6 +11,7 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageVolume
@@ -46,6 +47,8 @@ data class BrowserState(
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
     val files: List<FileModel> = emptyList(),
+    val folderStatsByPath: Map<String, FolderStats> = emptyMap(),
+    val folderStatsLoadingPaths: Set<String> = emptySet(),
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
     val browserSearchQuery: String = "",
@@ -212,6 +215,30 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
+
+        viewModelScope.launch {
+            repository.observeFolderStatUpdates().collectLatest { update ->
+                _state.update { currentState ->
+                    if (currentState.isVolumeRootScreen || currentState.isCategoryScreen) {
+                        return@update currentState
+                    }
+
+                    val visiblePaths = currentState.files
+                        .asSequence()
+                        .filter { it.isDirectory }
+                        .map { it.absolutePath }
+                        .toSet()
+                    if (update.path !in visiblePaths) {
+                        return@update currentState
+                    }
+
+                    currentState.copy(
+                        folderStatsByPath = currentState.folderStatsByPath + (update.path to update.stats),
+                        folderStatsLoadingPaths = currentState.folderStatsLoadingPaths - update.path
+                    )
+                }
+            }
+        }
     }
 
     fun openFileBrowser(errorMessage: String? = null) = navigationDelegate.openFileBrowser(errorMessage)
@@ -278,6 +305,7 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
+
     }
 
     fun createFolder(name: String) {

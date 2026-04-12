@@ -35,13 +35,17 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -58,7 +62,9 @@ fun FileList(
     onSelectMultiple: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    zoom: Float = 1f
+    zoom: Float = 1f,
+    folderStatsByPath: Map<String, FolderStats> = emptyMap(),
+    folderStatsLoadingPaths: Set<String> = emptySet()
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -74,6 +80,8 @@ fun FileList(
                 formattedDate = formatter.format(Date(file.lastModified)),
                 isSelected = selectedFiles.contains(file.absolutePath),
                 zoom = zoom,
+                folderStats = folderStatsByPath[file.absolutePath],
+                isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -110,7 +118,9 @@ fun FileItemRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
-    zoom: Float = 1f
+    zoom: Float = 1f,
+    folderStats: FolderStats? = null,
+    isFolderStatsLoading: Boolean = false
 ) {
     val animatedHorizontalPadding by animateDpAsState(
         targetValue = if (isSelected) 8.dp else 0.dp,
@@ -122,11 +132,30 @@ fun FileItemRow(
     )
     val animatedScale by animateFloatAsState(targetValue = zoom, label = "listZoom")
 
-    val iconSize = (40.dp * animatedScale).coerceIn(32.dp, 56.dp)
-    val contentPadding = (10.dp * animatedScale).coerceIn(8.dp, 16.dp)
+    val iconSize = (38.dp * animatedScale).coerceIn(32.dp, 52.dp)
+    val contentPadding = (6.dp * animatedScale).coerceIn(4.dp, 10.dp)
     val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale)
     val headlineStyle = MaterialTheme.typography.bodyLarge.scaled(animatedScale)
-    val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else formatFileSize(file.size)}, Modified $formattedDate"
+    val folderSubtitle = if (file.isDirectory) {
+        folderSubtitleText(folderStats, isFolderStatsLoading)
+    } else {
+        null
+    }
+    val contentDesc = buildString {
+        append(file.name)
+        append(", ")
+        if (file.isDirectory) {
+            append("Folder")
+            folderSubtitle?.let {
+                append(", ")
+                append(it)
+            }
+        } else {
+            append(formatFileSize(file.size))
+        }
+        append(", Modified ")
+        append(formattedDate)
+    }
 
     Surface(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
@@ -183,16 +212,46 @@ fun FileItemRow(
                 )
             },
             supportingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(text = formattedDate, style = supportStyle)
-                    if (!file.isDirectory) {
-                        Text(text = formatFileSize(file.size), style = supportStyle)
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = if (file.isDirectory) {
+                            folderSubtitle ?: stringResource(R.string.folder_stats_loading)
+                        } else {
+                            formatFileSize(file.size)
+                        },
+                        style = supportStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = formattedDate,
+                        style = supportStyle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.End
+                    )
                 }
             },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent)
         )
     }
+}
+
+@Composable
+private fun folderSubtitleText(folderStats: FolderStats?, isFolderStatsLoading: Boolean): String? {
+    if (isFolderStatsLoading && folderStats == null) {
+        return stringResource(R.string.folder_stats_loading)
+    }
+    if (folderStats == null) return null
+    if (folderStats.status == FolderStatsStatus.Unavailable) {
+        return stringResource(R.string.folder_stats_unavailable)
+    }
+    val filesLabel = pluralStringResource(R.plurals.folder_stats_files, folderStats.fileCount.toInt(), folderStats.fileCount)
+    return "$filesLabel • ${formatFileSize(folderStats.totalBytes)}"
 }
 
 private fun TextStyle.scaled(zoom: Float): TextStyle = copy(

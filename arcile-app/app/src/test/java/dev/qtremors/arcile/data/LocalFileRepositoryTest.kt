@@ -8,6 +8,8 @@ import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
@@ -20,6 +22,7 @@ import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -34,13 +37,13 @@ class LocalFileRepositoryTest {
         val root = createTempStorageRoot("repo-trash")
         try {
             val filePath = File(root, "Download/file.txt").absolutePath
-            File(filePath).parentFile.mkdirs()
+            File(filePath).parentFile?.mkdirs()
             File(filePath).writeText("hi")
             val volume = testVolume("primary", root.absolutePath, kind = StorageKind.INTERNAL)
             val volumeProvider = RecordingVolumeProvider(listOf(volume))
             val trashManager = RecordingTrashManager()
             val dataSource = RecordingFileSystemDataSource()
-            val repository = LocalFileRepository(volumeProvider, RecordingMediaStoreClient(), trashManager, dataSource)
+            val repository = LocalFileRepository(volumeProvider, RecordingMediaStoreClient(), trashManager, dataSource, RecordingFolderStatsStore())
 
             val result = repository.deleteFile(filePath)
 
@@ -62,7 +65,7 @@ class LocalFileRepositoryTest {
             val volumeProvider = RecordingVolumeProvider(listOf(volume))
             val trashManager = RecordingTrashManager()
             val dataSource = RecordingFileSystemDataSource()
-            val repository = LocalFileRepository(volumeProvider, RecordingMediaStoreClient(), trashManager, dataSource)
+            val repository = LocalFileRepository(volumeProvider, RecordingMediaStoreClient(), trashManager, dataSource, RecordingFolderStatsStore())
 
             val result = repository.deleteFile(filePath)
 
@@ -85,7 +88,8 @@ class LocalFileRepositoryTest {
             RecordingVolumeProvider(listOf(testVolume("primary", "/storage/emulated/0", kind = StorageKind.INTERNAL))),
             mediaStoreClient,
             RecordingTrashManager(),
-            RecordingFileSystemDataSource()
+            RecordingFileSystemDataSource(),
+            RecordingFolderStatsStore()
         )
 
         val scope = StorageScope.Volume("primary")
@@ -106,7 +110,8 @@ class LocalFileRepositoryTest {
             RecordingVolumeProvider(emptyList()),
             RecordingMediaStoreClient(),
             RecordingTrashManager(),
-            dataSource
+            dataSource,
+            RecordingFolderStatsStore()
         )
         val resolutions = mapOf("/from/a.txt" to ConflictResolution.REPLACE)
 
@@ -210,4 +215,11 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
         moveRequests += TransferCall(sourcePaths, destinationPath, resolutions)
         return Result.success(Unit)
     }
+}
+
+private class RecordingFolderStatsStore : FolderStatsStore {
+    override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
+    override fun observeUpdates(): Flow<FolderStatUpdate> = emptyFlow()
+    override fun queue(paths: List<String>) = Unit
+    override fun invalidate(paths: Collection<String>) = Unit
 }

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.presentation.browser.BrowserState
@@ -154,6 +155,52 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("Grid size").assertExists()
         composeRule.onNodeWithText("Grid View").assertExists()
     }
+
+    @Test
+    fun `folder rows render cached stats subtitle`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        files = listOf(browserFolder("Docs", "/storage/emulated/0/Download/Docs")),
+                        folderStatsByPath = mapOf(
+                            "/storage/emulated/0/Download/Docs" to FolderStats(
+                                fileCount = 3,
+                                totalBytes = 2048L,
+                                cachedAt = System.currentTimeMillis()
+                            )
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
+    }
 }
 
 private fun browserFile(name: String, path: String) = FileModel(
@@ -163,6 +210,16 @@ private fun browserFile(name: String, path: String) = FileModel(
     lastModified = 50L,
     isDirectory = false,
     extension = name.substringAfterLast('.', ""),
+    isHidden = false
+)
+
+private fun browserFolder(name: String, path: String) = FileModel(
+    name = name,
+    absolutePath = path,
+    size = 0L,
+    lastModified = 50L,
+    isDirectory = true,
+    extension = "",
     isHidden = false
 )
 

@@ -1,8 +1,28 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.7
-> **Last Updated:** 2026-04-05
+> **Version:** 0.5.8
+> **Last Updated:** 2026-04-12
+
+---
+
+## [0.5.8] - 2026-04-12
+
+### Browser UX
+- **Folder Metadata Subtitles:** Folder rows in the browser now show aggregate file counts and total size directly under the folder name so users can scan directories without opening each one first.
+- **Denser List Layout:** Tightened the folder row spacing to remove excess vertical dead space while keeping the two-line presentation readable.
+- **Right-Aligned Modified Date:** The modified-date subtitle now sits on the far right opposite the stats subtitle, matching a more information-dense file-manager layout.
+
+### Performance & Correctness
+- **Cached Folder Stats Pipeline:** Added a dedicated folder-stats cache/store so directory totals appear quickly and update incrementally instead of blocking the initial browser render.
+- **Visible-Scope Update Filtering:** Browser stat refreshes are now limited to the currently visible directory, preventing unrelated folder updates from causing noisy UI churn.
+- **Stale Result Protection:** Folder-stat publishing now guards against older in-flight calculations overwriting fresher results after invalidation or navigation changes.
+
+### File Indexing Rules
+- **`.thumbnails` Exclusion:** Parent folder aggregate stats now ignore descendant `.thumbnails` directories so media folders report user-meaningful counts and sizes, while the `.thumbnails` folder itself still shows its own direct metadata when opened.
+
+### Testing
+- **Folder Stats Regression Coverage:** Added focused JVM coverage for folder-stat caching, invalidation, and stale-result protection, then re-ran the app JVM suite and debug build successfully.
 
 ---
 

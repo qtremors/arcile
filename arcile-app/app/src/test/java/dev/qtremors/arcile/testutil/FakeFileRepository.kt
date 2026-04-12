@@ -5,6 +5,8 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
@@ -26,8 +28,10 @@ class FakeFileRepository(
     private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
         tryEmit(volumes)
     }
+    private val folderStatUpdates = MutableSharedFlow<FolderStatUpdate>(replay = 1, extraBufferCapacity = 16)
 
     var filesByPath: Map<String, List<FileModel>> = initialFilesByPath
+    var cachedFolderStats: Map<String, FolderStats> = emptyMap()
     var recentFilesByScope: Map<StorageScope, List<FileModel>> = initialRecentFilesByScope
     var categorySizesByScope: Map<StorageScope, List<CategoryStorage>> = initialCategorySizesByScope
     var filesByCategory: Map<String, List<FileModel>> = initialFilesByCategory
@@ -69,6 +73,7 @@ class FakeFileRepository(
     val restoreFromTrashRequests = mutableListOf<RestoreRequest>()
     val emptyTrashCalls = mutableListOf<Unit>()
     val deletePermanentlyFromTrashRequests = mutableListOf<List<String>>()
+    val queuedFolderStatsRequests = mutableListOf<List<String>>()
 
     data class SearchRequest(val query: String, val scope: StorageScope, val filters: SearchFilters?)
     data class CopyConflictRequest(val sourcePaths: List<String>, val destinationPath: String)
@@ -84,6 +89,9 @@ class FakeFileRepository(
     }
 
     fun currentObservedVolumes(): List<StorageVolume> = observedVolumes.replayCache.lastOrNull().orEmpty()
+    fun emitFolderStatUpdate(update: FolderStatUpdate) {
+        folderStatUpdates.tryEmit(update)
+    }
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
 
@@ -102,6 +110,15 @@ class FakeFileRepository(
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         listFilesResultProvider?.invoke(path) ?: Result.success(filesByPath[path].orEmpty())
+
+    override suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats> =
+        paths.mapNotNull { path -> cachedFolderStats[path]?.let { path to it } }.toMap()
+
+    override fun queueFolderStats(paths: List<String>) {
+        queuedFolderStatsRequests += paths
+    }
+
+    override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> = folderStatUpdates
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> {
         createDirectoryRequests += parentPath to name

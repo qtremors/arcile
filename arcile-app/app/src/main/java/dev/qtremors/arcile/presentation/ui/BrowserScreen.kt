@@ -559,7 +559,9 @@ fun BrowserScreen(
                                          onSelectMultiple = onSelectMultiple,
                                          modifier = Modifier.fillMaxSize(),
                                          gridState = gridState,
-                                         minCellSize = state.browserGridMinCellSize.dp
+                                         minCellSize = state.browserGridMinCellSize.dp,
+                                         folderStatsByPath = state.folderStatsByPath,
+                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
                                      )
                                  } else {
                                      FileList(
@@ -571,7 +573,9 @@ fun BrowserScreen(
                                          onSelectMultiple = onSelectMultiple,
                                          modifier = Modifier.fillMaxSize(),
                                          listState = listState,
-                                         zoom = state.browserListZoom
+                                         zoom = state.browserListZoom,
+                                         folderStatsByPath = state.folderStatsByPath,
+                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
                                      )
                                  }
                             }

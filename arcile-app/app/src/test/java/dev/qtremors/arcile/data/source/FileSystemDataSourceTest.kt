@@ -2,14 +2,18 @@ package dev.qtremors.arcile.data.source
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import dev.qtremors.arcile.testutil.testVolume
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -29,6 +33,7 @@ class FileSystemDataSourceTest {
     private lateinit var context: Context
     private lateinit var volumeProvider: VolumeProvider
     private lateinit var mediaStoreClient: MediaStoreClient
+    private lateinit var folderStatsStore: FolderStatsStore
     private lateinit var dataSource: DefaultFileSystemDataSource
     private lateinit var root: File
 
@@ -43,8 +48,14 @@ class FileSystemDataSourceTest {
         every { volumeProvider.observeStorageVolumes() } returns flowOf(listOf(testVolume("test-vol", root.absolutePath)))
 
         mediaStoreClient = mockk(relaxed = true)
+        folderStatsStore = object : FolderStatsStore {
+            override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
+            override fun observeUpdates() = emptyFlow<FolderStatUpdate>()
+            override fun queue(paths: List<String>) = Unit
+            override fun invalidate(paths: Collection<String>) = Unit
+        }
 
-        dataSource = DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient)
+        dataSource = DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient, folderStatsStore)
     }
 
     @After

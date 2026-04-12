@@ -202,6 +202,8 @@
     <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
     <string name="clipboard_copied">copied</string>
     <string name="clipboard_cut">cut</string>
+    <string name="folder_stats_loading">Calculating…</string>
+    <string name="folder_stats_unavailable">Stats unavailable</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>

@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.domain
 
 import android.content.IntentSender
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 
@@ -44,6 +46,9 @@ interface FileRepository {
      *   [path] does not exist or cannot be read.
      */
     suspend fun listFiles(path: String): Result<List<FileModel>>
+    suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats>
+    fun queueFolderStats(paths: List<String>)
+    fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
 
     // ─── File mutations ──────────────────────────────────────────────────────
 

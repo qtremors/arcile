@@ -12,6 +12,8 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
@@ -431,6 +433,103 @@ class BrowserViewModelTest {
         assertEquals("/storage/emulated/0/test.txt", repo.lastRenamePath)
         assertEquals("test - Copy.txt", repo.lastRenameNewName)
     }
+
+    @Test
+    fun `directory load hydrates cached folder stats and queues uncached folders`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val cachedStats = FolderStats(fileCount = 4, totalBytes = 4096L, cachedAt = System.currentTimeMillis())
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true),
+                    browserFile("Music", "/storage/emulated/0/Download/Music", isDirectory = true)
+                )
+            ),
+            cachedFolderStats = mapOf("/storage/emulated/0/Download/Docs" to cachedStats)
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        assertEquals(cachedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertTrue(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Music"))
+        assertEquals(listOf("/storage/emulated/0/Download/Music"), repo.lastQueuedFolderStats)
+    }
+
+    @Test
+    fun `folder stat updates merge during normal browsing without presentation change`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true)
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        val updatedStats = FolderStats(fileCount = 7, totalBytes = 7000L, cachedAt = System.currentTimeMillis())
+        repo.emitFolderStatUpdate(FolderStatUpdate("/storage/emulated/0/Download/Docs", updatedStats))
+        advanceUntilIdle()
+
+        assertEquals(updatedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertFalse(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
+    }
+
+    @Test
+    fun `folder stat updates from previous directory are ignored after navigation`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true)
+                ),
+                "/storage/emulated/0/Pictures" to listOf(
+                    browserFile("Camera", "/storage/emulated/0/Pictures/Camera", isDirectory = true)
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Pictures")
+        advanceUntilIdle()
+
+        repo.emitFolderStatUpdate(
+            FolderStatUpdate(
+                "/storage/emulated/0/Download/Docs",
+                FolderStats(fileCount = 2, totalBytes = 2048L, cachedAt = System.currentTimeMillis())
+            )
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.folderStatsByPath.containsKey("/storage/emulated/0/Download/Docs"))
+        assertEquals("/storage/emulated/0/Pictures", viewModel.state.value.currentPath)
+    }
+
 }
 
 private class FakeBrowserPreferencesStore(
@@ -476,6 +575,7 @@ private class BrowserFakeFileRepository(
     volumes: List<StorageVolume> = emptyList(),
     filesByPath: Map<String, List<FileModel>> = emptyMap(),
     filesByCategory: Map<String, List<FileModel>> = emptyMap(),
+    cachedFolderStats: Map<String, FolderStats> = emptyMap(),
     searchResult: Result<List<FileModel>> = Result.success(emptyList()),
     conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
     moveToTrashResult: Result<Unit> = Result.success(Unit),
@@ -486,6 +586,7 @@ private class BrowserFakeFileRepository(
         initialFilesByPath = filesByPath,
         initialFilesByCategory = filesByCategory
     ).apply {
+        this.cachedFolderStats = cachedFolderStats
         searchFilesResultProvider = { _, _, _ -> searchResult }
         detectCopyConflictsResultProvider = { _, _ -> conflictsResult }
         moveToTrashResultProvider = { moveToTrashResult }
@@ -504,12 +605,17 @@ private class BrowserFakeFileRepository(
         get() = delegate.copyConflictRequests.lastOrNull()?.destinationPath
     val createDirectoryCalls: Int
         get() = delegate.createDirectoryRequests.size
+    val lastQueuedFolderStats: List<String>?
+        get() = delegate.queuedFolderStatsRequests.lastOrNull()
     val lastRenamePath: String?
         get() = delegate.renameRequests.lastOrNull()?.first
     val lastRenameNewName: String?
         get() = delegate.renameRequests.lastOrNull()?.second
 
     override suspend fun listFiles(path: String) = delegate.listFiles(path)
+    override suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.getCachedFolderStats(paths)
+    override fun queueFolderStats(paths: List<String>) = delegate.queueFolderStats(paths)
+    override fun observeFolderStatUpdates() = delegate.observeFolderStatUpdates()
     override suspend fun createDirectory(parentPath: String, name: String) = delegate.createDirectory(parentPath, name)
     override suspend fun createFile(parentPath: String, name: String) = delegate.createFile(parentPath, name)
     override suspend fun deleteFile(path: String) = delegate.deleteFile(path)
@@ -548,6 +654,10 @@ private class BrowserFakeFileRepository(
     override suspend fun getTrashFiles() = delegate.getTrashFiles()
     override suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
         delegate.deletePermanentlyFromTrash(trashIds)
+
+    fun emitFolderStatUpdate(update: FolderStatUpdate) {
+        delegate.emitFolderStatUpdate(update)
+    }
 }
 
 private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {

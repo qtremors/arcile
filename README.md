@@ -6,20 +6,18 @@
 
 <p align="center">
   An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.<br><br>
-  <strong><a href="https://qtremors.github.io/arcile/">🌐 Visit the Official Website</a></strong>
 </p>
 
-> [!IMPORTANT]
-> **Beta Status** 🧪 Arcile is currently in **Beta** and under heavy development. Expect rapid changes, potential bugs, and evolving features.
-
-
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.5.7-blueviolet" alt="Version">
+<img src="https://img.shields.io/badge/Version-0.5.8-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
 </p>
+
+> [!IMPORTANT]
+> **Beta Status** 🧪 Arcile is currently in **Beta**. Development has slowed down as i only get time on sundays now.
 
 > [!NOTE]
 > **Personal Project** 🎯 Built to create a fast, clean, and modern file manager for Android — prioritizing smooth UX, Material You theming, and a native Kotlin-first approach.
@@ -34,11 +32,12 @@
 | 🗂️ **Breadcrumb Navigation** | Visual path breadcrumbs with auto-scroll and tap-to-navigate |
 | ✅ **Batch Operations** | Multi-select files for copy, cut, move, or permanent delete |
 | 🎛️ **Unified Browser Controls** | Adjust sort order, list/grid mode, list zoom, and adaptive grid sizing from one expressive browser sheet |
+| 📊 **Instant Folder Metadata** | Browser folder rows surface cached total file counts and aggregate size inline, with background refreshes for deeper directories |
 | 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
 | 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
 | 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
 | 🌈 **Dynamic Colors** | Powered by **MaterialKolor** for harmonious, accessible custom palettes |
-| 🌍 **Localization Base** | 130+ string resources are already extracted, with a smaller set of remaining hardcoded strings tracked in `TASKS.md` |
+| 🌍 **Localization Base** | 130+ string resources are already extracted, with a smaller set of remaining hardcoded strings. |
 | 🗑️ **Trash Subsystem** | Safely remove files with metadata-aware restoration |
 | ⚙️ **Settings & About** | Theme customization and comprehensive app information |
 
@@ -73,7 +72,7 @@ Or build from the command line (run from inside `arcile-app/`):
 Install on a connected device:
 
 ```bash
-  adb install app/build/outputs/apk/debug/Arcile-0.5.7-debug.apk
+  adb install app/build/outputs/apk/debug/Arcile-0.5.8-debug.apk
 ```
 
 ### Release Signing
@@ -162,7 +161,7 @@ Run these commands from inside the `arcile-app/` directory:
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-> **Note:** The project includes an expanded layered JVM test suite covering domain logic, data-layer business rules, ViewModel state machines, DataStore-backed browser preferences, and Robolectric-backed Compose browser/component tests.
+> **Note:** The project includes an expanded layered JVM test suite covering domain logic, data-layer business rules, cached folder-stat behavior, ViewModel state machines, DataStore-backed browser preferences, and Robolectric-backed Compose browser/component tests.
 
 ---
 

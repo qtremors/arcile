@@ -12,6 +12,8 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
@@ -27,7 +29,8 @@ class LocalFileRepository(
     private val volumeProvider: VolumeProvider,
     private val mediaStoreClient: MediaStoreClient,
     private val trashManager: TrashManager,
-    private val fileSystemDataSource: FileSystemDataSource
+    private val fileSystemDataSource: FileSystemDataSource,
+    private val folderStatsStore: FolderStatsStore
 ) : FileRepository {
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> =
@@ -59,6 +62,16 @@ class LocalFileRepository(
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         fileSystemDataSource.listFiles(path)
+
+    override suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats> =
+        folderStatsStore.getCached(paths)
+
+    override fun queueFolderStats(paths: List<String>) {
+        folderStatsStore.queue(paths)
+    }
+
+    override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> =
+        folderStatsStore.observeUpdates()
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createDirectory(parentPath, name)

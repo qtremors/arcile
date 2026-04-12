@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -49,6 +50,8 @@ import coil.compose.AsyncImage
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -65,7 +68,9 @@ fun FileGrid(
     onSelectMultiple: (List<String>) -> Unit,
     modifier: Modifier = Modifier,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
-    minCellSize: Dp = 100.dp
+    minCellSize: Dp = 100.dp,
+    folderStatsByPath: Map<String, FolderStats> = emptyMap(),
+    folderStatsLoadingPaths: Set<String> = emptySet()
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -87,6 +92,8 @@ fun FileGrid(
                 file = file,
                 formattedDate = formatter.format(Date(file.lastModified)),
                 isSelected = selectedFiles.contains(file.absolutePath),
+                folderStats = folderStatsByPath[file.absolutePath],
+                isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -121,6 +128,8 @@ fun FileGridItem(
     file: FileModel,
     formattedDate: String,
     isSelected: Boolean,
+    folderStats: FolderStats? = null,
+    isFolderStatsLoading: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -136,7 +145,26 @@ fun FileGridItem(
         label = "gridItemScale"
     )
 
-    val contentDesc = "${file.name}, ${if (file.isDirectory) "Folder" else formatFileSize(file.size)}, Modified $formattedDate"
+    val folderSubtitle = if (file.isDirectory) {
+        folderSubtitleText(folderStats, isFolderStatsLoading)
+    } else {
+        null
+    }
+    val contentDesc = buildString {
+        append(file.name)
+        append(", ")
+        if (file.isDirectory) {
+            append("Folder")
+            folderSubtitle?.let {
+                append(", ")
+                append(it)
+            }
+        } else {
+            append(formatFileSize(file.size))
+        }
+        append(", Modified ")
+        append(formattedDate)
+    }
 
     Card(
         modifier = modifier
@@ -215,13 +243,18 @@ fun FileGridItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = buildString {
-                        append(formattedDate)
-                        if (!file.isDirectory) {
-                            append(" | ")
-                            append(formatFileSize(file.size))
-                        }
+                    text = if (file.isDirectory) {
+                        folderSubtitle ?: stringResource(R.string.folder_stats_loading)
+                    } else {
+                        formatFileSize(file.size)
                     },
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = formattedDate,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -230,5 +263,18 @@ fun FileGridItem(
             }
         }
     }
+}
+
+@Composable
+private fun folderSubtitleText(folderStats: FolderStats?, isFolderStatsLoading: Boolean): String? {
+    if (isFolderStatsLoading && folderStats == null) {
+        return stringResource(R.string.folder_stats_loading)
+    }
+    if (folderStats == null) return null
+    if (folderStats.status == FolderStatsStatus.Unavailable) {
+        return stringResource(R.string.folder_stats_unavailable)
+    }
+    val filesLabel = pluralStringResource(R.plurals.folder_stats_files, folderStats.fileCount.toInt(), folderStats.fileCount)
+    return "$filesLabel • ${formatFileSize(folderStats.totalBytes)}"
 }
 

@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.browser.delegate
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
@@ -116,6 +117,8 @@ class NavigationDelegate(
                     isCategoryScreen = false,
                     activeCategoryName = "",
                     files = volumeFiles(),
+                    folderStatsByPath = emptyMap(),
+                    folderStatsLoadingPaths = emptySet(),
                     selectedFiles = emptySet(),
                     error = errorMessage,
                     browserSortOption = presentation.sortOption,
@@ -221,6 +224,8 @@ class NavigationDelegate(
                 currentPath = path,
                 currentVolumeId = resolvedVolumeId,
                 selectedFiles = emptySet(),
+                folderStatsByPath = emptyMap(),
+                folderStatsLoadingPaths = emptySet(),
                 isCategoryScreen = false,
                 isVolumeRootScreen = false
             )
@@ -231,13 +236,28 @@ class NavigationDelegate(
             applyPresentation(prefs.getPresentationForPath(path))
 
             repository.listFiles(path).onSuccess { files ->
+                val folderPaths = files.filter { it.isDirectory }.map { it.absolutePath }
+                val cachedStats = repository.getCachedFolderStats(folderPaths)
+                val now = System.currentTimeMillis()
+                val pathsToQueue = folderPaths.filter { folderPath ->
+                    val cached = cachedStats[folderPath] ?: return@filter true
+                    val ttl = if (cached.status == dev.qtremors.arcile.domain.FolderStatsStatus.Unavailable) {
+                        DefaultFolderStatsStore.FAILURE_TTL_MS
+                    } else {
+                        DefaultFolderStatsStore.FRESH_TTL_MS
+                    }
+                    now - cached.cachedAt > ttl
+                }
                 state.update {
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
-                        files = files
+                        files = files,
+                        folderStatsByPath = cachedStats,
+                        folderStatsLoadingPaths = pathsToQueue.toSet()
                     )
                 }
+                repository.queueFolderStats(pathsToQueue)
                 saveNavState()
             }.onFailure { error ->
                 state.update {
@@ -260,6 +280,8 @@ class NavigationDelegate(
                 isVolumeRootScreen = false,
                 activeCategoryName = categoryName,
                 currentVolumeId = volumeId,
+                folderStatsByPath = emptyMap(),
+                folderStatsLoadingPaths = emptySet(),
                 selectedFiles = emptySet()
             )
         }
