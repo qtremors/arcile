@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
@@ -28,6 +29,7 @@ interface VolumeProvider {
     fun observeStorageVolumes(): Flow<List<StorageVolume>>
     suspend fun getStorageVolumes(): Result<List<StorageVolume>>
     suspend fun currentVolumes(): List<StorageVolume>
+    fun invalidateCache()
 }
 
 class DefaultVolumeProvider(
@@ -43,7 +45,14 @@ class DefaultVolumeProvider(
     private val cachedVolumes = AtomicReference<List<StorageVolume>?>(null)
 
     init {
-        _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+        }
+    }
+
+    override fun invalidateCache() {
+        cachedVolumes.set(null)
     }
 
     private fun discoverPlatformVolumes(): List<StorageVolume> {
@@ -129,13 +138,16 @@ class DefaultVolumeProvider(
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> {
         val platformVolumesFlow = callbackFlow {
+            val scope = this
             fun emitVolumes() {
-                trySend(discoverPlatformVolumes())
+                scope.launch(Dispatchers.IO) {
+                    send(discoverPlatformVolumes())
+                }
             }
 
             val receiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
-                    cachedVolumes.set(null)
+                    invalidateCache()
                     emitVolumes()
                 }
             }
@@ -149,8 +161,8 @@ class DefaultVolumeProvider(
                 addDataScheme("file")
             }
 
-            emitVolumes()
             ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            emitVolumes()
             awaitClose { appContext.unregisterReceiver(receiver) }
         }.distinctUntilChanged()
 

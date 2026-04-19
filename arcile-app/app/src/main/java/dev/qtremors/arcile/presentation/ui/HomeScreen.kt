@@ -23,6 +23,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -71,6 +75,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -111,7 +117,7 @@ import dev.qtremors.arcile.presentation.ui.components.ToolCard
 import dev.qtremors.arcile.presentation.ui.components.ToolItem
 import dev.qtremors.arcile.presentation.ui.components.home.StorageSummaryCard
 import dev.qtremors.arcile.presentation.ui.components.home.CategoryGrid
-import dev.qtremors.arcile.presentation.ui.components.home.MainFoldersGrid
+import dev.qtremors.arcile.presentation.ui.components.home.QuickAccessGrid
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import java.io.File
@@ -260,6 +266,8 @@ fun HomeScreen(
     onNavigateToAbout: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToRecentFiles: () -> Unit,
+    onNavigateToQuickAccess: () -> Unit,
+    onNavigateToSaf: (String) -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
@@ -311,10 +319,38 @@ fun HomeScreen(
     ) { padding ->
 
         val pullRefreshState = rememberPullToRefreshState()
+        var offsetX by remember { mutableFloatStateOf(0f) }
+        val animatedOffsetX by animateFloatAsState(
+            targetValue = offsetX,
+            label = "swipeOffset",
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+        )
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offsetX = 0f },
+                        onDragEnd = {
+                            if (offsetX < -150f) {
+                                onOpenFileBrowser()
+                            }
+                            offsetX = 0f
+                        },
+                        onDragCancel = { offsetX = 0f },
+                        onHorizontalDrag = { _, dragAmount ->
+                            val newOffset = offsetX + dragAmount
+                            if (newOffset <= 0f) {
+                                offsetX = newOffset
+                            } else {
+                                offsetX = 0f
+                            }
+                        }
+                    )
+                }
         ) {
             PullToRefreshBox(
                 isRefreshing = state.isPullToRefreshing,
@@ -372,22 +408,33 @@ fun HomeScreen(
                     item { CategoryGrid(state.categoryStorages, onCategoryClick) }
 
                     item {
-                        Text(
-                            text = stringResource(R.string.folders),
-                            style = MaterialTheme.typography.titleMediumBold,
-                            modifier = Modifier.padding(
-                                start = MaterialTheme.spacing.medium,
-                                top = MaterialTheme.spacing.large,
-                                end = MaterialTheme.spacing.medium,
-                                bottom = MaterialTheme.spacing.small
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = MaterialTheme.spacing.medium,
+                                    top = MaterialTheme.spacing.large,
+                                    end = MaterialTheme.spacing.medium,
+                                    bottom = MaterialTheme.spacing.small
+                                ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.quick_access),
+                                style = MaterialTheme.typography.titleMediumBold
                             )
-                        )
+                            TextButton(onClick = onNavigateToQuickAccess) {
+                                Text(stringResource(R.string.manage))
+                            }
+                        }
                     }
                     item {
-                        MainFoldersGrid(
-                            standardFolders = state.standardFolders,
+                        QuickAccessGrid(
+                            quickAccessItems = state.quickAccessItems,
                             onOpenFileBrowser = onOpenFileBrowser,
-                            onNavigateToPath = onNavigateToPath
+                            onNavigateToPath = onNavigateToPath,
+                            onNavigateToSaf = onNavigateToSaf
                         )
                     }
 

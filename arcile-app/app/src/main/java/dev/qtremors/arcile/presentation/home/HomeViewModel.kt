@@ -3,36 +3,36 @@ package dev.qtremors.arcile.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.data.QuickAccessPreferencesRepository
+import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.QuickAccessItem
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.presentation.FileSortOption
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
-
-import dev.qtremors.arcile.domain.StorageVolume
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.isIndexed
-import dev.qtremors.arcile.data.StorageClassificationStore
 
 data class HomeState(
     val allStorageVolumes: List<StorageVolume> = emptyList(),
-    val standardFolders: Map<String, String?> = emptyMap(),
+    val quickAccessItems: List<QuickAccessItem> = emptyList(),
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
@@ -61,7 +61,8 @@ enum class HomeRefreshMode {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: FileRepository,
-    private val classificationRepo: StorageClassificationStore
+    private val classificationRepo: StorageClassificationStore,
+    private val quickAccessRepo: QuickAccessPreferencesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -71,6 +72,7 @@ class HomeViewModel @Inject constructor(
     private var searchJob: Job? = null
     private var refreshJob: Job? = null
     private val suppressedVolumeKeys = mutableSetOf<String>()
+    private var lastAnalyticsRefreshTime = 0L
 
     init {
         val cal = java.util.Calendar.getInstance()
@@ -81,21 +83,33 @@ class HomeViewModel @Inject constructor(
         _state.update { it.copy(todayStart = cal.timeInMillis) }
 
         viewModelScope.launch {
+            quickAccessRepo.quickAccessItems.collectLatest { items ->
+                _state.update { it.copy(quickAccessItems = items) }
+            }
+        }
+
+        viewModelScope.launch {
             @OptIn(FlowPreview::class)
             repository.observeStorageVolumes()
                 .debounce(1000L)
                 .collectLatest { volumes ->
                     val currentState = _state.value
                     if (currentState.allStorageVolumes != volumes) {
-                        loadHomeData(HomeRefreshMode.SILENT)
+                        loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
                     }
                 }
         }
     }
 
-
-    fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL) {
+    fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL, forceAnalytics: Boolean = false) {
         refreshJob?.cancel()
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val newTodayStart = cal.timeInMillis
+
         val hasVisibleContent = _state.value.storageInfo != null ||
             _state.value.categoryStorages.isNotEmpty() ||
             _state.value.recentFiles.isNotEmpty()
@@ -105,66 +119,91 @@ class HomeViewModel @Inject constructor(
                 isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
                 isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
                 isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT,
-                error = null
+                error = null,
+                todayStart = newTodayStart
             )
         }
         refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+            val shouldRefreshAnalytics = refreshMode != HomeRefreshMode.SILENT || forceAnalytics || (System.currentTimeMillis() - lastAnalyticsRefreshTime > 5 * 60 * 1000)
 
-            val recentResult = repository.getRecentFiles(
-                scope = StorageScope.AllStorage,
-                limit = recentsPreviewLimit,
-                minTimestamp = oneWeekAgo
-            )
-            val allVolumesResult = repository.getStorageVolumes()
-            val storageResult = repository.getStorageInfo(StorageScope.AllStorage)
-            val categoryResult = repository.getCategoryStorageSizes(StorageScope.AllStorage)
-            val standardFolders = repository.getStandardFolders()
-            val errorMsg = storageResult.exceptionOrNull()?.message 
-                ?: allVolumesResult.exceptionOrNull()?.message 
-                ?: recentResult.exceptionOrNull()?.message 
-                ?: categoryResult.exceptionOrNull()?.message
+            if (shouldRefreshAnalytics) {
+                lastAnalyticsRefreshTime = System.currentTimeMillis()
+            }
 
-            val storageInfo = storageResult.getOrNull()
-            val allStorageVolumes = allVolumesResult.getOrNull().orEmpty()
+            supervisorScope {
+                val recentResultDef = async {
+                    repository.getRecentFiles(
+                        scope = StorageScope.AllStorage,
+                        limit = recentsPreviewLimit,
+                        minTimestamp = oneWeekAgo
+                    )
+                }
+                val allVolumesResultDef = async { repository.getStorageVolumes() }
+                val storageResultDef = if (shouldRefreshAnalytics) async { repository.getStorageInfo(StorageScope.AllStorage) } else null
+                val categoryResultDef = if (shouldRefreshAnalytics) async { repository.getCategoryStorageSizes(StorageScope.AllStorage) } else null
 
-            val categoryByVolume = coroutineScope {                storageInfo?.volumes
-                    ?.filter { it.kind.isIndexed }
-                    ?.map { volume ->
-                        async {
-                            volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
-                        }
+                var recentResult: Result<List<FileModel>>? = null
+                var allVolumesResult: Result<List<StorageVolume>>? = null
+                var storageResult: Result<StorageInfo>? = null
+                var categoryResult: Result<List<CategoryStorage>>? = null
+                var categoryByVolume: Map<String, List<CategoryStorage>> = _state.value.categoryStoragesByVolume
+
+                val completedWithinTimeout = withTimeoutOrNull(15_000) {
+                    recentResult = recentResultDef.await()
+                    allVolumesResult = allVolumesResultDef.await()
+                    storageResult = storageResultDef?.await()
+                    categoryResult = categoryResultDef?.await()
+
+                    if (shouldRefreshAnalytics) {
+                        val storageInfo = storageResult?.getOrNull()
+                        categoryByVolume = storageInfo?.volumes
+                            ?.filter { it.kind.isIndexed }
+                            ?.map { volume ->
+                                async {
+                                    volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                                }
+                            }
+                            ?.map { it.await() }
+                            ?.toMap()
+                            ?: emptyMap()
                     }
-                    ?.awaitAll()
-                    ?.toMap()
-                    ?: emptyMap()
-            }
+                } != null
 
-            val unclassified = allStorageVolumes.filter {
-                it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
-            }
+                val storageInfo = if (shouldRefreshAnalytics) storageResult?.getOrNull() else _state.value.storageInfo
+                val allStorageVolumes = allVolumesResult?.getOrNull().orEmpty()
+                val unclassified = allStorageVolumes.filter {
+                    it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
+                }
 
-            _state.update { currentState ->
-                currentState.copy(
-                    isLoading = false,
-                    isPullToRefreshing = false,
-                    isCalculatingStorage = false,
-                    error = errorMsg,
-                    allStorageVolumes = allStorageVolumes,
-                    standardFolders = standardFolders,
-                    recentFiles = recentResult.getOrNull() ?: emptyList(),
-                    storageInfo = storageInfo,
-                    categoryStorages = categoryResult.getOrNull() ?: emptyList(),
-                    categoryStoragesByVolume = categoryByVolume,
-                    unclassifiedVolumes = unclassified,
-                    showClassificationPrompt = unclassified.isNotEmpty()
-                )
+                val errorMsg = listOfNotNull(
+                    if (!completedWithinTimeout) "Home data loading timed out. Showing partial data." else null,
+                    storageResult?.exceptionOrNull()?.message,
+                    allVolumesResult?.exceptionOrNull()?.message,
+                    recentResult?.exceptionOrNull()?.message,
+                    categoryResult?.exceptionOrNull()?.message
+                ).firstOrNull()
+
+                _state.update { currentState ->
+                    currentState.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        isCalculatingStorage = false,
+                        error = errorMsg,
+                        allStorageVolumes = allStorageVolumes,
+                        recentFiles = recentResult?.getOrNull() ?: currentState.recentFiles,
+                        storageInfo = storageInfo,
+                        categoryStorages = if (shouldRefreshAnalytics) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages,
+                        categoryStoragesByVolume = categoryByVolume,
+                        unclassifiedVolumes = unclassified,
+                        showClassificationPrompt = unclassified.isNotEmpty()
+                    )
+                }
             }
         }
     }
 
     fun setVolumeClassification(storageKey: String, kind: StorageKind) {
-        // Optimistic update: hide the prompt for this volume immediately
         _state.update { currentState ->
             val remaining = currentState.unclassifiedVolumes.filter { v -> v.storageKey != storageKey }
             currentState.copy(
@@ -184,14 +223,13 @@ class HomeViewModel @Inject constructor(
                 )
                 suppressedVolumeKeys.remove(storageKey)
             } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                // Revert optimistic update on failure
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _state.update { currentState ->
                     val volume = currentState.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
                     val restoredVolumes = if (volume != null && !currentState.unclassifiedVolumes.any { it.storageKey == storageKey }) {
                         currentState.unclassifiedVolumes + volume
                     } else currentState.unclassifiedVolumes
-                    
+
                     currentState.copy(
                         unclassifiedVolumes = restoredVolumes,
                         showClassificationPrompt = restoredVolumes.isNotEmpty(),
@@ -199,7 +237,6 @@ class HomeViewModel @Inject constructor(
                     )
                 }
             }
-            // No need to manually reload; observeStorageVolumes will trigger it
         }
     }
 
@@ -213,10 +250,12 @@ class HomeViewModel @Inject constructor(
     fun hideClassificationPrompt(storageKey: String) {
         suppressedVolumeKeys.add(storageKey)
         val remaining = _state.value.unclassifiedVolumes.filter { it.storageKey != storageKey }
-        _state.update { it.copy(
-            unclassifiedVolumes = remaining,
-            showClassificationPrompt = remaining.isNotEmpty()
-        ) }
+        _state.update {
+            it.copy(
+                unclassifiedVolumes = remaining,
+                showClassificationPrompt = remaining.isNotEmpty()
+            )
+        }
     }
 
     fun updateHomeSearchQuery(query: String) {
@@ -231,13 +270,12 @@ class HomeViewModel @Inject constructor(
             return
         }
         searchJob = viewModelScope.launch {
-            delay(400)
+            kotlinx.coroutines.delay(400)
             _state.update { it.copy(isSearching = true, error = null) }
 
             val filters = _state.value.activeSearchFilters
-            // Path scope is null for MediaStore-wide search
             val result = repository.searchFiles(query, StorageScope.AllStorage, filters)
-            
+
             result.onSuccess { files ->
                 _state.update { it.copy(isSearching = false, searchResults = files) }
             }.onFailure { error ->

@@ -1,26 +1,39 @@
 package dev.qtremors.arcile.presentation.browser
 
 import android.content.IntentSender
+import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
+import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import io.mockk.mockk
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
-import dev.qtremors.arcile.domain.usecase.PasteFilesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -31,7 +44,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -46,7 +58,8 @@ class BrowserViewModelTest {
     private fun createViewModel(
         repository: FileRepository,
         browserPreferencesRepository: BrowserPreferencesStore,
-        savedStateHandle: SavedStateHandle
+        savedStateHandle: SavedStateHandle,
+        bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
     ): BrowserViewModel {
         return BrowserViewModel(
             repository = repository,
@@ -54,7 +67,7 @@ class BrowserViewModelTest {
             savedStateHandle = savedStateHandle,
             getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
             moveToTrashUseCase = MoveToTrashUseCase(repository),
-            pasteFilesUseCase = PasteFilesUseCase(repository)
+            bulkFileOperationCoordinator = bulkFileOperationCoordinator
         )
     }
 
@@ -63,7 +76,12 @@ class BrowserViewModelTest {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)
         val preferences = FakeBrowserPreferencesStore(
-            BrowserPreferences(globalSortOption = FileSortOption.NAME_ASC, pathSortOptions = mapOf("/" to FileSortOption.SIZE_LARGEST))
+            BrowserPreferences(
+                globalPresentation = BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC),
+                pathPresentationOptions = mapOf(
+                    "/" to BrowserPresentationPreferences(sortOption = FileSortOption.SIZE_LARGEST)
+                )
+            )
         )
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, sd)),
@@ -76,6 +94,7 @@ class BrowserViewModelTest {
         assertTrue(viewModel.state.value.isVolumeRootScreen)
         assertEquals(listOf("Internal", "SD Card"), viewModel.state.value.files.map { it.name })
         assertEquals(FileSortOption.SIZE_LARGEST, viewModel.state.value.browserSortOption)
+        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
         assertFalse(viewModel.state.value.isLoading)
     }
 
@@ -183,6 +202,80 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun `bulk operation progress updates browser operation ui state`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/source.txt")
+        viewModel.copySelectedToClipboard()
+        viewModel.pasteFromClipboard()
+        advanceUntilIdle()
+
+        val request = coordinator.activeRequest.value!!
+        coordinator.onOperationProgress(
+            request,
+            BulkFileOperationProgress(
+                completedItems = 1,
+                totalItems = 2,
+                currentPath = "/storage/emulated/0/source.txt"
+            )
+        )
+        advanceUntilIdle()
+
+        val operation = viewModel.state.value.activeFileOperation
+        assertEquals(BulkFileOperationType.COPY, operation?.type)
+        assertEquals(1, operation?.completedItems)
+        assertEquals(2, operation?.totalItems)
+        assertEquals("/storage/emulated/0/source.txt", operation?.currentPath)
+        assertFalse(operation?.isCancelling ?: true)
+    }
+
+    @Test
+    fun `bulk operation terminal events clear browser operation ui and publish snackbar message`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/source.txt")
+        viewModel.cutSelectedToClipboard()
+        viewModel.pasteFromClipboard()
+        advanceUntilIdle()
+
+        val request = coordinator.activeRequest.value!!
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.activeFileOperation)
+        assertEquals("Moved 1 item(s)", viewModel.state.value.fileOperationStatusMessage)
+
+        viewModel.clearFileOperationStatusMessage()
+        assertNull(viewModel.state.value.fileOperationStatusMessage)
+    }
+
+    @Test
     fun `requestDeleteSelected shows mixed explanation for cross-policy selection`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val otg = browserVolume("otg", "USB", "/storage/otg", isPrimary = false, isRemovable = true, kind = StorageKind.OTG)
@@ -232,7 +325,137 @@ class BrowserViewModelTest {
     }
 
     @Test
-    fun `updateBrowserSortOption persists category sort key`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `native confirmation requests are not replayed and pending action clears after handling`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            moveToTrashResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        viewModel.nativeRequestFlow.test {
+            advanceUntilIdle()
+            viewModel.navigateToSpecificFolder("/storage/emulated/0")
+            advanceUntilIdle()
+            viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
+            viewModel.moveSelectedToTrash()
+            advanceUntilIdle()
+
+            awaitItem()
+            expectNoEvents()
+            viewModel.handleNativeActionResult(confirmed = false)
+            assertNull(viewModel.state.value.pendingNativeAction)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `navigation state saves committed destination`() = runTest(mainDispatcherRule.dispatcher) {
+        val savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
+                filesByCategory = mapOf("Images" to emptyList())
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = savedStateHandle
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", savedStateHandle.get<String>("currentPath"))
+        assertEquals("primary", savedStateHandle.get<String>("currentVolumeId"))
+        assertEquals(false, savedStateHandle.get<Boolean>("isCategoryScreen"))
+
+        viewModel.navigateToCategory("Images", "primary")
+        advanceUntilIdle()
+
+        assertEquals(true, savedStateHandle.get<Boolean>("isCategoryScreen"))
+        assertEquals("Images", savedStateHandle.get<String>("activeCategoryName"))
+        assertEquals("primary", savedStateHandle.get<String>("currentVolumeId"))
+    }
+
+    @Test
+    fun `restores saved directory location and back history`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val savedStateHandle = SavedStateHandle(
+            mapOf(
+                "currentPath" to "/storage/emulated/0/Download",
+                "currentVolumeId" to "primary",
+                "isCategoryScreen" to false,
+                "isVolumeRootScreen" to false,
+                "pathHistory" to arrayOf("/storage/emulated/0")
+            )
+        )
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf(
+                    "/storage/emulated/0/Download" to listOf(browserFile("hello.txt", "/storage/emulated/0/Download/hello.txt")),
+                    "/storage/emulated/0" to listOf(browserFile("Download", "/storage/emulated/0/Download", isDirectory = true))
+                )
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = savedStateHandle
+        )
+
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
+        assertEquals(listOf("hello.txt"), viewModel.state.value.files.map { it.name })
+
+        assertTrue(viewModel.navigateBack())
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0", viewModel.state.value.currentPath)
+        assertEquals(listOf("Download"), viewModel.state.value.files.map { it.name })
+    }
+
+    @Test
+    fun `restores saved category location with stored category sort`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByCategory = mapOf("Images" to listOf(browserFile("pic.jpg", "/storage/emulated/0/DCIM/pic.jpg")))
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(
+                BrowserPreferences(
+                    pathPresentationOptions = mapOf(
+                        "category_Images" to BrowserPresentationPreferences(sortOption = FileSortOption.DATE_OLDEST)
+                    )
+                )
+            ),
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "isCategoryScreen" to true,
+                    "activeCategoryName" to "Images",
+                    "currentVolumeId" to "primary",
+                    "isVolumeRootScreen" to false
+                )
+            )
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isCategoryScreen)
+        assertEquals("Images", viewModel.state.value.activeCategoryName)
+        assertEquals("primary", viewModel.state.value.currentVolumeId)
+        assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
+        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
+        assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
+    }
+
+    @Test
+    fun `updateBrowserPresentation persists category presentation key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val preferences = FakeBrowserPreferencesStore()
         val viewModel = createViewModel(
@@ -247,11 +470,20 @@ class BrowserViewModelTest {
         advanceUntilIdle()
         viewModel.navigateToCategory("Images", "primary")
         advanceUntilIdle()
-        viewModel.updateBrowserSortOption(FileSortOption.DATE_OLDEST, applyToSubfolders = true)
+        viewModel.updateBrowserPresentation(
+            BrowserPresentationPreferences(
+                sortOption = FileSortOption.DATE_OLDEST,
+                viewMode = BrowserViewMode.GRID,
+                listZoom = 1.1f,
+                gridMinCellSize = 144f
+            ),
+            applyToSubfolders = true
+        )
         advanceUntilIdle()
 
         assertEquals("category_Images", preferences.lastUpdatedPath)
-        assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathSortOption)
+        assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathPresentation?.sortOption)
+        assertEquals(BrowserViewMode.GRID, preferences.lastUpdatedPathPresentation?.viewMode)
         assertNull(preferences.lastUpdatedGlobalSortOption)
     }
 
@@ -278,6 +510,145 @@ class BrowserViewModelTest {
         assertEquals("/storage/emulated/0/test.txt", repo.lastRenamePath)
         assertEquals("test - Copy.txt", repo.lastRenameNewName)
     }
+
+    @Test
+    fun `directory load hydrates cached folder stats and queues uncached folders`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val cachedStats = FolderStats(fileCount = 4, totalBytes = 4096L, cachedAt = System.currentTimeMillis())
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true),
+                    browserFile("Music", "/storage/emulated/0/Download/Music", isDirectory = true)
+                )
+            ),
+            cachedFolderStats = mapOf("/storage/emulated/0/Download/Docs" to cachedStats)
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        assertEquals(cachedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertTrue(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Music"))
+        assertEquals(listOf("/storage/emulated/0/Download/Music"), repo.lastQueuedFolderStats)
+    }
+
+    @Test
+    fun `folder stat updates merge during normal browsing without presentation change`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true)
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        val updatedStats = FolderStats(fileCount = 7, totalBytes = 7000L, cachedAt = System.currentTimeMillis())
+        repo.emitFolderStatUpdate(FolderStatUpdate("/storage/emulated/0/Download/Docs", updatedStats))
+        advanceUntilIdle()
+
+        assertEquals(updatedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertFalse(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
+    }
+
+    @Test
+    fun `folder stat updates from previous directory are ignored after navigation`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true)
+                ),
+                "/storage/emulated/0/Pictures" to listOf(
+                    browserFile("Camera", "/storage/emulated/0/Pictures/Camera", isDirectory = true)
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Pictures")
+        advanceUntilIdle()
+
+        repo.emitFolderStatUpdate(
+            FolderStatUpdate(
+                "/storage/emulated/0/Download/Docs",
+                FolderStats(fileCount = 2, totalBytes = 2048L, cachedAt = System.currentTimeMillis())
+            )
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.folderStatsByPath.containsKey("/storage/emulated/0/Download/Docs"))
+        assertEquals("/storage/emulated/0/Pictures", viewModel.state.value.currentPath)
+    }
+
+    @Test
+    fun `openPropertiesForSelection loads repository-backed properties`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            selectionPropertiesResult = Result.success(
+                SelectionProperties(
+                    displayName = "Docs",
+                    pathSummary = "/storage/emulated/0/Download/Docs",
+                    itemCount = 1,
+                    fileCount = 0,
+                    folderCount = 1,
+                    totalBytes = 2048L,
+                    newestModifiedAt = 20L,
+                    oldestModifiedAt = 20L,
+                    mimeTypeSummary = null,
+                    extensionSummary = null,
+                    hiddenCount = 0,
+                    accessStatus = PropertiesAccessStatus.Partial,
+                    folderStats = FolderStats(3L, 2048L, System.currentTimeMillis()),
+                    isSingleItem = true,
+                    isDirectory = true
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/Download/Docs")
+        viewModel.openPropertiesForSelection()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isPropertiesVisible)
+        assertFalse(viewModel.state.value.isPropertiesLoading)
+        assertEquals("Docs", viewModel.state.value.properties?.title)
+        assertEquals(PropertiesAccessStatus.Partial, viewModel.state.value.properties?.accessStatus)
+    }
+
 }
 
 private class FakeBrowserPreferencesStore(
@@ -288,91 +659,175 @@ private class FakeBrowserPreferencesStore(
 
     var lastUpdatedGlobalSortOption: FileSortOption? = null
     var lastUpdatedPath: String? = null
-    var lastUpdatedPathSortOption: FileSortOption? = null
+    var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
 
-    override suspend fun updateGlobalSortOption(sortOption: FileSortOption) {
-        lastUpdatedGlobalSortOption = sortOption
-        _preferencesFlow.value = _preferencesFlow.value.copy(globalSortOption = sortOption)
+    override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
+        lastUpdatedGlobalSortOption = presentation.sortOption
+        _preferencesFlow.value = _preferencesFlow.value.copy(globalPresentation = presentation)
     }
 
-    override suspend fun updatePathSortOption(path: String, sortOption: FileSortOption?, applyToSubfolders: Boolean) {
+    override suspend fun updatePathPresentation(
+        path: String,
+        presentation: BrowserPresentationPreferences?,
+        applyToSubfolders: Boolean
+    ) {
         lastUpdatedPath = path
-        lastUpdatedPathSortOption = sortOption
-        _preferencesFlow.value = _preferencesFlow.value.copy(
-            pathSortOptions = _preferencesFlow.value.pathSortOptions.toMutableMap().apply {
-                if (sortOption == null) remove(path) else put(path, sortOption)
+        lastUpdatedPathPresentation = presentation
+        val updatedMap = if (applyToSubfolders) {
+            _preferencesFlow.value.pathPresentationOptions.toMutableMap().apply {
+                if (presentation == null) remove(path) else put(path, presentation)
             }
-        )
+        } else {
+            _preferencesFlow.value.exactPathPresentationOptions.toMutableMap().apply {
+                if (presentation == null) remove(path) else put(path, presentation)
+            }
+        }
+        _preferencesFlow.value = if (applyToSubfolders) {
+            _preferencesFlow.value.copy(pathPresentationOptions = updatedMap)
+        } else {
+            _preferencesFlow.value.copy(exactPathPresentationOptions = updatedMap)
+        }
     }
 }
 
 private class BrowserFakeFileRepository(
     volumes: List<StorageVolume> = emptyList(),
-    private val filesByPath: Map<String, List<FileModel>> = emptyMap(),
-    private val filesByCategory: Map<String, List<FileModel>> = emptyMap(),
-    private val searchResult: Result<List<FileModel>> = Result.success(emptyList()),
-    private val conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
-    private val moveToTrashResult: Result<Unit> = Result.success(Unit),
-    private val renameResult: Result<FileModel> = Result.failure(NotImplementedError())
+    filesByPath: Map<String, List<FileModel>> = emptyMap(),
+    filesByCategory: Map<String, List<FileModel>> = emptyMap(),
+    cachedFolderStats: Map<String, FolderStats> = emptyMap(),
+    searchResult: Result<List<FileModel>> = Result.success(emptyList()),
+    conflictsResult: Result<List<FileConflict>> = Result.success(emptyList()),
+    moveToTrashResult: Result<Unit> = Result.success(Unit),
+    renameResult: Result<FileModel> = Result.failure(NotImplementedError()),
+    selectionPropertiesResult: Result<SelectionProperties> = Result.failure(NotImplementedError())
 ) : FileRepository {
+    private val delegate = FakeFileRepository(
+        volumes = volumes,
+        initialFilesByPath = filesByPath,
+        initialFilesByCategory = filesByCategory
+    ).apply {
+        this.cachedFolderStats = cachedFolderStats
+        searchFilesResultProvider = { _, _, _ -> searchResult }
+        detectCopyConflictsResultProvider = { _, _ -> conflictsResult }
+        moveToTrashResultProvider = { moveToTrashResult }
+        renameFileResultProvider = { _, _ -> renameResult }
+        selectionPropertiesResultProvider = { selectionPropertiesResult }
+    }
 
-    private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        tryEmit(volumes)
-    }
-    private val volumeList = volumes
+    val lastSearchQuery: String?
+        get() = delegate.searchRequests.lastOrNull()?.query
+    val lastSearchScope: StorageScope?
+        get() = delegate.searchRequests.lastOrNull()?.scope
+    val lastSearchFilters: SearchFilters?
+        get() = delegate.searchRequests.lastOrNull()?.filters
+    val lastConflictSourcePaths: List<String>?
+        get() = delegate.copyConflictRequests.lastOrNull()?.sourcePaths
+    val lastConflictDestination: String?
+        get() = delegate.copyConflictRequests.lastOrNull()?.destinationPath
+    val createDirectoryCalls: Int
+        get() = delegate.createDirectoryRequests.size
+    val lastQueuedFolderStats: List<String>?
+        get() = delegate.queuedFolderStatsRequests.lastOrNull()
+    val lastRenamePath: String?
+        get() = delegate.renameRequests.lastOrNull()?.first
+    val lastRenameNewName: String?
+        get() = delegate.renameRequests.lastOrNull()?.second
 
-    var lastSearchQuery: String? = null
-    var lastSearchScope: StorageScope? = null
-    var lastSearchFilters: SearchFilters? = null
-    var lastConflictSourcePaths: List<String>? = null
-    var lastConflictDestination: String? = null
-    var createDirectoryCalls: Int = 0
-    var lastRenamePath: String? = null
-    var lastRenameNewName: String? = null
+    override suspend fun listFiles(path: String) = delegate.listFiles(path)
+    override suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.getCachedFolderStats(paths)
+    override fun queueFolderStats(paths: List<String>) = delegate.queueFolderStats(paths)
+    override fun observeFolderStatUpdates() = delegate.observeFolderStatUpdates()
+    override suspend fun getSelectionProperties(paths: List<String>) = delegate.getSelectionProperties(paths)
+    override suspend fun createDirectory(parentPath: String, name: String) = delegate.createDirectory(parentPath, name)
+    override suspend fun createFile(parentPath: String, name: String) = delegate.createFile(parentPath, name)
+    override suspend fun deleteFile(path: String) = delegate.deleteFile(path)
+    override suspend fun deletePermanently(paths: List<String>) = delegate.deletePermanently(paths)
+    override suspend fun renameFile(path: String, newName: String) = delegate.renameFile(path, newName)
+    override fun observeStorageVolumes() = delegate.observeStorageVolumes()
+    override suspend fun getStorageVolumes() = delegate.getStorageVolumes()
+    override suspend fun getVolumeForPath(path: String) = delegate.getVolumeForPath(path)
+    override fun getStandardFolders() = delegate.getStandardFolders()
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long) =
+        delegate.getRecentFiles(scope, limit, offset, minTimestamp)
+    override suspend fun getStorageInfo(scope: StorageScope) = delegate.getStorageInfo(scope)
+    override suspend fun getCategoryStorageSizes(scope: StorageScope) = delegate.getCategoryStorageSizes(scope)
+    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String) =
+        delegate.getFilesByCategory(scope, categoryName)
+    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?) =
+        delegate.searchFiles(query, scope, filters)
+    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String) =
+        delegate.detectCopyConflicts(sourcePaths, destinationPath)
+    override suspend fun copyFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) = delegate.copyFiles(sourcePaths, destinationPath, resolutions, onProgress)
+    override suspend fun moveFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) = delegate.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
+    override suspend fun moveToTrash(paths: List<String>) = delegate.moveToTrash(paths)
+    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?) =
+        delegate.restoreFromTrash(trashIds, destinationPath)
+    override suspend fun emptyTrash() = delegate.emptyTrash()
+    override suspend fun getTrashFiles() = delegate.getTrashFiles()
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
+        delegate.deletePermanentlyFromTrash(trashIds)
 
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(filesByPath[path].orEmpty())
-    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> {
-        createDirectoryCalls += 1
-        return Result.success(browserFile(name, "$parentPath/$name", isDirectory = true))
+    fun emitFolderStatUpdate(update: FolderStatUpdate) {
+        delegate.emitFolderStatUpdate(update)
     }
-    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-    override suspend fun deleteFile(path: String): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> {
-        lastRenamePath = path
-        lastRenameNewName = newName
-        return renameResult
+}
+
+private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
+    private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
+    override val activeRequest = _activeRequest
+    private val _events = MutableSharedFlow<BulkFileOperationEvent>()
+    override val events = _events
+
+    override fun startOperation(
+        type: BulkFileOperationType,
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ): Boolean {
+        val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions)
+        _activeRequest.value = request
+        _events.tryEmit(BulkFileOperationEvent.Started(request))
+        return true
     }
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
-        val volume = volumeList.sortedByDescending { it.path.length }
-            .firstOrNull { path == it.path || path.startsWith(it.path + "/") }
-        return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
+
+    override fun cancelActiveOperation() {
+        val request = _activeRequest.value
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
     }
-    override fun getStandardFolders(): Map<String, String?> = emptyMap()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> = Result.failure(NotImplementedError())
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = Result.failure(NotImplementedError())
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = Result.failure(NotImplementedError())
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.success(filesByCategory[categoryName].orEmpty())
-    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?): Result<List<FileModel>> {
-        lastSearchQuery = query
-        lastSearchScope = scope
-        lastSearchFilters = filters
-        return searchResult
+
+    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+        _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
     }
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> {
-        lastConflictSourcePaths = sourcePaths
-        lastConflictDestination = destinationPath
-        return conflictsResult
+
+    override fun onOperationCancelling(request: BulkFileOperationRequest) {
+        _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
     }
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.success(Unit)
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.success(Unit)
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = moveToTrashResult
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun emptyTrash(): Result<Unit> = Result.failure(NotImplementedError())
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.failure(NotImplementedError())
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.failure(NotImplementedError())
+
+    override fun onOperationCompleted(request: BulkFileOperationRequest) {
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Completed(request))
+    }
+
+    override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Failed(request, message))
+    }
+
+    override fun onOperationCancelled(request: BulkFileOperationRequest?) {
+        _activeRequest.value = null
+        _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
+    }
 }
 
 private fun browserVolume(
@@ -405,9 +860,7 @@ private fun browserFile(name: String, path: String, isDirectory: Boolean = false
 )
 
 private fun fakeIntentSender(): IntentSender {
-    val field = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe")
-    field.isAccessible = true
-    val unsafe = field.get(null)
-    val allocateInstance = unsafe.javaClass.getMethod("allocateInstance", Class::class.java)
-    return allocateInstance.invoke(unsafe, IntentSender::class.java) as IntentSender
+    return mockk(relaxed = true)
 }
+
+

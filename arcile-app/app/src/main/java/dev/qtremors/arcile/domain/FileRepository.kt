@@ -1,6 +1,10 @@
 package dev.qtremors.arcile.domain
 
 import android.content.IntentSender
+import dev.qtremors.arcile.domain.FolderStatUpdate
+import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.SelectionProperties
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -43,6 +47,10 @@ interface FileRepository {
      *   [path] does not exist or cannot be read.
      */
     suspend fun listFiles(path: String): Result<List<FileModel>>
+    suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats>
+    fun queueFolderStats(paths: List<String>)
+    fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
+    suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
 
     // ─── File mutations ──────────────────────────────────────────────────────
 
@@ -197,7 +205,12 @@ interface FileRepository {
      * @param destinationPath Absolute path of the target directory.
      * @param resolutions Per-file conflict resolutions keyed by source absolute path.
      */
-    suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution> = emptyMap()): Result<Unit>
+    suspend fun copyFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution> = emptyMap(),
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit>
 
     /**
      * Moves files at [sourcePaths] to [destinationPath].
@@ -210,7 +223,12 @@ interface FileRepository {
      * @param destinationPath Absolute path of the target directory.
      * @param resolutions Per-file conflict resolutions keyed by source absolute path.
      */
-    suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution> = emptyMap()): Result<Unit>
+    suspend fun moveFiles(
+        sourcePaths: List<String>,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution> = emptyMap(),
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit>
 
     // ─── Trash subsystem ─────────────────────────────────────────────────────
 

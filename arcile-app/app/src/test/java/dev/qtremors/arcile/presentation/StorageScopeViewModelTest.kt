@@ -18,12 +18,13 @@ import dev.qtremors.arcile.domain.DestinationRequiredException
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.testFile
+import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -59,14 +60,15 @@ class StorageScopeViewModelTest {
         val sd = volume(id = "sd", name = "SD Card", path = "/storage/1234-5678", removable = true)
         val repository = FakeFileRepository(
             volumes = listOf(internal, sd),
-            categorySizesByScope = mapOf(
+            initialCategorySizesByScope = mapOf(
                 StorageScope.AllStorage to listOf(CategoryStorage("Images", 10L, setOf("jpg"))),
                 StorageScope.Volume("primary") to listOf(CategoryStorage("Images", 7L, setOf("jpg"))),
                 StorageScope.Volume("sd") to listOf(CategoryStorage("Images", 3L, setOf("jpg")))
             )
         )
 
-        val viewModel = HomeViewModel(repository, FakeStorageClassificationStore())
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository, FakeStorageClassificationStore(), quickAccessRepo)
         advanceUntilIdle()
 
         assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
@@ -79,7 +81,7 @@ class StorageScopeViewModelTest {
     @Test
     fun `recent files view model scopes queries to selected volume`() = runTest(dispatcher) {
         val repository = FakeFileRepository(
-            recentFilesByScope = mapOf(
+            initialRecentFilesByScope = mapOf(
                 StorageScope.Volume("sd") to listOf(file("clip.mp4", "/storage/1234-5678/Movies/clip.mp4"))
             )
         )
@@ -97,7 +99,7 @@ class StorageScopeViewModelTest {
     @Test
     fun `recent files view model treats blank volume id as all storage`() = runTest(dispatcher) {
         val repository = FakeFileRepository(
-            recentFilesByScope = mapOf(
+            initialRecentFilesByScope = mapOf(
                 StorageScope.AllStorage to listOf(file("note.txt", "/storage/emulated/0/Download/note.txt"))
             )
         )
@@ -124,7 +126,8 @@ class StorageScopeViewModelTest {
         val store = RecordingStorageClassificationStore()
         val repository = FakeFileRepository(volumes = listOf(otg))
 
-        val viewModel = HomeViewModel(repository, store)
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository, store, quickAccessRepo)
         advanceUntilIdle()
 
         viewModel.setVolumeClassification(otg.storageKey, StorageKind.OTG)
@@ -148,7 +151,8 @@ class StorageScopeViewModelTest {
         val store = RecordingStorageClassificationStore()
         val repository = FakeFileRepository(volumes = listOf(otg))
 
-        val viewModel = HomeViewModel(repository, store)
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository, store, quickAccessRepo)
         advanceUntilIdle()
 
         // Initially shown
@@ -170,10 +174,11 @@ class StorageScopeViewModelTest {
     @Test
     fun `trash view model shows destination picker when restore needs alternate volume`() = runTest(dispatcher) {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
-        val repository = FakeFileRepository(
-            volumes = listOf(internal),
-            restoreFromTrashResult = Result.failure(DestinationRequiredException(listOf("trash-1")))
-        )
+        val repository = FakeFileRepository(volumes = listOf(internal)).apply {
+            restoreFromTrashResultProvider = { _, _ ->
+                Result.failure(DestinationRequiredException(listOf("trash-1")))
+            }
+        }
         val viewModel = TrashViewModel(repository)
 
         advanceUntilIdle()
@@ -192,7 +197,7 @@ class StorageScopeViewModelTest {
         path: String,
         removable: Boolean = false,
         kind: StorageKind = if (removable) StorageKind.EXTERNAL_UNCLASSIFIED else StorageKind.INTERNAL
-    ) = StorageVolume(
+    ) = testVolume(
         id = id,
         storageKey = id,
         name = name,
@@ -205,98 +210,7 @@ class StorageScopeViewModelTest {
         isUserClassified = removable
     )
 
-    private fun file(name: String, path: String) = FileModel(
-        name = name,
-        absolutePath = path,
-        size = 1L,
-        lastModified = 1L,
-        isDirectory = false,
-        extension = name.substringAfterLast('.', ""),
-        isHidden = false
-    )
-}
-
-private class FakeFileRepository(
-    volumes: List<StorageVolume> = emptyList(),
-    private val recentFilesByScope: Map<StorageScope, List<FileModel>> = emptyMap(),
-    private val categorySizesByScope: Map<StorageScope, List<CategoryStorage>> = emptyMap(),
-    private val restoreFromTrashResult: Result<Unit> = Result.success(Unit)
-) : FileRepository {
-
-    private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        tryEmit(volumes)
-    }
-
-    val requestedRecentScopes = mutableListOf<StorageScope>()
-    val requestedStorageInfoScopes = mutableListOf<StorageScope>()
-    val requestedCategoryScopes = mutableListOf<StorageScope>()
-
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes.asSharedFlow()
-
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(observedVolumes.replayCache.lastOrNull().orEmpty())
-
-    override fun getStandardFolders(): Map<String, String?> = emptyMap()
-
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
-        val volume = observedVolumes.replayCache.lastOrNull()
-            ?.sortedByDescending { it.path.length }
-            ?.firstOrNull { path == it.path || path.startsWith(it.path + "/") }
-        return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
-    }
-
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(emptyList())
-
-    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-
-    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.failure(NotImplementedError())
-
-    override suspend fun deleteFile(path: String): Result<Unit> = Result.failure(NotImplementedError())
-
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = Result.failure(NotImplementedError())
-
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.failure(NotImplementedError())
-
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
-        requestedRecentScopes += scope
-        return Result.success(recentFilesByScope[scope].orEmpty())
-    }
-
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> {
-        requestedStorageInfoScopes += scope
-        val allVolumes = observedVolumes.replayCache.lastOrNull().orEmpty()
-        val scopedVolumes = when (scope) {
-            StorageScope.AllStorage -> allVolumes
-            is StorageScope.Volume -> allVolumes.filter { it.id == scope.volumeId }
-            is StorageScope.Path -> allVolumes.filter { it.id == scope.volumeId }
-            is StorageScope.Category -> allVolumes.filter { it.id == scope.volumeId }
-        }
-        return Result.success(StorageInfo(scopedVolumes))
-    }
-
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> {
-        requestedCategoryScopes += scope
-        return Result.success(categorySizesByScope[scope].orEmpty())
-    }
-
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = Result.success(emptyList())
-
-    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?): Result<List<FileModel>> = Result.success(emptyList())
-
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.success(emptyList())
-
-    override suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.success(Unit)
-
-    override suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>): Result<Unit> = Result.success(Unit)
-
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = Result.success(Unit)
-
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = restoreFromTrashResult
-
-    override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
-
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(emptyList())
-
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.success(Unit)
+    private fun file(name: String, path: String) = testFile(name = name, path = path)
 }
 
 private class FakeStorageClassificationStore : StorageClassificationStore {

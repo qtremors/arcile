@@ -5,29 +5,55 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.domain.StorageBrowserLocation
+import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
-import dev.qtremors.arcile.domain.usecase.PasteFilesUseCase
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.browser.delegate.ClipboardDelegate
 import dev.qtremors.arcile.presentation.browser.delegate.NavigationDelegate
 import dev.qtremors.arcile.presentation.browser.delegate.SearchDelegate
+import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
+import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class BrowserNativeAction { TRASH }
+
+@androidx.compose.runtime.Immutable
+data class BrowserFileOperationUiState(
+    val type: BulkFileOperationType,
+    val totalItems: Int,
+    val completedItems: Int = 0,
+    val currentPath: String? = null,
+    val isCancelling: Boolean = false,
+    val bytesCopied: Long? = null,
+    val totalBytes: Long? = null
+) {
+    val isIndeterminate: Boolean
+        get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
+}
 
 @androidx.compose.runtime.Immutable
 data class BrowserState(
@@ -37,11 +63,15 @@ data class BrowserState(
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
     val files: List<FileModel> = emptyList(),
+    val folderStatsByPath: Map<String, FolderStats> = emptyMap(),
+    val folderStatsLoadingPaths: Set<String> = emptySet(),
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
     val browserSearchQuery: String = "",
     val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
-    val isGridView: Boolean = false,
+    val browserViewMode: BrowserViewMode = BrowserViewMode.LIST,
+    val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+    val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
@@ -51,13 +81,18 @@ data class BrowserState(
     val error: String? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),
     val showConflictDialog: Boolean = false,
-    val storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume> = emptyList(),
+    val storageVolumes: List<StorageVolume> = emptyList(),
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
     val isPermanentDeleteChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: BrowserNativeAction? = null
+    val pendingNativeAction: BrowserNativeAction? = null,
+    val isPropertiesVisible: Boolean = false,
+    val isPropertiesLoading: Boolean = false,
+    val properties: PropertiesUiModel? = null,
+    val activeFileOperation: BrowserFileOperationUiState? = null,
+    val fileOperationStatusMessage: String? = null
 )
 
 @HiltViewModel
@@ -67,14 +102,18 @@ class BrowserViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
     private val moveToTrashUseCase: MoveToTrashUseCase,
-    private val pasteFilesUseCase: PasteFilesUseCase
+    bulkFileOperationCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
-    
-    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
-    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+
+    private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>(
+        replay = 0,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+    val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     private val searchDelegate = SearchDelegate(_state, viewModelScope, repository)
     private val navigationDelegate = NavigationDelegate(
@@ -89,22 +128,91 @@ class BrowserViewModel @Inject constructor(
         state = _state,
         viewModelScope = viewModelScope,
         repository = repository,
-        pasteFilesUseCase = pasteFilesUseCase,
+        bulkFileOperationCoordinator = bulkFileOperationCoordinator,
         refreshAction = { navigationDelegate.refresh() }
+    )
+    private val deleteFlowDelegate = DeleteFlowDelegate(
+        coroutineScope = viewModelScope,
+        repository = repository,
+        callbacks = object : DeleteStateCallbacks {
+            override fun getSelectedFiles(): List<String> = _state.value.selectedFiles.toList()
+            override fun isPermanentDeleteChecked(): Boolean = _state.value.isPermanentDeleteChecked
+            override fun isPermanentDeleteToggleEnabled(): Boolean = _state.value.isPermanentDeleteToggleEnabled
+            override fun setLoading(isLoading: Boolean) {
+                _state.update { it.copy(isLoading = isLoading) }
+            }
+            override fun showMixedDeleteExplanation() {
+                _state.update { it.copy(showMixedDeleteExplanation = true) }
+            }
+            override fun showPermanentDeleteConfirmation() {
+                _state.update {
+                    it.copy(
+                        showPermanentDeleteConfirmation = true,
+                        isPermanentDeleteChecked = true,
+                        isPermanentDeleteToggleEnabled = false
+                    )
+                }
+            }
+            override fun showTrashConfirmation() {
+                _state.update {
+                    it.copy(
+                        showTrashConfirmation = true,
+                        isPermanentDeleteChecked = false,
+                        isPermanentDeleteToggleEnabled = true
+                    )
+                }
+            }
+            override fun togglePermanentDeleteChecked() {
+                _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
+            }
+            override fun dismissDeleteConfirmation() {
+                _state.update {
+                    it.copy(
+                        showTrashConfirmation = false,
+                        showPermanentDeleteConfirmation = false,
+                        showMixedDeleteExplanation = false
+                    )
+                }
+            }
+            override fun setError(error: String) {
+                _state.update { it.copy(error = error) }
+            }
+            override fun setPendingNativeAction() {
+                _state.update { it.copy(pendingNativeAction = BrowserNativeAction.TRASH) }
+            }
+            override fun clearSelection() {
+                _state.update { it.copy(selectedFiles = emptySet()) }
+            }
+        },
+        executeMoveToTrash = { selected -> moveToTrashUseCase(selected) },
+        emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
+        onSuccess = { navigationDelegate.refresh() }
     )
 
     private var isInitialized = false
 
     init {
+        bulkFileOperationCoordinator.activeRequest.value?.let { activeReq ->
+            _state.update {
+                it.copy(
+                    activeFileOperation = BrowserFileOperationUiState(
+                        type = activeReq.type,
+                        totalItems = activeReq.sourcePaths.size,
+                        currentPath = activeReq.sourcePaths.firstOrNull()
+                    )
+                )
+            }
+        }
+
         viewModelScope.launch {
             getStorageVolumesUseCase().collectLatest { volumes ->
                 _state.update { it.copy(storageVolumes = volumes) }
-                
+
                 if (!isInitialized) {
                     isInitialized = true
                     when (val location = navigationDelegate.restoreLocationFromState()) {
-                        dev.qtremors.arcile.domain.StorageBrowserLocation.Roots -> navigationDelegate.openFileBrowser()
-                        is dev.qtremors.arcile.domain.StorageBrowserLocation.Directory -> {
+                        StorageBrowserLocation.Roots -> navigationDelegate.openFileBrowser()
+                        is StorageBrowserLocation.Directory -> {
                             _state.update {
                                 it.copy(
                                     currentPath = location.pathScope.absolutePath,
@@ -116,7 +224,7 @@ class BrowserViewModel @Inject constructor(
                             }
                             navigationDelegate.refresh()
                         }
-                        is dev.qtremors.arcile.domain.StorageBrowserLocation.Category -> {
+                        is StorageBrowserLocation.Category -> {
                             _state.update {
                                 it.copy(
                                     currentPath = "",
@@ -140,6 +248,103 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
+
+        viewModelScope.launch {
+            repository.observeFolderStatUpdates().collectLatest { update ->
+                _state.update { currentState ->
+                    if (currentState.isVolumeRootScreen || currentState.isCategoryScreen) {
+                        return@update currentState
+                    }
+
+                    val visiblePaths = currentState.files
+                        .asSequence()
+                        .filter { it.isDirectory }
+                        .map { it.absolutePath }
+                        .toSet()
+                    if (update.path !in visiblePaths) {
+                        return@update currentState
+                    }
+
+                    currentState.copy(
+                        folderStatsByPath = currentState.folderStatsByPath + (update.path to update.stats),
+                        folderStatsLoadingPaths = currentState.folderStatsLoadingPaths - update.path
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.events.collectLatest { event ->
+                when (event) {
+                    is BulkFileOperationEvent.Started -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = BrowserFileOperationUiState(
+                                    type = event.request.type,
+                                    totalItems = event.request.sourcePaths.size,
+                                    currentPath = event.request.sourcePaths.firstOrNull()
+                                ),
+                                fileOperationStatusMessage = null
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Progress -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = BrowserFileOperationUiState(
+                                    type = event.request.type,
+                                    totalItems = event.progress.totalItems,
+                                    completedItems = event.progress.completedItems,
+                                    currentPath = event.progress.currentPath,
+                                    isCancelling = false,
+                                    bytesCopied = event.progress.bytesCopied,
+                                    totalBytes = event.progress.totalBytes
+                                )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Cancelling -> {
+                        _state.update { currentState ->
+                            currentState.copy(
+                                activeFileOperation = currentState.activeFileOperation?.copy(isCancelling = true)
+                                    ?: BrowserFileOperationUiState(
+                                        type = event.request.type,
+                                        totalItems = event.request.sourcePaths.size,
+                                        isCancelling = true
+                                    )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Completed -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = null,
+                                fileOperationStatusMessage = formatOperationCompletedMessage(
+                                    type = event.request.type,
+                                    itemCount = event.request.sourcePaths.size
+                                )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Failed -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = null,
+                                fileOperationStatusMessage = event.message
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Cancelled -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = null,
+                                fileOperationStatusMessage = "File operation cancelled"
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun openFileBrowser(errorMessage: String? = null) = navigationDelegate.openFileBrowser(errorMessage)
@@ -157,44 +362,73 @@ class BrowserViewModel @Inject constructor(
             } else {
                 currentState.selectedFiles + path
             }
-            currentState.copy(selectedFiles = updatedSelection)
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     fun selectMultiple(paths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
-            currentState.copy(selectedFiles = currentState.selectedFiles + paths)
+            currentState.copy(
+                selectedFiles = currentState.selectedFiles + paths,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     fun clearSelection() {
-        _state.update { it.copy(selectedFiles = emptySet()) }
+        _state.update {
+            it.copy(
+                selectedFiles = emptySet(),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
     }
 
     fun updateBrowserSearchQuery(query: String) = searchDelegate.updateBrowserSearchQuery(query)
     fun updateSearchFilters(filters: SearchFilters) = searchDelegate.updateSearchFilters(filters)
     fun toggleSearchFilterMenu(visible: Boolean) = searchDelegate.toggleSearchFilterMenu(visible)
 
-    fun updateBrowserSortOption(sortOption: FileSortOption, applyToSubfolders: Boolean) {
+    fun updateBrowserPresentation(
+        presentation: BrowserPresentationPreferences,
+        applyToSubfolders: Boolean
+    ) {
         if (_state.value.isVolumeRootScreen) return
-        _state.update { it.copy(browserSortOption = sortOption) }
+        val normalized = presentation.normalized()
+        _state.update {
+            it.copy(
+                browserSortOption = normalized.sortOption,
+                browserViewMode = normalized.viewMode,
+                browserListZoom = normalized.listZoom,
+                browserGridMinCellSize = normalized.gridMinCellSize
+            )
+        }
         viewModelScope.launch {
             if (_state.value.isCategoryScreen) {
-                browserPreferencesRepository.updatePathSortOption("category_${_state.value.activeCategoryName}", sortOption, applyToSubfolders = false)
+                browserPreferencesRepository.updatePathPresentation(
+                    path = "category_${_state.value.activeCategoryName}",
+                    presentation = normalized,
+                    applyToSubfolders = false
+                )
             } else {
                 val path = _state.value.currentPath
                 if (path.isNotEmpty()) {
-                    browserPreferencesRepository.updatePathSortOption(path, sortOption, applyToSubfolders)
+                    browserPreferencesRepository.updatePathPresentation(path, normalized, applyToSubfolders)
                 } else if (applyToSubfolders) {
-                    browserPreferencesRepository.updateGlobalSortOption(sortOption)
+                    browserPreferencesRepository.updateGlobalPresentation(normalized)
                 }
             }
         }
-    }
 
-    fun setGridView(enabled: Boolean) {
-        _state.update { it.copy(isGridView = enabled) }
     }
 
     fun createFolder(name: String) {
@@ -223,89 +457,20 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun requestDeleteSelected() {
-        val selectedFiles = _state.value.selectedFiles.toList()
-        if (selectedFiles.isEmpty()) return
+    fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
+    fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
+    fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
+    fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
+    fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
+    fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
 
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            
-            val policyResult = dev.qtremors.arcile.domain.evaluateDeletePolicy(selectedFiles, repository)
+    fun handleNativeActionResult(confirmed: Boolean) {
+        val pendingAction = _state.value.pendingNativeAction ?: return
+        _state.update { it.copy(pendingNativeAction = null) }
+        if (!confirmed) return
 
-            when (policyResult) {
-                is dev.qtremors.arcile.domain.DeletePolicyResult.MixedSelection -> {
-                    _state.update { it.copy(isLoading = false, showMixedDeleteExplanation = true) }
-                }
-                is dev.qtremors.arcile.domain.DeletePolicyResult.PermanentDelete -> {
-                    _state.update { it.copy(
-                        isLoading = false, 
-                        showPermanentDeleteConfirmation = true,
-                        isPermanentDeleteChecked = true,
-                        isPermanentDeleteToggleEnabled = false
-                    ) }
-                }
-                is dev.qtremors.arcile.domain.DeletePolicyResult.Trash -> {
-                    _state.update { it.copy(
-                        isLoading = false, 
-                        showTrashConfirmation = true,
-                        isPermanentDeleteChecked = false,
-                        isPermanentDeleteToggleEnabled = true
-                    ) }
-                }
-            }
-        }
-    }
-
-    fun togglePermanentDelete() {
-        if (_state.value.isPermanentDeleteToggleEnabled) {
-            _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
-        }
-    }
-
-    fun confirmDeleteSelected() {
-        if (_state.value.isPermanentDeleteChecked) {
-            deleteSelectedPermanently()
-        } else {
-            moveSelectedToTrash()
-        }
-    }
-
-    fun dismissDeleteConfirmation() {
-        _state.update { it.copy(showTrashConfirmation = false, showPermanentDeleteConfirmation = false, showMixedDeleteExplanation = false) }
-    }
-
-    fun moveSelectedToTrash() {
-        val selectedFiles = _state.value.selectedFiles.toList()
-        if (selectedFiles.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
-            moveToTrashUseCase(selectedFiles).onSuccess {
-                clearSelection()
-                refresh()
-            }.onFailure { error ->
-                if (error is dev.qtremors.arcile.domain.NativeConfirmationRequiredException) {
-                    _state.update { it.copy(isLoading = false, pendingNativeAction = BrowserNativeAction.TRASH) }
-                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
-                } else {
-                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to move files to Trash") }
-                }
-            }
-        }
-    }
-
-    fun deleteSelectedPermanently() {
-        val selectedFiles = _state.value.selectedFiles.toList()
-        if (selectedFiles.isEmpty()) return
-
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true, showTrashConfirmation = false, showPermanentDeleteConfirmation = false) }
-            repository.deletePermanently(selectedFiles).onSuccess {
-                clearSelection()
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files") }
-            }
+        when (pendingAction) {
+            BrowserNativeAction.TRASH -> confirmDeleteSelected()
         }
     }
 
@@ -330,10 +495,66 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
+    fun clearFileOperationStatusMessage() {
+        _state.update { it.copy(fileOperationStatusMessage = null) }
+    }
+
+    fun openPropertiesForSelection() {
+        val selectedPaths = _state.value.selectedFiles.toList()
+        if (selectedPaths.isEmpty()) return
+
+        _state.update {
+            it.copy(
+                isPropertiesVisible = true,
+                isPropertiesLoading = true,
+                properties = null
+            )
+        }
+
+        viewModelScope.launch {
+            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = true,
+                        isPropertiesLoading = false,
+                        properties = properties.toUiModel()
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = false,
+                        isPropertiesLoading = false,
+                        properties = null,
+                        error = error.message ?: "Failed to load properties"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissProperties() {
+        _state.update {
+            it.copy(
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
     fun copySelectedToClipboard() = clipboardDelegate.copySelectedToClipboard()
     fun cutSelectedToClipboard() = clipboardDelegate.cutSelectedToClipboard()
     fun cancelClipboard() = clipboardDelegate.cancelClipboard()
     fun pasteFromClipboard() = clipboardDelegate.pasteFromClipboard()
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
+
+    private fun formatOperationCompletedMessage(
+        type: BulkFileOperationType,
+        itemCount: Int
+    ): String {
+        val verb = if (type == BulkFileOperationType.MOVE) "Moved" else "Copied"
+        return "$verb $itemCount item(s)"
+    }
 }

@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.5.0 | **Last Updated:** 2026-03-21
+**Version:** 0.6.0 | **Last Updated:** 2026-04-19
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -46,7 +46,7 @@ graph TD
 |----------|-----------|
 | **Single-module project** | Keeps the project simple while features are still evolving, with package boundaries used instead of Gradle modules. |
 | **`StateFlow` over `LiveData`** | Compose-native, null-safe, and deeply integrated with coroutines. Each ViewModel exposes a single unified state (e.g., `BrowserState`). |
-| **Hilt Dependency Injection** | Manages repositories and ViewModels through `RepositoryModule`, although a few Activity-owned dependencies still bypass DI and are tracked in `TASKS.md`. |
+| **Hilt Dependency Injection** | Manages repositories, the foreground bulk-operation coordinator, and feature ViewModels through `RepositoryModule`. |
 | **Hybrid I/O Approach** | Direct `java.io.File` APIs for fast local operations + optimized `MediaStore` SQL queries for device-wide indexing and category sizes. |
 | **Type-Safe Navigation** | Jetpack Compose Navigation via `kotlinx.serialization` entirely removes string-based route fragility. |
 | **Material 3 Expressive** | Native Material You support, customized dynamic themes via `MaterialKolor`, and advanced spring physics. |
@@ -61,93 +61,75 @@ A detailed map of the project to help you locate domain logic, UI components, an
 arcile/
 ├── arcile-app/                             # Android project root (Gradle)
 │   ├── app/
-│   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml         # Permissions, activity declaration
-│   │   │   ├── java/dev/qtremors/arcile/
-│   │   │   │   ├── ArcileApp.kt            # Application class (Coil config, Hilt app)
-│   │   │   │   ├── MainActivity.kt         # Single Activity, theme resolution, Nav Host setup
-│   │   │   │   ├── data/                   # Data Layer (Implementations)
-│   │   │   │   │   ├── BrowserPreferencesRepository.kt  # DataStore-backed browser preference persistence
-│   │   │   │   │   ├── LocalFileRepository.kt           # The core file system & MediaStore engine
-│   │   │   │   │   ├── StorageClassificationRepository.kt # Handles OTG vs SD Card logic
-│   │   │   │   │   ├── manager/
-│   │   │   │   │   │   └── TrashManager.kt
-│   │   │   │   │   ├── provider/
-│   │   │   │   │   │   └── VolumeProvider.kt
-│   │   │   │   │   └── source/
-│   │   │   │   │       ├── FileSystemDataSource.kt
-│   │   │   │   │       └── MediaStoreClient.kt
-│   │   │   │   ├── di/                     # Dependency Injection
-│   │   │   │   │   └── RepositoryModule.kt
-│   │   │   │   ├── domain/                 # Domain Layer (Interfaces & Models)
-│   │   │   │   │   ├── BrowserPreferences.kt # Model for view/sort preferences
-│   │   │   │   │   ├── ConflictModels.kt   # Conflict detection & resolution models
-│   │   │   │   │   ├── DeletePolicy.kt     # Permanent vs Trash routing policy
-│   │   │   │   │   ├── FileCategories.kt   # Category definitions & MIME mappings
-│   │   │   │   │   ├── FileModel.kt        # Core agnostic file representation
-│   │   │   │   │   ├── FileRepository.kt   # Repository interface contract
-│   │   │   │   │   ├── SearchFilters.kt    # Filter criteria for file search
-│   │   │   │   │   ├── StorageBrowserLocation.kt # Current location within browser
-│   │   │   │   │   ├── StorageInfo.kt      # Storage total/free byte model
-│   │   │   │   │   ├── StorageScope.kt     # Volume bounding constraints
-│   │   │   │   │   ├── TrashMetadata.kt    # Trash entry model
-│   │   │   │   │   └── usecase/            # Domain use cases
-│   │   │   │   │       ├── GetStorageVolumesUseCase.kt
-│   │   │   │   │       ├── MoveToTrashUseCase.kt
-│   │   │   │   │       └── PasteFilesUseCase.kt
-│   │   │   │   ├── image/                  # Coil Fetchers
-│   │   │   │   │   ├── ApkIconFetcher.kt   # Extracts APK icons
-│   │   │   │   │   └── AudioAlbumArtFetcher.kt # Extracts embedded audio covers
-│   │   │   │   ├── navigation/             # Navigation mappings
-│   │   │   │   │   └── AppRoutes.kt        # Type-safe serialization routes
-│   │   │   │   ├── presentation/           # Presentation Layer (ViewModels & UI)
-│   │   │   │   │   ├── browser/            # BrowserViewModel & state
-│   │   │   │   │   │   └── delegate/
-│   │   │   │   │   │       ├── ClipboardDelegate.kt
-│   │   │   │   │   │       ├── NavigationDelegate.kt
-│   │   │   │   │   │       └── SearchDelegate.kt
-│   │   │   │   │   ├── home/               # HomeViewModel & state
-│   │   │   │   │   ├── recentfiles/        # RecentFilesViewModel & state
-│   │   │   │   │   ├── settings/           # Settings feature ViewModel & state
-│   │   │   │   │   ├── trash/              # TrashViewModel & state
-│   │   │   │   │   ├── ClipboardState.kt        # Copy/cut clipboard state management
-│   │   │   │   │   ├── FilePresentation.kt      # Presentation-layer file model
-│   │   │   │   │   └── ui/                 # Jetpack Compose Screens and Components
-│   │   │   │   │       ├── AboutScreen.kt            # App info & credits screen
-│   │   │   │   │       ├── ArcileAppShell.kt         # Nav host + bottom bar shell
-│   │   │   │   │       ├── AppNavigationGraph.kt     # Centralized NavHost controller
-│   │   │   │   │       ├── HomeScreen.kt             # Dashboard screen
-│   │   │   │   │       ├── FileManagerScreen.kt      # File browser screen
-│   │   │   │   │       ├── RecentFilesScreen.kt      # Recent files list screen
-│   │   │   │   │       ├── SettingsScreen.kt         # Theme/accent settings screen
-│   │   │   │   │       ├── StorageDashboardScreen.kt # Storage breakdown screen
-│   │   │   │   │       ├── StorageManagementScreen.kt # Volume management screen
-│   │   │   │   │       ├── ToolsScreen.kt            # Tools grid screen
-│   │   │   │   │       ├── TrashScreen.kt            # Trash management screen
-│   │   │   │   │       └── components/
-│   │   │   │   │           ├── dialogs/              # Create, rename, paste conflicts
-│   │   │   │   │           ├── home/                 # Storage cards, category/folder grids
-│   │   │   │   │           ├── lists/                # Grids, lists, filter rows
-│   │   │   │   │           ├── menus/                # Expandable FAB, top bar actions
-│   │   │   │   │           ├── settings/             # Theme/Accent selectors
-│   │   │   │   │           └── trash/                # Empty/Dialog components
-│   │   │   │   └── utils/                  # Cross-layer utilities
-│   │   │   │       ├── CategoryColors.kt   # Category-to-color utility
-│   │   │   │       ├── FormatUtils.kt      # File size / date formatting helpers
-│   │   │   │       └── ShareHelper.kt      # Intent-based file sharing utility
-│   │   │   ├── src/test/                   # JVM + Robolectric test suite
+│   │   ├── src/
+│   │   │   ├── main/
+│   │   │   │   ├── AndroidManifest.xml     # Permissions, activity declaration
+│   │   │   │   ├── java/dev/qtremors/arcile/
+│   │   │   │   │   ├── ArcileApp.kt        # Application class (Coil config, Hilt app)
+│   │   │   │   │   ├── MainActivity.kt     # Single Activity, theme resolution, Nav Host setup
+│   │   │   │   │   ├── data/               # Data Layer (Implementations)
+│   │   │   │   │   │   ├── BrowserPreferencesRepository.kt
+│   │   │   │   │   │   ├── LocalFileRepository.kt
+│   │   │   │   │   │   ├── StorageClassificationRepository.kt
+│   │   │   │   │   │   ├── manager/
+│   │   │   │   │   │   │   └── TrashManager.kt
+│   │   │   │   │   │   ├── provider/
+│   │   │   │   │   │   │   └── VolumeProvider.kt
+│   │   │   │   │   │   └── source/
+│   │   │   │   │   │       ├── FileSystemDataSource.kt
+│   │   │   │   │   │       └── MediaStoreClient.kt
+│   │   │   │   │   ├── di/                 # Dependency Injection
+│   │   │   │   │   │   └── RepositoryModule.kt
+│   │   │   │   │   ├── domain/             # Domain Layer (Interfaces & Models)
+│   │   │   │   │   │   ├── BrowserPreferences.kt
+│   │   │   │   │   │   ├── ConflictModels.kt
+│   │   │   │   │   │   ├── DeletePolicy.kt
+│   │   │   │   │   │   ├── FileCategories.kt
+│   │   │   │   │   │   ├── FileModel.kt
+│   │   │   │   │   │   ├── FileRepository.kt
+│   │   │   │   │   │   ├── SearchFilters.kt
+│   │   │   │   │   │   ├── StorageBrowserLocation.kt
+│   │   │   │   │   │   ├── StorageInfo.kt
+│   │   │   │   │   │   ├── StorageScope.kt
+│   │   │   │   │   │   ├── TrashMetadata.kt
+│   │   │   │   │   │   └── usecase/
+│   │   │   │   │   │       ├── GetStorageVolumesUseCase.kt
+│   │   │   │   │   │       ├── MoveToTrashUseCase.kt
+│   │   │   │   │   │       └── PasteFilesUseCase.kt
+│   │   │   │   │   ├── image/              # Coil Fetchers
+│   │   │   │   │   │   ├── ApkIconFetcher.kt
+│   │   │   │   │   │   └── AudioAlbumArtFetcher.kt
+│   │   │   │   │   ├── navigation/         # Type-safe serialization routes
+│   │   │   │   │   │   └── AppRoutes.kt
+│   │   │   │   │   ├── presentation/       # Presentation Layer (ViewModels & UI)
+│   │   │   │   │   │   ├── browser/        # BrowserViewModel & delegates
+│   │   │   │   │   │   ├── home/           # HomeViewModel & state
+│   │   │   │   │   │   ├── recentfiles/    # RecentFilesViewModel & state
+│   │   │   │   │   │   ├── settings/       # SettingsViewModel & state
+│   │   │   │   │   │   ├── trash/          # TrashViewModel & state
+│   │   │   │   │   │   └── ui/             # Compose Screens & Components
+│   │   │   │   │   └── utils/              # Cross-layer utilities
+│   │   │   │   └── res/                    # Localized strings, drawables, fonts
+│   │   │   ├── test/                       # JVM + Robolectric test suite
+│   │   │   │   ├── data/                   # Storage/routing/classification tests
+│   │   │   │   ├── domain/                 # Domain model and policy tests
 │   │   │   │   ├── presentation/           # ViewModel and Compose component tests
-│   │   │   │   ├── domain/                 # Domain-model and policy tests
 │   │   │   │   ├── utils/                  # Utility tests
 │   │   │   │   └── testutil/               # Shared test rules and theme wrappers
-│   │   │   └── res/                        # Localized strings, drawables, fonts
+│   │   │   └── androidTest/                # Instrumented tests (device/emulator)
+│   │   │       └── ui/                     # Screen-level integration tests
 │   │   └── build.gradle.kts               # App-level config
-│   ├── gradle/libs.versions.toml          # Centralized Dependency catalog
+│   ├── gradle/libs.versions.toml          # Centralized dependency catalog
 │   ├── build.gradle.kts                   # Project-level config
 │   └── settings.gradle.kts                # Module settings
+├── docs/                                   # Public-facing website (GitHub Pages)
+│   ├── index.html                         # Landing page
+│   ├── styles.css                         # Custom styles
+│   └── scripts.js                         # Interactive behavior
 ├── README.md
 ├── DEVELOPMENT.md                         # This file
 ├── CHANGELOG.md
+├── PRIVACY.md                             # Privacy policy
 └── TASKS.md                               # Audit findings & to-dos
 ```
 
@@ -157,10 +139,10 @@ arcile/
 
 ### Smart Paste & Conflict Resolution
 File collisions during copy/move operations are natively handled by a complex "Smart Paste" engine inside `LocalFileRepository.kt` and `BrowserViewModel.kt`:
-1. **Detection:** Before pasting, `detectCopyConflicts` recurses through directory trees to flag nested filename collisions.
+1. **Detection:** Before pasting, `detectCopyConflicts` checks only top-level source-vs-destination collisions so large directory pastes stay responsive.
 2. **Resolution UI:** A step-by-step conflict dialog allows users to choose "Replace", "Keep Both", or "Skip", with a batch-processing "Do this for all" checkbox.
-3. **Auto-Renaming:** Resolving via "Keep Both" triggers intelligent recursive renaming (e.g., appending ` - Copy (1)`) without destroying user data.
-4. **Folder Merging:** Overlapping folders are merged natively instead of wiping the destination folder out.
+3. **Auto-Renaming:** Resolving via "Keep Both" uses the shared production `FileConflictNameGenerator` helper to create stable suffixed names (for example, `document (1).txt`).
+4. **Background Execution:** Once conflicts are resolved, copy and move operations are handed off to a foreground-service pipeline so they are less likely to be interrupted when the app backgrounds.
 
 ### Unified Deletion Policy Engine
 Deletion is dynamically routed based on the current context (`DeletePolicy` in domain):
@@ -170,9 +152,24 @@ Deletion is dynamically routed based on the current context (`DeletePolicy` in d
 
 ### Performance Caching & MediaStore Optimizations
 To prevent UI freezes, Arcile utilizes several performance layers:
-- **5-Minute TTL Cache:** Storage analytics (category sizes, total free space) are cached in memory to prevent redundant disk I/O on the Home Dashboard. 
+- **MediaStore Cache TTL:** Category-size analytics remain cached for 5 minutes in `MediaStoreClient` to avoid repeated expensive scans.
+- **Folder Stats Cache/Store:** Browser folder subtitles use `FolderStatsStore` to cache aggregate file-count and byte-size calculations, emit incremental updates, and avoid recomputing the same directory totals on every recomposition.
+- **Repository-Backed Properties:** `FileRepository.getSelectionProperties()` supplies read-only file/folder metadata for the browser Properties dialog so Compose remains a thin rendering layer.
+- **Explicit Volume Refresh:** Storage volume `StatFs` snapshots are refreshed via `VolumeProvider.invalidateCache()` after app-owned file mutations instead of waiting for mount broadcasts alone. 
 - **Database-Level Category Search:** Searching within specific categories (like "Images") natively filters at the `MediaStore` SQL level rather than pulling all files into memory and filtering them via Kotlin.
 - **Micro-delayed Loading Guards:** To prevent the UI from "flickering" a loading spinner when data is loaded from a fast cache, a 5ms synchronous micro-delay is implemented across ViewModels before broadcasting an `isLoading = true` state.
+
+### Folder Metadata Aggregation Rules
+- Browser folder totals intentionally exclude descendant directories named `.thumbnails` so aggregate counts and sizes reflect user-meaningful content in media folders.
+- The exclusion only applies when calculating a parent directory's aggregate stats. If the user opens a `.thumbnails` folder directly, Arcile still calculates and shows that folder's own metadata.
+- Aggregate scans are best-effort: if Arcile can read part of a folder tree but not every descendant, the result is published as partial instead of collapsing to total failure.
+- `BrowserViewModel` subscribes to folder-stat update events once during initialization and filters updates down to the currently visible directory paths before updating UI state.
+- Folder rows never render a loading placeholder; uncached folders show `Folder` immediately and silently upgrade once cached stats arrive.
+
+### Browser Properties Dialog
+- The browser selection state exposes a dedicated 3-dot overflow entry for `Properties` without removing the existing quick actions.
+- Single-item properties show direct path, size, modified time, extension/MIME summary when available, and folder aggregate data for directories.
+- Multi-select properties summarize item count, file/folder split, total size, hidden-item count, and aggregate access state across the selection.
 
 ---
 
@@ -228,10 +225,13 @@ ViewModels manage state and logic tailored to specific application features, red
 
 | ViewModel | Responsibility |
 |-----------|----------------|
-| `BrowserViewModel` | Core file exploration logic, search, selection, and clipboard operations (copy, cut, paste, rename, trash). Uses `NavigationDelegate`, `ClipboardDelegate`, and `SearchDelegate`. |
+| `BrowserViewModel` | Core file exploration logic, search, selection, clipboard staging, and delete handling. Uses `NavigationDelegate`, `ClipboardDelegate`, `SearchDelegate`, and `DeleteFlowDelegate`; bulk copy/move execution is delegated to a foreground-operation coordinator. |
 | `HomeViewModel` | Dashboard state, including quick-access categories, recent file previews, and scoped storage overview. |
-| `RecentFilesViewModel` | Manages the full list of recently modified files, scoped to volumes, enabling direct actions and timeline sorting. |
+| `RecentFilesViewModel` | Manages the full list of recently modified files, scoped to volumes, enabling direct actions, timeline sorting, and shared delete-flow behavior through `DeleteFlowDelegate`. |
 | `TrashViewModel` | Dedicated logic for browsing the recycle bin, permanent deletion, and metadata-aware restoration. |
+
+### Background File Operations
+Long-running copy and move requests are no longer executed directly inside `viewModelScope`. The browser delegates conflict preflight work to the UI layer, then hands the final operation to `BulkFileOperationCoordinator`, which starts `BulkFileOperationService` as a foreground service and emits completion or failure events back to the ViewModel.
 
 ### Image Loading
 Coil image loading is configured in `ArcileApp` with custom `Fetcher` implementations:
@@ -247,7 +247,7 @@ Arcile's interface is built on the cutting-edge **Material 3 Expressive** guidel
 - **Motion Physics:** Uses `spring()` over linear `tween()` animations to give cards and lists a bouncy, fluid feel.
 - **Morphing Fab:** The `ExpandableFabMenu` natively morphs its shape radius from an expressive squircle (16dp) to a perfect circle (28dp) when expanding its internal `ExtendedFloatingActionButton` options.
 - **Dynamic Colors:** `MaterialKolor` dynamically extracts visually compliant color palettes from user-selected accent themes (e.g., Cyan, Monochrome, OLED Dark).
-- **Internationalization (i18n):** Most shared UI strings are extracted to `res/values/strings.xml`, but some production hardcoded strings still remain and are tracked in `TASKS.md`. New UI text should always use string resources.
+- **Internationalization (i18n):** Audited production UI copy is extracted to `res/values/strings.xml`. New visible UI text should always use string resources, and `:app:checkProductionStrings` is available as a guardrail for the audited composables.
 
 ### Key UX Paradigms
 When adding new UI features, strictly adhere to these established paradigms:
@@ -324,12 +324,12 @@ When adding new UI features, strictly adhere to these established paradigms:
 
 | Permission | Purpose | Scope |
 |------------|---------|-------|
-| `READ_EXTERNAL_STORAGE` | Read files on storage | Android 9 and below |
-| `WRITE_EXTERNAL_STORAGE` | Write files on storage | N/A (Min SDK is 30) |
-| `MANAGE_EXTERNAL_STORAGE` | Full file access | Android 11+ |
+| `MANAGE_EXTERNAL_STORAGE` | Full file access for browsing, copying, moving, and deleting files | Android 11+ (API 30+) — required |
+| `READ_EXTERNAL_STORAGE` | Legacy read access — declared in manifest but unused at runtime | Declared without `maxSdkVersion`; effectively inert since `minSdk=30` |
+| `WRITE_EXTERNAL_STORAGE` | Legacy write access | Declared with `maxSdkVersion="29"`; never activated since `minSdk=30` |
 
-> **Note: Android 11+ Support**
-> Arcile relies on `java.io.File` for maximum I/O speed and therefore requires `MANAGE_EXTERNAL_STORAGE` available in Android 11+ (API 30+). Android 10 and below are not supported.
+> **Note: Android 11+ Only**
+> Arcile requires Android 11 (API 30) or later. The app relies on `java.io.File` for maximum I/O speed together with the `MANAGE_EXTERNAL_STORAGE` permission for unrestricted filesystem access. Earlier Android versions are not supported.
 
 ### Theme Configuration
 
@@ -343,7 +343,7 @@ When adding new UI features, strictly adhere to these established paradigms:
 ## Security Practices
 
 1. **Path Traversal Protection:** `validateFileName` middleware aggressively screens all file creations and renames for `../` escapes and null bytes.
-2. **FileProvider Exposure:** The current `file_provider_paths.xml` mapping is broader than ideal and is tracked in `TASKS.md`; avoid expanding provider paths further without a concrete sharing requirement.
+2. **FileProvider Exposure:** `file_provider_paths.xml` is intentionally narrowed to staged cache handoff roots only. Outbound open/share URIs must go through the centralized allowlist and staging logic in `ExternalFileAccessHelper`.
 3. **Trash Indexing:** `.nomedia` files are automatically forced into the Trash directories so deleted photos don't accidentally appear in other Gallery apps.
 4. **Error Masking:** Network and disk I/O crashes are written to Android Logcat natively rather than silently dropped, but explicit path directories are masked from logs to protect user privacy.
 
@@ -361,7 +361,7 @@ When catching exceptions inside Coroutines or Flow blocks, you **must not** swal
 
 | Scenario | Strategy |
 |----------|----------|
-| **File operation failure** | `Result.onFailure` binds errors to state variables. Some screens surface those errors in UI today, while others still need explicit user-facing error handling and are tracked in `TASKS.md`. |
+| **File operation failure** | `Result.onFailure` binds errors to state variables and foreground bulk-operation completion events. Errors should be surfaced through screen state without relying on release log output. |
 | **Directory load failure** | Error message in state + history stack rollback. |
 | **Missing permission** | Blocking `PermissionRequestScreen` shown before app shell. |
 
@@ -377,18 +377,25 @@ When catching exceptions inside Coroutines or Flow blocks, you **must not** swal
 
 ## Testing
 
-Arcile now has an active layered JVM test suite covering domain logic, ViewModel state machines, and the first batch of Robolectric-backed Compose component tests.
+Arcile maintains a layered JVM test suite covering domain logic, data-layer business rules, repository routing, ViewModel state machines, navigation serialization, and Robolectric-backed Compose/component tests.
 
 ### Current Coverage Snapshot
-- **Domain / utilities:** `DeletePolicy`, `FileModel`, `StorageInfo`, `FormatUtils`, `CategoryColors`.
-- **ViewModels:** `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, `TrashViewModel`, plus `StorageScopeViewModel` and presentation sorting logic.
-- **Compose components:** `DeleteConfirmationDialog`, `ArcileTopBar`, and `EmptyState` via Robolectric + Compose UI test rule.
+
+| Layer | Coverage | Test Files |
+|-------|----------|------------|
+| **Domain** | `DeletePolicy`, `FileModel`, `StorageInfo`, `StorageKind` | 3 files, 10 tests |
+| **Data (Business Rules)** | Scope matching, classification merging, storage filtering, trash routing, unique filename generation, filesystem mutation routing, folder-stat cache invalidation | Expanded in `data/` and `data/source/` |
+| **Utilities** | `FormatUtils`, `CategoryColors` | 2 files, 6 tests |
+| **ViewModels** | `HomeViewModel`, `BrowserViewModel`, `RecentFilesViewModel`, `TrashViewModel`, `StorageScopeViewModel`, `FilePresentation` | Shared `FakeFileRepository` backed |
+| **UI Components** | `DeleteConfirmationDialog`, `ArcileTopBar`, `EmptyState` (Robolectric + Compose UI) | 3 files, 6 tests |
+| **Instrumented** | `HomeScreen` rendering, `EmptyState` rendering | 3 files, 3 tests |
 
 ### JVM Test Setup
 - Pure unit and coroutine tests live under `app/src/test` and run with `testDebugUnitTest`.
 - Robolectric is enabled for JVM Compose component tests.
 - `unitTests.isIncludeAndroidResources = true` is required so Robolectric-backed Compose tests can resolve app resources.
-- Shared test helpers currently include `MainDispatcherRule` and `ArcileTestTheme`.
+- Shared test helpers include `MainDispatcherRule` (coroutine dispatcher override), `ArcileTestTheme` (Compose theme wrapper), `FakeFileRepository` (configurable repository double), and `TestFixtures` storage/file builders.
+- Turbine is available for Flow assertion work where emission order matters, and is now used for one-shot native confirmation coverage plus incremental folder-stat update assertions in browser/data tests.
 
 ### Running Tests
 ```bash
@@ -407,11 +414,11 @@ Arcile now has an active layered JVM test suite covering domain logic, ViewModel
 - For reusable Compose components, prefer Robolectric-backed `src/test` coverage first; use `androidTest` only when device/runtime behavior is essential.
 - Wrap tested composables in `ArcileTestTheme` so typography, shapes, colors, and composition locals match production defaults.
 
-### Coverage Goals
-- **Unit Tests:** Remaining domain models, repository contracts, and Android-dependent utilities.
-- **ViewModel Tests:** Fill any remaining branch coverage gaps in delete, paste, rename, and refresh flows.
-- **UI Component Tests:** Expand Compose coverage across dialogs, list controls, filters, menus, and settings components.
-- **UI Integration Tests:** Add screen-level navigation and workflow coverage after component coverage is established.
+### Remaining Coverage Gaps
+- **Data Layer:** `FileSystemDataSource`, `TrashManager`, `MediaStoreClient`, and `LocalFileRepository` have no test coverage. These contain all destructive file operations and are the highest-priority gap.
+- **ViewModels:** `SettingsViewModel` is untested. `NavigationDelegate` history stack edge cases need coverage.
+- **UI Components:** Most dialogs, list components, and all full screens beyond `HomeScreen` lack test coverage.
+- **Navigation:** No end-to-end navigation integration tests exist.
 
 ### Test Naming
 ```kotlin
@@ -432,7 +439,7 @@ fun overflowMenu_dispatchesGridViewAction()
 ```bash
 ./gradlew assembleDebug
 ```
-APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.7-debug.apk`
+APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-{versionName}-debug.apk`
 
 ### Release Build
 ```bash
@@ -448,9 +455,9 @@ APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-0.4.7-
 
 | Component / Feature | Deliberate Weirdness | Rationalization |
 |---------------------|----------------------|-----------------|
-| `VariantOutputImpl` | Internal AGP API used in `androidComponents` block | This is a known build-tool workaround and remains a maintenance risk tracked in `TASKS.md`. |
 | Shared `.trash` storage | Trash lives on public roots rather than app-private `/data/` storage | Preserves trashed files across app uninstall, but it also carries privacy/security tradeoffs that remain under audit in `TASKS.md`. |
 | Robolectric Compose SDK pin | UI tests use `@Config(sdk = [35])` instead of tracking `compileSdk` directly | Keeps JVM UI tests stable while the app targets a newer SDK level than Robolectric fully supports. |
+| `android.disallowKotlinSourceSets=false` | Experimental AGP/KSP compatibility flag remains in `gradle.properties` | The current built-in Kotlin + KSP toolchain still requires it; removal is tracked in `TASKS.md` and should happen only once the upgrade path is verified. |
 
 ---
 
@@ -472,7 +479,7 @@ Evaluate changes and existing code against these dimensions:
 | **Performance** | Algorithm efficiency, file I/O optimization, memory/CPU usage |
 | **Architecture** | Bottlenecks, tight coupling, structural mismatches, scalability |
 
-Audit findings should be logged directly into `TASKS.md` using the structured template.
+Audit findings should be logged directly into `TASKS.md` using the structured template, and completed release work should be reflected in both `TASKS.md` and `CHANGELOG.md` during version bumps.
 
 ---
 
@@ -542,3 +549,8 @@ Examples: `feature/add-file-search`, `fix/permission-state-desync`
 <p align="center">
   <a href="README.md">← Back to README</a>
 </p>
+## Build Compatibility
+
+- Verified baseline: Gradle builds should rely only on supported AGP/Kotlin variant APIs in `arcile-app/app/build.gradle.kts`.
+- Run `./gradlew.bat :app:checkProductionStrings` before release prep when touching production composables with visible copy.
+- If future AGP/KSP upgrades require a new workaround, document the exact version pair and the removal condition next to the change instead of using an undocumented flag.

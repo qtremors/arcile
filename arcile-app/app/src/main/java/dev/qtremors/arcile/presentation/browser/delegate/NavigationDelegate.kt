@@ -2,9 +2,11 @@ package dev.qtremors.arcile.presentation.browser.delegate
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
@@ -106,7 +108,7 @@ class NavigationDelegate(
         pathHistory.clear()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            val sortOption = prefs.getSortOptionForPath("/")
+            val presentation = prefs.getPresentationForPath("/")
             state.update {
                 it.copy(
                     currentPath = "",
@@ -115,9 +117,14 @@ class NavigationDelegate(
                     isCategoryScreen = false,
                     activeCategoryName = "",
                     files = volumeFiles(),
+                    folderStatsByPath = emptyMap(),
+                    folderStatsLoadingPaths = emptySet(),
                     selectedFiles = emptySet(),
                     error = errorMessage,
-                    browserSortOption = sortOption,
+                    browserSortOption = presentation.sortOption,
+                    browserViewMode = presentation.viewMode,
+                    browserListZoom = presentation.listZoom,
+                    browserGridMinCellSize = presentation.gridMinCellSize,
                     isLoading = false,
                     isPullToRefreshing = false
                 )
@@ -188,6 +195,7 @@ class NavigationDelegate(
 
     fun refresh(pullToRefresh: Boolean = false) {
         state.update { it.copy(isPullToRefreshing = pullToRefresh) }
+        saveNavState()
         when {
             state.value.isVolumeRootScreen -> openVolumeRoots()
             state.value.isCategoryScreen -> loadCategory(state.value.activeCategoryName, state.value.currentVolumeId)
@@ -209,7 +217,6 @@ class NavigationDelegate(
         if (clearHistory) {
             pathHistory.clear()
         }
-        saveNavState()
         state.update {
             it.copy(
                 isLoading = true,
@@ -217,23 +224,40 @@ class NavigationDelegate(
                 currentPath = path,
                 currentVolumeId = resolvedVolumeId,
                 selectedFiles = emptySet(),
+                folderStatsByPath = emptyMap(),
+                folderStatsLoadingPaths = emptySet(),
                 isCategoryScreen = false,
                 isVolumeRootScreen = false
             )
         }
+        saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            val sortOptionForPath = prefs.getSortOptionForPath(path)
-            state.update { it.copy(browserSortOption = sortOptionForPath) }
+            applyPresentation(prefs.getPresentationForPath(path))
 
             repository.listFiles(path).onSuccess { files ->
+                val folderPaths = files.filter { it.isDirectory }.map { it.absolutePath }
+                val cachedStats = repository.getCachedFolderStats(folderPaths)
+                val now = System.currentTimeMillis()
+                val pathsToQueue = folderPaths.filter { folderPath ->
+                    val cached = cachedStats[folderPath] ?: return@filter true
+                    val ttl = if (cached.status == dev.qtremors.arcile.domain.FolderStatsStatus.Unavailable) {
+                        DefaultFolderStatsStore.FAILURE_TTL_MS
+                    } else {
+                        DefaultFolderStatsStore.FRESH_TTL_MS
+                    }
+                    now - cached.cachedAt > ttl
+                }
                 state.update {
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
-                        files = files
+                        files = files,
+                        folderStatsByPath = cachedStats,
+                        folderStatsLoadingPaths = pathsToQueue.toSet()
                     )
                 }
+                repository.queueFolderStats(pathsToQueue)
                 saveNavState()
             }.onFailure { error ->
                 state.update {
@@ -248,7 +272,6 @@ class NavigationDelegate(
     }
 
     private fun loadCategory(categoryName: String, volumeId: String?) {
-        saveNavState()
         state.update {
             it.copy(
                 isLoading = true,
@@ -257,12 +280,15 @@ class NavigationDelegate(
                 isVolumeRootScreen = false,
                 activeCategoryName = categoryName,
                 currentVolumeId = volumeId,
+                folderStatsByPath = emptyMap(),
+                folderStatsLoadingPaths = emptySet(),
                 selectedFiles = emptySet()
             )
         }
+        saveNavState()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            val sortOptionForCategory = prefs.getSortOptionForCategory(categoryName)
+            val categoryPresentation = prefs.getPresentationForCategory(categoryName)
 
             val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
@@ -271,7 +297,10 @@ class NavigationDelegate(
                         isLoading = false,
                         isPullToRefreshing = false,
                         files = files,
-                        browserSortOption = sortOptionForCategory
+                        browserSortOption = categoryPresentation.sortOption,
+                        browserViewMode = categoryPresentation.viewMode,
+                        browserListZoom = categoryPresentation.listZoom,
+                        browserGridMinCellSize = categoryPresentation.gridMinCellSize
                     )
                 }
                 saveNavState()
@@ -284,6 +313,17 @@ class NavigationDelegate(
                     )
                 }
             }
+        }
+    }
+
+    private fun applyPresentation(presentation: BrowserPresentationPreferences) {
+        state.update {
+            it.copy(
+                browserSortOption = presentation.sortOption,
+                browserViewMode = presentation.viewMode,
+                browserListZoom = presentation.listZoom,
+                browserGridMinCellSize = presentation.gridMinCellSize
+            )
         }
     }
 }

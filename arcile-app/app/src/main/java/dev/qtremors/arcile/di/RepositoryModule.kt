@@ -8,6 +8,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.data.DefaultFolderStatsStore
+import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
@@ -20,6 +22,8 @@ import dev.qtremors.arcile.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.data.source.FileSystemDataSource
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import javax.inject.Singleton
 
@@ -74,9 +78,10 @@ object RepositoryModule {
     fun provideTrashManager(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient
+        mediaStoreClient: MediaStoreClient,
+        folderStatsStore: FolderStatsStore
     ): TrashManager {
-        return DefaultTrashManager(context, volumeProvider, mediaStoreClient)
+        return DefaultTrashManager(context, volumeProvider, mediaStoreClient, folderStatsStore)
     }
 
     @Provides
@@ -84,9 +89,18 @@ object RepositoryModule {
     fun provideFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient
+        mediaStoreClient: MediaStoreClient,
+        folderStatsStore: FolderStatsStore
     ): FileSystemDataSource {
-        return DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient)
+        return DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient, folderStatsStore)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFolderStatsStore(
+        @ApplicationContext context: Context
+    ): FolderStatsStore {
+        return DefaultFolderStatsStore(context)
     }
 
     @Provides
@@ -95,13 +109,15 @@ object RepositoryModule {
         volumeProvider: VolumeProvider,
         mediaStoreClient: MediaStoreClient,
         trashManager: TrashManager,
-        fileSystemDataSource: FileSystemDataSource
+        fileSystemDataSource: FileSystemDataSource,
+        folderStatsStore: FolderStatsStore
     ): FileRepository {
         return LocalFileRepository(
             volumeProvider,
             mediaStoreClient,
             trashManager,
-            fileSystemDataSource
+            fileSystemDataSource,
+            folderStatsStore
         )
     }
 
@@ -119,5 +135,21 @@ object RepositoryModule {
         repository: BrowserPreferencesRepository
     ): BrowserPreferencesStore {
         return repository
+    }
+
+    @Provides
+    @Singleton
+    fun provideBulkFileOperationCoordinator(
+        coordinator: ForegroundBulkFileOperationCoordinator
+    ): BulkFileOperationCoordinator {
+        return coordinator
+    }
+
+    @Provides
+    @Singleton
+    fun provideQuickAccessPreferencesRepository(
+        @ApplicationContext context: Context
+    ): dev.qtremors.arcile.data.QuickAccessPreferencesRepository {
+        return dev.qtremors.arcile.data.QuickAccessPreferencesRepository(context)
     }
 }

@@ -5,10 +5,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -48,7 +50,7 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
                         result[key.name] = classification
                     } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-                        android.util.Log.e("StorageClassification", "Failed to parse classification for key: ${key.name}", e)
+                        AppLogger.e("StorageClassification", "Failed to parse stored classification", e)
                     }
                 }
             }
@@ -64,7 +66,7 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
             jsonFormat.decodeFromString<StorageClassification>(jsonString)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("StorageClassification", "Failed to parse classification for key: $storageKey", e)
+            AppLogger.e("StorageClassification", "Failed to parse stored classification", e)
             resetClassification(storageKey)
             null
         }
@@ -97,3 +99,5 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
         }
     }
 }
+
+

@@ -29,6 +29,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.runtime.mutableFloatStateOf
+import kotlin.math.roundToInt
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,6 +49,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
@@ -51,6 +60,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -110,6 +120,7 @@ import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
@@ -137,6 +148,10 @@ import java.util.Date
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 
 /**
  * Full-featured file browser screen.
@@ -179,7 +194,7 @@ private data class FileManagerContentKey(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun FileManagerScreen(
+fun BrowserScreen(
     state: BrowserState,
     onNavigateBack: () -> Unit,
     onNavigateTo: (String) -> Unit,
@@ -196,20 +211,24 @@ fun FileManagerScreen(
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onSortOptionChange: (dev.qtremors.arcile.presentation.FileSortOption, Boolean) -> Unit,
-    onGridViewChange: (Boolean) -> Unit,
+    onPresentationChange: (BrowserPresentationPreferences, Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
     onCutSelected: () -> Unit,
     onPasteFromClipboard: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
+    onClearFileOperationStatusMessage: () -> Unit = {},
+    onOpenProperties: () -> Unit = {},
+    onDismissProperties: () -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
     onSearchFiltersChange: (dev.qtremors.arcile.domain.SearchFilters) -> Unit = {},
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
+    onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
+    onNativeRequestResult: (Boolean) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
@@ -228,12 +247,7 @@ fun FileManagerScreen(
     val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            when (state.pendingNativeAction) {
-                dev.qtremors.arcile.presentation.browser.BrowserNativeAction.TRASH -> onConfirmDelete()
-                null -> {}
-            }
-        }
+        onNativeRequestResult(result.resultCode == android.app.Activity.RESULT_OK)
     }
 
     LaunchedEffect(nativeRequestFlow) {
@@ -259,6 +273,19 @@ fun FileManagerScreen(
     // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
+    }
+    val currentPresentation = remember(
+        state.browserSortOption,
+        state.browserViewMode,
+        state.browserListZoom,
+        state.browserGridMinCellSize
+    ) {
+        BrowserPresentationPreferences(
+            sortOption = state.browserSortOption,
+            viewMode = state.browserViewMode,
+            listZoom = state.browserListZoom,
+            gridMinCellSize = state.browserGridMinCellSize
+        )
     }
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
@@ -309,6 +336,121 @@ fun FileManagerScreen(
             }
         }
     }
+    
+    @Composable
+    fun ActiveFileOperationFabInternal(
+        operation: BrowserFileOperationUiState,
+        onCancel: () -> Unit
+    ) {
+        val byteProgress = operation.totalBytes
+            ?.takeIf { it > 0L }
+            ?.let { total -> ((operation.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+        val itemProgress = operation.totalItems
+            .takeIf { it > 0 }
+            ?.let { operation.completedItems.toFloat() / it.toFloat() }
+            ?.coerceIn(0f, 1f)
+        val progress = byteProgress ?: itemProgress
+
+        val containerColor = if (operation.isCancelling) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
+        val contentColor = if (operation.isCancelling) {
+            MaterialTheme.colorScheme.onErrorContainer
+        } else {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        }
+        val operationLabel = when {
+            operation.isCancelling -> stringResource(R.string.file_operation_cancelling)
+            operation.type == BulkFileOperationType.MOVE -> stringResource(R.string.file_operation_moving)
+            else -> stringResource(R.string.file_operation_copying)
+        }
+        val progressLabel = if ((operation.totalBytes ?: 0L) > 0L) {
+            stringResource(
+                R.string.file_operation_progress_bytes,
+                operationLabel,
+                formatFileSize(operation.bytesCopied ?: 0L),
+                formatFileSize(operation.totalBytes ?: 0L)
+            )
+        } else if (operation.totalItems > 0) {
+            stringResource(
+                R.string.file_operation_progress,
+                operationLabel,
+                operation.completedItems,
+                operation.totalItems
+            )
+        } else {
+            operationLabel
+        }
+        val secondaryLabel = operation.currentPath
+            ?.substringAfterLast(File.separatorChar)
+            ?.takeIf { it.isNotBlank() }
+        val percentageLabel = progress?.let { "${(it * 100).toInt()}%" }
+        val operationIcon = if (operation.type == BulkFileOperationType.MOVE) {
+            Icons.Default.ContentCut
+        } else {
+            Icons.Default.ContentCopy
+        }
+
+        ExtendedFloatingActionButton(
+            onClick = onCancel,
+            containerColor = containerColor,
+            contentColor = contentColor,
+            shape = MaterialTheme.shapes.extraLarge,
+            icon = {
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (progress == null) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = contentColor
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = contentColor,
+                            trackColor = contentColor.copy(alpha = 0.24f)
+                        )
+                    }
+                    Icon(
+                        imageVector = operationIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = progressLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = listOfNotNull(percentageLabel, secondaryLabel).joinToString(" • "),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(state.fileOperationStatusMessage) {
+        state.fileOperationStatusMessage?.let { message ->
+            onClearFileOperationStatusMessage()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
+        }
+    }
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -341,13 +483,13 @@ fun FileManagerScreen(
                 }
             } else {
                 ArcileTopBar(
-                    title = stringResource(R.string.browse_title),
+                    title = if (state.isCategoryScreen) state.activeCategoryName else stringResource(R.string.browse_title),
                     selectionCount = state.selectedFiles.size,
                     showBackArrow = true,
-                    showGridViewAction = true,
                     showSortAction = !state.isVolumeRootScreen,
                     showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
-                    isGridView = state.isGridView,
+                    showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty(),
+                    isGridView = state.browserViewMode == BrowserViewMode.GRID,
                     hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
                     onBackClick = onNavigateBack,
@@ -359,13 +501,22 @@ fun FileManagerScreen(
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
+                            TopBarAction.PinToQuickAccess -> {
+                                state.currentPath?.let { path ->
+                                    val label = java.io.File(path).name
+                                    onPinToQuickAccess(path, label)
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Pinned '$label' to Quick Access")
+                                    }
+                                }
+                            }
                             TopBarAction.DeleteSelected -> onRequestDeleteSelected()
                             TopBarAction.Rename -> if (state.selectedFiles.size == 1) showRenameDialog = true
-                            TopBarAction.GridView -> onGridViewChange(!state.isGridView)
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
                             TopBarAction.SelectAll -> onSelectMultiple(displayedFiles.map { it.absolutePath })
+                            TopBarAction.Properties -> onOpenProperties()
                             else -> {}
                         }
                     }
@@ -373,31 +524,74 @@ fun FileManagerScreen(
             }
         },
         floatingActionButton = {
-            if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
+            if (state.activeFileOperation != null) {
+                ActiveFileOperationFabInternal(
+                    operation = state.activeFileOperation,
+                    onCancel = onCancelClipboard
+                )
+            } else if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Box {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
-                        ExpandableFabMenu(
+                        dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
                             isExpanded = isFabExpanded,
                             onToggleExpand = { isFabExpanded = !isFabExpanded },
                             fabIconRotation = fabIconRotation,
-                            onCreateFileClick = {
-                                isFabExpanded = false
-                                showCreateFileDialog = true
-                            },
-                            onCreateFolderClick = {
-                                isFabExpanded = false
-                                showCreateFolderDialog = true
-                            }
+                            items = listOf(
+                                dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
+                                    label = stringResource(R.string.new_folder),
+                                    icon = androidx.compose.material.icons.Icons.Default.CreateNewFolder,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFolderDialog = true
+                                    }
+                                ),
+                                dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
+                                    label = stringResource(R.string.new_file),
+                                    icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.InsertDriveFile,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFileDialog = true
+                                    }
+                                )
+                            )
                         )
                     }
                 }
             }
         }
     ) { padding ->
+        var offsetX by remember { mutableFloatStateOf(0f) }
+        val animatedOffsetX by animateFloatAsState(
+            targetValue = offsetX,
+            label = "swipeOffset",
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+        )
+
         Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offsetX = 0f },
+                        onDragEnd = {
+                            if (offsetX > 150f) {
+                                onNavigateBack()
+                            }
+                            offsetX = 0f
+                        },
+                        onDragCancel = { offsetX = 0f },
+                        onHorizontalDrag = { _, dragAmount ->
+                            val newOffset = offsetX + dragAmount
+                            if (newOffset >= 0f) {
+                                offsetX = newOffset
+                            } else {
+                                offsetX = 0f
+                            }
+                        }
+                    )
+                }
         ) {
             // When search has completed, show search results instead of browse content
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
@@ -520,29 +714,35 @@ fun FileManagerScreen(
                                         description = stringResource(R.string.empty_directory_description),
                                         modifier = Modifier.fillMaxSize()
                                     )
-                                } else if (state.isGridView && !state.isVolumeRootScreen) {
-                                    FileGrid(
+                                } else if (state.browserViewMode == BrowserViewMode.GRID && !state.isVolumeRootScreen) {
+                                     FileGrid(
+                                         files = displayedFiles,
+                                         selectedFiles = state.selectedFiles,
+                                        onNavigateTo = onNavigateTo,
+                                        onOpenFile = onOpenFile,
+                                         onToggleSelection = onToggleSelection,
+                                         onSelectMultiple = onSelectMultiple,
+                                         modifier = Modifier.fillMaxSize(),
+                                         gridState = gridState,
+                                         minCellSize = state.browserGridMinCellSize.dp,
+                                         folderStatsByPath = state.folderStatsByPath,
+                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
+                                     )
+                                 } else {
+                                     FileList(
                                         files = displayedFiles,
                                         selectedFiles = state.selectedFiles,
                                         onNavigateTo = onNavigateTo,
                                         onOpenFile = onOpenFile,
-                                        onToggleSelection = onToggleSelection,
-                                        onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize(),
-                                        gridState = gridState
-                                    )
-                                } else {
-                                    FileList(
-                                        files = displayedFiles,
-                                        selectedFiles = state.selectedFiles,
-                                        onNavigateTo = onNavigateTo,
-                                        onOpenFile = onOpenFile,
-                                        onToggleSelection = onToggleSelection,
-                                        onSelectMultiple = onSelectMultiple,
-                                        modifier = Modifier.fillMaxSize(),
-                                        listState = listState
-                                    )
-                                }
+                                         onToggleSelection = onToggleSelection,
+                                         onSelectMultiple = onSelectMultiple,
+                                         modifier = Modifier.fillMaxSize(),
+                                         listState = listState,
+                                         zoom = state.browserListZoom,
+                                         folderStatsByPath = state.folderStatsByPath,
+                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
+                                     )
+                                 }
                             }
                 }
             }
@@ -625,11 +825,11 @@ fun FileManagerScreen(
         if (showSortDialog) {
             SortOptionDialog(
                 title = stringResource(R.string.sort_folder_title),
-                selectedOption = state.browserSortOption,
+                selectedPreferences = currentPresentation,
                 showApplyToSubfolders = !state.isCategoryScreen,
                 onDismiss = { showSortDialog = false },
-                onOptionSelected = { option, applyToSubfolders ->
-                    onSortOptionChange(option, applyToSubfolders)
+                onApply = { presentation, applyToSubfolders ->
+                    onPresentationChange(presentation, applyToSubfolders)
                     showSortDialog = false
                 }
             )
@@ -640,6 +840,14 @@ fun FileManagerScreen(
                 conflicts = state.pasteConflicts,
                 onResolve = onResolvingConflicts,
                 onDismiss = onDismissConflictDialog
+            )
+        }
+
+        if (state.isPropertiesVisible) {
+            PropertiesDialog(
+                properties = state.properties,
+                isLoading = state.isPropertiesLoading,
+                onDismiss = onDismissProperties
             )
         }
 

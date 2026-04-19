@@ -148,8 +148,8 @@ fun TrashScreen(
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
-            onClearError()
             snackbarHostState.showSnackbar(errorMsg)
+            onClearError()
         }
     }
 
@@ -176,7 +176,7 @@ fun TrashScreen(
                         showSearchBar = false
                         onClearSearch()
                     },
-                    placeholder = "Search trash bin..."
+                    placeholder = stringResource(R.string.search_trash_placeholder)
                 )
             } else {
                 LargeTopAppBar(

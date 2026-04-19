@@ -13,6 +13,9 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.utils.AppLogger
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -45,6 +48,11 @@ class DefaultMediaStoreClient(
     private val context: Context,
     private val volumeProvider: VolumeProvider
 ) : MediaStoreClient {
+    private companion object {
+        const val MAX_PATH_SEARCH_RESULTS = 1000
+        const val MAX_PATH_SEARCH_NODES = 10_000
+        const val PATH_SEARCH_CANCELLATION_GRANULARITY = 32
+    }
 
     private val appContext = context.applicationContext
     private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
@@ -95,7 +103,7 @@ class DefaultMediaStoreClient(
             file.writeText(jsonFormat.encodeToString(rootEntity))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("MediaStoreClient", "Failed to save cache for $scope: ${e.message}")
+            AppLogger.e("MediaStoreClient", "Failed to save category cache")
         }
     }
 
@@ -125,7 +133,7 @@ class DefaultMediaStoreClient(
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("MediaStoreClient", "Cache read failed: ${e.message}")
+            AppLogger.e("MediaStoreClient", "Category cache read failed")
             return null
         }
     }
@@ -144,19 +152,19 @@ class DefaultMediaStoreClient(
             
             val globalFile = File(cacheDir, "global.json")
             if (globalFile.exists() && !globalFile.delete()) {
-                 android.util.Log.w("MediaStoreClient", "Failed to delete global cache")
+                 AppLogger.w("MediaStoreClient", "Failed to delete global cache")
             }
             
             affectedVolumeIds.forEach { volId ->
                 val safeVolId = volId.replace(Regex("[^a-zA-Z0-9]"), "_")
                 val volFile = File(cacheDir, "volume_$safeVolId.json")
                 if (volFile.exists() && !volFile.delete()) {
-                    android.util.Log.w("MediaStoreClient", "Failed to delete cache for volume: $volId")
+                    AppLogger.w("MediaStoreClient", "Failed to delete volume cache")
                 }
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            android.util.Log.e("MediaStoreClient", "Cache invalidation error: ${e.message}")
+            AppLogger.e("MediaStoreClient", "Cache invalidation error", e)
             throw e
         }
     }
@@ -294,7 +302,7 @@ class DefaultMediaStoreClient(
                         }
                     } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-                        android.util.Log.e("MediaStoreClient", "StorageStatsManager query failed for ${volume.name}", e)
+                        AppLogger.e("MediaStoreClient", "StorageStatsManager query failed", e)
                     }
                 }
             }
@@ -308,8 +316,7 @@ class DefaultMediaStoreClient(
             
             val selectionBuilder = StringBuilder()
             val selectionArgs = mutableListOf<String>()
-            var requiresFullScan = false
-            
+
             val clauses = mutableListOf<String>()
 
             FileCategories.all.forEachIndexed { index, cat ->
@@ -323,27 +330,24 @@ class DefaultMediaStoreClient(
                             clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
                             selectionArgs.add(prefix)
                         }
-                    } else {
-                        requiresFullScan = true
                     }
-                    
+
                     cat.extensions.forEach { ext ->
                         clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
                         selectionArgs.add("%.${ext}")
                     }
                 }
             }
-            
+
             if (clauses.isNotEmpty()) {
                 selectionBuilder.append(clauses.joinToString(" OR "))
             }
-            
-            val selection = if (requiresFullScan) null else selectionBuilder.toString().takeIf { it.isNotEmpty() }
-            val args = if (requiresFullScan) null else selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
-            
-            if (requiresFullScan || selection != null) {
-                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
-                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+
+            val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }
+            val args = selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
+
+            if (selection != null) {
+                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
                     val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                     
@@ -496,19 +500,41 @@ class DefaultMediaStoreClient(
             
             if (scope is StorageScope.Path) {
                 val rootDir = File(scope.absolutePath)
-                // Assuming path is valid
                 if (rootDir.exists() && rootDir.isDirectory) {
-                    rootDir.walkTopDown()
-                        .onEnter { dir ->
-                            !dir.name.startsWith(".") && matchesScope(dir.canonicalPath, scope, volumes)
+                    val pending = ArrayDeque<File>()
+                    pending.add(rootDir)
+                    var visitedNodes = 0
+
+                    while (pending.isNotEmpty() && filesList.size < MAX_PATH_SEARCH_RESULTS && visitedNodes < MAX_PATH_SEARCH_NODES) {
+                        currentCoroutineContext().ensureActive()
+                        val current = pending.removeFirst()
+                        visitedNodes += 1
+
+                        if (visitedNodes % PATH_SEARCH_CANCELLATION_GRANULARITY == 0) {
+                            currentCoroutineContext().ensureActive()
                         }
-                        .filter { file ->
-                            file.name.contains(query, ignoreCase = true) && !file.name.startsWith(".")
+
+                        if (!matchesScope(current.absolutePath, scope, volumes) || (current != rootDir && current.name.startsWith("."))) {
+                            continue
                         }
-                        .take(1000)
-                        .forEach { file ->
-                            filesList.add(file.toFileModel())
+
+                        if (current != rootDir && current.name.contains(query, ignoreCase = true) && !current.name.startsWith(".")) {
+                            filesList.add(current.toFileModel())
+                            if (filesList.size >= MAX_PATH_SEARCH_RESULTS) {
+                                break
+                            }
                         }
+
+                        if (current.isDirectory) {
+                            current.listFiles()
+                                ?.asSequence()
+                                ?.filterNot { it.name.startsWith(".") }
+                                ?.sortedBy { !it.isDirectory }
+                                ?.forEach { child ->
+                                    pending.addLast(child)
+                                }
+                        }
+                    }
                 }
             } else {
                 val uri = MediaStore.Files.getContentUri("external")
@@ -547,14 +573,14 @@ class DefaultMediaStoreClient(
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selectionBuilder.toString())
                     putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
-                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, 500)
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, MAX_PATH_SEARCH_RESULTS)
                 }
 
                 val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     context.contentResolver.query(uri, projection, bundle, null)
                 } else {
                     @Suppress("DEPRECATION")
-                    context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), "$sortOrder LIMIT 500")
+                    context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), "$sortOrder LIMIT $MAX_PATH_SEARCH_RESULTS")
                 }
 
                 cursor?.use { c ->
@@ -616,3 +642,4 @@ class DefaultMediaStoreClient(
         }
     }
 }
+

@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.presentation.ui.components
 
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,7 +30,6 @@ class ArcileTopBarTest {
     fun `selection mode shows selection actions including rename for single item`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         var selectedAction: TopBarAction? = null
-        var cleared = false
 
         composeRule.setContent {
             ArcileTestTheme {
@@ -44,8 +45,13 @@ class ArcileTopBarTest {
         }
 
         composeRule.onNodeWithText("1 selected").assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_copy)).assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_cut)).assertExists()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_delete_selected)).assertExists()
         composeRule.onNodeWithContentDescription(context.getString(R.string.action_rename)).performClick()
         assertEquals(TopBarAction.Rename, selectedAction)
+        composeRule.onAllNodesWithContentDescription(context.getString(R.string.share)).assertCountEquals(0)
+        composeRule.onAllNodesWithContentDescription(context.getString(R.string.select_all)).assertCountEquals(0)
 
         composeRule.onNodeWithContentDescription(context.getString(R.string.clear_selection)).assertExists()
     }
@@ -100,6 +106,34 @@ class ArcileTopBarTest {
         composeRule.onNodeWithText("Grid View").performClick()
 
         assertEquals(TopBarAction.GridView, selectedAction)
+    }
+
+    @Test
+    fun `selection overflow menu dispatches properties action`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val selectedActions = mutableListOf<TopBarAction>()
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                ArcileTopBar(
+                    title = "Files",
+                    selectionCount = 2,
+                    onClearSelection = {},
+                    onSearchClick = {},
+                    onSortClick = {},
+                    onActionSelected = { selectedActions += it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.share)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.select_all)).performClick()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
+        composeRule.onNodeWithText(context.getString(R.string.properties_title)).performClick()
+
+        assertEquals(listOf(TopBarAction.Share, TopBarAction.SelectAll, TopBarAction.Properties), selectedActions)
     }
 }
 

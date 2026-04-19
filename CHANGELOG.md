@@ -1,8 +1,239 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.0
-> **Last Updated:** 2026-03-21
+> **Version:** 0.6.0
+> **Last Updated:** 2026-04-19
+
+---
+
+## [0.6.0] - 2026-04-19
+
+### Browser UX
+- **Selection Action Prioritization:** Reordered the selection top bar so high-priority actions stay visible in this order: `Copy`, `Cut`, `Delete`, `Edit`, and `More`, while lower-priority actions move into the overflow menu.
+- **Cleaner Selection Overflow:** Moved `Properties`, `Share`, and `Select All` into the 3-dot menu during selection to reduce crowding and keep the action bar focused.
+- **Simplified Folder Subtitles:** Browser folder subtitles now show only file count and folder size. Access-status wording like `Limited access` no longer appears inline in the file list/grid.
+- **Timestamp Detail Upgrade:** Browser rows now show modified date and time instead of date alone, making it easier to compare recent file changes at a glance.
+
+### File Operations
+- **In-App Progress FAB:** Copy and move operations now replace the normal create FAB with a progress-aware Material floating action button that reflects the current operation and doubles as a cancel affordance.
+- **Operation Status Feedback:** Completion, cancellation, and failure states now surface through the browser snackbar flow, giving file operations visible feedback without blocking the UI.
+
+### Properties
+- **Properties-Only Access Detail:** Limited/partial access details remain available from the Properties surface instead of cluttering subtitles, keeping the main browser rows compact while preserving the extra metadata when needed.
+
+### Performance
+- **Volume Discovery:** Offloaded Android `StatFs` reads from the main thread during app launch, eliminating cold-start jank and reducing ANR risk on slow external storage.
+- **Home Screen Analytics:** Introduced a 5-minute TTL cache for expensive folder statistics and recent file queries to prevent battery drain and latency when rapidly resuming the app.
+- **Staged File Cache Bound:** Implemented an automatic cleanup routine for temporary share/open files, enforcing a 500MB hard limit and 24-hour expiration to prevent silent storage exhaustion.
+
+### Correctness & Reliability
+- **Trash Partial Move Atomicity:** Trashing operations that encounter errors mid-batch (e.g., failed to read an individual file) now explicitly report the count of successfully trashed files to the UI, avoiding misleading generic failures.
+- **Dynamic Date Anchors:** "Today" and "Yesterday" date headers in the Recent Files and Home screens are now dynamically recalculated on resume, preventing stale grouping if the app is left open across midnight.
+- **Search Consistency:** Unified global search across the Recent Files and Home screens, guaranteeing that identical queries return identically filtered, robust results with a consistent 1000-item upper limit.
+
+### Build & CI
+- **Release Compilation:** Fixed an issue where invalid `backup_rules` XML exclusions (using the unsupported `cache` domain) and conflicting `allowBackup="false"` settings blocked release APK generation during Lint checks. `allowBackup` is now explicitly enabled with targeted exclusions preserved.
+
+---
+
+## [0.5.9] - 2026-04-19
+
+### UX & Navigation
+- **Breadcrumb Alignment:** Fixed a 1px vertical shift that occurred when breadcrumbs appeared in the browser header.
+- **Swipe to Browse:** Added a swipe-left gesture to the Home Screen to quickly open the file browser.
+- **Swipe to Go Back:** Added a swipe-right gesture to the Browser Screen to quickly navigate back or return to the Home Screen.
+- **Improved File List UI:** Redesigned the file list items to match modern file manager aesthetics, featuring larger icons inside circular containers and cleaner, better-aligned typography.
+- **Open Source Licenses:** Added a dedicated licenses screen listing all third-party libraries used by the app with their license types and project links.
+
+### Browser UX
+- **Instant Folder Subtitles:** Folder rows no longer show `Calculating…`; they render a neutral `Folder` subtitle immediately and upgrade silently when stats arrive.
+- **Best-Effort Scoped Storage Stats:** Folder subtitle aggregation now keeps readable counts and size totals even when scoped storage blocks some descendants, preventing `Android`-style folders from standing out as total failures.
+- **Limited Access Copy:** Partially readable folders now surface a short `Limited access` hint instead of a generic unavailable/loading state.
+
+### Properties
+- **Selection Properties Dialog:** Added a read-only Properties surface for single- and multi-select file/folder selections, exposed from the browser selection 3-dot overflow.
+- **Repository-Backed Metadata Summary:** Properties now aggregate file/folder counts, total size, path/location, modification timestamps, hidden-item counts, and access state from the repository layer rather than ad hoc UI logic.
+
+### Architecture
+- **Shared Folder Stats Calculator:** Extracted best-effort folder aggregation into a shared calculator so cached browser subtitles and Properties metadata use the same traversal rules.
+- **Browser State Wiring:** `BrowserViewModel` and `BrowserScreen` now own explicit Properties dialog state, loading flow, and dismissal behavior.
+
+### Documentation
+- **Release Sync:** Synchronized README, development docs, task metadata, and changelog references around version `0.5.9`.
+---
+
+## [0.5.8] - 2026-04-12
+
+### Browser UX
+- **Folder Metadata Subtitles:** Folder rows in the browser now show aggregate file counts and total size directly under the folder name so users can scan directories without opening each one first.
+- **Denser List Layout:** Tightened the folder row spacing to remove excess vertical dead space while keeping the two-line presentation readable.
+- **Right-Aligned Modified Date:** The modified-date subtitle now sits on the far right opposite the stats subtitle, matching a more information-dense file-manager layout.
+
+### Performance & Correctness
+- **Cached Folder Stats Pipeline:** Added a dedicated folder-stats cache/store so directory totals appear quickly and update incrementally instead of blocking the initial browser render.
+- **Visible-Scope Update Filtering:** Browser stat refreshes are now limited to the currently visible directory, preventing unrelated folder updates from causing noisy UI churn.
+- **Stale Result Protection:** Folder-stat publishing now guards against older in-flight calculations overwriting fresher results after invalidation or navigation changes.
+
+### File Indexing Rules
+- **`.thumbnails` Exclusion:** Parent folder aggregate stats now ignore descendant `.thumbnails` directories so media folders report user-meaningful counts and sizes, while the `.thumbnails` folder itself still shows its own direct metadata when opened.
+
+### Testing
+- **Folder Stats Regression Coverage:** Added focused JVM coverage for folder-stat caching, invalidation, and stale-result protection, then re-ran the app JVM suite and debug build successfully.
+
+---
+
+## [0.5.7] - 2026-04-05
+
+### UX
+- **Unified Browser Controls:** Replaced the separate sort sheet and grid toggle with a single Material 3 expressive browser controls sheet that manages sort mode, view mode, list zoom, and adaptive grid sizing in one place.
+- **Cleaner Layout Tuning:** Browser list density and grid sizing now respond live while browsing, making it easier to dial in a compact or relaxed layout without leaving the file view.
+
+### Persistence
+- **Per-Location Layout Memory:** Browser presentation settings now persist alongside sort preferences for folders and categories, including recursive inheritance when applied to subfolders.
+- **Smarter Restore Flow:** Opening a folder, category, or volume root now restores the full browser presentation state instead of only restoring sort order.
+
+### Testing
+- **Browser Preference Coverage:** Expanded JVM coverage for browser presentation persistence and fallback behavior.
+- **Browser UI Coverage:** Added focused Compose coverage for the unified browser controls entry point and supporting browser state updates.
+
+### Documentation
+- **Release Sync:** Updated tasks, docs, and website copy to reflect the new unified browser layout controls and bumped the project to `0.5.7`.
+
+---
+
+## [0.5.5] - 2026-03-27
+
+### Testing
+- **Shared Repository Test Double:** Consolidated the duplicated `FileRepository` test fakes into a reusable `FakeFileRepository` plus shared storage/file fixture helpers, reducing interface-drift risk across browser, home, recent-files, trash, delete-policy, and storage-scope tests.
+- **Data-Layer Coverage Expansion:** Added Robolectric/JVM coverage for `LocalFileRepository`, `DefaultFileSystemDataSource`, `BrowserPreferencesRepository`, `StorageClassificationRepository`, `ShareHelper`, and route serialization to catch regressions in destructive operations, DataStore-backed preferences, classification persistence, and share flows.
+- **Flow Assertion Upgrade:** Added Turbine to the test stack and used it for one-shot native confirmation flow assertions in `BrowserViewModel`, improving precision around event delivery timing.
+- **Test Suite Verification:** `:app:testDebugUnitTest` now passes with the expanded JVM coverage and the migrated shared test infrastructure.
+
+### Maintenance
+- **Task Tracker Sync:** Marked the completed testing checklist items in `TASKS.md` and bumped the project task/changelog version metadata to `0.5.5`.
+
+---
+
+## [0.5.4] - 2026-03-27
+
+### Reliability
+- **One-Shot Native Confirmations:** Browser native confirmation requests no longer replay stale `IntentSender` events after collector reattachment, and pending native actions are cleared as soon as the result is handled.
+- **Committed Browser Restore State:** Browser navigation persistence now writes the committed destination state after folder/category transitions so process recreation restores the target location instead of the previous one.
+- **Truthful Bulk Cancellation:** Foreground copy and move operations now cancel cooperatively through the worker pipeline, emit explicit cancelling/progress states, and only report cancellation after execution has actually stopped.
+
+### Security
+- **FileProvider Surface Narrowed:** Replaced broad filesystem `FileProvider` roots with a staged cache handoff model and centralized outbound allowlist validation, blocking cache, app-private, and `.arcile` paths from open/share flows.
+- **Unified External File Access:** Added `ExternalFileAccessHelper` so file opening, sharing, and Files-app handoff shortcuts all follow the same guarded external access rules.
+
+### UX
+- **Quick Access Handoff Modeling:** `Android/data` and `Android/obb` are now explicit external Files-app handoff entries with dedicated copy and visuals, clearly distinguishing them from folders Arcile can browse directly.
+- **Localization Sweep:** Extracted the remaining audited production UI strings from Quick Access, Storage Management, Recent Files, Trash, Home, and shared top bar/filter/sort components into `strings.xml`.
+
+### Performance
+- **Path Search Bounds:** Path-scoped browser search now uses bounded traversal with hidden-folder pruning and cancellation checkpoints instead of an unbounded `walkTopDown()` per query.
+
+### Build & Tooling
+- **Output API Cleanup:** Removed the internal `VariantOutputImpl` APK renaming dependency from the build, reducing upgrade risk around unsupported AGP APIs.
+- **Copy Guardrail:** Added a `checkProductionStrings` verification task to catch new hardcoded production copy in the audited composables.
+- **Compatibility Note:** The current AGP/KSP toolchain still requires `android.disallowKotlinSourceSets=false`; this remains documented as an upgrade gate rather than silently preserved.
+
+### Testing
+- **Browser Regression Coverage:** Added browser tests covering one-shot native confirmation delivery and committed navigation saved-state behavior.
+- **Interface Sync:** Updated repository and coordinator test doubles to cover the new bulk operation progress/cancellation contracts.
+
+---
+
+## [0.5.3] - 2026-03-27
+
+### Security
+- **Release Logging Hardening:** Replaced direct `android.util.Log` usage in sensitive file, trash, storage, and sharing flows with a new debug-only `AppLogger`, preventing release builds from exposing internal paths, volume metadata, trash identifiers, and operational failure details through logcat.
+- **Sharing/Open Safety:** Preserved the broader `FileProvider` coverage and sanitized open/share failure logging so opening and sharing arbitrary external files continues to work without leaking sensitive filesystem context.
+- **Signing Ignore Safety:** Confirmed the repository `.gitignore` entries for `signing.properties` are stored as valid plain-text patterns so signing credentials remain ignored as intended.
+
+### Reliability
+- **Trash Restore Verification:** Hardened cross-volume trash restore fallback so copied files and directories are verified before deleting the trashed source. Restore now aborts cleanly if copy verification or source deletion fails, preventing metadata loss and partially restored states.
+- **Fresh Storage Metrics:** Added explicit `VolumeProvider.invalidateCache()` support and called it after mutating file and trash operations so `StatFs` values refresh after create, delete, rename, move, copy, trash, and restore flows.
+- **Home Screen Timeout:** Wrapped `HomeViewModel.loadHomeData()` in a `15s` timeout and preserved partial results when one of the async storage queries stalls, preventing indefinite loading spinners.
+
+### Architecture
+- **Foreground File Operations:** Introduced a foreground-service-backed bulk file operation pipeline with `BulkFileOperationCoordinator`, `BulkFileOperationService`, and manifest service declarations so long-running copy and move operations survive backgrounding more reliably.
+- **Delete Flow Consolidation:** Wired the existing `DeleteFlowDelegate` into both `BrowserViewModel` and `RecentFilesViewModel`, removing duplicated delete-policy and confirmation-flow logic.
+- **Conflict Name Reuse:** Extracted keep-both naming into a reusable production helper so the app and test suite share the same conflict-resolution behavior.
+
+### Build
+- **Release Keeps:** Added explicit R8 keep rules for `AppRoutes**` and `TrashMetadataEntity` to protect navigation route serialization and trash metadata persistence in release builds.
+- **Version Bump:** Bumped the app to `0.5.3` (`versionCode 37`) and synchronized release-facing documentation.
+
+### Testing
+- **Production Logic Coverage:** Rewrote `LocalFileOperationsTest` to exercise the real production keep-both naming helper rather than a copied local implementation.
+- **Home Timeout Regression Test:** Added unit coverage proving the home screen times out gracefully while keeping partial data available.
+- **ViewModel Test Wiring:** Updated the browser ViewModel tests to cover the new foreground bulk-operation coordinator dependency.
+
+---
+
+## [0.5.2] - 2026-03-25
+
+### Feature
+- **Quick Access Management:** Completely revamped the static "Folders" section on the Home Screen into a dynamic "Quick Access" system. 
+  - Users can now explicitly manage their pinned shortcut folders.
+  - Added support for users to add any custom local folder explicitly to the Quick Access bar.
+  - Implemented deep Storage Access Framework (SAF) integration allowing users to pin 'Scoped Folders' (like Android/data) which dynamically bridges directly into the OEM native files app when tapped.
+
+### Security
+- **Permissions:** Restricted `READ_EXTERNAL_STORAGE` permission by adding `maxSdkVersion="29"`, as it's no longer necessary on Android 11+ where `MANAGE_EXTERNAL_STORAGE` is utilized.
+- **Data Protection:** Configured `backup_rules.xml` and `data_extraction_rules.xml` to explicitly exclude sensitive application data including `trash_crypto_prefs.xml`, `datastore`, and `analytics` from being backed up to the cloud.
+- **FileProvider Sandbox:** Restricted `<external-path>` URI generation capability inside `file_provider_paths.xml` explicitly to standard media directories (Downloads, Documents, Pictures, etc.) instead of the entire external storage root, reducing attack surface.
+
+### Refactoring
+- **Codebase Organization:** Renamed heavily utilized UI component files to accurately reflect their exported Compose functions and internal architecture, improving repository readability and developer navigation:
+  - `FileManagerScreen.kt` → `BrowserScreen.kt`
+  - `MainFoldersGrid.kt` → `QuickAccessGrid.kt`
+  - `GlobalSearchBar.kt` → `SearchTopBar.kt`
+  - `FileListControls.kt` → `SortOptionDialog.kt`
+  - `SettingsComponents.kt` → `SettingsSection.kt`
+  - `FileManagerTheme` → `ArcileTheme` (in `Theme.kt` and tests)
+
+### Correctness
+- **UI State Stuttering:** Added strict `.debounce(1000L)` and `.distinctUntilChanged()` operators to the storage volume observer inside `RecentFilesViewModel` to completely eliminate UI flickering and redundant database queries during rapid storage classification changes.
+- **Documentation Pins:** Fixed `index.html` loading unpinned versions of Tailwind CSS and Lucide Icons, directly pegging their versions to stop unexpected upstream changes from breaking the promotional site.
+- **Testing Cleanups:** Standardized `IntentSender` test doubles natively through `mockk` inside JVM environments (removing fragile `sun.misc.Unsafe` bypasses completely), and pruned default unneeded Android examples tests.
+
+### Performance
+- **Smart Paste Conflict Scans:** Redesigned directory copy conflict resolution in `FileSystemDataSource` so it strictly identifies top-level collisions rather than exhaustively and recursively walking the entire destination folder tree, removing multi-second thread-blocking freezes for massive directories.
+- **Home Screen Load Times:** Fixed a critical performance bug in `MediaStoreClient.getCategoryStorageSizes()` where categories lacking a strict MIME prefix (like Documents) would silently strip all SQL `WHERE` clauses and trigger a raw scan of every single file mapped in Android's MediaStore. Categories now rigidly enforce their extension rules within the `OR` clauses, dropping IO blocking time by over 80% on devices with large media libraries.
+
+### Build
+- **ProGuard:** Replaced overly broad ProGuard rules for `kotlinx.serialization` with official, targeted rules. This allows R8 to properly shrink the APK size by removing unused serialization internals while preserving necessary companion objects and serializers.
+- **Dependency Alignment:** Updated Jetpack Compose BOM mapping to `2025.02.00` and vertically aligned `lifecycle` and `navigation` variants universally to `2.10.0` ensuring core cross-compatibility runtime guarantees.
+
+---
+
+## [0.5.1] - 2026-03-24
+
+### Security
+- **Trash Vault Encryption:** Migrated fallback key generation to use a securely generated, persisted salt instead of a hardcoded string. Re-engineered `TrashCryptoHelper` to use Android `KeyStore` natively with automatic retry logic to eliminate edge case crashes during key generation and cipher initialization. Fixed unstructured JSON sniffing vulnerabilities to prevent random IV collisions.
+
+### Performance
+- **Coil Image Memory Overhead:** Reined in severe GC memory thrashing during file list scrolling by explicitly clamping `AsyncImage` requests to a maximum `256px` thumbnail size via `ImageRequest.Builder`.
+- **String Allocations:** Substantially reduced UI stuttering by swapping redundant string allocations (`substringAfterLast`) in file list items with the natively pre-calculated `extension` properties exposed via `FileModel`.
+- **Media Store Disk I/O:** Bypassed expensive `File.canonicalPath` lookups inside core `MediaStoreClient` mapping arrays by leveraging absolute paths exclusively, dropping unnecessary internal symlink evaluations that bogged down high-density folders.
+- **Repository Latency:** Re-architected `loadHomeData` inside the `HomeViewModel` to run asynchronously across parallel `Dispatchers.IO` threads via `coroutineScope` and `awaitAll()`, substantially reducing cold-start fetch times for Home Dashboards.
+
+### Fixed
+- **FileProvider Sandbox:** Replaced strict, hardcoded standard directory entries (`Download/`, `Documents/`, etc.) in `file_provider_paths.xml` with a global `<external-path>` mapping, preventing `IllegalArgumentException` crashes when users attempted to share or open files located inside arbitrary unmapped external storage folders.
+- **Trash Bin Reliability:** Deprecated explicit string-based file path deletion (`DATA`) within the Android MediaStore content resolver inside `TrashManager`. The deletion cycle now correctly reverse-engineers the file's explicit Content URI `_ID`, guaranteeing execution on strict Android 11+ Scoped Storage boundaries.
+- **App Launch Hangs:** Implemented a `2000ms` strict Coroutine execution timeout explicitly wrapping the asynchronous `ThemeState` DataStore emission inside `MainActivity.kt`. If the filesystem stalls during cold boot, the Splash Screen unblocks itself gracefully, stopping permanent app loading freezes.
+- **UI State:** Resolved a bug in `RecentFilesViewModel` where pagination and error states would be clobbered by async state updates by utilizing captured state blocks.
+- **UI/UX:** Corrected the "Today" preset filter in `SearchFiltersBottomSheet` to correctly compute from local midnight rather than strictly a rolling 24-hour subtraction.
+- **UI/UX:** Re-ordered `Snackbar` display hierarchy in `TrashScreen` to ensure asynchronous UI feedback completes execution before state invalidation clears the active error stream.
+- **UI/UX:** Upgraded `DateUtils` to safely access active UI `ConfigurationCompat` locale settings dynamically instead of defaulting to hardcoded system fallbacks.
+- **Data Integrity:** Sanitized underlying filesystem exception logging inside `ShareHelper` to protect and obscure absolute path leakage from public logcats.
+
+### Architecture & Build
+- **Coroutines:** Enforced `Dispatchers.IO` launching to wrap previously blocking volume discovery calls inside `VolumeProvider.kt` and stabilized `callbackFlow` receivers against registration race conditions.
+- **State Flow:** Updated `BrowserViewModel` native request mechanisms to natively cache `replay = 1` inside `MutableSharedFlow` to survive and recover cleanly from device rotation / configuration changes.
+- **ProGuard:** Repaired aggressive ProGuard optimization syntax to correctly keep `@Serializable` class definitions natively, stopping R8 obfuscation crashes.
+- **Testing Setup:** Removed legacy `sun.misc.Unsafe` internal bypass usages inside JVM testing, officially migrating JVM test environments to `io.mockk:mockk` and standardizing `IntentSender` test doubles.
 
 ---
 

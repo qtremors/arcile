@@ -18,8 +18,10 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
+import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 
 @Composable
@@ -86,13 +88,20 @@ fun AppNavigationGraph(
                                 launchSingleTop = true
                             }
                         },
+                        onNavigateToSaf = { uriString ->
+                            if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
+                                android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        onNavigateToQuickAccess = {
+                            navController.navigate(AppRoutes.QuickAccess)
+                        },
                         onOpenStorageDashboard = { volumeId ->
-                            navController.navigate(AppRoutes.StorageDashboard(volumeId = volumeId)) {
+                            navController.navigate(AppRoutes.StorageDashboard(volumeId)) {
                                 popUpTo(AppRoutes.Home) { saveState = true }
                                 launchSingleTop = true
                             }
                         },
-                        onSearchQueryChange = { viewModel.updateHomeSearchQuery(it) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onRefresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
@@ -123,8 +132,9 @@ fun AppNavigationGraph(
                 composable<AppRoutes.Explorer> {
                     val viewModel = hiltViewModel<BrowserViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
+                    val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
 
-                    FileManagerScreen(
+                    BrowserScreen(
                         state = state,
                         onNavigateBack = {
                             if (!viewModel.navigateBack()) {
@@ -145,8 +155,9 @@ fun AppNavigationGraph(
                         onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
                         onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
                         onClearSearch = { viewModel.updateBrowserSearchQuery("") },
-                        onSortOptionChange = { option, applyToSubfolders -> viewModel.updateBrowserSortOption(option, applyToSubfolders) },
-                        onGridViewChange = { viewModel.setGridView(it) },
+                        onPresentationChange = { presentation, applyToSubfolders ->
+                            viewModel.updateBrowserPresentation(presentation, applyToSubfolders)
+                        },
                         onClearError = { viewModel.clearError() },
                         onCopySelected = { viewModel.copySelectedToClipboard() },
                         onCutSelected = { viewModel.cutSelectedToClipboard() },
@@ -157,12 +168,17 @@ fun AppNavigationGraph(
                                 viewModel.clearSelection()
                             }
                         },
+                        onClearFileOperationStatusMessage = { viewModel.clearFileOperationStatusMessage() },
+                        onOpenProperties = { viewModel.openPropertiesForSelection() },
+                        onDismissProperties = { viewModel.dismissProperties() },
                         isRefreshing = state.isPullToRefreshing,
                         onRefresh = { viewModel.refresh(pullToRefresh = true) },
                         onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
                         onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
                         onResolvingConflicts = { viewModel.resolveConflicts(it) },
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
+                        onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
+                        onNativeRequestResult = { confirmed -> viewModel.handleNativeActionResult(confirmed) },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -242,7 +258,40 @@ fun AppNavigationGraph(
                 }
                 composable<AppRoutes.About> {
                     AboutScreen(
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToLicenses = { navController.navigate(AppRoutes.Licenses) }
+                    )
+                }
+                composable<AppRoutes.Licenses> {
+                    LicensesScreen(
                         onNavigateBack = { navController.popBackStack() }
+                    )
+                }
+                composable<AppRoutes.QuickAccess> {
+                    val viewModel = hiltViewModel<QuickAccessViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    QuickAccessScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToPath = { path ->
+                            navController.navigate(AppRoutes.Explorer(path = path)) {
+                                popUpTo(AppRoutes.Home) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        onNavigateToSaf = { uriString ->
+                            ExternalFileAccessHelper.openInFilesApp(context, uriString)
+                        },
+                        onTogglePin = { viewModel.togglePin(it) },
+                        onRemoveItem = { viewModel.removeCustomItem(it) },
+                        onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
+                        onAddSafFolder = { uri, label ->
+                            if (label == "Android/data" || label == "Android/obb") {
+                                viewModel.addExternalHandoffFolder(uri, label)
+                            } else {
+                                viewModel.addSafFolder(uri, label)
+                            }
+                        }
                     )
                 }
             }

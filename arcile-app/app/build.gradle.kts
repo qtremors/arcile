@@ -16,8 +16,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 34
-        versionName = "0.5.0"
+        versionCode = 44
+        versionName = "0.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -70,6 +70,8 @@ android {
             )
         }
     }
+
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -86,10 +88,10 @@ android {
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
-            // The Stable Artifacts API currently doesn't expose a simple public setter for outputFileName.
-            // Casting to the internal VariantOutputImpl is currently the standard workaround.
             if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-                output.outputFileName.set("Arcile-${variant.applicationId.get()}-${variant.outputs.first().versionName.get()}.apk")
+                // versionName already includes the "-debug" suffix from versionNameSuffix
+                val version = variant.outputs.first().versionName.get() ?: "0.0.0"
+                output.outputFileName.set("Arcile-$version.apk")
             }
         }
     }
@@ -98,6 +100,46 @@ androidComponents {
 kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
+tasks.register("checkProductionStrings") {
+    group = "verification"
+    description = "Flags obvious hardcoded production UI strings in key composables."
+
+    doLast {
+        val targetFiles = listOf(
+            "src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessScreen.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/StorageManagementScreen.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/components/ArcileTopBar.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/components/SearchFiltersBottomSheet.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/components/SortOptionDialog.kt"
+        )
+        val suspiciousPattern = Regex("""(Text\(".*[A-Za-z].*"\)|placeholder\s*=\s*".*[A-Za-z].*"|title\s*=\s*\{\s*Text\(".*[A-Za-z].*"\))""")
+        val offenders = targetFiles.flatMap { relativePath ->
+            val file = file(relativePath)
+            if (!file.exists()) return@flatMap emptyList<String>()
+            file.readLines().mapIndexedNotNull { index, line ->
+                val trimmed = line.trim()
+                if (suspiciousPattern.containsMatchIn(trimmed) &&
+                    !trimmed.contains("rememberDateFormatter") &&
+                    !trimmed.contains("label = \"sort_bg\"")
+                ) {
+                    "$relativePath:${index + 1}: $trimmed"
+                } else {
+                    null
+                }
+            }
+        }
+        if (offenders.isNotEmpty()) {
+            throw GradleException(buildString {
+                appendLine("Found hardcoded production UI strings:")
+                offenders.forEach { appendLine(it) }
+            })
+        }
     }
 }
 
@@ -129,6 +171,8 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.io.mockk.mockk)
+    testImplementation(libs.app.cash.turbine)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)
