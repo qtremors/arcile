@@ -25,6 +25,8 @@ import dev.qtremors.arcile.presentation.browser.delegate.SearchDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -38,6 +40,20 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class BrowserNativeAction { TRASH }
+
+@androidx.compose.runtime.Immutable
+data class BrowserFileOperationUiState(
+    val type: BulkFileOperationType,
+    val totalItems: Int,
+    val completedItems: Int = 0,
+    val currentPath: String? = null,
+    val isCancelling: Boolean = false,
+    val bytesCopied: Long? = null,
+    val totalBytes: Long? = null
+) {
+    val isIndeterminate: Boolean
+        get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
+}
 
 @androidx.compose.runtime.Immutable
 data class BrowserState(
@@ -74,7 +90,9 @@ data class BrowserState(
     val pendingNativeAction: BrowserNativeAction? = null,
     val isPropertiesVisible: Boolean = false,
     val isPropertiesLoading: Boolean = false,
-    val properties: PropertiesUiModel? = null
+    val properties: PropertiesUiModel? = null,
+    val activeFileOperation: BrowserFileOperationUiState? = null,
+    val fileOperationStatusMessage: String? = null
 )
 
 @HiltViewModel
@@ -174,6 +192,18 @@ class BrowserViewModel @Inject constructor(
     private var isInitialized = false
 
     init {
+        bulkFileOperationCoordinator.activeRequest.value?.let { activeReq ->
+            _state.update {
+                it.copy(
+                    activeFileOperation = BrowserFileOperationUiState(
+                        type = activeReq.type,
+                        totalItems = activeReq.sourcePaths.size,
+                        currentPath = activeReq.sourcePaths.firstOrNull()
+                    )
+                )
+            }
+        }
+
         viewModelScope.launch {
             getStorageVolumesUseCase().collectLatest { volumes ->
                 _state.update { it.copy(storageVolumes = volumes) }
@@ -239,6 +269,79 @@ class BrowserViewModel @Inject constructor(
                         folderStatsByPath = currentState.folderStatsByPath + (update.path to update.stats),
                         folderStatsLoadingPaths = currentState.folderStatsLoadingPaths - update.path
                     )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.events.collectLatest { event ->
+                when (event) {
+                    is BulkFileOperationEvent.Started -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = BrowserFileOperationUiState(
+                                    type = event.request.type,
+                                    totalItems = event.request.sourcePaths.size,
+                                    currentPath = event.request.sourcePaths.firstOrNull()
+                                ),
+                                fileOperationStatusMessage = null
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Progress -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = BrowserFileOperationUiState(
+                                    type = event.request.type,
+                                    totalItems = event.progress.totalItems,
+                                    completedItems = event.progress.completedItems,
+                                    currentPath = event.progress.currentPath,
+                                    isCancelling = false,
+                                    bytesCopied = event.progress.bytesCopied,
+                                    totalBytes = event.progress.totalBytes
+                                )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Cancelling -> {
+                        _state.update { currentState ->
+                            currentState.copy(
+                                activeFileOperation = currentState.activeFileOperation?.copy(isCancelling = true)
+                                    ?: BrowserFileOperationUiState(
+                                        type = event.request.type,
+                                        totalItems = event.request.sourcePaths.size,
+                                        isCancelling = true
+                                    )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Completed -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = null,
+                                fileOperationStatusMessage = formatOperationCompletedMessage(
+                                    type = event.request.type,
+                                    itemCount = event.request.sourcePaths.size
+                                )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Failed -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = null,
+                                fileOperationStatusMessage = event.message
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Cancelled -> {
+                        _state.update {
+                            it.copy(
+                                activeFileOperation = null,
+                                fileOperationStatusMessage = "File operation cancelled"
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -392,6 +495,10 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
+    fun clearFileOperationStatusMessage() {
+        _state.update { it.copy(fileOperationStatusMessage = null) }
+    }
+
     fun openPropertiesForSelection() {
         val selectedPaths = _state.value.selectedFiles.toList()
         if (selectedPaths.isEmpty()) return
@@ -442,4 +549,12 @@ class BrowserViewModel @Inject constructor(
     fun pasteFromClipboard() = clipboardDelegate.pasteFromClipboard()
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
+
+    private fun formatOperationCompletedMessage(
+        type: BulkFileOperationType,
+        itemCount: Int
+    ): String {
+        val verb = if (type == BulkFileOperationType.MOVE) "Moved" else "Copied"
+        return "$verb $itemCount item(s)"
+    }
 }

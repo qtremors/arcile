@@ -1,30 +1,116 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.5.9
+> **Version:** 0.6.0
 > **Last Updated:** 2026-04-19
 
 ---
 
 ## Remediation Backlog
 
-### Critical
-- [ ] [Severity: Critical] [Category: Build/Release] Unblock release builds by fixing the invalid backup XML and aligning it with the app's actual backup policy - Location: `arcile-app/app/src/main/res/xml/backup_rules.xml`, `arcile-app/app/src/main/res/xml/data_extraction_rules.xml`, `arcile-app/app/src/main/AndroidManifest.xml` - Problem: the backup files use the unsupported `domain="cache"` value, and `allowBackup="false"` means this backup configuration is dead weight anyway. - Impact: `./gradlew.bat :app:assembleRelease` currently fails in `lintVitalRelease`, so the app cannot produce a releasable APK from the checked-in project state. - Fix: remove or correct the invalid excludes, and either delete the unused backup XML references or enable a valid, intentional backup strategy. - Verification: `./gradlew.bat :app:assembleRelease` succeeds cleanly.
+### 🛠️ Build & CI
 
-### High
-- [ ] [Severity: High] [Category: Correctness/Reliability] Harden foreground bulk copy/move orchestration against service-start failure and start/cancel races - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationCoordinator.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/delegate/ClipboardDelegate.kt` - Problem: the coordinator marks an operation active before `startForegroundService` is proven to succeed, does not roll back on launch failure, and cancellation is sent without tying it to a started request. - Impact: users can get stuck state, failed cancellations, or a crashing paste flow if service startup is rejected or a cancel arrives before the service has attached the request. - Fix: make service launch transactional, attach cancellation to an operation id, surface launch failure back into state, and verify cancellation from the service side before clearing UI state. - Verification: add tests for immediate cancel-after-paste and simulated service-start failure, and confirm the UI ends in a consistent idle/error state.
-- [ ] [Severity: High] [Category: Performance] Stop the Home dashboard from recomputing full storage analytics on every resume and storage-volume emission - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt` - Problem: `onResumeRefresh()` and `observeStorageVolumes()` both drive `loadHomeData(HomeRefreshMode.SILENT)`, and that method still performs recent-file queries plus global and per-volume storage analytics. - Impact: opening the home screen, returning to it, or seeing volume state churn can trigger repeated heavy MediaStore/stat queries, increasing resume latency, battery use, and the chance of visible jank on slower devices. - Fix: split cheap refreshes from expensive analytics, add staleness/TTL guards, and prevent duplicate initial or resume-triggered reloads. - Verification: instrument repository call counts and trace a home-screen resume to confirm a single cheap refresh unless storage insights are actually stale.
-- [ ] [Severity: High] [Category: Performance/Startup] Move storage-volume discovery off the main-thread singleton initialization path - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/data/provider/VolumeProvider.kt` - Problem: `DefaultVolumeProvider.init` eagerly calls `discoverPlatformVolumes()`, which performs `canonicalPath` resolution and `StatFs` reads before any async boundary. - Impact: cold-start and ViewModel creation can block on slow external media and raise ANR or startup-jank risk. - Fix: make `activeStorageRoots` and volume discovery lazy/async, and only refresh them from IO-backed paths. - Verification: collect a startup trace and confirm no `StatFs` or storage canonicalization work runs on the main thread during first composition.
-- [ ] [Severity: High] [Category: Performance/Storage] Bound and clean the staged-file cache used for open/share flows - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ExternalFileAccessHelper.kt` - Problem: every open/share operation copies the full source file into `cacheDir/external_access/...` with no eviction, reuse policy, or size cap. - Impact: repeated opens/shares of large media can silently consume gigabytes of cache space and push the app or device into storage pressure. - Fix: reuse staged files when possible, evict old entries with a size budget, and clean per-purpose staging directories before or after use. - Verification: repeatedly open/share a large file and confirm cache growth stays bounded.
+- [ ] **Add regression coverage and CI gates for recent escapes** `[Medium]`
+  - **Location:** `app/src/test`, `app/src/androidTest`, `app/build.gradle.kts`
+  - **Problem:** Current CI/suite lacks release assembly/lint gating, bulk-operation lifecycle edge cases, and cross-midnight grouping tests.
+  - **Impact:** Regressions like the backup XML error and service-orchestration edge cases can survive until manual validation.
+  - **Fix:** Add CI tasks for `:app:assembleRelease` and lint; add targeted tests for bulk operations and date boundaries.
+  - **Verification:** CI fails correctly when those regressions are reintroduced.
 
-### Medium
-- [ ] [Severity: Medium] [Category: Correctness/UX] Standardize search completeness so Arcile does not silently omit matches - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/MediaStoreClient.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/recentfiles/RecentFilesViewModel.kt` - Problem: folder search hard-stops after `1000` results or `10000` visited nodes, MediaStore-backed search hard-stops at `500` rows, and Recent Files search only filters whatever pages were already loaded. - Impact: users can get incomplete or inconsistent search results across Home, Browser, and Recent Files without any indication that results were truncated or local-only. - Fix: define a single search contract, add pagination or an explicit partial-results flag, and either broaden Recent Files search to repository-backed search or label it as local filtering. - Verification: populate a large synthetic dataset and confirm search either returns all matches or clearly reports partial results.
-- [ ] [Severity: Medium] [Category: Correctness/Date-Time] Recompute "Today" and "Yesterday" anchors when the day or timezone changes - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/recentfiles/RecentFilesViewModel.kt` - Problem: both ViewModels snapshot day-boundary timestamps once during initialization and keep using them for grouping/filtering until the ViewModel is recreated. - Impact: leaving the app open across midnight or a timezone change can mislabel recents and hide/show the wrong files. - Fix: derive boundaries from a clock-aware helper and refresh them on resume, date change, or scheduled boundary rollover. - Verification: keep the app alive across midnight or change timezone and confirm the sections update without requiring process recreation.
-- [ ] [Severity: Medium] [Category: UI/Rendering] Replace unstable Lazy list/grid keys with stable identifiers - Location: `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt` - Problem: several screens key items by `absolutePath + index` or `absolutePath + hashCode`, which changes under sorting, refreshes, and metadata updates. - Impact: Compose can lose item identity, producing avoidable list churn, brittle animations, and more visible scroll-state instability during resorting or reloads. - Fix: use stable keys such as `absolutePath` for files and explicit ids for trash items. - Verification: sort and refresh long lists while profiling recomposition and confirm item identity remains stable.
-- [ ] [Severity: Medium] [Category: Testing] Add regression coverage and CI gates for the flows that escaped the current suite - Location: `arcile-app/app/src/test`, `arcile-app/app/src/androidTest`, `arcile-app/app/build.gradle.kts` - Problem: the project has solid JVM coverage for repository/ViewModel basics, but it does not currently gate release assembly/lint, foreground bulk-operation lifecycle edge cases, or cross-midnight recent-file grouping. - Impact: regressions like the current release-blocking backup XML and service-orchestration edge cases can survive until manual validation. - Fix: add CI tasks for `:app:assembleRelease` and lint, plus targeted tests for bulk-operation start/cancel behavior and date-boundary refresh logic. - Verification: CI fails when those regressions are reintroduced.
+### ⚡ Performance & Optimization
 
-### Low
-- [ ] [Severity: Low] [Category: Documentation/Maintainability] Refresh the repo docs and backlog so they match the actual code and test surface - Location: `DEVELOPMENT.md`, `TASKS.md` - Problem: the current docs and task file still claim missing data-layer tests and unresolved audit items that no longer reflect the repository state. - Impact: future contributors can waste time on already-closed issues and miss the real risks that remain. - Fix: keep the architecture/testing docs and remediation backlog in sync with the checked-in code after each audit or release-prep pass. - Verification: the documented test surface and outstanding tasks match the current source tree and build results.
+- [ ] **Avoid allocating ancestor-path lists on every mutation** `[Low]`
+  - **Location:** `TrashManager.kt:pathWithAncestors()`, `FileSystemDataSource.kt:pathWithAncestors()`
+  - **Problem:** `pathWithAncestors()` is duplicated between `TrashManager` and `FileSystemDataSource`, and both create temporary `File` objects, call `canonicalFile`, and build ancestor lists on every mutation event.
+  - **Impact:** Minor GC pressure on multi-file operations; code duplication increases maintenance burden.
+  - **Fix:** Extract `pathWithAncestors` to a shared utility with a single implementation; consider caching canonical root lookups.
+  - **Verification:** No behavioral change; verify with existing tests.
+
+### 🐞 Correctness & Reliability
+- [ ] **Harden foreground bulk copy/move orchestration** `[High]`
+  - **Location:** `BulkFileOperationCoordinator.kt`, `BulkFileOperationService.kt`, `ClipboardDelegate.kt`
+  - **Problem:** UI marks operation active before `startForegroundService` succeeds. Cancellations aren't tied to operation IDs. The service `stopSelf(startId)` uses a single `startId`, which can conflict if a new command arrives quickly.
+  - **Impact:** Stuck UI states, failed cancellations, or crashes if service fails to start or a cancel arrives early.
+  - **Fix:** Make service launch transactional, attach cancel to operation IDs, handle launch failures gracefully. Use `stopSelf()` without `startId` or track latest `startId` correctly.
+  - **Verification:** Immediate cancel-after-paste and simulated start failures result in a clean idle/error UI state.
+
+- [ ] **Guard `suppressedVolumeKeys` against concurrent mutation** `[Medium]`
+  - **Location:** `HomeViewModel.kt:74`
+  - **Problem:** `suppressedVolumeKeys` is a plain `mutableSetOf<String>()` mutated from both the main thread (`hideClassificationPrompt`) and from coroutines launched on unspecified dispatchers (`setVolumeClassification`, `resetVolumeClassification`). `MutableSet` is not thread-safe.
+  - **Impact:** Potential `ConcurrentModificationException` or lost suppressions on rapid volume plug/unplug events.
+  - **Fix:** Replace with `ConcurrentHashMap.newKeySet()` or move all mutations onto the same dispatcher.
+  - **Verification:** Stress test volume classification toggling under concurrent volume change events.
+
+- [ ] **Protect against duplicate event consumption in `ClipboardDelegate`** `[Low]`
+  - **Location:** `ClipboardDelegate.kt`
+  - **Problem:** `ClipboardDelegate` subscribes to `bulkFileOperationCoordinator.events` independently from `BrowserViewModel`, leading to duplicate handling of the same events. Both the delegate (lines 33–56) and the ViewModel `init` block (lines 276–347) react to `Started`, `Progress`, `Completed`, etc.
+  - **Impact:** Redundant state updates, potential brief UI flickering as `isLoading` is toggled by two independent collectors.
+  - **Fix:** Consolidate event handling to a single subscriber; let either the ViewModel or the delegate own the event processing, not both.
+  - **Verification:** A single paste operation triggers exactly one `isLoading = false` + `clipboardState = null` transition.
+
+- [ ] **Route all deletion flows through `BulkFileOperationCoordinator`** `[High]`
+  - **Location:** `BulkFileOperationModels.kt`, `BulkFileOperationService.kt`, `DeleteFlowDelegate.kt`, `FileRepository.kt`
+  - **Problem:** Trashing and permanent deletions currently bypass the foreground service and progress UI, leading to inconsistent feedback and risk of operation death if the app is backgrounded.
+  - **Impact:** No progress FAB for deletes, no completion snackbars, and potential partial deletion if the process is killed during a large batch.
+  - **Fix:** Expand `BulkFileOperationType` to include `TRASH` and `DELETE`, route them through the background service, and update `DeleteFlowDelegate` to request these operations.
+  - **Verification:** Deleting/Trashing items triggers the progress FAB and a completion snackbar once finished.
+
+### 🔐 Security & Privacy
+- [ ] **Log production-relevant errors in release builds** `[Medium]`
+  - **Location:** `AppLogger.kt`
+  - **Problem:** `AppLogger` is gated by `BuildConfig.DEBUG`, meaning all `e()` and `w()` calls are silently swallowed in production. This includes critical crypto failures in `TrashCryptoHelper` and I/O errors in destructive operations.
+  - **Impact:** No error telemetry in production; crash-less failures (e.g., encrypted metadata corruption) are invisible.
+  - **Fix:** Allow `Log.e` calls through in release builds, or integrate a crash-reporting backend (e.g., Firebase Crashlytics) for non-fatal errors. Keep `Log.w` debug-only if preferred.
+  - **Verification:** A simulated crypto failure in release build produces a Logcat or crash-report entry.
+
+- [ ] **Harden `TrashCryptoHelper` retry logic** `[Low]`
+  - **Location:** `TrashManager.kt:TrashCryptoHelper`
+  - **Problem:** The encrypt/decrypt retry loops retry 3 times on *any* exception. For non-transient errors (e.g., corrupted KeyStore, wrong key), retries are pointless and add latency. The retry loop also does not distinguish between transient and fatal errors.
+  - **Impact:** Up to 3× slower failure path for deterministic errors; logs don't indicate which attempt failed.
+  - **Fix:** Only retry on transient/platform errors; fail fast on `InvalidKeyException`, `BadPaddingException`, etc.
+  - **Verification:** Corrupted KeyStore causes an immediate failure rather than a 3-retry delay.
+
+### 🎨 UI & Rendering
+- [ ] **Polished Snackbar aesthetics for Material 3 Expressive** `[Medium]`
+  - **Location:** `BrowserScreen.kt`, `ArcileAppShell.kt`
+  - **Problem:** The current snackbars use default styling which feels detached from the app's custom "squircle" and tonal container aesthetic.
+  - **Impact:** Visual inconsistency between file operation feedback and the rest of the polished M3 Expressive UI.
+  - **Fix:** Customize the `SnackbarHost` to use `MaterialTheme.shapes.extraLarge` (squircle), apply tonal container colors, and ensure font-weight/spacing matches the app's design language.
+  - **Verification:** Operation feedback snackbars appear with rounded squircle shapes and cohesive theme-aware coloring.
+
+- [ ] **Replace unstable Lazy list/grid keys with stable identifiers** `[Medium]`
+  - **Location:** `FileList.kt`, `FileGrid.kt`, `BrowserScreen.kt`, `HomeScreen.kt`, `RecentFilesScreen.kt`
+  - **Problem:** Lists key items by `absolutePath + index` or `absolutePath + hashCode`, breaking on sort/refresh. Evidence:
+    - `FileList.kt:83` — `"${files[index].absolutePath}_$index"`
+    - `FileGrid.kt:86` — `"${files[index].absolutePath}_$index"`
+    - `HomeScreen.kt:551` — `"${it.absolutePath}_${it.hashCode()}"`
+    - `RecentFilesScreen.kt:287` — `"${it.absolutePath}_${it.hashCode()}"`
+    - `BrowserScreen.kt:619` — `"${it.absolutePath}_${it.hashCode()}"`
+  - **Impact:** Loss of item identity causes list churn, brittle animations, and scroll-state jumps.
+  - **Fix:** Use stable keys like `absolutePath` for files and explicit IDs for trash items. The `absolutePath` alone is unique within a directory listing.
+  - **Verification:** Profiling recomposition during list sorting/refreshing confirms item identity remains stable.
+
+- [ ] **Add `contentType` to `LazyList`/`LazyGrid` items** `[Low]`
+  - **Location:** `FileList.kt`, `FileGrid.kt`, `HomeScreen.kt`, `RecentFilesScreen.kt`, `TrashList.kt`
+  - **Problem:** `items()` calls do not specify `contentType`, preventing Compose from reusing item composable slots efficiently.
+  - **Impact:** Additional recomposition and allocation when scrolling heterogeneous lists (e.g., files vs. headers).
+  - **Fix:** Add `contentType = { /* type discriminator */ }` to `items()` calls where item types differ.
+  - **Verification:** Recomposition counts remain stable during fast scrolling in Layout Inspector.
+
+### 🏗️ Architecture
+- [ ] **Eliminate `pathWithAncestors` duplication** `[Low]`
+  - **Location:** `TrashManager.kt:217–242`, `FileSystemDataSource.kt:83–113`
+  - **Problem:** Identical `pathWithAncestors()` implementations exist in both files, duplicating ~30 lines of non-trivial path traversal logic.
+  - **Impact:** Bug fixes must be applied in two places; inconsistent behavior possible if one copy drifts.
+  - **Fix:** Extract to a shared utility function (e.g., in a `data/util/PathUtils.kt` or existing `data/util` package).
+  - **Verification:** Both consumers delegate to the shared function; existing tests pass.
+
+- [ ] **Reduce `FileSystemDataSource` surface area** `[Low]`
+  - **Location:** `FileSystemDataSource.kt` (676 lines)
+  - **Problem:** Handles directory listing, path validation, cancellable copy, cancellable move, rename, create, permanent delete, conflict detection, and selection properties. This is a "god object" accumulating unrelated responsibilities.
+  - **Impact:** High cognitive load, difficult to test in isolation, merge conflicts as features grow.
+  - **Fix:** Extract copy/move logic into a dedicated `FileTransferEngine`, keep listing/create/delete in the data source. Extract properties/conflict detection to helpers.
+  - **Verification:** No behavioral change; existing tests pass against the refactored classes.
 
 ---
 
@@ -39,15 +125,12 @@
 ### File Operations & Automation
 - **Compress & Extract Archives**: Add support for creating and extracting ZIP, TAR.GZ, and 7z archives directly within the file browser.
 - **Automated Task Rules**: Implement trigger-based operations, for example auto-moving video files from Camera to Videos daily.
-- **Operation Queue & FAB Manager**: Implement a bank for operations. A running operation replaces the floating action button with a progress ring. Tapping it shows a queue of paused/running tasks with the ability to gracefully cancel.
 
 ### Home Screen & UI Polish
 - **Material 3 Expressive - SplitButton Implementation**: Replace standard actions with `SplitButton` where a main action regularly needs a secondary dropdown or overflow action.
 - **Material 3 Expressive - WavyProgressIndicator**: Investigate and implement `WavyProgressIndicator` for long-running non-blocking background tasks if appropriate.
 - **Haptics & Interaction Quality**: Inject `HapticFeedback` via `LocalHapticFeedback`. Trigger subtle vibrations on long-press, successful file operations, and error states.
 - **Recent Media Carousel**: Replace the current recent files list on the Home screen with a horizontally scrollable carousel of the 10 most recently modified images and videos.
-- **Customizable Quick Access**: Allow users to hardcode, add, remove, and restore pinned folders in the Quick Access section on the Home screen.
-- **Header Logo Integration**: Add a subtle Arcile logo into the `ArcileTopBar` for stronger visual identity.
 - **Animated Empty States**: Fix or replace the current static graphics with smooth animations such as Lottie for empty folders, trash, and search results.
 - **Shape Customization Toggle**: Add a setting to toggle UI element shapes, for example squircle vs standard rounded corners.
 

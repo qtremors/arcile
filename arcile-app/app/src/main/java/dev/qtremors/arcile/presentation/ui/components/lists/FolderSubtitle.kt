@@ -23,13 +23,7 @@ internal fun folderSubtitleText(folderStats: FolderStats?): String {
 
     return when (folderStats.status) {
         FolderStatsStatus.Ready -> "$filesLabel • $sizeLabel"
-        FolderStatsStatus.Partial -> {
-            if (folderStats.fileCount > 0L || folderStats.totalBytes > 0L) {
-                "$filesLabel • $sizeLabel • ${stringResource(R.string.folder_stats_limited_access)}"
-            } else {
-                stringResource(R.string.folder_stats_unavailable)
-            }
-        }
-        FolderStatsStatus.Unavailable -> stringResource(R.string.folder_stats_unavailable)
+        FolderStatsStatus.Partial -> "$filesLabel • $sizeLabel"
+        FolderStatsStatus.Unavailable -> stringResource(R.string.folder_label)
     }
 }

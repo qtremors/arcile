@@ -150,6 +150,15 @@ class RecentFilesViewModel @Inject constructor(
     }
 
     fun loadRecentFiles(pullToRefresh: Boolean = false, loadMore: Boolean = false) {
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val newTodayStart = cal.timeInMillis
+        cal.add(java.util.Calendar.DAY_OF_YEAR, -1)
+        val newYesterdayStart = cal.timeInMillis
+
         val capturedState = _state.value
         if (loadMore && (capturedState.isLoadingMore || !capturedState.hasMore)) return
 
@@ -157,9 +166,9 @@ class RecentFilesViewModel @Inject constructor(
 
         _state.update {
             if (loadMore) {
-                it.copy(isLoadingMore = true, error = null)
+                it.copy(isLoadingMore = true, error = null, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
             } else {
-                it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null, currentOffset = 0, hasMore = true)
+                it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null, currentOffset = 0, hasMore = true, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
             }
         }
         viewModelScope.launch {

@@ -267,15 +267,23 @@ class DefaultTrashManager(
 
             for (path in paths) {
                 val file = File(path)
-                validatePath(file).onFailure { return@withContext Result.failure(it) }
+                validatePath(file).onFailure { 
+                    if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
+                    val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: Access denied" else "Access denied"
+                    return@withContext Result.failure(Exception(msg, it))
+                }
 
                 if (!file.exists()) continue
                 val sourceVolume = resolveVolumeForPath(file.absolutePath, volumes)
-                    ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
+                    ?: run {
+                        if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
+                        val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: Unable to resolve storage volume" else "Unable to resolve storage volume"
+                        return@withContext Result.failure(Exception(msg))
+                    }
                 if (!sourceVolume.kind.supportsTrash) {
-                    return@withContext Result.failure(
-                        IllegalStateException("Trash is not supported on this storage. Use permanent delete instead.")
-                    )
+                    if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
+                    val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: Trash not supported on this storage." else "Trash is not supported on this storage. Use permanent delete instead."
+                    return@withContext Result.failure(Exception(msg))
                 }
 
                 val trashDir = getTrashDirForVolume(sourceVolume)
@@ -326,7 +334,8 @@ class DefaultTrashManager(
                         if (scannedPaths.isNotEmpty()) {
                             finalizeMutation(*scannedPaths.toTypedArray())
                         }
-                        return@withContext Result.failure(Exception("Failed to move ${file.name} to trash: ${e.message}", e))
+                        val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: ${e.message}" else "Failed to move ${file.name} to trash: ${e.message}"
+                        return@withContext Result.failure(Exception(msg, e))
                     }
                 }
 

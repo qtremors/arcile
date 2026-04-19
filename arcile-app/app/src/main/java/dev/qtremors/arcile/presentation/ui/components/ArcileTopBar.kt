@@ -136,67 +136,69 @@ fun ArcileTopBar(
                     }
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
-                    }
-                }
-                DropdownMenu(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    if (showNewFolderAction) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.new_folder)) },
-                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onActionSelected(TopBarAction.NewFolder)
-                            }
-                        )
-                    }
-                    if (showPinAction) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.pin_to_quick_access)) },
-                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onActionSelected(TopBarAction.PinToQuickAccess)
-                            }
-                        )
-                    }
-                    if (showSettingsMenuAction) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.settings_title)) },
-                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onActionSelected(TopBarAction.Settings)
-                            }
-                        )
-                    }
-                    if (showAboutAction) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.about_title)) },
-                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                            onClick = {
-                                showMenu = false
-                                onActionSelected(TopBarAction.About)
-                            }
-                        )
-                    }
-                    if (showGridViewAction) {
-                        DropdownMenuItem(
-                            text = { Text(if (isGridView) stringResource(R.string.list_view) else stringResource(R.string.grid_view)) },
-                            leadingIcon = {
-                                Icon(
-                                    if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                                    contentDescription = null
+                        DropdownMenu(
+                            shape = MaterialTheme.shapes.extraLarge,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            offset = androidx.compose.ui.unit.DpOffset(0.dp, 4.dp),
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            if (showNewFolderAction) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.new_folder)) },
+                                    leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.NewFolder)
+                                    }
                                 )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onActionSelected(TopBarAction.GridView)
                             }
-                        )
+                            if (showPinAction) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.pin_to_quick_access)) },
+                                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.PinToQuickAccess)
+                                    }
+                                )
+                            }
+                            if (showSettingsMenuAction) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.settings_title)) },
+                                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.Settings)
+                                    }
+                                )
+                            }
+                            if (showAboutAction) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.about_title)) },
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.About)
+                                    }
+                                )
+                            }
+                            if (showGridViewAction) {
+                                DropdownMenuItem(
+                                    text = { Text(if (isGridView) stringResource(R.string.list_view) else stringResource(R.string.grid_view)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.GridView)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             } else {
@@ -207,17 +209,14 @@ fun ArcileTopBar(
                     modifier = androidx.compose.ui.Modifier.padding(end = 8.dp)
                 ) {
                     Row {
-                        IconButton(onClick = { onActionSelected(TopBarAction.Share) }) {
-                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
-                        }
-                        IconButton(onClick = { onActionSelected(TopBarAction.SelectAll) }) {
-                            Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
-                        }
                         IconButton(onClick = { onActionSelected(TopBarAction.Copy) }) {
                             Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.action_copy))
                         }
                         IconButton(onClick = { onActionSelected(TopBarAction.Cut) }) {
                             Icon(Icons.Default.ContentCut, contentDescription = stringResource(R.string.action_cut))
+                        }
+                        IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete_selected))
                         }
                         if (selectionCount == 1) {
                             IconButton(onClick = { onActionSelected(TopBarAction.Rename) }) {
@@ -226,25 +225,40 @@ fun ArcileTopBar(
                         }
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
-                        }
-                        IconButton(onClick = { onActionSelected(TopBarAction.DeleteSelected) }) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.action_delete_selected))
+                            DropdownMenu(
+                                shape = MaterialTheme.shapes.extraLarge,
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                offset = androidx.compose.ui.unit.DpOffset(0.dp, 4.dp),
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.share)) },
+                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.Share)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.select_all)) },
+                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.SelectAll)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.properties_title)) },
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onActionSelected(TopBarAction.Properties)
+                                    }
+                                )
+                            }
                         }
                     }
-                }
-                DropdownMenu(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.properties_title)) },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                        onClick = {
-                            showMenu = false
-                            onActionSelected(TopBarAction.Properties)
-                        }
-                    )
                 }
             }
         },

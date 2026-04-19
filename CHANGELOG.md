@@ -1,8 +1,38 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.5.9
+> **Version:** 0.6.0
 > **Last Updated:** 2026-04-19
+
+---
+
+## [0.6.0] - 2026-04-19
+
+### Browser UX
+- **Selection Action Prioritization:** Reordered the selection top bar so high-priority actions stay visible in this order: `Copy`, `Cut`, `Delete`, `Edit`, and `More`, while lower-priority actions move into the overflow menu.
+- **Cleaner Selection Overflow:** Moved `Properties`, `Share`, and `Select All` into the 3-dot menu during selection to reduce crowding and keep the action bar focused.
+- **Simplified Folder Subtitles:** Browser folder subtitles now show only file count and folder size. Access-status wording like `Limited access` no longer appears inline in the file list/grid.
+- **Timestamp Detail Upgrade:** Browser rows now show modified date and time instead of date alone, making it easier to compare recent file changes at a glance.
+
+### File Operations
+- **In-App Progress FAB:** Copy and move operations now replace the normal create FAB with a progress-aware Material floating action button that reflects the current operation and doubles as a cancel affordance.
+- **Operation Status Feedback:** Completion, cancellation, and failure states now surface through the browser snackbar flow, giving file operations visible feedback without blocking the UI.
+
+### Properties
+- **Properties-Only Access Detail:** Limited/partial access details remain available from the Properties surface instead of cluttering subtitles, keeping the main browser rows compact while preserving the extra metadata when needed.
+
+### Performance
+- **Volume Discovery:** Offloaded Android `StatFs` reads from the main thread during app launch, eliminating cold-start jank and reducing ANR risk on slow external storage.
+- **Home Screen Analytics:** Introduced a 5-minute TTL cache for expensive folder statistics and recent file queries to prevent battery drain and latency when rapidly resuming the app.
+- **Staged File Cache Bound:** Implemented an automatic cleanup routine for temporary share/open files, enforcing a 500MB hard limit and 24-hour expiration to prevent silent storage exhaustion.
+
+### Correctness & Reliability
+- **Trash Partial Move Atomicity:** Trashing operations that encounter errors mid-batch (e.g., failed to read an individual file) now explicitly report the count of successfully trashed files to the UI, avoiding misleading generic failures.
+- **Dynamic Date Anchors:** "Today" and "Yesterday" date headers in the Recent Files and Home screens are now dynamically recalculated on resume, preventing stale grouping if the app is left open across midnight.
+- **Search Consistency:** Unified global search across the Recent Files and Home screens, guaranteeing that identical queries return identically filtered, robust results with a consistent 1000-item upper limit.
+
+### Build & CI
+- **Release Compilation:** Fixed an issue where invalid `backup_rules` XML exclusions (using the unsupported `cache` domain) and conflicting `allowBackup="false"` settings blocked release APK generation during Lint checks. `allowBackup` is now explicitly enabled with targeted exclusions preserved.
 
 ---
 

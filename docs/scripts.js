@@ -43,7 +43,7 @@ tailwind.config = {
 }
 
 // Render Icons
-lucide.createIcons();
+// Moved to DOMContentLoaded
 
 // Navbar surface tonal elevation effect on scroll
 const navbar = document.getElementById('navbar');
@@ -77,6 +77,9 @@ function toggleFaq(element) {
 
 // Intersection Observer for Scroll Reveal Animations
 document.addEventListener("DOMContentLoaded", () => {
+    // Render Icons
+    lucide.createIcons();
+
     const observerOptions = {
         root: null,
         rootMargin: '0px',

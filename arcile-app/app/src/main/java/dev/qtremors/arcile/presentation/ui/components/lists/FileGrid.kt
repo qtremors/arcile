@@ -70,7 +70,7 @@ fun FileGrid(
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet()
 ) {
-    val formatter = rememberDateFormatter("MMM dd, yyyy")
+    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }

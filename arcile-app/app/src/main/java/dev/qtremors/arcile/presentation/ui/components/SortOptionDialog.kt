@@ -9,32 +9,26 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,8 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
@@ -53,6 +45,7 @@ import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.FileSortOption
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +61,7 @@ fun SortOptionDialog(
         mutableStateOf(selectedPreferences.normalized())
     }
 
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -77,7 +70,8 @@ fun SortOptionDialog(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp, top = 8.dp)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
         ) {
             val liveColumnCount = max(
                 1,
@@ -87,179 +81,187 @@ fun SortOptionDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
+                    .padding(horizontal = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                Surface(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    tonalElevation = 2.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 18.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Surface(
-                                shape = MaterialTheme.shapes.large,
-                                color = MaterialTheme.colorScheme.secondaryContainer
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Tune,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.padding(10.dp)
-                                )
-                            }
-                            Column {
-                                Text(text = title, style = MaterialTheme.typography.titleLarge)
-                                Text(
-                                    text = stringResource(
-                                        R.string.browser_layout_summary,
-                                        sortLabel(draftPreferences.sortOption),
-                                        viewModeLabel(draftPreferences.viewMode)
-                                    ),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                // Header (Simplified)
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge
+                )
+
+                // Layout & Density Section
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        text = stringResource(R.string.browser_layout_view_mode),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        BrowserViewMode.entries.forEachIndexed { index, mode ->
+                            SegmentedButton(
+                                shape = SegmentedButtonDefaults.itemShape(
+                                    index = index,
+                                    count = BrowserViewMode.entries.size
+                                ),
+                                colors = SegmentedButtonDefaults.colors(),
+                                onClick = { draftPreferences = draftPreferences.copy(viewMode = mode) },
+                                selected = draftPreferences.viewMode == mode,
+                                icon = {
+                                    Icon(
+                                        imageVector = if (mode == BrowserViewMode.LIST) {
+                                            Icons.AutoMirrored.Filled.ViewList
+                                        } else {
+                                            Icons.Default.GridView
+                                        },
+                                        contentDescription = null
+                                    )
+                                },
+                                label = { Text(viewModeLabel(mode)) }
+                            )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(18.dp))
-                Text(
-                    text = stringResource(R.string.browser_layout_view_mode),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    BrowserViewMode.entries.forEachIndexed { index, mode ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = BrowserViewMode.entries.size),
-                            colors = SegmentedButtonDefaults.colors(),
-                            onClick = { draftPreferences = draftPreferences.copy(viewMode = mode) },
-                            selected = draftPreferences.viewMode == mode,
-                            icon = {
-                                Icon(
-                                    imageVector = if (mode == BrowserViewMode.LIST) {
-                                        Icons.AutoMirrored.Filled.ViewList
-                                    } else {
-                                        Icons.Default.GridView
+                    AnimatedContent(
+                        targetState = draftPreferences.viewMode,
+                        label = "browser_layout_controls"
+                    ) { mode ->
+                        if (mode == BrowserViewMode.LIST) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.browser_layout_list_zoom),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            R.string.browser_layout_list_zoom_value,
+                                            (draftPreferences.listZoom * 100).roundToInt()
+                                        ),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Slider(
+                                    value = draftPreferences.listZoom,
+                                    onValueChange = {
+                                        draftPreferences = draftPreferences.copy(listZoom = it)
                                     },
-                                    contentDescription = null
+                                    valueRange = BrowserPresentationPreferences.MIN_LIST_ZOOM..BrowserPresentationPreferences.MAX_LIST_ZOOM,
+                                    steps = 7
                                 )
-                            },
-                            label = { Text(viewModeLabel(mode)) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(22.dp))
-                Text(
-                    text = stringResource(R.string.action_sort),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(FileSortOption.entries) { option ->
-                        FilterChip(
-                            selected = draftPreferences.sortOption == option,
-                            onClick = { draftPreferences = draftPreferences.copy(sortOption = option) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Sort,
-                                    contentDescription = null
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.browser_layout_grid_size),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            R.string.browser_layout_grid_columns_value,
+                                            liveColumnCount
+                                        ),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Slider(
+                                    value = draftPreferences.gridMinCellSize,
+                                    onValueChange = {
+                                        draftPreferences = draftPreferences.copy(gridMinCellSize = it)
+                                    },
+                                    valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
+                                    steps = 1
                                 )
-                            },
-                            label = { Text(sortLabel(option)) }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(22.dp))
-                AnimatedContent(
-                    targetState = draftPreferences.viewMode,
-                    label = "browser_layout_controls"
-                ) { mode ->
-                    if (mode == BrowserViewMode.LIST) {
-                        PresentationSliderCard(
-                            icon = Icons.AutoMirrored.Filled.ViewList,
-                            title = stringResource(R.string.browser_layout_list_zoom),
-                            summary = stringResource(
-                                R.string.browser_layout_list_zoom_value,
-                                (draftPreferences.listZoom * 100).toInt()
-                            )
-                        ) {
-                            Slider(
-                                value = draftPreferences.listZoom,
-                                onValueChange = {
-                                    draftPreferences = draftPreferences.copy(listZoom = it)
-                                },
-                                valueRange = BrowserPresentationPreferences.MIN_LIST_ZOOM..BrowserPresentationPreferences.MAX_LIST_ZOOM
-                            )
-                        }
-                    } else {
-                        PresentationSliderCard(
-                            icon = Icons.Default.Apps,
-                            title = stringResource(R.string.browser_layout_grid_size),
-                            summary = stringResource(R.string.browser_layout_grid_columns_value, liveColumnCount)
-                        ) {
-                            Slider(
-                                value = draftPreferences.gridMinCellSize,
-                                onValueChange = {
-                                    draftPreferences = draftPreferences.copy(gridMinCellSize = it)
-                                },
-                                valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE
-                            )
+                            }
                         }
                     }
                 }
 
+                // Sort Section (Grid Layout to prevent horizontal scroll)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(R.string.action_sort),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SortOptionChip(FileSortOption.NAME_ASC, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                            SortOptionChip(FileSortOption.NAME_DESC, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SortOptionChip(FileSortOption.DATE_NEWEST, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                            SortOptionChip(FileSortOption.DATE_OLDEST, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SortOptionChip(FileSortOption.SIZE_LARGEST, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                            SortOptionChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                        }
+                    }
+                }
+
+                // Scope Section
                 if (showApplyToSubfolders) {
-                    Spacer(modifier = Modifier.height(18.dp))
-                    Surface(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        color = MaterialTheme.colorScheme.surfaceContainer,
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.extraLarge)
+                            .clip(MaterialTheme.shapes.large)
                             .clickable { applyToSubfolders = !applyToSubfolders }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(checked = applyToSubfolders, onCheckedChange = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    text = stringResource(R.string.apply_to_folder_and_subfolders),
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = stringResource(R.string.browser_layout_persistence_hint),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.apply_to_folder_and_subfolders),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = stringResource(R.string.browser_layout_persistence_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Switch(
+                            checked = applyToSubfolders,
+                            onCheckedChange = null // Handled by Row click
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                // Actions
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.cancel))
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     FilledTonalButton(
                         onClick = {
                             onApply(draftPreferences.normalized(), applyToSubfolders)
@@ -269,35 +271,30 @@ fun SortOptionDialog(
                         Text(stringResource(R.string.apply))
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
 }
 
 @Composable
-private fun PresentationSliderCard(
-    icon: ImageVector,
-    title: String,
-    summary: String,
-    content: @Composable () -> Unit
+private fun SortOptionChip(
+    option: FileSortOption,
+    preferences: BrowserPresentationPreferences,
+    modifier: Modifier = Modifier,
+    onSelect: (FileSortOption) -> Unit
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            ListItem(
-                leadingContent = { Icon(imageVector = icon, contentDescription = null) },
-                headlineContent = { Text(title) },
-                supportingContent = { Text(summary) },
-                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-            )
-            content()
-        }
-    }
+    FilterChip(
+        selected = preferences.sortOption == option,
+        onClick = { onSelect(option) },
+        label = { 
+            Text(
+                text = sortLabel(option),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            ) 
+        },
+        modifier = modifier
+    )
 }
 
 @Composable

@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.5.9 | **Last Updated:** 2026-04-19
+**Version:** 0.6.0 | **Last Updated:** 2026-04-19
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---

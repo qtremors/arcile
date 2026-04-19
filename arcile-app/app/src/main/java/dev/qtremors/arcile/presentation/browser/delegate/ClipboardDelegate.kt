@@ -46,7 +46,7 @@ class ClipboardDelegate(
                         refreshAction()
                     }
                     is BulkFileOperationEvent.Failed -> {
-                        state.update { it.copy(isLoading = false, error = event.message) }
+                        state.update { it.copy(isLoading = false) }
                     }
                     is BulkFileOperationEvent.Cancelled -> {
                         state.update { it.copy(isLoading = false) }

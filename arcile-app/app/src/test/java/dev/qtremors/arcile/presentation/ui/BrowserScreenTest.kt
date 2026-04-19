@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.ui
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -12,7 +13,9 @@ import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.presentation.browser.BrowserState
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -289,7 +292,7 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("3 files • 2.0 KB • Limited access").assertExists()
+        composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
     }
 
     @Test
@@ -350,6 +353,55 @@ class BrowserScreenTest {
 
         composeRule.onNodeWithText("Properties").assertExists()
         composeRule.onNodeWithText("Docs").assertExists()
+    }
+
+    @Test
+    fun `active file operation replaces create fab with progress action`() {
+        var cancelCalls = 0
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        activeFileOperation = BrowserFileOperationUiState(
+                            type = BulkFileOperationType.COPY,
+                            totalItems = 3,
+                            completedItems = 1
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = { cancelCalls += 1 },
+                    onShareSelected = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Copying 1/3").assertExists()
+        composeRule.onAllNodesWithContentDescription("Create new").assertCountEquals(0)
+        composeRule.onNodeWithText("Copying 1/3").performClick()
+
+        assertEquals(1, cancelCalls)
     }
 }
 

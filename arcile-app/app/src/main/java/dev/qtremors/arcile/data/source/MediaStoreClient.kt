@@ -573,14 +573,14 @@ class DefaultMediaStoreClient(
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selectionBuilder.toString())
                     putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
-                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, 500)
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, MAX_PATH_SEARCH_RESULTS)
                 }
 
                 val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                     context.contentResolver.query(uri, projection, bundle, null)
                 } else {
                     @Suppress("DEPRECATION")
-                    context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), "$sortOrder LIMIT 500")
+                    context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), "$sortOrder LIMIT $MAX_PATH_SEARCH_RESULTS")
                 }
 
                 cursor?.use { c ->

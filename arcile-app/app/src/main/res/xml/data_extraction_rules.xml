@@ -8,12 +8,10 @@
         <exclude domain="sharedpref" path="trash_crypto_prefs.xml" />
         <exclude domain="file" path="datastore" />
         <exclude domain="file" path="analytics" />
-        <exclude domain="cache" path="analytics" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="trash_crypto_prefs.xml" />
         <exclude domain="file" path="datastore" />
         <exclude domain="file" path="analytics" />
-        <exclude domain="cache" path="analytics" />
     </device-transfer>
 </data-extraction-rules>

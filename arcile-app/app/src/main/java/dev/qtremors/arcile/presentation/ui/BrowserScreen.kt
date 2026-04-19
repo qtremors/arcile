@@ -49,6 +49,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
@@ -57,6 +60,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -146,6 +150,8 @@ import androidx.compose.ui.semantics.semantics
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 
 /**
  * Full-featured file browser screen.
@@ -212,6 +218,7 @@ fun BrowserScreen(
     onPasteFromClipboard: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
+    onClearFileOperationStatusMessage: () -> Unit = {},
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
@@ -329,6 +336,121 @@ fun BrowserScreen(
             }
         }
     }
+    
+    @Composable
+    fun ActiveFileOperationFabInternal(
+        operation: BrowserFileOperationUiState,
+        onCancel: () -> Unit
+    ) {
+        val byteProgress = operation.totalBytes
+            ?.takeIf { it > 0L }
+            ?.let { total -> ((operation.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+        val itemProgress = operation.totalItems
+            .takeIf { it > 0 }
+            ?.let { operation.completedItems.toFloat() / it.toFloat() }
+            ?.coerceIn(0f, 1f)
+        val progress = byteProgress ?: itemProgress
+
+        val containerColor = if (operation.isCancelling) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.primaryContainer
+        }
+        val contentColor = if (operation.isCancelling) {
+            MaterialTheme.colorScheme.onErrorContainer
+        } else {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        }
+        val operationLabel = when {
+            operation.isCancelling -> stringResource(R.string.file_operation_cancelling)
+            operation.type == BulkFileOperationType.MOVE -> stringResource(R.string.file_operation_moving)
+            else -> stringResource(R.string.file_operation_copying)
+        }
+        val progressLabel = if ((operation.totalBytes ?: 0L) > 0L) {
+            stringResource(
+                R.string.file_operation_progress_bytes,
+                operationLabel,
+                formatFileSize(operation.bytesCopied ?: 0L),
+                formatFileSize(operation.totalBytes ?: 0L)
+            )
+        } else if (operation.totalItems > 0) {
+            stringResource(
+                R.string.file_operation_progress,
+                operationLabel,
+                operation.completedItems,
+                operation.totalItems
+            )
+        } else {
+            operationLabel
+        }
+        val secondaryLabel = operation.currentPath
+            ?.substringAfterLast(File.separatorChar)
+            ?.takeIf { it.isNotBlank() }
+        val percentageLabel = progress?.let { "${(it * 100).toInt()}%" }
+        val operationIcon = if (operation.type == BulkFileOperationType.MOVE) {
+            Icons.Default.ContentCut
+        } else {
+            Icons.Default.ContentCopy
+        }
+
+        ExtendedFloatingActionButton(
+            onClick = onCancel,
+            containerColor = containerColor,
+            contentColor = contentColor,
+            shape = MaterialTheme.shapes.extraLarge,
+            icon = {
+                Box(
+                    modifier = Modifier.size(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (progress == null) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = contentColor
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp,
+                            color = contentColor,
+                            trackColor = contentColor.copy(alpha = 0.24f)
+                        )
+                    }
+                    Icon(
+                        imageVector = operationIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = progressLabel,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = listOfNotNull(percentageLabel, secondaryLabel).joinToString(" • "),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                }
+            }
+        )
+    }
+
+    LaunchedEffect(state.fileOperationStatusMessage) {
+        state.fileOperationStatusMessage?.let { message ->
+            onClearFileOperationStatusMessage()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(message)
+            }
+        }
+    }
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
@@ -361,7 +483,7 @@ fun BrowserScreen(
                 }
             } else {
                 ArcileTopBar(
-                    title = stringResource(R.string.browse_title),
+                    title = if (state.isCategoryScreen) state.activeCategoryName else stringResource(R.string.browse_title),
                     selectionCount = state.selectedFiles.size,
                     showBackArrow = true,
                     showSortAction = !state.isVolumeRootScreen,
@@ -402,7 +524,12 @@ fun BrowserScreen(
             }
         },
         floatingActionButton = {
-            if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
+            if (state.activeFileOperation != null) {
+                ActiveFileOperationFabInternal(
+                    operation = state.activeFileOperation,
+                    onCancel = onCancelClipboard
+                )
+            } else if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Box {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
@@ -411,7 +538,7 @@ fun BrowserScreen(
                             fabIconRotation = fabIconRotation,
                             items = listOf(
                                 dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
-                                    label = "New Folder",
+                                    label = stringResource(R.string.new_folder),
                                     icon = androidx.compose.material.icons.Icons.Default.CreateNewFolder,
                                     onClick = {
                                         isFabExpanded = false
@@ -419,7 +546,7 @@ fun BrowserScreen(
                                     }
                                 ),
                                 dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
-                                    label = "New File",
+                                    label = stringResource(R.string.new_file),
                                     icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.InsertDriveFile,
                                     onClick = {
                                         isFabExpanded = false

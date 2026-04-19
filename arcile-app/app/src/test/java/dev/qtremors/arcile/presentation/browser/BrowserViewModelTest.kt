@@ -58,7 +58,8 @@ class BrowserViewModelTest {
     private fun createViewModel(
         repository: FileRepository,
         browserPreferencesRepository: BrowserPreferencesStore,
-        savedStateHandle: SavedStateHandle
+        savedStateHandle: SavedStateHandle,
+        bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
     ): BrowserViewModel {
         return BrowserViewModel(
             repository = repository,
@@ -66,7 +67,7 @@ class BrowserViewModelTest {
             savedStateHandle = savedStateHandle,
             getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
             moveToTrashUseCase = MoveToTrashUseCase(repository),
-            bulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
+            bulkFileOperationCoordinator = bulkFileOperationCoordinator
         )
     }
 
@@ -198,6 +199,80 @@ class BrowserViewModelTest {
         assertEquals(listOf(conflict), viewModel.state.value.pasteConflicts)
         assertEquals(listOf("/storage/emulated/0/source.txt"), repo.lastConflictSourcePaths)
         assertEquals("/storage/emulated/0/Download", repo.lastConflictDestination)
+    }
+
+    @Test
+    fun `bulk operation progress updates browser operation ui state`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/source.txt")
+        viewModel.copySelectedToClipboard()
+        viewModel.pasteFromClipboard()
+        advanceUntilIdle()
+
+        val request = coordinator.activeRequest.value!!
+        coordinator.onOperationProgress(
+            request,
+            BulkFileOperationProgress(
+                completedItems = 1,
+                totalItems = 2,
+                currentPath = "/storage/emulated/0/source.txt"
+            )
+        )
+        advanceUntilIdle()
+
+        val operation = viewModel.state.value.activeFileOperation
+        assertEquals(BulkFileOperationType.COPY, operation?.type)
+        assertEquals(1, operation?.completedItems)
+        assertEquals(2, operation?.totalItems)
+        assertEquals("/storage/emulated/0/source.txt", operation?.currentPath)
+        assertFalse(operation?.isCancelling ?: true)
+    }
+
+    @Test
+    fun `bulk operation terminal events clear browser operation ui and publish snackbar message`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/source.txt")
+        viewModel.cutSelectedToClipboard()
+        viewModel.pasteFromClipboard()
+        advanceUntilIdle()
+
+        val request = coordinator.activeRequest.value!!
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.activeFileOperation)
+        assertEquals("Moved 1 item(s)", viewModel.state.value.fileOperationStatusMessage)
+
+        viewModel.clearFileOperationStatusMessage()
+        assertNull(viewModel.state.value.fileOperationStatusMessage)
     }
 
     @Test

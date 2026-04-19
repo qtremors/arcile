@@ -116,7 +116,20 @@ class DefaultFileSystemDataSource(
         currentCoroutineContext().ensureActive()
     }
 
-    private suspend fun copyFileCancellable(source: File, target: File, overwrite: Boolean) {
+    private fun estimateTransferBytes(source: File): Long {
+        if (!source.exists()) return 0L
+        if (source.isFile) return source.length()
+        return source.walkTopDown()
+            .filter { it.isFile }
+            .sumOf { it.length() }
+    }
+
+    private suspend fun copyFileCancellable(
+        source: File,
+        target: File,
+        overwrite: Boolean,
+        onBytesCopied: (suspend (Long) -> Unit)? = null
+    ) {
         ensureOperationActive()
         target.parentFile?.mkdirs()
         if (target.exists()) {
@@ -138,13 +151,19 @@ class DefaultFileSystemDataSource(
                     val read = input.read(buffer)
                     if (read < 0) break
                     output.write(buffer, 0, read)
+                    onBytesCopied?.invoke(read.toLong())
                 }
             }
         }
         target.setLastModified(source.lastModified())
     }
 
-    private suspend fun copyDirectoryCancellable(source: File, target: File, overwrite: Boolean) {
+    private suspend fun copyDirectoryCancellable(
+        source: File,
+        target: File,
+        overwrite: Boolean,
+        onBytesCopied: (suspend (Long) -> Unit)? = null
+    ) {
         ensureOperationActive()
         if (target.exists()) {
             if (!overwrite && !target.isDirectory) {
@@ -158,9 +177,9 @@ class DefaultFileSystemDataSource(
             ensureOperationActive()
             val childTarget = File(target, child.name)
             if (child.isDirectory) {
-                copyDirectoryCancellable(child, childTarget, overwrite)
+                copyDirectoryCancellable(child, childTarget, overwrite, onBytesCopied)
             } else {
-                copyFileCancellable(child, childTarget, overwrite)
+                copyFileCancellable(child, childTarget, overwrite, onBytesCopied)
             }
         }
         target.setLastModified(source.lastModified())
@@ -170,13 +189,17 @@ class DefaultFileSystemDataSource(
         onProgress: ((BulkFileOperationProgress) -> Unit)?,
         completedItems: Int,
         totalItems: Int,
-        currentPath: String
+        currentPath: String,
+        bytesCopied: Long? = null,
+        totalBytes: Long? = null
     ) {
         onProgress?.invoke(
             BulkFileOperationProgress(
                 completedItems = completedItems,
                 totalItems = totalItems,
-                currentPath = currentPath
+                currentPath = currentPath,
+                bytesCopied = bytesCopied,
+                totalBytes = totalBytes
             )
         )
     }
@@ -387,7 +410,10 @@ class DefaultFileSystemDataSource(
 
             val scannedPaths = mutableListOf<String>()
             val totalItems = sourcePaths.size.coerceAtLeast(1)
+            val totalBytes = sourcePaths.sumOf { estimateTransferBytes(File(it)) }.coerceAtLeast(1L)
             var completedItems = 0
+            var copiedBytes = 0L
+            var lastProgressEmitTime = 0L
             for (path in sourcePaths) {
                 ensureOperationActive()
                 val sourceFile = File(path)
@@ -429,13 +455,61 @@ class DefaultFileSystemDataSource(
 
                 val overwrite = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
                 if (sourceFile.isDirectory) {
-                    copyDirectoryCancellable(sourceFile, targetFile, overwrite = overwrite)
+                    copyDirectoryCancellable(
+                        sourceFile,
+                        targetFile,
+                        overwrite = overwrite,
+                        onBytesCopied = { delta ->
+                            copiedBytes += delta
+                            val now = System.currentTimeMillis()
+                            if (now - lastProgressEmitTime > 200) {
+                                lastProgressEmitTime = now
+                                emitProgress(
+                                    onProgress,
+                                    completedItems = completedItems,
+                                    totalItems = totalItems,
+                                    currentPath = sourceFile.absolutePath,
+                                    bytesCopied = copiedBytes,
+                                    totalBytes = totalBytes
+                                )
+                            }
+                        }
+                    )
                 } else {
-                    copyFileCancellable(sourceFile, targetFile, overwrite = overwrite)
+                    copyFileCancellable(
+                        sourceFile,
+                        targetFile,
+                        overwrite = overwrite,
+                        onBytesCopied = { delta ->
+                            copiedBytes += delta
+                            val now = System.currentTimeMillis()
+                            if (now - lastProgressEmitTime > 200) {
+                                lastProgressEmitTime = now
+                                emitProgress(
+                                    onProgress,
+                                    completedItems = completedItems,
+                                    totalItems = totalItems,
+                                    currentPath = sourceFile.absolutePath,
+                                    bytesCopied = copiedBytes,
+                                    totalBytes = totalBytes
+                                )
+                            }
+                        }
+                    )
                 }
                 scannedPaths.add(targetFile.absolutePath)
                 completedItems += 1
-                emitProgress(onProgress, completedItems, totalItems, targetFile.absolutePath)
+                val isFinalItem = completedItems == totalItems
+                val reportedBytes = if (isFinalItem) totalBytes else copiedBytes
+                lastProgressEmitTime = System.currentTimeMillis()
+                emitProgress(
+                    onProgress,
+                    completedItems,
+                    totalItems,
+                    targetFile.absolutePath,
+                    bytesCopied = reportedBytes,
+                    totalBytes = totalBytes
+                )
             }
             finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
@@ -465,7 +539,10 @@ class DefaultFileSystemDataSource(
 
             val scannedPaths = mutableListOf<String>()
             val totalItems = sourcePaths.size.coerceAtLeast(1)
+            val totalBytes = sourcePaths.sumOf { estimateTransferBytes(File(it)) }.coerceAtLeast(1L)
             var completedItems = 0
+            var copiedBytes = 0L
+            var lastProgressEmitTime = 0L
             for (path in sourcePaths) {
                 ensureOperationActive()
                 val sourceFile = File(path)
@@ -508,14 +585,52 @@ class DefaultFileSystemDataSource(
                     val overwrite = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
                     try {
                         if (sourceFile.isDirectory) {
-                            copyDirectoryCancellable(sourceFile, targetFile, overwrite = overwrite)
+                            copyDirectoryCancellable(
+                                sourceFile,
+                                targetFile,
+                                overwrite = overwrite,
+                                onBytesCopied = { delta ->
+                                    copiedBytes += delta
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastProgressEmitTime > 200) {
+                                        lastProgressEmitTime = now
+                                        emitProgress(
+                                            onProgress,
+                                            completedItems = completedItems,
+                                            totalItems = totalItems,
+                                            currentPath = sourceFile.absolutePath,
+                                            bytesCopied = copiedBytes,
+                                            totalBytes = totalBytes
+                                        )
+                                    }
+                                }
+                            )
                             ensureOperationActive()
                             if (!sourceFile.deleteRecursively()) {
                                 targetFile.deleteRecursively()
                                 return@withContext Result.failure(Exception("Failed to delete source directory after copy"))
                             }
                         } else {
-                            copyFileCancellable(sourceFile, targetFile, overwrite = overwrite)
+                            copyFileCancellable(
+                                sourceFile,
+                                targetFile,
+                                overwrite = overwrite,
+                                onBytesCopied = { delta ->
+                                    copiedBytes += delta
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastProgressEmitTime > 200) {
+                                        lastProgressEmitTime = now
+                                        emitProgress(
+                                            onProgress,
+                                            completedItems = completedItems,
+                                            totalItems = totalItems,
+                                            currentPath = sourceFile.absolutePath,
+                                            bytesCopied = copiedBytes,
+                                            totalBytes = totalBytes
+                                        )
+                                    }
+                                }
+                            )
                             ensureOperationActive()
                             if (!sourceFile.delete()) {
                                 targetFile.delete()
@@ -534,7 +649,17 @@ class DefaultFileSystemDataSource(
                 scannedPaths.add(sourceFile.absolutePath)
                 scannedPaths.add(targetFile.absolutePath)
                 completedItems += 1
-                emitProgress(onProgress, completedItems, totalItems, targetFile.absolutePath)
+                val isFinalItem = completedItems == totalItems
+                val reportedBytes = if (isFinalItem) totalBytes else copiedBytes
+                lastProgressEmitTime = System.currentTimeMillis()
+                emitProgress(
+                    onProgress,
+                    completedItems,
+                    totalItems,
+                    targetFile.absolutePath,
+                    bytesCopied = reportedBytes,
+                    totalBytes = totalBytes
+                )
             }
             finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)

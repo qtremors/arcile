@@ -45,7 +45,10 @@ class DefaultVolumeProvider(
     private val cachedVolumes = AtomicReference<List<StorageVolume>?>(null)
 
     init {
-        _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+        }
     }
 
     override fun invalidateCache() {

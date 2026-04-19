@@ -44,7 +44,10 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
 
-    private val _events = MutableSharedFlow<BulkFileOperationEvent>(extraBufferCapacity = 16)
+    private val _events = MutableSharedFlow<BulkFileOperationEvent>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
     override val events: SharedFlow<BulkFileOperationEvent> = _events.asSharedFlow()
 
     override fun startOperation(

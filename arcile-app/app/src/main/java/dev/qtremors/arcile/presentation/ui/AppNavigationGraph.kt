@@ -168,6 +168,7 @@ fun AppNavigationGraph(
                                 viewModel.clearSelection()
                             }
                         },
+                        onClearFileOperationStatusMessage = { viewModel.clearFileOperationStatusMessage() },
                         onOpenProperties = { viewModel.openPropertiesForSelection() },
                         onDismissProperties = { viewModel.dismissProperties() },
                         isRefreshing = state.isPullToRefreshing,

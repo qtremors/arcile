@@ -15,6 +15,49 @@ object ExternalFileAccessHelper {
     private const val STAGING_ROOT = "external_access"
     private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
+    private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
+    private const val MAX_CACHE_AGE_MS = 24L * 60 * 60 * 1000 // 24 hours
+
+    private fun cleanupStagingArea(context: Context) {
+        val baseStagingDir = File(context.cacheDir, STAGING_ROOT)
+        if (!baseStagingDir.exists()) return
+
+        val allStagedFiles = baseStagingDir.walkTopDown()
+            .filter { it.isFile }
+            .sortedBy {
+                runCatching {
+                    java.nio.file.Files.readAttributes(
+                        it.toPath(),
+                        java.nio.file.attribute.BasicFileAttributes::class.java
+                    ).creationTime().toMillis()
+                }.getOrDefault(it.lastModified())
+            }
+            .toList()
+
+        var currentSizeBytes = allStagedFiles.sumOf { it.length() }
+        val now = System.currentTimeMillis()
+
+        for (file in allStagedFiles) {
+            val ageMs = runCatching {
+                now - java.nio.file.Files.readAttributes(
+                    file.toPath(),
+                    java.nio.file.attribute.BasicFileAttributes::class.java
+                ).creationTime().toMillis()
+            }.getOrDefault(0L) // Default to 0 age if unknown to avoid accidental delete
+
+            val isOld = ageMs > MAX_CACHE_AGE_MS
+            val isOversized = currentSizeBytes > MAX_CACHE_SIZE_BYTES
+
+            if (isOld || isOversized) {
+                val size = file.length()
+                if (file.delete()) {
+                    currentSizeBytes -= size
+                }
+            } else {
+                break
+            }
+        }
+    }
 
     private fun sha1(value: String): String {
         val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())
@@ -40,7 +83,7 @@ object ExternalFileAccessHelper {
         if (disallowedRoots.any { canonicalPath == it || canonicalPath.startsWith("$it${File.separator}") }) {
             return false
         }
-        if (canonicalPath.contains("${File.separator}.arcile${File.separator}") || canonicalPath.endsWith("${File.separator}.arcile")) {
+        if (canonicalPath.contains("${File.separator}.arcile${File.separator}") || canonicalPath.endsWith("${File.separator}.arcile")) {    
             return false
         }
         return allowedStorageRoots(context).any { root ->
@@ -51,6 +94,8 @@ object ExternalFileAccessHelper {
     private fun stageFile(context: Context, file: File, purpose: String): File {
         require(file.exists() && file.isFile) { "Source file does not exist" }
         require(isAllowedUserFile(context, file)) { "Unsupported file path" }
+
+        cleanupStagingArea(context)
 
         val stagingDir = File(context.cacheDir, "$STAGING_ROOT${File.separator}$purpose").apply { mkdirs() }
         val extension = file.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()

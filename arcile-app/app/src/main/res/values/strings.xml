@@ -67,7 +67,7 @@
     <string name="view_releases">View Releases</string>
     <string name="view_releases_description">"See what's new in the latest version."</string>
     <string name="report_issue">Report an Issue</string>
-    <string name="report_issue_description">"Found a bug? Let us know on GitHub."</string>
+    <string name="report_issue_description">"Found a bug? Let me know on GitHub."</string>
     <string name="report_issue_url">"https://github.com/qtremors/arcile/issues/new"</string>
     <string name="privacy_policy_url">"https://github.com/qtremors/arcile/blob/main/PRIVACY.md"</string>
     <string name="open_source_licenses">Open Source Licenses</string>
@@ -275,6 +275,7 @@
     <string name="list_view">List View</string>
     <string name="grid_view">Grid View</string>
     <string name="new_folder">New Folder</string>
+    <string name="new_file">New File</string>
     <string name="pin_to_quick_access">Pin to Quick Access</string>
     <string name="manage">Manage</string>
     <string name="quick_access">Quick Access</string>
@@ -334,4 +335,9 @@
     <string name="last_30_days">Last 30 days</string>
     <string name="apply_to_folder_and_subfolders">Apply to this folder and subfolders</string>
     <string name="apply">Apply</string>
+    <string name="file_operation_copying">Copying</string>
+    <string name="file_operation_moving">Moving</string>
+    <string name="file_operation_cancelling">Cancelling…</string>
+    <string name="file_operation_progress">%1$s %2$d/%3$d</string>
+    <string name="file_operation_progress_bytes">%1$s %2$s / %3$s</string>
 </resources>

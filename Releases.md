@@ -1,16 +1,77 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 0.5.0
-> **Last Updated:** 2026-03-23
+> **Version:** 0.6.0
+> **Last Updated:** 2026-04-19
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v0.6.0 Beta](#v060-beta) | 2026-04-19 | UI/UX Overhaul, Quick Access & Unified Controls |
 | [v0.5.0 Beta](#v050-beta) | 2026-03-23 | Security, Architecture & Target API Bump |
 | [v0.4.5 Beta](#v045-beta) | 2026-03-19 | Stability, Performance & Visual Polish |
 | [v0.4.0 Beta](#v040-beta) | 2026-03-16 | SD Card & OTG Support |
 | [v0.3.0 Beta](#v030-beta) | 2026-03-11 | Trash Bin & Copy/Paste |
 | [v0.2.0 Beta](#v020-beta) | 2026-03-06 | Material 3 Redesign |
+
+---
+
+# v0.6.0 Beta
+
+**Release Date:** April 19, 2026  
+**Previous release:** v0.5.0 Beta
+
+Welcome to **Arcile v0.6.0 Beta**! This massive update consolidates weeks of iterative improvements into a single, highly polished release. I've completely overhauled how you navigate, view, and manage your files, while fortifying the app's performance and security under the hood. 
+
+Here is a comprehensive look at everything that's new and improved since v0.5.0:
+
+## 🚀 What's New & Improved
+
+### 🎨 Fresh, Smooth UI & Navigation
+- **Swipe Gestures:** Navigate intuitively by swiping left on the Home screen to instantly open the file browser, and swiping right to quickly go back.
+- **Redesigned File Lists:** Files and folders now feature larger icons inside circular containers with cleaner typography and a tighter layout, letting you see more at once.
+- **Unified Browser Controls:** Say goodbye to scattered settings! A single, easy-to-use menu now controls your sort order, list/grid view, zoom levels, and adaptive grid sizing.
+- **Smart Layout Memory:** Arcile now remembers your preferred layout (like grid vs. list) and zoom level for *each specific folder* you visit, automatically applying it to subfolders too.
+- **Buttery Smooth Performance:** I’ve massively reduced UI stuttering, fixed app launch delays, and eliminated annoying screen flickers when loading large directories.
+- **Open Source Licenses:** A new dedicated screen in Settings now transparently lists all third-party libraries powering Arcile.
+
+### 🗂️ Smarter Folders & Metadata
+- **Instant Folder Stats:** Folder rows now instantly display the total file count and size directly underneath the name without you having to open them.
+- **Selection Properties Dialog:** You can now view detailed properties (total size, file/folder counts, hidden items, and exact timestamps) for any single or multi-file selection via the 3-dot menu.
+- **Detailed Timestamps:** File rows now show both the modified date *and* time, making it easier to compare recent file changes at a glance.
+- **Lightning Fast Loading:** Loading massive media folders (like Pictures or Downloads) is now nearly instantaneous thanks to heavily optimized caching and database queries.
+
+### 📌 Dynamic Quick Access & Organization
+- **Custom Quick Access:** The static Folders section on the Home screen is now fully customizable! You can pin and manage any local folder directly on your dashboard for instant access.
+- **System Folder Access:** I've added special support for pinning restricted system folders (like `Android/data`), safely bridging you into the native OEM files app when tapped.
+- **Cleaner Action Bar:** During selection, only high-priority actions (Copy, Cut, Delete, Edit) remain visible upfront, keeping the top bar uncluttered and focused.
+
+### 🛠️ Safer, More Reliable File Operations
+- **Progress-Aware Actions:** Long-running file operations now replace the main floating button with a live progress circle, allowing you to easily track or cancel the transfer.
+- **Foreground Transfers:** Copying and moving files now run reliably as dedicated background services, ensuring they survive and finish even if you switch to another app.
+- **Smarter Paste:** Copy conflicts are now detected much faster. Overwriting, skipping, or keeping both files (with clean auto-renaming) is safer than ever.
+- **Non-Blocking Feedback:** Success, cancellation, and error messages now appear as unobtrusive snackbars at the bottom of the screen instead of interrupting your flow with popups.
+- **Trash Restore Verification:** Restoring files from the Trash is now heavily verified to prevent data loss if a cross-drive transfer fails midway.
+
+### 🔒 Enhanced Security & Privacy
+- **Encrypted Trash Bin:** The Trash Bin's internal metadata is now securely encrypted using the native Android KeyStore, making it bulletproof and private.
+- **Safer Sharing:** I've locked down how files are exposed to other apps, ensuring your private app cache and metadata can never be accidentally shared.
+- **Cloud Backup Protection:** Sensitive application settings, analytics, and encryption keys are now explicitly blocked from being uploaded to Google cloud backups.
+
+## 🐛 Known Issues (Beta)
+
+As this is an active Beta, please be aware of the following tracked issues:
+
+### ⚠️ Medium
+- **File Operation Stalls:** Copying or moving large amounts of files might occasionally get stuck in the UI or fail to cancel if the background service encounters an error.
+- **Deletion Progress Missing:** Moving files to the Trash or permanently deleting them currently happens in the background without a progress indicator, and could be interrupted if you switch apps.
+- **List Jitter:** Sorting or refreshing large file lists may cause the screen to jump or lose your scroll position.
+- **Volume Classification Errors:** Rapidly plugging and unplugging USB drives might cause the app to crash or lose your saved drive preferences.
+
+### 🔵 Low
+- Brief UI flickering may occur when pasting files.
+- Some operation feedback messages (snackbars) don't fully match the new Material 3 design.
+- Slight delays when recovering from Trash Bin encryption errors.
+- Critical background errors may fail silently, making debugging difficult.
 
 ---
 
@@ -248,5 +309,5 @@ This beta release marks a major step forward in making **Arcile** a premium, hig
 - **Hardware Insights**: New interactive developer and hardware information tiles in Settings.
 - **Security & Fixes**: Implemented path traversal protection, resolved directory refresh loops, and fixed critical compilation issues in the settings module.
 
-*This beta sets the stage for our 1.0 milestone. Thanks for helping us test the future of Arcile!*
+*This beta sets the stage for my 1.0 milestone. Thanks for helping me test the future of Arcile!*
 

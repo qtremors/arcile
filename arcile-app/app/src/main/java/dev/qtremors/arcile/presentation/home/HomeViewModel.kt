@@ -72,6 +72,7 @@ class HomeViewModel @Inject constructor(
     private var searchJob: Job? = null
     private var refreshJob: Job? = null
     private val suppressedVolumeKeys = mutableSetOf<String>()
+    private var lastAnalyticsRefreshTime = 0L
 
     init {
         val cal = java.util.Calendar.getInstance()
@@ -94,14 +95,21 @@ class HomeViewModel @Inject constructor(
                 .collectLatest { volumes ->
                     val currentState = _state.value
                     if (currentState.allStorageVolumes != volumes) {
-                        loadHomeData(HomeRefreshMode.SILENT)
+                        loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
                     }
                 }
         }
     }
 
-    fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL) {
+    fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL, forceAnalytics: Boolean = false) {
         refreshJob?.cancel()
+        val cal = java.util.Calendar.getInstance()
+        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+        cal.set(java.util.Calendar.MINUTE, 0)
+        cal.set(java.util.Calendar.SECOND, 0)
+        cal.set(java.util.Calendar.MILLISECOND, 0)
+        val newTodayStart = cal.timeInMillis
+
         val hasVisibleContent = _state.value.storageInfo != null ||
             _state.value.categoryStorages.isNotEmpty() ||
             _state.value.recentFiles.isNotEmpty()
@@ -111,11 +119,17 @@ class HomeViewModel @Inject constructor(
                 isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
                 isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
                 isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT,
-                error = null
+                error = null,
+                todayStart = newTodayStart
             )
         }
         refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+            val shouldRefreshAnalytics = refreshMode != HomeRefreshMode.SILENT || forceAnalytics || (System.currentTimeMillis() - lastAnalyticsRefreshTime > 5 * 60 * 1000)
+
+            if (shouldRefreshAnalytics) {
+                lastAnalyticsRefreshTime = System.currentTimeMillis()
+            }
 
             supervisorScope {
                 val recentResultDef = async {
@@ -126,35 +140,37 @@ class HomeViewModel @Inject constructor(
                     )
                 }
                 val allVolumesResultDef = async { repository.getStorageVolumes() }
-                val storageResultDef = async { repository.getStorageInfo(StorageScope.AllStorage) }
-                val categoryResultDef = async { repository.getCategoryStorageSizes(StorageScope.AllStorage) }
+                val storageResultDef = if (shouldRefreshAnalytics) async { repository.getStorageInfo(StorageScope.AllStorage) } else null
+                val categoryResultDef = if (shouldRefreshAnalytics) async { repository.getCategoryStorageSizes(StorageScope.AllStorage) } else null
 
                 var recentResult: Result<List<FileModel>>? = null
                 var allVolumesResult: Result<List<StorageVolume>>? = null
                 var storageResult: Result<StorageInfo>? = null
                 var categoryResult: Result<List<CategoryStorage>>? = null
-                var categoryByVolume: Map<String, List<CategoryStorage>> = emptyMap()
+                var categoryByVolume: Map<String, List<CategoryStorage>> = _state.value.categoryStoragesByVolume
 
                 val completedWithinTimeout = withTimeoutOrNull(15_000) {
                     recentResult = recentResultDef.await()
                     allVolumesResult = allVolumesResultDef.await()
-                    storageResult = storageResultDef.await()
-                    categoryResult = categoryResultDef.await()
+                    storageResult = storageResultDef?.await()
+                    categoryResult = categoryResultDef?.await()
 
-                    val storageInfo = storageResult?.getOrNull()
-                    categoryByVolume = storageInfo?.volumes
-                        ?.filter { it.kind.isIndexed }
-                        ?.map { volume ->
-                            async {
-                                volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                    if (shouldRefreshAnalytics) {
+                        val storageInfo = storageResult?.getOrNull()
+                        categoryByVolume = storageInfo?.volumes
+                            ?.filter { it.kind.isIndexed }
+                            ?.map { volume ->
+                                async {
+                                    volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                                }
                             }
-                        }
-                        ?.map { it.await() }
-                        ?.toMap()
-                        ?: emptyMap()
+                            ?.map { it.await() }
+                            ?.toMap()
+                            ?: emptyMap()
+                    }
                 } != null
 
-                val storageInfo = storageResult?.getOrNull()
+                val storageInfo = if (shouldRefreshAnalytics) storageResult?.getOrNull() else _state.value.storageInfo
                 val allStorageVolumes = allVolumesResult?.getOrNull().orEmpty()
                 val unclassified = allStorageVolumes.filter {
                     it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
@@ -175,9 +191,9 @@ class HomeViewModel @Inject constructor(
                         isCalculatingStorage = false,
                         error = errorMsg,
                         allStorageVolumes = allStorageVolumes,
-                        recentFiles = recentResult?.getOrNull() ?: emptyList(),
+                        recentFiles = recentResult?.getOrNull() ?: currentState.recentFiles,
                         storageInfo = storageInfo,
-                        categoryStorages = categoryResult?.getOrNull() ?: emptyList(),
+                        categoryStorages = if (shouldRefreshAnalytics) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages,
                         categoryStoragesByVolume = categoryByVolume,
                         unclassifiedVolumes = unclassified,
                         showClassificationPrompt = unclassified.isNotEmpty()

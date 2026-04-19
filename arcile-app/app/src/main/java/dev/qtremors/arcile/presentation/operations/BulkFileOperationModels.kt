@@ -22,7 +22,9 @@ data class BulkFileOperationRequest(
 data class BulkFileOperationProgress(
     val completedItems: Int,
     val totalItems: Int,
-    val currentPath: String? = null
+    val currentPath: String? = null,
+    val bytesCopied: Long? = null,
+    val totalBytes: Long? = null
 )
 
 sealed interface BulkFileOperationEvent {
