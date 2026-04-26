@@ -11,6 +11,7 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -52,6 +53,7 @@ data class RecentFilesState(
 @HiltViewModel
 class RecentFilesViewModel @Inject constructor(
     private val repository: FileRepository,
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -114,7 +116,14 @@ class RecentFilesViewModel @Inject constructor(
                 _state.update { it.copy(selectedFiles = emptySet()) }
             }
         },
-        executeMoveToTrash = { selected -> repository.moveToTrash(selected) },
+        startBulkDeleteOperation = { type, selected ->
+            bulkFileOperationCoordinator.startOperation(
+                type = type,
+                sourcePaths = selected,
+                destinationPath = null,
+                resolutions = emptyMap()
+            )
+        },
         emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
         onSuccess = { loadRecentFiles(false) },
         onFailure = { loadRecentFiles(false) }

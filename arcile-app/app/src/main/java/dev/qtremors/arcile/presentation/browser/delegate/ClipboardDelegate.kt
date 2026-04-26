@@ -6,7 +6,6 @@ import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,42 +19,6 @@ class ClipboardDelegate(
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val refreshAction: () -> Unit
 ) {
-    init {
-        viewModelScope.launch {
-            bulkFileOperationCoordinator.activeRequest.collect { activeRequest ->
-                if (activeRequest == null && state.value.isLoading && state.value.clipboardState == null) {
-                    state.update { it.copy(isLoading = false) }
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            bulkFileOperationCoordinator.events.collect { event ->
-                when (event) {
-                    is BulkFileOperationEvent.Started -> {
-                        state.update { it.copy(isLoading = true, error = null) }
-                    }
-                    is BulkFileOperationEvent.Progress -> {
-                        state.update { it.copy(isLoading = true, error = null) }
-                    }
-                    is BulkFileOperationEvent.Cancelling -> {
-                        state.update { it.copy(isLoading = true, error = null) }
-                    }
-                    is BulkFileOperationEvent.Completed -> {
-                        state.update { it.copy(isLoading = false, clipboardState = null) }
-                        refreshAction()
-                    }
-                    is BulkFileOperationEvent.Failed -> {
-                        state.update { it.copy(isLoading = false) }
-                    }
-                    is BulkFileOperationEvent.Cancelled -> {
-                        state.update { it.copy(isLoading = false) }
-                    }
-                }
-            }
-        }
-    }
-
     fun copySelectedToClipboard() {
         val selected = state.value.selectedFiles.toList()
         if (selected.isNotEmpty()) {

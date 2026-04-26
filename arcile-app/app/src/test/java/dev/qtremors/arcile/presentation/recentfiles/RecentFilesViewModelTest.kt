@@ -7,13 +7,14 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.testFile
@@ -46,7 +47,7 @@ class RecentFilesViewModelTest {
         val repository = FakeFileRepository(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
         )
-        val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
 
         advanceUntilIdle()
 
@@ -65,7 +66,7 @@ class RecentFilesViewModelTest {
         val repository = FakeFileRepository(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("Holiday.jpg")))
         )
-        val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
 
         advanceUntilIdle()
         viewModel.updateSearchQuery("holiday")
@@ -83,7 +84,7 @@ class RecentFilesViewModelTest {
         val repository = FakeFileRepository(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("Holiday.jpg")))
         )
-        val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
 
         advanceUntilIdle()
         viewModel.loadRecentFiles(pullToRefresh = true)
@@ -104,7 +105,7 @@ class RecentFilesViewModelTest {
                 StorageScope.AllStorage to listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg"))
             )
         )
-        val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
 
         advanceUntilIdle()
         viewModel.toggleSelection("/storage/emulated/0/Holiday.jpg")
@@ -117,25 +118,25 @@ class RecentFilesViewModelTest {
     }
 
     @Test
-    fun `moveSelectedToTrash surfaces native confirmation request`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `moveSelectedToTrash starts foreground trash operation`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = recentVolume("primary", "/storage/emulated/0", StorageKind.INTERNAL)
         val repository = FakeFileRepository(
             volumes = listOf(internal),
             initialRecentFilesByScope = mapOf(
                 StorageScope.AllStorage to listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg"))
             )
-        ).apply {
-            moveToTrashResultProvider = { Result.failure(NativeConfirmationRequiredException(fakeIntentSender())) }
-        }
-        val viewModel = RecentFilesViewModel(repository, SavedStateHandle())
+        )
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = RecentFilesViewModel(repository, coordinator, SavedStateHandle())
 
         advanceUntilIdle()
         viewModel.toggleSelection("/storage/emulated/0/Holiday.jpg")
         viewModel.moveSelectedToTrash()
         advanceUntilIdle()
 
-        assertEquals(RecentNativeAction.TRASH, viewModel.state.value.pendingNativeAction)
-        assertFalse(viewModel.state.value.isLoading)
+        assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
+        assertEquals(listOf("/storage/emulated/0/Holiday.jpg"), coordinator.startedRequests.single().sourcePaths)
+        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
     }
 }
 
@@ -152,7 +153,3 @@ private fun recentVolume(id: String, path: String, kind: StorageKind) = testVolu
     isRemovable = kind != StorageKind.INTERNAL,
     kind = kind
 )
-
-private fun fakeIntentSender(): IntentSender {
-    return mockk()
-}

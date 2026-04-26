@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Environment
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.provider.VolumeProvider
+import dev.qtremors.arcile.data.util.PathSafety
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -37,15 +38,11 @@ class DefaultFileSystemDataSource(
 ) : FileSystemDataSource {
 
     private fun validatePath(file: File): Result<Unit> {
-        val canonical = file.canonicalPath
-        val isAllowed = volumeProvider.activeStorageRoots.any { root ->
-            canonical == root || canonical.startsWith(root + File.separator)
-        }
+        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
+    }
 
-        if (!isAllowed) {
-            return Result.failure(SecurityException("Access denied: path outside storage boundaries"))
-        }
-        return Result.success(Unit)
+    private fun validateDestructivePath(file: File): Result<Unit> {
+        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, rejectSymlinks = true)
     }
 
     private fun validateFileName(name: String): Result<Unit> {
@@ -86,30 +83,7 @@ class DefaultFileSystemDataSource(
     }
 
     private fun pathWithAncestors(path: String): List<String> {
-        val file = File(path)
-        val roots = volumeProvider.activeStorageRoots
-        val canonical = try {
-            file.canonicalFile
-        } catch (e: Exception) {
-            file.absoluteFile
-        }
-        val matchingRoot = roots
-            .map(::File)
-            .map { runCatching { it.canonicalFile }.getOrDefault(it.absoluteFile) }
-            .filter { root ->
-                canonical.path == root.path || canonical.path.startsWith(root.path + File.separator)
-            }
-            .maxByOrNull { it.path.length }
-            ?: return listOf(canonical.absolutePath)
-
-        val result = mutableListOf<String>()
-        var current: File? = canonical
-        while (current != null) {
-            result += current.absolutePath
-            if (current.path == matchingRoot.path) break
-            current = current.parentFile
-        }
-        return result
+        return PathSafety.pathWithAncestors(path, volumeProvider.activeStorageRoots)
     }
 
     private suspend fun ensureOperationActive() {
@@ -297,7 +271,7 @@ class DefaultFileSystemDataSource(
             val scannedPaths = mutableListOf<String>()
             for (path in paths) {
                 val file = File(path)
-                validatePath(file).onFailure { return@withContext Result.failure(it) }
+                validateDestructivePath(file).onFailure { return@withContext Result.failure(it) }
 
                 if (!file.exists()) continue
 

@@ -11,7 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
@@ -25,6 +29,8 @@ fun DeleteConfirmationDialog(
     onDismiss: () -> Unit,
     onTogglePermanentDelete: () -> Unit
 ) {
+    val permanentlyDeleteLabel = stringResource(R.string.permanently_delete_checkbox)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -69,12 +75,15 @@ fun DeleteConfirmationDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(MaterialTheme.shapes.large)
+                        .semantics(mergeDescendants = true) {
+                            if (!isPermanentDeleteToggleEnabled) disabled()
+                        }
                         .clickable(enabled = isPermanentDeleteToggleEnabled) { onTogglePermanentDelete() }
                 ) {
                     ListItem(
                         headlineContent = {
                             Text(
-                                text = stringResource(R.string.permanently_delete_checkbox),
+                                text = permanentlyDeleteLabel,
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = if (isPermanentDeleteToggleEnabled) {
                                     if (isPermanentDeleteChecked) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
@@ -98,7 +107,12 @@ fun DeleteConfirmationDialog(
                             Switch(
                                 checked = isPermanentDeleteChecked,
                                 onCheckedChange = null,
-                                enabled = isPermanentDeleteToggleEnabled
+                                enabled = isPermanentDeleteToggleEnabled,
+                                modifier = Modifier
+                                    .testTag("permanent_delete_switch")
+                                    .semantics {
+                                        contentDescription = permanentlyDeleteLabel
+                                    }
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),

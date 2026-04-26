@@ -9,6 +9,7 @@ import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -45,13 +46,15 @@ class DefaultFolderStatsStore @Inject constructor(
     @ApplicationContext context: Context,
     private val calculator: (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
-    private val beforePublish: ((String) -> Unit)? = null
-) : FolderStatsStore {
+    private val beforePublish: ((String) -> Unit)? = null,
+    private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
+) : FolderStatsStore, AutoCloseable {
 
     companion object {
         const val FRESH_TTL_MS = 30L * 60L * 1000L
         const val FAILURE_TTL_MS = 5L * 60L * 1000L
         private const val MAX_PERSISTED_ENTRIES = 2_000
+        private const val MAX_UNAVAILABLE_RETRIES = 2
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -59,8 +62,8 @@ class DefaultFolderStatsStore @Inject constructor(
     private val memoryCache = ConcurrentHashMap<String, FolderStats>()
     private val queuedPaths = ConcurrentHashMap.newKeySet<String>()
     private val rerunRequested = ConcurrentHashMap.newKeySet<String>()
+    private val retryCounts = ConcurrentHashMap<String, Int>()
     private val pathGenerations = ConcurrentHashMap<String, Long>()
-    private val workerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
     private val updates = MutableSharedFlow<FolderStatUpdate>(
         replay = 0,
         extraBufferCapacity = 64,
@@ -109,6 +112,14 @@ class DefaultFolderStatsStore @Inject constructor(
                                 memoryCache[path] = stats
                                 persist(path, stats)
                                 updates.emit(FolderStatUpdate(path, stats))
+                                if (stats.status == FolderStatsStatus.Unavailable) {
+                                    val failures = retryCounts.merge(path, 1, Int::plus) ?: 1
+                                    if (failures >= MAX_UNAVAILABLE_RETRIES) {
+                                        rerunRequested.remove(path)
+                                    }
+                                } else {
+                                    retryCounts.remove(path)
+                                }
                             }
                         } while (rerunRequested.remove(path))
                     } finally {
@@ -211,4 +222,8 @@ class DefaultFolderStatsStore @Inject constructor(
 
     private fun normalizePath(path: String): String =
         path.trimEnd('/', File.separatorChar).ifEmpty { path }
+
+    override fun close() {
+        workerScope.cancel()
+    }
 }

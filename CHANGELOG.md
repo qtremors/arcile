@@ -1,10 +1,45 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.0
-> **Last Updated:** 2026-04-19
+> **Version:** 0.6.1
+> **Last Updated:** 2026-04-26
 
 ---
+
+## [0.6.1] - 2026-04-26
+
+### Security
+- **Trash Metadata Crypto Markers:** New encrypted trash metadata now records whether it used the Android KeyStore or PBKDF2 fallback key, while legacy unmarked metadata remains readable.
+- **Trash Crypto Hardening:** PBKDF2 fallback derivation now uses 600,000 iterations, crypto keys are resolved per operation instead of cached across invalidation, and deterministic cipher failures fail fast instead of burning retries.
+- **Trash Copy Integrity:** Trash and restore fallback copies now verify source/destination integrity with recursive SHA-256 checks before deleting the original side.
+- **Destructive Path Safety:** Trash and permanent-delete paths now reject symlinked entries through shared path validation to reduce traversal and TOCTOU exposure.
+- **Device Migration Warning:** Trash metadata that depends on a missing hardware-bound KeyStore key is preserved and surfaced as a user-visible migration warning instead of being silently deleted.
+
+### Reliability
+- **Foreground Trash/Delete Operations:** Browser and Recent Files trash/permanent-delete flows now start foreground bulk operations, giving long-running destructive work the same lifecycle protection as copy/move.
+- **Bulk Operation Orchestration:** Coordinator startup now rolls back cleanly on service launch failure, cancellation carries operation IDs to avoid stale cancels, terminal events are replay-safe, and the service removes foreground notifications promptly on cancel.
+- **Browser Operation State:** Browser operation status now stays aligned with foreground operation state across completion and recreation races; `ClipboardDelegate` remains a single-purpose initiator with event consumption centralized in the ViewModel.
+- **Home Timeout Semantics:** Home analytics timeouts now keep prior complete per-volume category data instead of publishing a newly partial map as complete.
+- **Folder Stats Retry Guard:** Permanently unavailable folder-stat paths now stop requeueing after bounded retries while preserving injected/test-owned worker scope cleanup.
+- **Release Error Visibility:** `AppLogger.e` now logs in release builds so production failures in trash, storage, and file-operation code paths no longer disappear silently.
+- **Recent Files Trash Consistency:** Recent Files deletions now follow the shared foreground trash/delete pipeline, matching Browser behavior for long-running destructive operations.
+- **Scoped Volume Preload:** `DefaultVolumeProvider` now uses an injected application coroutine scope instead of `GlobalScope`, keeping storage-root preloading lifecycle-aware and test-friendlier.
+- **Folder Stats Test Hang Fix:** Eliminated a late-suite JVM test stall caused by `FolderStatsStoreTest` racing a hot `SharedFlow` subscription against background folder-stat emissions.
+- **Folder Stats Worker Cleanup:** `DefaultFolderStatsStore` now exposes explicit scope shutdown for tests, preventing its private worker coroutines from lingering past test teardown.
+- **Isolated DataStore Tests:** Browser preferences and storage-classification repository tests now use per-test `DataStore` instances, removing shared on-disk state that could overlap across the suite.
+
+### Performance & UI
+- **Stable Lazy Item Identity:** Browser, Home, Recent Files, and Trash lists now use stable model-backed keys, reducing list churn and preserving scroll and animation identity during refreshes and resorting.
+- **Composable Slot Reuse Hints:** Added `contentType` discriminators to the main lazy file and trash collections so Compose can recycle item content more predictably.
+- **Compose State Stability Audit:** Confirmed `BrowserState` is explicitly marked `@Immutable`, keeping the remediation tracker aligned with the current implementation.
+
+### Concurrency
+- **Thread-Safe Volume Prompt Suppression:** Home screen prompt suppression now uses a concurrent key set, avoiding races during rapid volume refresh and classification changes.
+
+### Maintenance
+- **Task Tracker Sync:** Marked the completed remediation items in `TASKS.md` and advanced the project metadata to `0.6.1`.
+- **Regression Coverage Hardening:** Tightened the affected coroutine and persistence tests with eager collectors, explicit teardown, and timeout-bounded assertions so future concurrency regressions fail fast instead of hanging the run.
+- **Security/Correctness Tracker Sync:** Marked the 0.6.1 Security & Privacy and Correctness & Reliability remediation items complete after unit and release-build verification. The clipboard duplicate-consumption item was confirmed already resolved by single-owner ViewModel event handling and covered by foreground-operation regression tests.
 
 ## [0.6.0] - 2026-04-19
 

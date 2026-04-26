@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Folder
@@ -80,8 +81,11 @@ fun FileList(
     LaunchedEffect(files) { lastInteractedIndex = null }
 
     LazyColumn(modifier = modifier.fillMaxWidth(), state = listState) {
-        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
-            val file = files[index]
+        itemsIndexed(
+            items = files,
+            key = { _, file -> file.absolutePath },
+            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+        ) { index, file ->
             FileItemRow(
                 modifier = Modifier.animateItem(),
                 file = file,

@@ -50,7 +50,11 @@ fun TrashList(
     val formatter = rememberDateFormatter("MMM dd, yyyy \u2022 HH:mm")
 
     LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        items(files, key = { it.id }) { trashItem ->
+        items(
+            items = files,
+            key = { it.id },
+            contentType = { if (it.fileModel.isDirectory) "trash_directory" else "trash_file" }
+        ) { trashItem ->
             val isSelected = selectedFiles.contains(trashItem.id)
             
             ElevatedCard(

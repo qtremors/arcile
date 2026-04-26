@@ -548,7 +548,11 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        items(displayedRecentFiles, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
+                        items(
+                            items = displayedRecentFiles,
+                            key = { it.absolutePath },
+                            contentType = { if (it.isDirectory) "directory" else "file" }
+                        ) { file ->
 
                             FileItemRow(
                                 file = file,

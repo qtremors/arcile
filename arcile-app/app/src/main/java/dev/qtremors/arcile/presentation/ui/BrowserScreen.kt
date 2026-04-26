@@ -94,6 +94,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -386,7 +387,6 @@ fun BrowserScreen(
         val secondaryLabel = operation.currentPath
             ?.substringAfterLast(File.separatorChar)
             ?.takeIf { it.isNotBlank() }
-        val percentageLabel = progress?.let { "${(it * 100).toInt()}%" }
         val operationIcon = if (operation.type == BulkFileOperationType.MOVE) {
             Icons.Default.ContentCut
         } else {
@@ -395,6 +395,7 @@ fun BrowserScreen(
 
         ExtendedFloatingActionButton(
             onClick = onCancel,
+            modifier = Modifier.testTag("active_file_operation_fab"),
             containerColor = containerColor,
             contentColor = contentColor,
             shape = MaterialTheme.shapes.extraLarge,
@@ -432,12 +433,14 @@ fun BrowserScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = listOfNotNull(percentageLabel, secondaryLabel).joinToString(" • "),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    secondaryLabel?.let { label ->
+                        Text(
+                            text = label,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             }
         )
@@ -616,7 +619,11 @@ fun BrowserScreen(
                             } else {
                                 val formatter = rememberDateFormatter("MMM dd, yyyy")
                                 LazyColumn(modifier = Modifier.weight(1f)) {
-                                    items(state.searchResults, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
+                                    items(
+                                        items = state.searchResults,
+                                        key = { it.absolutePath },
+                                        contentType = { if (it.isDirectory) "directory" else "file" }
+                                    ) { file ->
                                         FileItemRow(
                                             file = file,
                                             formattedDate = formatter.format(Date(file.lastModified)),

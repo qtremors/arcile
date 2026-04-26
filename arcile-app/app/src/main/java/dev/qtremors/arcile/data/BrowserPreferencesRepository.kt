@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -29,13 +31,16 @@ interface BrowserPreferencesStore {
     )
 }
 
-class BrowserPreferencesRepository(private val context: Context) : BrowserPreferencesStore {
+class BrowserPreferencesRepository(
+    context: Context,
+    private val dataStore: DataStore<Preferences> = context.browserDataStore
+) : BrowserPreferencesStore {
     private val GLOBAL_SORT_KEY = stringPreferencesKey("global_sort_option")
     private val GLOBAL_VIEW_MODE_KEY = stringPreferencesKey("global_view_mode")
     private val GLOBAL_LIST_ZOOM_KEY = floatPreferencesKey("global_list_zoom")
     private val GLOBAL_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("global_grid_min_cell_size")
 
-    override val preferencesFlow: Flow<BrowserPreferences> = context.browserDataStore.data
+    override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -134,7 +139,7 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
 
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         val normalized = presentation.normalized()
-        context.browserDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[GLOBAL_SORT_KEY] = normalized.sortOption.name
             prefs[GLOBAL_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[GLOBAL_LIST_ZOOM_KEY] = normalized.listZoom
@@ -151,7 +156,7 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
         val keys = presentationKeys(normalizedPath, applyToSubfolders)
         val keysToClear = presentationKeys(normalizedPath, true).all() + presentationKeys(normalizedPath, false).all()
 
-        context.browserDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             keysToClear.forEach { prefs.remove(it) }
             if (presentation != null) {
                 val normalized = presentation.normalized()

@@ -24,7 +24,7 @@ interface BulkFileOperationCoordinator {
     fun startOperation(
         type: BulkFileOperationType,
         sourcePaths: List<String>,
-        destinationPath: String,
+        destinationPath: String?,
         resolutions: Map<String, ConflictResolution>
     ): Boolean
 
@@ -45,6 +45,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
+        replay = 1,
         extraBufferCapacity = 64,
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
@@ -53,7 +54,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     override fun startOperation(
         type: BulkFileOperationType,
         sourcePaths: List<String>,
-        destinationPath: String,
+        destinationPath: String?,
         resolutions: Map<String, ConflictResolution>
     ): Boolean {
         if (_activeRequest.value != null) return false
@@ -72,8 +73,14 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             action = BulkFileOperationService.ACTION_START
             putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, json.encodeToString(request))
         }
-        ContextCompat.startForegroundService(context, intent)
-        return true
+        return try {
+            ContextCompat.startForegroundService(context, intent)
+            true
+        } catch (e: Exception) {
+            _activeRequest.value = null
+            _events.tryEmit(BulkFileOperationEvent.Failed(request, e.message ?: "Failed to start file operation"))
+            false
+        }
     }
 
     override fun cancelActiveOperation() {
@@ -82,6 +89,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         }
         val intent = Intent(context, BulkFileOperationService::class.java).apply {
             action = BulkFileOperationService.ACTION_CANCEL
+            putExtra(BulkFileOperationService.EXTRA_OPERATION_ID, _activeRequest.value?.operationId)
         }
         context.startService(intent)
     }

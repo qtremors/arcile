@@ -35,14 +35,22 @@ class BulkFileOperationService : Service() {
     private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
+    private var latestStartId: Int = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        latestStartId = startId
         when (intent?.action) {
             ACTION_CANCEL -> {
-                currentRequest?.let { coordinator.onOperationCancelling(it) }
-                currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
+                val cancelOperationId = intent.getStringExtra(EXTRA_OPERATION_ID)
+                val request = currentRequest
+                if (request != null && cancelOperationId == request.operationId) {
+                    coordinator.onOperationCancelling(request)
+                    currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf(startId)
+                }
                 return START_NOT_STICKY
             }
             ACTION_START -> {
@@ -55,18 +63,20 @@ class BulkFileOperationService : Service() {
                         val result = when (request.type) {
                             BulkFileOperationType.COPY -> repository.copyFiles(
                                 request.sourcePaths,
-                                request.destinationPath,
+                                requireNotNull(request.destinationPath) { "Destination path is required for copy" },
                                 request.resolutions
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                             }
                             BulkFileOperationType.MOVE -> repository.moveFiles(
                                 request.sourcePaths,
-                                request.destinationPath,
+                                requireNotNull(request.destinationPath) { "Destination path is required for move" },
                                 request.resolutions
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                             }
+                            BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths)
+                            BulkFileOperationType.DELETE -> repository.deletePermanently(request.sourcePaths)
                         }
 
                         result.onSuccess {
@@ -81,7 +91,7 @@ class BulkFileOperationService : Service() {
                         currentRequest = null
                         currentOperationJob = null
                         stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf(startId)
+                        stopSelf(latestStartId)
                     }
                 }
             }
@@ -96,10 +106,11 @@ class BulkFileOperationService : Service() {
 
     private fun buildNotification(request: BulkFileOperationRequest): Notification {
         ensureChannel()
-        val title = if (request.type == BulkFileOperationType.MOVE) {
-            "Moving files"
-        } else {
-            "Copying files"
+        val title = when (request.type) {
+            BulkFileOperationType.COPY -> "Copying files"
+            BulkFileOperationType.MOVE -> "Moving files"
+            BulkFileOperationType.TRASH -> "Moving files to Trash"
+            BulkFileOperationType.DELETE -> "Deleting files"
         }
         val content = "Processing ${request.sourcePaths.size} item(s) in the background"
 
@@ -130,6 +141,7 @@ class BulkFileOperationService : Service() {
         const val ACTION_START = "dev.qtremors.arcile.action.START_BULK_FILE_OPERATION"
         const val ACTION_CANCEL = "dev.qtremors.arcile.action.CANCEL_BULK_FILE_OPERATION"
         const val EXTRA_REQUEST_JSON = "bulk_request_json"
+        const val EXTRA_OPERATION_ID = "bulk_operation_id"
 
         private const val CHANNEL_ID = "bulk_file_operations"
         private const val NOTIFICATION_ID = 1001

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Folder
@@ -83,8 +84,11 @@ fun FileGrid(
         state = gridState,
         modifier = modifier.fillMaxWidth()
     ) {
-        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
-            val file = files[index]
+        itemsIndexed(
+            items = files,
+            key = { _, file -> file.absolutePath },
+            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+        ) { index, file ->
             FileGridItem(
                 modifier = Modifier.animateItem(),
                 file = file,

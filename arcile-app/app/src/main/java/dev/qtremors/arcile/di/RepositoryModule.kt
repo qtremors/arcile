@@ -25,11 +25,21 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
 import dev.qtremors.arcile.ui.theme.ThemePreferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
+
+    @Provides
+    @Singleton
+    @ApplicationScope
+    fun provideApplicationScope(): CoroutineScope {
+        return CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    }
 
     @Provides
     @Singleton
@@ -59,9 +69,10 @@ object RepositoryModule {
     @Singleton
     fun provideVolumeProvider(
         @ApplicationContext context: Context,
-        classificationRepository: StorageClassificationRepository
+        classificationRepository: StorageClassificationRepository,
+        @ApplicationScope applicationScope: CoroutineScope
     ): VolumeProvider {
-        return DefaultVolumeProvider(context, classificationRepository)
+        return DefaultVolumeProvider(context, classificationRepository, applicationScope)
     }
 
     @Provides

@@ -4,6 +4,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -397,9 +398,9 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Copying 1/3").assertExists()
+        composeRule.onNodeWithTag("active_file_operation_fab").assertExists()
         composeRule.onAllNodesWithContentDescription("Create new").assertCountEquals(0)
-        composeRule.onNodeWithText("Copying 1/3").performClick()
+        composeRule.onNodeWithTag("active_file_operation_fab").performClick()
 
         assertEquals(1, cancelCalls)
     }

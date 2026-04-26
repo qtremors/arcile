@@ -25,7 +25,6 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import io.mockk.mockk
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
-import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
@@ -66,7 +65,6 @@ class BrowserViewModelTest {
             browserPreferencesRepository = browserPreferencesRepository,
             savedStateHandle = savedStateHandle,
             getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
-            moveToTrashUseCase = MoveToTrashUseCase(repository),
             bulkFileOperationCoordinator = bulkFileOperationCoordinator
         )
     }
@@ -300,16 +298,14 @@ class BrowserViewModelTest {
     }
 
     @Test
-    fun `moveSelectedToTrash surfaces native confirmation request`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `moveSelectedToTrash starts foreground trash operation`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val repo = BrowserFakeFileRepository(
-            volumes = listOf(internal),
-            moveToTrashResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
-        )
+        val coordinator = FakeBulkFileOperationCoordinator()
         val viewModel = createViewModel(
-            repository = repo,
+            repository = BrowserFakeFileRepository(volumes = listOf(internal)),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
-            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
         )
 
         advanceUntilIdle()
@@ -320,21 +316,20 @@ class BrowserViewModelTest {
         viewModel.moveSelectedToTrash()
         advanceUntilIdle()
 
-        assertEquals(BrowserNativeAction.TRASH, viewModel.state.value.pendingNativeAction)
-        assertFalse(viewModel.state.value.isLoading)
+        assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
+        assertEquals(listOf("/storage/emulated/0/alpha.txt"), coordinator.startedRequests.single().sourcePaths)
+        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
     }
 
     @Test
-    fun `native confirmation requests are not replayed and pending action clears after handling`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `foreground trash operation does not emit native confirmation request`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val repo = BrowserFakeFileRepository(
-            volumes = listOf(internal),
-            moveToTrashResult = Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
-        )
+        val coordinator = FakeBulkFileOperationCoordinator()
         val viewModel = createViewModel(
-            repository = repo,
+            repository = BrowserFakeFileRepository(volumes = listOf(internal)),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
-            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
         )
 
         viewModel.nativeRequestFlow.test {
@@ -345,9 +340,7 @@ class BrowserViewModelTest {
             viewModel.moveSelectedToTrash()
             advanceUntilIdle()
 
-            awaitItem()
             expectNoEvents()
-            viewModel.handleNativeActionResult(confirmed = false)
             assertNull(viewModel.state.value.pendingNativeAction)
             cancelAndIgnoreRemainingEvents()
         }
@@ -785,16 +778,18 @@ private class BrowserFakeFileRepository(
 private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
     override val activeRequest = _activeRequest
-    private val _events = MutableSharedFlow<BulkFileOperationEvent>()
+    private val _events = MutableSharedFlow<BulkFileOperationEvent>(extraBufferCapacity = 16)
     override val events = _events
+    val startedRequests = mutableListOf<BulkFileOperationRequest>()
 
     override fun startOperation(
         type: BulkFileOperationType,
         sourcePaths: List<String>,
-        destinationPath: String,
+        destinationPath: String?,
         resolutions: Map<String, ConflictResolution>
     ): Boolean {
         val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions)
+        startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))
         return true

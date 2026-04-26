@@ -6,7 +6,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class BulkFileOperationType {
     COPY,
-    MOVE
+    MOVE,
+    TRASH,
+    DELETE
 }
 
 @Serializable
@@ -14,7 +16,7 @@ data class BulkFileOperationRequest(
     val operationId: String,
     val type: BulkFileOperationType,
     val sourcePaths: List<String>,
-    val destinationPath: String,
+    val destinationPath: String? = null,
     val resolutions: Map<String, ConflictResolution> = emptyMap()
 )
 

@@ -1,6 +1,9 @@
 package dev.qtremors.arcile.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -10,31 +13,52 @@ import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.FileSortOption
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
+import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class BrowserPreferencesRepositoryTest {
 
     private lateinit var context: Context
+    private lateinit var dataStoreFile: File
+    private lateinit var dataStoreScope: CoroutineScope
+    private lateinit var dataStore: DataStore<Preferences>
 
     @Before
     fun setUp() {
         context = ApplicationProvider.getApplicationContext()
-        runBlocking {
-            context.browserDataStore.edit { it.clear() }
-        }
+        dataStoreFile = File(
+            context.filesDir,
+            "datastore/browser-prefs-test-${UUID.randomUUID()}.preferences_pb"
+        )
+        dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        dataStore = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { dataStoreFile }
+        )
+    }
+
+    @After
+    fun tearDown() {
+        dataStoreScope.cancel()
+        dataStoreFile.delete()
     }
 
     @Test
     fun `defaults to name ascending with empty maps`() = runBlocking {
-        val repository = BrowserPreferencesRepository(context)
+        val repository = BrowserPreferencesRepository(context, dataStore)
 
         val preferences = repository.preferencesFlow.first()
 
@@ -48,7 +72,7 @@ class BrowserPreferencesRepositoryTest {
 
     @Test
     fun `updatePathPresentation stores exact and recursive keys with normalized path`() = runBlocking {
-        val repository = BrowserPreferencesRepository(context)
+        val repository = BrowserPreferencesRepository(context, dataStore)
 
         repository.updatePathPresentation(
             "/storage/emulated/0/Download/",
@@ -81,7 +105,7 @@ class BrowserPreferencesRepositoryTest {
 
     @Test
     fun `clearing path presentation removes both exact and recursive values`() = runBlocking {
-        val repository = BrowserPreferencesRepository(context)
+        val repository = BrowserPreferencesRepository(context, dataStore)
 
         repository.updatePathPresentation(
             "/storage/emulated/0/Download",
@@ -98,13 +122,13 @@ class BrowserPreferencesRepositoryTest {
 
     @Test
     fun `invalid stored sort and view options fall back to defaults`() = runBlocking {
-        context.browserDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[stringPreferencesKey("global_sort_option")] = "NOT_REAL"
             prefs[stringPreferencesKey("global_view_mode")] = "NOPE"
             prefs[floatPreferencesKey("global_list_zoom")] = 9f
         }
 
-        val preferences = BrowserPreferencesRepository(context).preferencesFlow.first()
+        val preferences = BrowserPreferencesRepository(context, dataStore).preferencesFlow.first()
 
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
         assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)

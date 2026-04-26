@@ -16,7 +16,6 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
-import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.browser.delegate.ClipboardDelegate
@@ -101,7 +100,6 @@ class BrowserViewModel @Inject constructor(
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
-    private val moveToTrashUseCase: MoveToTrashUseCase,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
 
@@ -184,7 +182,14 @@ class BrowserViewModel @Inject constructor(
                 _state.update { it.copy(selectedFiles = emptySet()) }
             }
         },
-        executeMoveToTrash = { selected -> moveToTrashUseCase(selected) },
+        startBulkDeleteOperation = { type, selected ->
+            bulkFileOperationCoordinator.startOperation(
+                type = type,
+                sourcePaths = selected,
+                destinationPath = null,
+                resolutions = emptyMap()
+            )
+        },
         emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
         onSuccess = { navigationDelegate.refresh() }
     )
@@ -279,6 +284,8 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Started -> {
                         _state.update {
                             it.copy(
+                                isLoading = true,
+                                error = null,
                                 activeFileOperation = BrowserFileOperationUiState(
                                     type = event.request.type,
                                     totalItems = event.request.sourcePaths.size,
@@ -291,6 +298,7 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Progress -> {
                         _state.update {
                             it.copy(
+                                isLoading = true,
                                 activeFileOperation = BrowserFileOperationUiState(
                                     type = event.request.type,
                                     totalItems = event.progress.totalItems,
@@ -306,6 +314,7 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Cancelling -> {
                         _state.update { currentState ->
                             currentState.copy(
+                                isLoading = true,
                                 activeFileOperation = currentState.activeFileOperation?.copy(isCancelling = true)
                                     ?: BrowserFileOperationUiState(
                                         type = event.request.type,
@@ -318,7 +327,9 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Completed -> {
                         _state.update {
                             it.copy(
+                                isLoading = false,
                                 activeFileOperation = null,
+                                clipboardState = null,
                                 fileOperationStatusMessage = formatOperationCompletedMessage(
                                     type = event.request.type,
                                     itemCount = event.request.sourcePaths.size
@@ -329,6 +340,7 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Failed -> {
                         _state.update {
                             it.copy(
+                                isLoading = false,
                                 activeFileOperation = null,
                                 fileOperationStatusMessage = event.message
                             )
@@ -337,6 +349,7 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Cancelled -> {
                         _state.update {
                             it.copy(
+                                isLoading = false,
                                 activeFileOperation = null,
                                 fileOperationStatusMessage = "File operation cancelled"
                             )
@@ -554,7 +567,12 @@ class BrowserViewModel @Inject constructor(
         type: BulkFileOperationType,
         itemCount: Int
     ): String {
-        val verb = if (type == BulkFileOperationType.MOVE) "Moved" else "Copied"
+        val verb = when (type) {
+            BulkFileOperationType.COPY -> "Copied"
+            BulkFileOperationType.MOVE -> "Moved"
+            BulkFileOperationType.TRASH -> "Moved to Trash"
+            BulkFileOperationType.DELETE -> "Deleted"
+        }
         return "$verb $itemCount item(s)"
     }
 }

@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -36,12 +38,15 @@ interface StorageClassificationStore {
     suspend fun resetClassification(storageKey: String)
 }
 
-class StorageClassificationRepository(private val context: Context) : StorageClassificationStore {
+class StorageClassificationRepository(
+    context: Context,
+    private val dataStore: DataStore<Preferences> = context.classificationDataStore
+) : StorageClassificationStore {
 
     private val jsonFormat = Json { ignoreUnknownKeys = true }
 
     override fun observeClassifications(): Flow<Map<String, StorageClassification>> {
-        return context.classificationDataStore.data.map { prefs ->
+        return dataStore.data.map { prefs ->
             val result = mutableMapOf<String, StorageClassification>()
             prefs.asMap().forEach { (key, value) ->
                 if (value is String) {
@@ -60,7 +65,7 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
 
     override suspend fun getClassification(storageKey: String): StorageClassification? {
         val key = stringPreferencesKey(storageKey)
-        val prefs = context.classificationDataStore.data.first()
+        val prefs = dataStore.data.first()
         val jsonString = prefs[key] ?: return null
         return try {
             jsonFormat.decodeFromString<StorageClassification>(jsonString)
@@ -87,14 +92,14 @@ class StorageClassificationRepository(private val context: Context) : StorageCla
         )
         val jsonString = jsonFormat.encodeToString(classification)
 
-        context.classificationDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[key] = jsonString
         }
     }
 
     override suspend fun resetClassification(storageKey: String) {
         val key = stringPreferencesKey(storageKey)
-        context.classificationDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs.remove(key)
         }
     }

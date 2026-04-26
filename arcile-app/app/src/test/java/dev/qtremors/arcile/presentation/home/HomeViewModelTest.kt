@@ -208,7 +208,7 @@ class HomeViewModelTest {
         advanceTimeBy(15_000)
         advanceUntilIdle()
 
-        assertEquals("Home data loading timed out. Showing partial data.", viewModel.state.value.error)
+        assertEquals("Home data loading timed out. Showing previous complete analytics where available.", viewModel.state.value.error)
         assertEquals(listOf("recent.txt"), viewModel.state.value.recentFiles.map { it.name })
         assertFalse(viewModel.state.value.isLoading)
         assertFalse(viewModel.state.value.isCalculatingStorage)

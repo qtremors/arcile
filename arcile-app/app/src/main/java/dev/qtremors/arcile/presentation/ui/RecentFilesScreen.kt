@@ -284,7 +284,11 @@ fun RecentFilesScreen(
                             }
                         }
 
-                        items(files, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
+                        items(
+                            items = files,
+                            key = { it.absolutePath },
+                            contentType = { if (it.isDirectory) "directory" else "file" }
+                        ) { file ->
                             FileItemRow(
                                 file = file,
                                 formattedDate = formatter.format(Date(file.lastModified)),
