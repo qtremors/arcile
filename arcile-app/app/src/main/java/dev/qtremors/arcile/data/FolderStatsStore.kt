@@ -44,7 +44,7 @@ private data class FolderStatsCacheEntity(
 @Singleton
 class DefaultFolderStatsStore @Inject constructor(
     @ApplicationContext context: Context,
-    private val calculator: (File) -> FolderStats = FolderStatsCalculator::calculate,
+    private val calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null,
     private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
@@ -144,7 +144,7 @@ class DefaultFolderStatsStore @Inject constructor(
         }
     }
 
-    private fun calculate(path: String): FolderStats {
+    private suspend fun calculate(path: String): FolderStats {
         return try {
             calculator(File(path))
         } catch (e: Exception) {

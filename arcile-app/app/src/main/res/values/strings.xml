@@ -340,4 +340,5 @@
     <string name="file_operation_cancelling">Cancelling…</string>
     <string name="file_operation_progress">%1$s %2$d/%3$d</string>
     <string name="file_operation_progress_bytes">%1$s %2$s / %3$s</string>
+    <string name="invert_selection">Invert Selection</string>
 </resources>

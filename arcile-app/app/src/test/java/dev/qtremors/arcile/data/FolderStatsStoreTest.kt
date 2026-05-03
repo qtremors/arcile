@@ -149,6 +149,19 @@ class FolderStatsStoreTest {
     }
 
     @Test
+    fun `folder stats calculator returns partial when node limit is exceeded`() = runBlocking {
+        val folder = File(root, "Huge").apply { mkdirs() }
+        repeat(5) { index ->
+            File(folder, "file-$index.txt").writeText("x")
+        }
+
+        val stats = FolderStatsCalculator.calculate(folder, nodeLimit = 3)
+
+        assertEquals(FolderStatsStatus.Partial, stats.status)
+        assertTrue(stats.fileCount <= 3L)
+    }
+
+    @Test
     fun `unavailable calculator result is persisted and published`() = runBlocking {
         val folder = File(root, "Restricted").apply { mkdirs() }
         val store = trackedStore(
@@ -175,7 +188,7 @@ class FolderStatsStoreTest {
 
     private fun trackedStore(
         context: Context,
-        calculator: (File) -> FolderStats = FolderStatsCalculator::calculate,
+        calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
         onCalculationStarted: ((String) -> Unit)? = null,
         beforePublish: ((String) -> Unit)? = null
     ): DefaultFolderStatsStore {

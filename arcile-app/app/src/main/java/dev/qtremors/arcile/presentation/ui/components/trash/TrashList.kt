@@ -45,11 +45,15 @@ import java.util.Date
 fun TrashList(
     files: List<TrashMetadata>,
     selectedFiles: Set<String>,
-    onToggleSelection: (String) -> Unit
+    onToggleSelection: (String) -> Unit,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy \u2022 HH:mm")
 
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = contentPadding
+    ) {
         items(
             items = files,
             key = { it.id },

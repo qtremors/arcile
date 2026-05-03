@@ -326,4 +326,5 @@ class NavigationDelegate(
             )
         }
     }
+
 }

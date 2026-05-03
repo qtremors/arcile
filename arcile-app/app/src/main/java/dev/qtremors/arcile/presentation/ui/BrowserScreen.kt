@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -52,10 +53,17 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -91,6 +99,7 @@ import androidx.compose.runtime.setValue
 
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -102,6 +111,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
@@ -120,6 +130,7 @@ import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
 import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
@@ -159,32 +170,6 @@ import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
  *
  * Supports list and grid views, multi-select with range selection, inline search with filters,
  * file creation, rename, delete (via trash), copy/cut/paste clipboard, share, and pull-to-refresh.
- *
- * @param state Current [BrowserState] containing file list, selection, search, and clipboard state.
- * @param onNavigateBack Called when the user navigates back (hardware back or top bar back button).
- * @param onNavigateTo Called with the target directory path when the user opens a folder.
- * @param onOpenFile Called with the file path when the user opens a non-directory file.
- * @param onToggleSelection Toggles selection state for the given file path.
- * @param onSelectMultiple Selects all provided file paths (used for range selection).
- * @param onClearSelection Clears all current selections.
- * @param onCreateFolder Creates a new directory with the given name in the current directory.
- * @param onCreateFile Creates a new empty file with the given name in the current directory.
- * @param onDeleteSelected Moves all currently selected items to trash.
- * @param onRenameFile Renames the file at [path] to [newName].
- * @param onSearchQueryChange Updates the search query in the ViewModel.
- * @param onClearSearch Clears the active search query.
- * @param onSortOptionChange Updates the sort option for the current directory listing.
- * @param onGridViewChange Switches between list and grid view layouts.
- * @param onClearError Clears the current error message from state.
- * @param onCopySelected Stages selected files for a copy operation.
- * @param onCutSelected Stages selected files for a move operation.
- * @param onPasteFromClipboard Executes the pending clipboard operation in the current directory.
- * @param onCancelClipboard Cancels the current clipboard operation.
- * @param onShareSelected Launches the system share sheet for selected files.
- * @param isRefreshing `true` while a pull-to-refresh reload is in progress.
- * @param onRefresh Triggers a directory reload (invoked by pull-to-refresh).
- * @param onSearchFiltersChange Updates the active search filters.
- * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
 private data class FileManagerContentKey(
     val isSearch: Boolean,
@@ -230,10 +215,11 @@ fun BrowserScreen(
     onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
     onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
     onNativeRequestResult: (Boolean) -> Unit = {},
+    onInvertSelection: (List<String>) -> Unit = {},
+    onSelectAll: (List<String>) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCreateFileDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
@@ -271,7 +257,6 @@ fun BrowserScreen(
         }
     }
 
-    // Always show full folder contents — search results only appear in the dropdown
     val displayedFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
     }
@@ -317,7 +302,6 @@ fun BrowserScreen(
         }
     }
 
-    // Show clipboard feedback snackbar
     LaunchedEffect(state.clipboardState) {
         state.clipboardState?.let { clipboard ->
             val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
@@ -328,7 +312,6 @@ fun BrowserScreen(
         }
     }
 
-    // Show error as Snackbar instead of blocking dialog
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
@@ -485,22 +468,25 @@ fun BrowserScreen(
                     )
                 }
             } else {
+                val selectedSizeFormatted = if (state.selectedFiles.isNotEmpty()) {
+                    formatFileSize(state.selectedFilesTotalSize)
+                } else null
+
                 ArcileTopBar(
                     title = if (state.isCategoryScreen) state.activeCategoryName else stringResource(R.string.browse_title),
                     selectionCount = state.selectedFiles.size,
+                    selectedSize = selectedSizeFormatted,
                     showBackArrow = true,
+                    showSearchAction = true,
                     showSortAction = !state.isVolumeRootScreen,
                     showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
                     showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty(),
                     isGridView = state.browserViewMode == BrowserViewMode.GRID,
-                    hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
                     onBackClick = onNavigateBack,
                     onClearSelection = onClearSelection,
                     onSearchClick = { showSearchBar = true },
                     onSortClick = { showSortDialog = true },
-                    onPasteClick = onPasteFromClipboard,
-                    onCancelPaste = onCancelClipboard,
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
@@ -518,7 +504,8 @@ fun BrowserScreen(
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
-                            TopBarAction.SelectAll -> onSelectMultiple(displayedFiles.map { it.absolutePath })
+                            TopBarAction.SelectAll -> onSelectAll(displayedFiles.map { it.absolutePath })
+                            TopBarAction.InvertSelection -> onInvertSelection(displayedFiles.map { it.absolutePath })
                             TopBarAction.Properties -> onOpenProperties()
                             else -> {}
                         }
@@ -526,13 +513,16 @@ fun BrowserScreen(
                 )
             }
         },
+        bottomBar = {},
         floatingActionButton = {
             if (state.activeFileOperation != null) {
-                ActiveFileOperationFabInternal(
-                    operation = state.activeFileOperation,
-                    onCancel = onCancelClipboard
-                )
-            } else if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
+                Box(modifier = Modifier.widthIn(max = 280.dp)) {
+                    ActiveFileOperationFabInternal(
+                        operation = state.activeFileOperation,
+                        onCancel = onCancelClipboard
+                    )
+                }
+            } else if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen && state.clipboardState == null) {
                 Box {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
@@ -572,7 +562,6 @@ fun BrowserScreen(
 
         Box(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
                 .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
                 .pointerInput(Unit) {
@@ -596,7 +585,6 @@ fun BrowserScreen(
                     )
                 }
         ) {
-            // When search has completed, show search results instead of browse content
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
             val targetKey = FileManagerContentKey(
@@ -606,151 +594,168 @@ fun BrowserScreen(
                 isRoot = state.isVolumeRootScreen
             )
 
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = padding.calculateTopPadding())
+            ) {
                 if (targetKey.isSearch) {
-                            // Search results in the content area
-                            if (state.searchResults.isEmpty()) {
-                                EmptyState(
-                                    icon = Icons.Default.SearchOff,
-                                    title = stringResource(R.string.no_results_found),
-                                    description = stringResource(R.string.no_results_description, state.browserSearchQuery),
-                                    modifier = Modifier.weight(1f)
+                    if (state.searchResults.isEmpty()) {
+                        EmptyState(
+                            icon = Icons.Default.SearchOff,
+                            title = stringResource(R.string.no_results_found),
+                            description = stringResource(R.string.no_results_description, state.browserSearchQuery),
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        val formatter = rememberDateFormatter("MMM dd, yyyy")
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(
+                                items = state.searchResults,
+                                key = { it.absolutePath },
+                                contentType = { if (it.isDirectory) "directory" else "file" }
+                            ) { file ->
+                                FileItemRow(
+                                    file = file,
+                                    formattedDate = formatter.format(Date(file.lastModified)),
+                                    isSelected = false,
+                                    onClick = {
+                                        showSearchBar = false
+                                        onClearSearch()
+                                        if (file.isDirectory) {
+                                            onNavigateTo(file.absolutePath)
+                                        } else {
+                                            onOpenFile(file.absolutePath)
+                                        }
+                                    },
+                                    onLongClick = {}
                                 )
-                            } else {
-                                val formatter = rememberDateFormatter("MMM dd, yyyy")
-                                LazyColumn(modifier = Modifier.weight(1f)) {
-                                    items(
-                                        items = state.searchResults,
-                                        key = { it.absolutePath },
-                                        contentType = { if (it.isDirectory) "directory" else "file" }
-                                    ) { file ->
-                                        FileItemRow(
-                                            file = file,
-                                            formattedDate = formatter.format(Date(file.lastModified)),
-                                            isSelected = false,
-                                            onClick = {
-                                                showSearchBar = false
-                                                onClearSearch()
-                                                if (file.isDirectory) {
-                                                    onNavigateTo(file.absolutePath)
-                                                } else {
-                                                    onOpenFile(file.absolutePath)
-                                                }
-                                            },
-                                            onLongClick = {}
-                                        )
-                                    }
-                                }
                             }
-                        } else if (showSearchBar && state.isSearching) {
-                            // Loading indicator while search is running
+                        }
+                    }
+                } else if (showSearchBar && state.isSearching) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                } else {
+                    if (!state.isVolumeRootScreen) {
+                        Breadcrumbs(
+                            currentPath = state.currentPath,
+                            storageVolumes = state.storageVolumes,
+                            onPathSegmentClick = { path ->
+                                onNavigateTo(path)
+                            }
+                        )
+                    }
+
+                    if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Text(
+                                text = if (currentVolume.kind == StorageKind.OTG) {
+                                    stringResource(R.string.browsing_temp_usb)
+                                } else {
+                                    stringResource(R.string.browsing_unclassified)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+
+                    val pullRefreshState = rememberPullToRefreshState()
+
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = onRefresh,
+                        state = pullRefreshState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        indicator = {
+                            ArcilePullRefreshIndicator(
+                                isRefreshing = isRefreshing,
+                                state = pullRefreshState
+                            )
+                        }
+                    ) {
+                        if (showLoading && state.files.isEmpty() && !isRefreshing) {
                             Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
                                 LoadingIndicator()
                             }
-                        } else {
-                            // Normal browse content
-                            if (!state.isVolumeRootScreen) {
-                                Breadcrumbs(
-                                    currentPath = state.currentPath,
-                                    storageVolumes = state.storageVolumes,
-                                    onPathSegmentClick = { path ->
-                                        onNavigateTo(path)
-                                    }
+                        } else if (state.isVolumeRootScreen) {
+                            dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
+                                volumes = state.storageVolumes,
+                                onNavigateTo = onNavigateTo,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    top = 8.dp,
+                                    bottom = padding.calculateBottomPadding() + 100.dp,
+                                    start = padding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                                    end = padding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
                                 )
-                            }
-
-                            if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    shape = MaterialTheme.shapes.extraLarge,
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                                ) {
-                                    Text(
-                                        text = if (currentVolume.kind == StorageKind.OTG) {
-                                            stringResource(R.string.browsing_temp_usb)
-                                        } else {
-                                            stringResource(R.string.browsing_unclassified)
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(16.dp)
-                                    )
-                                }
-                            }
-
-                            val pullRefreshState = rememberPullToRefreshState()
-
-                            PullToRefreshBox(
-                                isRefreshing = isRefreshing,
-                                onRefresh = onRefresh,
-                                state = pullRefreshState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                indicator = {
-                                    ArcilePullRefreshIndicator(
-                                        isRefreshing = isRefreshing,
-                                        state = pullRefreshState
-                                    )
-                                }
-                            ) {
-                                if (showLoading && state.files.isEmpty() && !isRefreshing) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        LoadingIndicator()
-                                    }
-                                } else if (state.isVolumeRootScreen) {
-                                    dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
-                                        volumes = state.storageVolumes,
-                                        onNavigateTo = onNavigateTo,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else if (displayedFiles.isEmpty() && !state.isLoading) {
-                                    EmptyState(
-                                        icon = Icons.Default.FolderOff,
-                                        title = stringResource(R.string.empty_directory),
-                                        description = stringResource(R.string.empty_directory_description),
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else if (state.browserViewMode == BrowserViewMode.GRID && !state.isVolumeRootScreen) {
-                                     FileGrid(
-                                         files = displayedFiles,
-                                         selectedFiles = state.selectedFiles,
-                                        onNavigateTo = onNavigateTo,
-                                        onOpenFile = onOpenFile,
-                                         onToggleSelection = onToggleSelection,
-                                         onSelectMultiple = onSelectMultiple,
-                                         modifier = Modifier.fillMaxSize(),
-                                         gridState = gridState,
-                                         minCellSize = state.browserGridMinCellSize.dp,
-                                         folderStatsByPath = state.folderStatsByPath,
-                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
-                                     )
-                                 } else {
-                                     FileList(
-                                        files = displayedFiles,
-                                        selectedFiles = state.selectedFiles,
-                                        onNavigateTo = onNavigateTo,
-                                        onOpenFile = onOpenFile,
-                                         onToggleSelection = onToggleSelection,
-                                         onSelectMultiple = onSelectMultiple,
-                                         modifier = Modifier.fillMaxSize(),
-                                         listState = listState,
-                                         zoom = state.browserListZoom,
-                                         folderStatsByPath = state.folderStatsByPath,
-                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
-                                     )
-                                 }
-                            }
+                            )
+                        } else if (displayedFiles.isEmpty() && !state.isLoading) {
+                            EmptyState(
+                                icon = Icons.Default.FolderOff,
+                                title = stringResource(R.string.empty_directory),
+                                description = stringResource(R.string.empty_directory_description),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (state.browserViewMode == BrowserViewMode.GRID) {
+                             FileGrid(
+                                 files = displayedFiles,
+                                 selectedFiles = state.selectedFiles,
+                                onNavigateTo = onNavigateTo,
+                                onOpenFile = onOpenFile,
+                                 onToggleSelection = onToggleSelection,
+                                 onSelectMultiple = onSelectMultiple,
+                                 modifier = Modifier.fillMaxSize(),
+                                 gridState = gridState,
+                                 minCellSize = state.browserGridMinCellSize.dp,
+                                 folderStatsByPath = state.folderStatsByPath,
+                                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                                 contentPadding = PaddingValues(
+                                     top = 8.dp,
+                                     bottom = padding.calculateBottomPadding() + 100.dp,
+                                     start = 8.dp,
+                                     end = 8.dp
+                                 )
+                             )
+                         } else {
+                             FileList(
+                                files = displayedFiles,
+                                selectedFiles = state.selectedFiles,
+                                onNavigateTo = onNavigateTo,
+                                onOpenFile = onOpenFile,
+                                 onToggleSelection = onToggleSelection,
+                                 onSelectMultiple = onSelectMultiple,
+                                 modifier = Modifier.fillMaxSize(),
+                                 listState = listState,
+                                 zoom = state.browserListZoom,
+                                 folderStatsByPath = state.folderStatsByPath,
+                                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                                 contentPadding = PaddingValues(
+                                     top = 8.dp,
+                                     bottom = padding.calculateBottomPadding() + 100.dp
+                                 )
+                             )
+                         }
+                    }
                 }
             }
 
@@ -765,6 +770,140 @@ fun BrowserScreen(
                         )
                 )
             }
+
+            // Floating Selection Toolbar Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                if (state.selectedFiles.isNotEmpty()) {
+                    val mainActions = mutableListOf<ToolbarAction>()
+                    mainActions.add(ToolbarAction(
+                        icon = Icons.Default.ContentCopy,
+                        contentDescription = stringResource(R.string.action_copy),
+                        onClick = onCopySelected
+                    ))
+                    mainActions.add(ToolbarAction(
+                        icon = Icons.Default.ContentCut,
+                        contentDescription = stringResource(R.string.action_cut),
+                        onClick = onCutSelected
+                    ))
+                    mainActions.add(ToolbarAction(
+                        icon = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.action_delete_selected),
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = onRequestDeleteSelected
+                    ))
+                    if (state.selectedFiles.size == 1) {
+                        mainActions.add(ToolbarAction(
+                            icon = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.action_rename),
+                            onClick = { showRenameDialog = true }
+                        ))
+                    }
+                    
+                    dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                        isVisible = true,
+                        actions = mainActions,
+                        moreContent = {
+                            var showSelectionMenu by remember { mutableStateOf(false) }
+                            Box {
+                                Surface(
+                                    onClick = { showSelectionMenu = true },
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    shadowElevation = 4.dp,
+                                    tonalElevation = 4.dp,
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                                    }
+                                }
+                                androidx.compose.material3.DropdownMenu(
+                                    shape = MaterialTheme.shapes.extraLarge,
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    expanded = showSelectionMenu,
+                                    onDismissRequest = { showSelectionMenu = false }
+                                ) {
+                                    val menuActions = remember(onShareSelected, displayedFiles) {
+                                        mutableListOf<@Composable () -> Unit>().apply {
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.share)) },
+                                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onShareSelected()
+                                                    }
+                                                )
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.select_all)) },
+                                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onSelectMultiple(displayedFiles.map { it.absolutePath })
+                                                    }
+                                                )
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.properties_title)) },
+                                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onOpenProperties()
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    menuActions.forEachIndexed { index, action ->
+                                        val shape = when {
+                                            menuActions.size == 1 -> RoundedCornerShape(24.dp)
+                                            index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                            index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                                            else -> RoundedCornerShape(4.dp)
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                .clip(shape)
+                                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                        ) {
+                                            action()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    )
+                } else if (state.clipboardState != null) {
+                    val pasteActions = listOf(
+                        ToolbarAction(
+                            icon = Icons.Default.ContentPaste,
+                            contentDescription = stringResource(R.string.action_paste_here),
+                            onClick = onPasteFromClipboard
+                        ),
+                        ToolbarAction(
+                            icon = Icons.Default.Close,
+                            contentDescription = stringResource(R.string.action_cancel_transfer),
+                            tint = MaterialTheme.colorScheme.error,
+                            onClick = onCancelClipboard
+                        )
+                    )
+                    dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                        isVisible = true,
+                        actions = pasteActions
+                    )
+                }
+            }
         }
     }
 
@@ -775,88 +914,85 @@ fun BrowserScreen(
             onDismiss = { onToggleSearchFilterMenu(false) },
             showCategoryFilter = !state.isCategoryScreen
         )
-
     }
 
     // Dialogs
     if (showCreateFolderDialog) {
-            CreateFolderDialog(
-                onDismiss = { showCreateFolderDialog = false },
-                onConfirm = { name ->
-                    onCreateFolder(name)
-                    showCreateFolderDialog = false
-                }
-            )
-        }
-
-        if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
-            DeleteConfirmationDialog(
-                selectedCount = state.selectedFiles.size,
-                isPermanentDeleteChecked = state.isPermanentDeleteChecked,
-                isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
-                onConfirm = onConfirmDelete,
-                onDismiss = onDismissDeleteConfirmation,
-                onTogglePermanentDelete = onTogglePermanentDelete
-            )
-        }
-
-        if (state.showMixedDeleteExplanation) {
-            MixedDeleteExplanationDialog(
-                onDismiss = onDismissDeleteConfirmation
-            )
-        }
-
-        if (showCreateFileDialog) {
-            CreateFileDialog(
-                onDismiss = { showCreateFileDialog = false },
-                onConfirm = { fileName ->
-                    showCreateFileDialog = false
-                    onCreateFile(fileName)
-                }
-            )
-        }
-
-        if (showRenameDialog && state.selectedFiles.size == 1) {
-            val selectedPath = state.selectedFiles.first()
-            val currentName = selectedPath.substringAfterLast('/')
-            RenameDialog(
-                currentName = currentName,
-                onDismiss = { showRenameDialog = false },
-                onConfirm = { newName ->
-                    onRenameFile(selectedPath, newName)
-                    showRenameDialog = false
-                }
-            )
-        }
-
-        if (showSortDialog) {
-            SortOptionDialog(
-                title = stringResource(R.string.sort_folder_title),
-                selectedPreferences = currentPresentation,
-                showApplyToSubfolders = !state.isCategoryScreen,
-                onDismiss = { showSortDialog = false },
-                onApply = { presentation, applyToSubfolders ->
-                    onPresentationChange(presentation, applyToSubfolders)
-                    showSortDialog = false
-                }
-            )
-        }
-
-        if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
-            PasteConflictDialog(
-                conflicts = state.pasteConflicts,
-                onResolve = onResolvingConflicts,
-                onDismiss = onDismissConflictDialog
-            )
-        }
-
-        if (state.isPropertiesVisible) {
-            PropertiesDialog(
-                properties = state.properties,
-                isLoading = state.isPropertiesLoading,
-                onDismiss = onDismissProperties
-            )
-        }
-
-
+        CreateFolderDialog(
+            onDismiss = { showCreateFolderDialog = false },
+            onConfirm = { name ->
+                onCreateFolder(name)
+                showCreateFolderDialog = false
+            }
+        )
     }
+
+    if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = state.isPermanentDeleteChecked,
+            isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
+            onConfirm = onConfirmDelete,
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = onTogglePermanentDelete
+        )
+    }
+
+    if (state.showMixedDeleteExplanation) {
+        MixedDeleteExplanationDialog(
+            onDismiss = onDismissDeleteConfirmation
+        )
+    }
+
+    if (showCreateFileDialog) {
+        CreateFileDialog(
+            onDismiss = { showCreateFileDialog = false },
+            onConfirm = { fileName ->
+                showCreateFileDialog = false
+                onCreateFile(fileName)
+            }
+        )
+    }
+
+    if (showRenameDialog && state.selectedFiles.size == 1) {
+        val selectedPath = state.selectedFiles.first()
+        val currentName = selectedPath.substringAfterLast('/')
+        RenameDialog(
+            currentName = currentName,
+            onDismiss = { showRenameDialog = false },
+            onConfirm = { newName ->
+                onRenameFile(selectedPath, newName)
+                showRenameDialog = false
+            }
+        )
+    }
+
+    if (showSortDialog) {
+        SortOptionDialog(
+            title = stringResource(R.string.sort_folder_title),
+            selectedPreferences = currentPresentation,
+            showApplyToSubfolders = !state.isCategoryScreen,
+            onDismiss = { showSortDialog = false },
+            onApply = { presentation, applyToSubfolders ->
+                onPresentationChange(presentation, applyToSubfolders)
+                showSortDialog = false
+            }
+        )
+    }
+
+    if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
+        PasteConflictDialog(
+            conflicts = state.pasteConflicts,
+            onResolve = onResolvingConflicts,
+            onDismiss = onDismissConflictDialog
+        )
+    }
+
+    if (state.isPropertiesVisible) {
+        PropertiesDialog(
+            properties = state.properties,
+            isLoading = state.isPropertiesLoading,
+            onDismiss = onDismissProperties
+        )
+    }
+}

@@ -91,7 +91,8 @@ data class BrowserState(
     val isPropertiesLoading: Boolean = false,
     val properties: PropertiesUiModel? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
-    val fileOperationStatusMessage: String? = null
+    val fileOperationStatusMessage: String? = null,
+    val selectedFilesTotalSize: Long = 0L
 )
 
 @HiltViewModel
@@ -377,6 +378,7 @@ class BrowserViewModel @Inject constructor(
             }
             currentState.copy(
                 selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -384,11 +386,57 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
+    fun selectAll(paths: List<String>) {
+        if (_state.value.isVolumeRootScreen) return
+        _state.update { currentState ->
+            val updatedSelection = paths.toSet()
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
+    fun invertSelection(allPaths: List<String>) {
+        if (_state.value.isVolumeRootScreen) return
+        _state.update { currentState ->
+            val currentlySelected = currentState.selectedFiles
+            val updatedSelection = allPaths.filter { it !in currentlySelected }.toSet()
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
+    private fun calculateSelectionSize(selectedPaths: Set<String>, currentFiles: List<FileModel>, folderStats: Map<String, FolderStats>): Long {
+        var total = 0L
+        selectedPaths.forEach { path ->
+            val file = currentFiles.find { it.absolutePath == path }
+            if (file != null) {
+                if (file.isDirectory) {
+                    total += folderStats[path]?.totalBytes ?: 0L
+                } else {
+                    total += file.size
+                }
+            }
+        }
+        return total
+    }
+
     fun selectMultiple(paths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
+            val updatedSelection = currentState.selectedFiles + paths
             currentState.copy(
-                selectedFiles = currentState.selectedFiles + paths,
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -400,6 +448,7 @@ class BrowserViewModel @Inject constructor(
         _state.update {
             it.copy(
                 selectedFiles = emptySet(),
+                selectedFilesTotalSize = 0L,
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null

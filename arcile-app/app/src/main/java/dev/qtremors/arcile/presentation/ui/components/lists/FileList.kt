@@ -73,14 +73,19 @@ fun FileList(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
-    folderStatsLoadingPaths: Set<String> = emptySet()
+    folderStatsLoadingPaths: Set<String> = emptySet(),
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
 
-    LazyColumn(modifier = modifier.fillMaxWidth(), state = listState) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        state = listState,
+        contentPadding = contentPadding
+    ) {
         itemsIndexed(
             items = files,
             key = { _, file -> file.absolutePath },

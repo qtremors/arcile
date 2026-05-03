@@ -14,6 +14,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Surface
+import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
+import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +79,7 @@ fun RecentFilesScreen(
     onTogglePermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
     onShareSelected: () -> Unit,
+    onSelectAll: () -> Unit,
     onRefresh: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
@@ -123,14 +135,7 @@ fun RecentFilesScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.clear_selection))
                         }
                     },
-                    actions = {
-                        IconButton(onClick = onShareSelected) {
-                            Icon(Icons.Default.Share, contentDescription = stringResource(R.string.share))
-                        }
-                        IconButton(onClick = onRequestDeleteSelected) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete))
-                        }
-                    },
+                    actions = {},
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -157,16 +162,26 @@ fun RecentFilesScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { showSearchBar = true }) {
-                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
-                        }
-
+                        val topActions = listOf(
+                            ToolbarAction(
+                                icon = Icons.Default.Search,
+                                contentDescription = stringResource(R.string.action_search),
+                                onClick = { showSearchBar = true }
+                            ),
+                            ToolbarAction(
+                                icon = Icons.AutoMirrored.Filled.Sort,
+                                contentDescription = stringResource(R.string.action_sort),
+                                onClick = { /* show sort dialog if needed */ }
+                            )
+                        )
+                        SplitButtonGroup(actions = topActions)
                     },
                     scrollBehavior = scrollBehavior
                 )
             }
 
-        }
+        },
+        bottomBar = {},
     ) { padding ->
         var showLoading by remember { mutableStateOf(false) }
         LaunchedEffect(state.isLoading) {
@@ -180,7 +195,6 @@ fun RecentFilesScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
         ) {
             if (showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing) {
                 Box(
@@ -263,7 +277,11 @@ fun RecentFilesScreen(
                 ) {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        state = listState
+                        state = listState,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            top = padding.calculateTopPadding(),
+                            bottom = padding.calculateBottomPadding() + 100.dp
+                        )
                     ) {
                     groupedFiles.forEach { (dateHeader, files) ->
                         @OptIn(ExperimentalFoundationApi::class)
@@ -317,8 +335,74 @@ fun RecentFilesScreen(
                     }
                 }
             }
+
+            // Floating Selection Toolbar Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                val mainActions = mutableListOf<dev.qtremors.arcile.presentation.ui.components.ToolbarAction>()
+                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                    icon = androidx.compose.material.icons.Icons.Default.SelectAll,
+                    contentDescription = stringResource(R.string.select_all),
+                    onClick = onSelectAll
+                ))
+                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                    icon = androidx.compose.material.icons.Icons.Default.Share,
+                    contentDescription = stringResource(R.string.share),
+                    onClick = onShareSelected
+                ))
+                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                    icon = androidx.compose.material.icons.Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.delete),
+                    tint = MaterialTheme.colorScheme.error,
+                    onClick = onRequestDeleteSelected
+                ))
+                
+                dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                    isVisible = isSelectionMode,
+                    actions = mainActions,
+                    moreContent = {
+                        var showMoreMenu by remember { mutableStateOf(false) }
+                        Box {
+                            Surface(
+                                onClick = { showMoreMenu = true },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                                }
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showMoreMenu,
+                                onDismissRequest = { showMoreMenu = false }
+                            ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.properties_title)) },
+                                    leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null) },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        // onOpenProperties()
+                                    }
+                                )
+                            }
+                            }
+                        }
+                    }
+                )
+            }
         }
-    }
     }
 
     if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
@@ -344,4 +428,5 @@ fun RecentFilesScreen(
             }
         )
     }
+}
 }

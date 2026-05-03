@@ -36,6 +36,10 @@ class DefaultFileSystemDataSource(
     private val mediaStoreClient: MediaStoreClient,
     private val folderStatsStore: FolderStatsStore
 ) : FileSystemDataSource {
+    private companion object {
+        const val TRANSFER_ESTIMATE_NODE_LIMIT = 10_000
+        const val TRANSFER_ESTIMATE_CANCELLATION_GRANULARITY = 128
+    }
 
     private fun validatePath(file: File): Result<Unit> {
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
@@ -90,12 +94,26 @@ class DefaultFileSystemDataSource(
         currentCoroutineContext().ensureActive()
     }
 
-    private fun estimateTransferBytes(source: File): Long {
+    private suspend fun estimateTransferBytes(source: File): Long {
         if (!source.exists()) return 0L
         if (source.isFile) return source.length()
-        return source.walkTopDown()
-            .filter { it.isFile }
-            .sumOf { it.length() }
+        val pending = ArrayDeque<File>()
+        pending.add(source)
+        var visitedNodes = 0
+        var totalBytes = 0L
+        while (pending.isNotEmpty() && visitedNodes < TRANSFER_ESTIMATE_NODE_LIMIT) {
+            if (visitedNodes % TRANSFER_ESTIMATE_CANCELLATION_GRANULARITY == 0) {
+                ensureOperationActive()
+            }
+            val current = pending.removeFirst()
+            visitedNodes += 1
+            if (current.isFile) {
+                totalBytes += current.length()
+            } else {
+                current.listFiles()?.forEach { pending.addLast(it) }
+            }
+        }
+        return totalBytes
     }
 
     private suspend fun copyFileCancellable(
@@ -384,7 +402,11 @@ class DefaultFileSystemDataSource(
 
             val scannedPaths = mutableListOf<String>()
             val totalItems = sourcePaths.size.coerceAtLeast(1)
-            val totalBytes = sourcePaths.sumOf { estimateTransferBytes(File(it)) }.coerceAtLeast(1L)
+            var estimatedBytes = 0L
+            sourcePaths.forEach { path ->
+                estimatedBytes += estimateTransferBytes(File(path))
+            }
+            val totalBytes = estimatedBytes.coerceAtLeast(1L)
             var completedItems = 0
             var copiedBytes = 0L
             var lastProgressEmitTime = 0L
@@ -513,7 +535,11 @@ class DefaultFileSystemDataSource(
 
             val scannedPaths = mutableListOf<String>()
             val totalItems = sourcePaths.size.coerceAtLeast(1)
-            val totalBytes = sourcePaths.sumOf { estimateTransferBytes(File(it)) }.coerceAtLeast(1L)
+            var estimatedBytes = 0L
+            sourcePaths.forEach { path ->
+                estimatedBytes += estimateTransferBytes(File(path))
+            }
+            val totalBytes = estimatedBytes.coerceAtLeast(1L)
             var completedItems = 0
             var copiedBytes = 0L
             var lastProgressEmitTime = 0L

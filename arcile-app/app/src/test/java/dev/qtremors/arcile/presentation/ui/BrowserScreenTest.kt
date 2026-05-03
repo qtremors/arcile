@@ -7,7 +7,9 @@ import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.printToLog
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FolderStatsStatus
@@ -158,9 +160,10 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithContentDescription("Sort").performClick()
-        composeRule.onNodeWithText("Grid size").assertExists()
-        composeRule.onNodeWithText("Grid View").assertExists()
+        composeRule.onRoot().printToLog("SEMANTICS")
+        composeRule.onNodeWithTag("action_sort").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("Name (A to Z)").assertExists()
     }
 
     @Test

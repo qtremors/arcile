@@ -33,9 +33,13 @@ import dev.qtremors.arcile.utils.formatFileSize
 fun VolumeRootList(
     volumes: List<StorageVolume>,
     onNavigateTo: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
-    LazyColumn(modifier = modifier.fillMaxWidth()) {
+    LazyColumn(
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = contentPadding
+    ) {
         items(volumes, key = { it.id }) { volume ->
             VolumeItemRow(
                 volume = volume,

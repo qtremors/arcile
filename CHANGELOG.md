@@ -1,10 +1,29 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.1
-> **Last Updated:** 2026-04-26
+> **Version:** 0.6.2
+> **Last Updated:** 2026-05-03
 
 ---
+
+## [0.6.2] - 2026-05-03
+
+### UI
+- **Material 3 Expressive Selection:** Replaced the legacy top-bar selection action icons with a custom `FloatingSelectionToolbar` that emulates the Jetpack Compose Material 3 Expressive design, utilizing connected segmented shape morphing (`SplitButtonGroup`) for selection actions and a detached FAB for secondary actions.
+- **Selection Improvements:** Added **Invert Selection** functionality to the selection action bar. The app now also dynamically calculates and displays the **Total Size** of all currently selected items directly within the top bar during selection mode.
+- **Top Bar Cleanup & Restoration:** Restored Settings, Search, and Sort actions to the top-level app bar as split buttons for immediate accessibility, while preserving the clean Material 3 Expressive layout.
+- **Constrained Operation FAB:** Bounded the active file operation `ExtendedFloatingActionButton` to a maximum width to prevent overflow clipping during long file transfers.
+
+### Performance
+- **Shared Mutation Path Ancestors:** Trash and filesystem mutations now use the shared `PathSafety.pathWithAncestors` implementation, removing duplicate ancestor-list allocation logic from the hot mutation path.
+- **Browser Preferences IO Dispatch:** Browser presentation preferences now flow from the DataStore layer on `Dispatchers.IO`, avoiding first-read disk work on the main thread while keeping navigation state updates deterministic.
+- **Recent Files Provider Pagination:** Recent file paging now pushes `LIMIT`/`OFFSET` to MediaStore queries and scopes queries by storage root where possible, avoiding client-side scans through every previous page.
+- **MediaStore Stat Reduction:** Recent-file and MediaStore search rows no longer call `File.exists()`/`length()` for each result, reducing per-row filesystem stat overhead on large or external storage.
+- **Bounded Folder Stats:** Folder stats traversal now checks coroutine cancellation and returns `Partial` after a 100,000-node cap instead of monopolizing the worker pool on huge trees.
+- **Capped Transfer Estimation:** Copy/move byte estimation now uses a cancellable bounded traversal before transfer starts, avoiding unbounded duplicate walks for very large directory moves.
+
+### Testing
+- **Performance Regression Coverage:** Added coverage for folder-stat node-limit behavior and reran the JVM suite plus release assembly for the 0.6.2 performance pass.
 
 ## [0.6.1] - 2026-04-26
 

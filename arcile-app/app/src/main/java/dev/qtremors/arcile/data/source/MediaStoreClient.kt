@@ -52,6 +52,7 @@ class DefaultMediaStoreClient(
         const val MAX_PATH_SEARCH_RESULTS = 1000
         const val MAX_PATH_SEARCH_NODES = 10_000
         const val PATH_SEARCH_CANCELLATION_GRANULARITY = 32
+        const val RECENT_FILES_QUERY_MULTIPLIER = 4
     }
 
     private val appContext = context.applicationContext
@@ -138,6 +139,25 @@ class DefaultMediaStoreClient(
         }
     }
 
+    private fun appendVolumeSelection(
+        selectionParts: MutableList<String>,
+        selectionArgs: MutableList<String>,
+        volumes: List<dev.qtremors.arcile.domain.StorageVolume>
+    ) {
+        if (volumes.isEmpty()) return
+        selectionParts += volumes.joinToString(
+            separator = " OR ",
+            prefix = "(",
+            postfix = ")"
+        ) {
+            "${MediaStore.Files.FileColumns.DATA} = ? OR ${MediaStore.Files.FileColumns.DATA} LIKE ?"
+        }
+        volumes.forEach { volume ->
+            selectionArgs += volume.path
+            selectionArgs += volume.path.trimEnd('/') + "/%"
+        }
+    }
+
     override suspend fun invalidateCache(vararg paths: String) {
         try {
             if (paths.isEmpty()) {
@@ -193,10 +213,31 @@ class DefaultMediaStoreClient(
             )
 
             val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
-            val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
-            val selection = if (minTimestamp > 0) "$baseSelection AND (${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)" else baseSelection
-            val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString(), (minTimestamp / 1000).toString()) else null
-            context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+            val selectionParts = mutableListOf("(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)")
+            val selectionArgs = mutableListOf<String>()
+            if (minTimestamp > 0) {
+                selectionParts += "(${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)"
+                selectionArgs += (minTimestamp / 1000).toString()
+                selectionArgs += (minTimestamp / 1000).toString()
+            }
+            appendVolumeSelection(selectionParts, selectionArgs, volumes)
+            val selection = selectionParts.joinToString(" AND ")
+            val args = selectionArgs.toTypedArray()
+            val queryLimit = (limit * RECENT_FILES_QUERY_MULTIPLIER).coerceAtLeast(limit)
+            val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val bundle = android.os.Bundle().apply {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, queryLimit)
+                    putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
+                }
+                context.contentResolver.query(uri, projection, bundle, null)
+            } else {
+                @Suppress("DEPRECATION")
+                context.contentResolver.query(uri, projection, selection, args, "$sortOrder LIMIT $queryLimit OFFSET $offset")
+            }
+            cursor?.use { cursor ->
                 val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
                 val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
@@ -204,29 +245,15 @@ class DefaultMediaStoreClient(
                 val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
                 val mimeTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
 
-                var validFilesSkipped = 0
-
                 while (cursor.moveToNext() && filesList.size < limit) {
                     val path = cursor.getString(dataCol)
                     val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
 
                     if (path != null && !name.startsWith(".") && !path.contains("/.") && matchesScope(path, scope, volumes)) {
-                        val actualFile = File(path)
-                        if (!actualFile.exists()) continue
-                        
-                        if (validFilesSkipped < offset) {
-                            validFilesSkipped++
-                            continue
-                        }
-
-                        var size = cursor.getLong(sizeCol)
+                        val size = cursor.getLong(sizeCol)
                         val dateAdded = cursor.getLong(dateAddedCol) * 1000L
                         val dateModified = cursor.getLong(dateModifiedCol) * 1000L
                         val mimeType = cursor.getString(mimeTypeCol)
-
-                        if (size == 0L) {
-                            size = actualFile.length()
-                        }
 
                         val extension = path.substringAfterLast('.', "")
 
@@ -538,7 +565,13 @@ class DefaultMediaStoreClient(
                 }
             } else {
                 val uri = MediaStore.Files.getContentUri("external")
-                val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+                val projection = arrayOf(
+                    MediaStore.Files.FileColumns.DATA,
+                    MediaStore.Files.FileColumns.DISPLAY_NAME,
+                    MediaStore.Files.FileColumns.SIZE,
+                    MediaStore.Files.FileColumns.DATE_MODIFIED,
+                    MediaStore.Files.FileColumns.MIME_TYPE
+                )
                 val selectionBuilder = StringBuilder("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
                 val selectionArgs = mutableListOf("%$query%")
                 
@@ -585,12 +618,27 @@ class DefaultMediaStoreClient(
 
                 cursor?.use { c ->
                     val dataCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    val nameCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
+                    val sizeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
+                    val dateCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                    val mimeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                     while (c.moveToNext()) {
                         val path = c.getString(dataCol)
                         if (path != null && !path.contains("/.") && matchesScope(path, scope, volumes)) {
-                            val f = File(path)
-                            if (f.exists() && !f.name.startsWith(".")) {
-                                filesList.add(f.toFileModel())
+                            val name = c.getString(nameCol) ?: path.substringAfterLast('/')
+                            if (!name.startsWith(".")) {
+                                filesList.add(
+                                    FileModel(
+                                        name = name,
+                                        absolutePath = path,
+                                        size = c.getLong(sizeCol),
+                                        lastModified = c.getLong(dateCol) * 1000L,
+                                        isDirectory = false,
+                                        extension = path.substringAfterLast('.', ""),
+                                        isHidden = false,
+                                        mimeType = c.getString(mimeCol)
+                                    )
+                                )
                             }
                         }
                     }

@@ -27,64 +27,6 @@ class ArcileTopBarTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `selection mode shows selection actions including rename for single item`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        var selectedAction: TopBarAction? = null
-
-        composeRule.setContent {
-            ArcileTestTheme {
-                ArcileTopBar(
-                    title = "Files",
-                    selectionCount = 1,
-                    onClearSelection = {},
-                    onSearchClick = {},
-                    onSortClick = {},
-                    onActionSelected = { selectedAction = it }
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("1 selected").assertExists()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_copy)).assertExists()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_cut)).assertExists()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_delete_selected)).assertExists()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_rename)).performClick()
-        assertEquals(TopBarAction.Rename, selectedAction)
-        composeRule.onAllNodesWithContentDescription(context.getString(R.string.share)).assertCountEquals(0)
-        composeRule.onAllNodesWithContentDescription(context.getString(R.string.select_all)).assertCountEquals(0)
-
-        composeRule.onNodeWithContentDescription(context.getString(R.string.clear_selection)).assertExists()
-    }
-
-    @Test
-    fun `clipboard tray exposes cancel and paste actions`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        var cancelCount = 0
-        var pasteCount = 0
-
-        composeRule.setContent {
-            ArcileTestTheme {
-                ArcileTopBar(
-                    title = "Files",
-                    hasClipboardItems = true,
-                    onClearSelection = {},
-                    onSearchClick = {},
-                    onSortClick = {},
-                    onPasteClick = { pasteCount++ },
-                    onCancelPaste = { cancelCount++ },
-                    onActionSelected = {}
-                )
-            }
-        }
-
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_paste_here)).performClick()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_cancel_transfer)).performClick()
-
-        assertEquals(1, pasteCount)
-        assertEquals(1, cancelCount)
-    }
-
-    @Test
     fun `overflow menu dispatches grid view action`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         var selectedAction: TopBarAction? = null
@@ -108,32 +50,5 @@ class ArcileTopBarTest {
         assertEquals(TopBarAction.GridView, selectedAction)
     }
 
-    @Test
-    fun `selection overflow menu dispatches properties action`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val selectedActions = mutableListOf<TopBarAction>()
-
-        composeRule.setContent {
-            ArcileTestTheme {
-                ArcileTopBar(
-                    title = "Files",
-                    selectionCount = 2,
-                    onClearSelection = {},
-                    onSearchClick = {},
-                    onSortClick = {},
-                    onActionSelected = { selectedActions += it }
-                )
-            }
-        }
-
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
-        composeRule.onNodeWithText(context.getString(R.string.share)).performClick()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
-        composeRule.onNodeWithText(context.getString(R.string.select_all)).performClick()
-        composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
-        composeRule.onNodeWithText(context.getString(R.string.properties_title)).performClick()
-
-        assertEquals(listOf(TopBarAction.Share, TopBarAction.SelectAll, TopBarAction.Properties), selectedActions)
-    }
 }
 

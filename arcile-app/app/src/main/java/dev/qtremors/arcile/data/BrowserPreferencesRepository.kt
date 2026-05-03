@@ -12,8 +12,10 @@ import dev.qtremors.arcile.domain.BrowserPreferences
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.FileSortOption
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
@@ -136,6 +138,7 @@ class BrowserPreferencesRepository(
                 exactPathPresentationOptions = exactPathMap.mapValues { it.value.normalized() }
             )
         }
+        .flowOn(Dispatchers.IO)
 
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         val normalized = presentation.normalized()

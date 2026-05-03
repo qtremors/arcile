@@ -69,7 +69,8 @@ fun FileGrid(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
-    folderStatsLoadingPaths: Set<String> = emptySet()
+    folderStatsLoadingPaths: Set<String> = emptySet(),
+    contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -78,7 +79,7 @@ fun FileGrid(
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = minCellSize),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         state = gridState,

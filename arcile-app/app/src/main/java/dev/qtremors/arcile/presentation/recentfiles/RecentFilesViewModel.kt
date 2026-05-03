@@ -234,6 +234,17 @@ class RecentFilesViewModel @Inject constructor(
     fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
     fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
 
+    fun selectAll() {
+        _state.update { currentState ->
+            val allPaths = if (currentState.searchQuery.isNotBlank()) {
+                currentState.searchResults.map { it.absolutePath }
+            } else {
+                currentState.recentFiles.map { it.absolutePath }
+            }
+            currentState.copy(selectedFiles = allPaths.toSet())
+        }
+    }
+
     fun clearError() {
         _state.update { it.copy(error = null) }
     }

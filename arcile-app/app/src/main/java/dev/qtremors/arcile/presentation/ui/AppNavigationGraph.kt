@@ -179,6 +179,8 @@ fun AppNavigationGraph(
                         onDismissConflictDialog = { viewModel.dismissConflictDialog() },
                         onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
                         onNativeRequestResult = { confirmed -> viewModel.handleNativeActionResult(confirmed) },
+                        onSelectAll = { viewModel.selectAll(it) },
+                        onInvertSelection = { viewModel.invertSelection(it) },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -222,6 +224,7 @@ fun AppNavigationGraph(
                                 viewModel.clearSelection()
                             }
                         },
+                        onSelectAll = { viewModel.selectAll() },
                         onRefresh = { viewModel.loadRecentFiles() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },

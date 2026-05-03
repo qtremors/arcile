@@ -83,17 +83,27 @@ fun SearchTopBar(
             )
         },
         actions = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    Icon(Icons.Default.Clear, contentDescription = stringResource(R.string.action_clear))
+            val searchActions = remember(query, onFilterClick) {
+                mutableListOf<ToolbarAction>().apply {
+                    if (query.isNotEmpty()) {
+                        add(ToolbarAction(
+                            icon = Icons.Default.Clear,
+                            contentDescription = "Clear",
+                            onClick = { onQueryChange("") }
+                        ))
+                    }
+                    if (onFilterClick != null) {
+                        add(ToolbarAction(
+                            icon = Icons.Default.FilterList,
+                            contentDescription = "Filters",
+                            onClick = onFilterClick
+                        ))
+                    }
                 }
             }
-            onFilterClick?.let {
-                IconButton(onClick = it) {
-                    Icon(Icons.Default.FilterList, contentDescription = stringResource(R.string.action_filters))
-                }
+            if (searchActions.isNotEmpty()) {
+                SplitButtonGroup(actions = searchActions)
             }
-
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface
