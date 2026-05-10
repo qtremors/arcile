@@ -109,12 +109,16 @@ class NavigationDelegate(
             }
 
             val volumes = state.value.storageVolumes
-            val primaryVolume = volumes.find { it.isPrimary } ?: volumes.firstOrNull()
-
-            if (primaryVolume != null) {
-                loadDirectory(primaryVolume.path, primaryVolume.id, clearHistory = true, errorMessage = errorMessage)
-            } else {
+            if (volumes.size > 1) {
                 openVolumeRoots(errorMessage)
+            } else {
+                val primaryVolume = volumes.find { it.isPrimary } ?: volumes.firstOrNull()
+
+                if (primaryVolume != null) {
+                    loadDirectory(primaryVolume.path, primaryVolume.id, clearHistory = true, errorMessage = errorMessage)
+                } else {
+                    openVolumeRoots(errorMessage)
+                }
             }
         }
     }

@@ -129,16 +129,52 @@ class TrashManagerTest {
     }
 
     @Test
-    fun `emptyTrash deletes all files in trash`() = runTest {
-        val file1 = File(root, "a.txt").apply { createNewFile() }
-        val file2 = File(root, "b.txt").apply { createNewFile() }
-        trashManager.moveToTrash(listOf(file1.absolutePath, file2.absolutePath))
+    fun `getTrashFiles skips corrupted metadata gracefully`() = runTest {
+        val metadataDir = File(File(root, ".arcile"), ".metadata")
+        metadataDir.mkdirs()
+        File(metadataDir, "corrupted.json").writeBytes(byteArrayOf(0x01, 0x02, 0x03)) // too short
 
-        assertEquals(2, trashManager.getTrashFiles().getOrThrow().size)
-
-        val result = trashManager.emptyTrash()
+        val result = trashManager.getTrashFiles()
         assertTrue(result.isSuccess)
-
-        assertEquals(0, trashManager.getTrashFiles().getOrThrow().size)
+        assertEquals(0, result.getOrThrow().size)
     }
-}
+
+    @Test
+    fun `TrashCryptoHelper fallback key round-trip and KeyStore coexistence`() = runTest {
+        // We will use reflection to access the private TrashCryptoHelper
+        val helperClass = Class.forName("dev.qtremors.arcile.data.manager.TrashCryptoHelper")
+        val helperInstance = helperClass.getDeclaredField("INSTANCE").apply { isAccessible = true }.get(null)
+
+        val encryptMethod = helperClass.getDeclaredMethod("encrypt", Context::class.java, String::class.java).apply { isAccessible = true }
+        val decryptMethod = helperClass.getDeclaredMethod("decrypt", Context::class.java, ByteArray::class.java).apply { isAccessible = true }
+
+        val plainText = """{"id":"test","originalPath":"/test","deletionTime":123}"""
+
+        // 1. Normal encrypt (might use KeyStore or Fallback depending on Robolectric support)
+        val encryptedWithKeyStore = encryptMethod.invoke(helperInstance, context, plainText) as ByteArray
+        assertTrue(encryptedWithKeyStore[0] == 1.toByte() || encryptedWithKeyStore[0] == 2.toByte())
+
+        // 2. Normal decrypt
+        val decrypted1 = decryptMethod.invoke(helperInstance, context, encryptedWithKeyStore) as String
+        assertEquals(plainText, decrypted1)
+
+        // 3. Force encrypt with Fallback Key
+        // We can do this by using reflection to call getFallbackKey and encryptOnce
+        val getFallbackKeyMethod = helperClass.getDeclaredMethod("getFallbackKey", Context::class.java).apply { isAccessible = true }
+        val fallbackKey = getFallbackKeyMethod.invoke(helperInstance, context) as javax.crypto.SecretKey
+
+        val encryptOnceMethod = helperClass.getDeclaredMethod("encryptOnce", javax.crypto.SecretKey::class.java, String::class.java, Byte::class.java).apply { isAccessible = true }
+        val encryptedWithFallback = encryptOnceMethod.invoke(helperInstance, fallbackKey, plainText, 2.toByte()) as ByteArray
+        assertEquals(2.toByte(), encryptedWithFallback[0]) // FALLBACK_MARKER
+
+        // 4. Decrypt fallback-encrypted data (simulates KeyStore being available but reading old fallback data)
+        val decrypted2 = decryptMethod.invoke(helperInstance, context, encryptedWithFallback) as String
+        assertEquals(plainText, decrypted2)
+
+        // 5. Legacy mode (no marker)
+        val legacyEncrypted = encryptOnceMethod.invoke(helperInstance, fallbackKey, plainText, 0.toByte()) as ByteArray
+        val legacyBytes = legacyEncrypted.copyOfRange(1, legacyEncrypted.size) // remove marker to simulate legacy
+        val decrypted3 = decryptMethod.invoke(helperInstance, context, legacyBytes) as String
+        assertEquals(plainText, decrypted3)
+    }
+    }

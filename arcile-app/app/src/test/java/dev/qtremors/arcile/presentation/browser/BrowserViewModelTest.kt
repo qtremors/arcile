@@ -56,18 +56,18 @@ class BrowserViewModelTest {
 
     private fun createViewModel(
         repository: FileRepository,
-        browserPreferencesRepository: BrowserPreferencesStore,
+        browserPreferencesRepository: BrowserPreferencesStore = FakeBrowserPreferencesStore(),
         savedStateHandle: SavedStateHandle,
         bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
-    ): BrowserViewModel {
+        ): BrowserViewModel {
         return BrowserViewModel(
             repository = repository,
             browserPreferencesRepository = browserPreferencesRepository,
             savedStateHandle = savedStateHandle,
             getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
-            bulkFileOperationCoordinator = bulkFileOperationCoordinator
+            bulkFileCoordinator = bulkFileOperationCoordinator
         )
-    }
+        }
 
     @Test
     fun `multiple volumes open volume root screen with stored root sort option`() = runTest(mainDispatcherRule.dispatcher) {
@@ -150,18 +150,28 @@ class BrowserViewModelTest {
     fun `copy selection updates clipboard and clears selected files`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val viewModel = createViewModel(
-            repository = BrowserFakeFileRepository(volumes = listOf(internal)),
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf(
+                    "/storage/emulated/0" to listOf(
+                        browserFile("alpha.txt", "/storage/emulated/0/alpha.txt"),
+                        browserFile("beta.txt", "/storage/emulated/0/beta.txt")
+                    )
+                )
+            ),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0")
         advanceUntilIdle()
         viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
         viewModel.toggleSelection("/storage/emulated/0/beta.txt")
         viewModel.copySelectedToClipboard()
 
         assertEquals(ClipboardOperation.COPY, viewModel.state.value.clipboardState?.operation)
-        assertEquals(listOf("/storage/emulated/0/alpha.txt", "/storage/emulated/0/beta.txt"), viewModel.state.value.clipboardState?.sourcePaths)
+        assertEquals(listOf("/storage/emulated/0/alpha.txt", "/storage/emulated/0/beta.txt"), viewModel.state.value.clipboardState?.files?.map { it.absolutePath })
         assertTrue(viewModel.state.value.selectedFiles.isEmpty())
     }
 
@@ -175,7 +185,10 @@ class BrowserViewModelTest {
         )
         val repo = BrowserFakeFileRepository(
             volumes = listOf(internal),
-            filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
+            filesByPath = mapOf(
+                "/storage/emulated/0" to listOf(browserFile("source.txt", "/storage/emulated/0/source.txt")),
+                "/storage/emulated/0/Download" to emptyList()
+            ),
             conflictsResult = Result.success(listOf(conflict))
         )
         val viewModel = createViewModel(
@@ -185,11 +198,13 @@ class BrowserViewModelTest {
         )
 
         advanceUntilIdle()
-        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        viewModel.navigateToSpecificFolder("/storage/emulated/0")
         advanceUntilIdle()
         viewModel.toggleSelection("/storage/emulated/0/source.txt")
         viewModel.cutSelectedToClipboard()
 
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
 
@@ -206,7 +221,7 @@ class BrowserViewModelTest {
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(
                 volumes = listOf(internal),
-                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+                filesByPath = mapOf("/storage/emulated/0/Download" to listOf(browserFile("source.txt", "/storage/emulated/0/Download/source.txt")))
             ),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
@@ -216,7 +231,7 @@ class BrowserViewModelTest {
         advanceUntilIdle()
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
-        viewModel.toggleSelection("/storage/emulated/0/source.txt")
+        viewModel.toggleSelection("/storage/emulated/0/Download/source.txt")
         viewModel.copySelectedToClipboard()
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
@@ -227,7 +242,7 @@ class BrowserViewModelTest {
             BulkFileOperationProgress(
                 completedItems = 1,
                 totalItems = 2,
-                currentPath = "/storage/emulated/0/source.txt"
+                currentPath = "/storage/emulated/0/Download/source.txt"
             )
         )
         advanceUntilIdle()
@@ -236,7 +251,7 @@ class BrowserViewModelTest {
         assertEquals(BulkFileOperationType.COPY, operation?.type)
         assertEquals(1, operation?.completedItems)
         assertEquals(2, operation?.totalItems)
-        assertEquals("/storage/emulated/0/source.txt", operation?.currentPath)
+        assertEquals("/storage/emulated/0/Download/source.txt", operation?.currentPath)
         assertFalse(operation?.isCancelling ?: true)
     }
 
@@ -247,7 +262,7 @@ class BrowserViewModelTest {
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(
                 volumes = listOf(internal),
-                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+                filesByPath = mapOf("/storage/emulated/0/Download" to listOf(browserFile("source.txt", "/storage/emulated/0/Download/source.txt")))
             ),
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
@@ -257,7 +272,7 @@ class BrowserViewModelTest {
         advanceUntilIdle()
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
-        viewModel.toggleSelection("/storage/emulated/0/source.txt")
+        viewModel.toggleSelection("/storage/emulated/0/Download/source.txt")
         viewModel.cutSelectedToClipboard()
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
@@ -266,6 +281,7 @@ class BrowserViewModelTest {
         coordinator.onOperationCompleted(request)
         advanceUntilIdle()
 
+        viewModel.clearActiveFileOperation()
         assertNull(viewModel.state.value.activeFileOperation)
         assertEquals("Moved 1 item(s)", viewModel.state.value.fileOperationStatusMessage)
 
@@ -605,6 +621,7 @@ class BrowserViewModelTest {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val repo = BrowserFakeFileRepository(
             volumes = listOf(internal),
+            filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
             selectionPropertiesResult = Result.success(
                 SelectionProperties(
                     displayName = "Docs",
@@ -628,7 +645,7 @@ class BrowserViewModelTest {
         val viewModel = createViewModel(
             repository = repo,
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
-            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false, "currentPath" to "/storage/emulated/0/Download", "currentVolumeId" to "primary"))
         )
 
         advanceUntilIdle()
@@ -657,6 +674,10 @@ private class FakeBrowserPreferencesStore(
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         lastUpdatedGlobalSortOption = presentation.sortOption
         _preferencesFlow.value = _preferencesFlow.value.copy(globalPresentation = presentation)
+    }
+
+    override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
+        lastUpdatedPath = path
     }
 
     override suspend fun updatePathPresentation(
@@ -770,6 +791,13 @@ private class BrowserFakeFileRepository(
     override suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
         delegate.deletePermanentlyFromTrash(trashIds)
 
+    override suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?
+    ): Result<FileModel> = delegate.createFakeFile(parentPath, name, size, onProgress)
+
     fun emitFolderStatUpdate(update: FolderStatUpdate) {
         delegate.emitFolderStatUpdate(update)
     }
@@ -786,7 +814,8 @@ private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         type: BulkFileOperationType,
         sourcePaths: List<String>,
         destinationPath: String?,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        fakeFileSize: Long?
     ): Boolean {
         val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions)
         startedRequests += request

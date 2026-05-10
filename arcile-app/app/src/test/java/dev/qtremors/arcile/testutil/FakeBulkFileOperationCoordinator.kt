@@ -22,10 +22,11 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         type: BulkFileOperationType,
         sourcePaths: List<String>,
         destinationPath: String?,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        fakeFileSize: Long?
     ): Boolean {
         if (!startResult) return false
-        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions)
+        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions, fakeFileSize)
         startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

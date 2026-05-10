@@ -155,6 +155,15 @@ class FakeFileRepository(
             ?: Result.success(testFile(name, "$parentPath/$name"))
     }
 
+    override suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?
+    ): Result<FileModel> {
+        return Result.success(testFile(name, "$parentPath/$name", false, size))
+    }
+
     override suspend fun deleteFile(path: String): Result<Unit> {
         deleteFileRequests += path
         return deleteFileResultProvider?.invoke(path) ?: Result.failure(NotImplementedError())

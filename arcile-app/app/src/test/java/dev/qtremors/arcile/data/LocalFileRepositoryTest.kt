@@ -197,6 +197,7 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
     }
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.success(testFile(newName, path.substringBeforeLast('/') + "/$newName"))
     override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.success(emptyList())
+    override suspend fun createFakeFile(parentPath: String, name: String, size: Long, onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", false, size))
     override suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,

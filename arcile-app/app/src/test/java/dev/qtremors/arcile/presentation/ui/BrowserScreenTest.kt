@@ -69,7 +69,8 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
-                    onShareSelected = {}
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -113,7 +114,8 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
-                    onShareSelected = {}
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -156,7 +158,8 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
-                    onShareSelected = {}
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -205,7 +208,8 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
-                    onShareSelected = {}
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -244,7 +248,8 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
-                    onShareSelected = {}
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -292,7 +297,8 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
-                    onShareSelected = {}
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -351,7 +357,8 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onOpenProperties = {}
+                    onOpenProperties = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
@@ -397,14 +404,16 @@ class BrowserScreenTest {
                     onCutSelected = {},
                     onPasteFromClipboard = {},
                     onCancelClipboard = { cancelCalls += 1 },
-                    onShareSelected = {}
+                    onClearActiveFileOperation = { },
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
                 )
             }
         }
 
-        composeRule.onNodeWithTag("active_file_operation_fab").assertExists()
+        composeRule.onNodeWithContentDescription("Cancel transfer").assertExists()
         composeRule.onAllNodesWithContentDescription("Create new").assertCountEquals(0)
-        composeRule.onNodeWithTag("active_file_operation_fab").performClick()
+        composeRule.onNodeWithContentDescription("Cancel transfer").performClick()
 
         assertEquals(1, cancelCalls)
     }

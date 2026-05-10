@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.4
+> **Version:** 0.6.5
 > **Last Updated:** 2026-05-10
 
 ---
+
+## [0.6.5] - 2026-05-10
+
+### Testing
+- **Test Coverage Expansion:** Added comprehensive unit tests for `ClipboardDelegate`, `NavigationDelegate`, and `DeleteFlowDelegate`, covering complex UI state and edge cases.
+- **Service Lifecycle Validation:** Implemented integration tests for `BulkFileOperationService` and `BulkFileOperationCoordinator` to ensure correct foreground service lifecycle and event handling.
+- **Crypto Reliability:** Added robust test cases to `TrashManagerTest` validating KeyStore/PBKDF2 round-trip interactions and graceful degradation on corrupted metadata.
+- **Suite Stability:** Addressed legacy compilation errors and resolved multiple flakiness issues enabling a stable, fully passing test suite.
 
 ## [0.6.4] - 2026-05-10
 

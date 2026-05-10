@@ -221,7 +221,7 @@ class BrowserViewModel @Inject constructor(
                 if (!isInitialized) {
                     isInitialized = true
                     when (val location = navigationDelegate.restoreLocationFromState()) {
-                        StorageBrowserLocation.Roots -> navigationDelegate.openFileBrowser()
+                        StorageBrowserLocation.Roots -> navigationDelegate.openVolumeRoots()
                         is StorageBrowserLocation.Directory -> {
                             _state.update {
                                 it.copy(
