@@ -341,4 +341,14 @@
     <string name="file_operation_progress">%1$s %2$d/%3$d</string>
     <string name="file_operation_progress_bytes">%1$s %2$s / %3$s</string>
     <string name="invert_selection">Invert Selection</string>
+
+    <string name="new_fake_file">Random Fake File</string>
+    <string name="title_create_fake_file">Create Random Fake File</string>
+    <string name="label_fake_file_name">File Name</string>
+    <string name="label_fake_file_extension">Extension (e.g. bin, dat)</string>
+    <string name="label_fake_file_size">Size</string>
+    <string name="unit_kb">KB</string>
+    <string name="unit_mb">MB</string>
+    <string name="unit_gb">GB</string>
+    <string name="file_operation_creating_fake">Creating fake file</string>
 </resources>

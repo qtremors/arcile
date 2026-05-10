@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import dev.qtremors.arcile.presentation.browser.toUiModel
 
 enum class RecentNativeAction { TRASH }
 
@@ -47,7 +48,10 @@ data class RecentFilesState(
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
     val todayStart: Long = 0L,
-    val yesterdayStart: Long = 0L
+    val yesterdayStart: Long = 0L,
+    val isPropertiesVisible: Boolean = false,
+    val isPropertiesLoading: Boolean = false,
+    val properties: dev.qtremors.arcile.presentation.browser.PropertiesUiModel? = null
 )
 
 @HiltViewModel
@@ -219,12 +223,24 @@ class RecentFilesViewModel @Inject constructor(
             } else {
                 currentState.selectedFiles + path
             }
-            currentState.copy(selectedFiles = updatedSelection)
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     fun clearSelection() {
-        _state.update { it.copy(selectedFiles = emptySet()) }
+        _state.update {
+            it.copy(
+                selectedFiles = emptySet(),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
     }
 
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
@@ -270,5 +286,48 @@ class RecentFilesViewModel @Inject constructor(
             _state.update { it.copy(isSearching = false, searchResults = filtered) }
         }
     }
-}
 
+    fun openPropertiesForSelection() {
+        val selectedPaths = _state.value.selectedFiles.toList()
+        if (selectedPaths.isEmpty()) return
+
+        _state.update {
+            it.copy(
+                isPropertiesVisible = true,
+                isPropertiesLoading = true,
+                properties = null
+            )
+        }
+
+        viewModelScope.launch {
+            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = true,
+                        isPropertiesLoading = false,
+                        properties = properties.toUiModel()
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = false,
+                        isPropertiesLoading = false,
+                        properties = null,
+                        error = error.message ?: "Failed to load properties"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissProperties() {
+        _state.update {
+            it.copy(
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+}

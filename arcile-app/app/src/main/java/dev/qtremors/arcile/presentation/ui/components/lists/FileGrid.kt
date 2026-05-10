@@ -213,13 +213,36 @@ fun FileGridItem(
                 SubcomposeAsyncImage(
                     model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                         .data(File(file.absolutePath))
-                        .size(256)
+                        .crossfade(true)
+                        .crossfade(300)
+                        // By removing the hardcoded .size(512), Coil will automatically measure 
+                        // the exact layout bounds. If you have 4 small columns, it loads tiny images 
+                        // (saving massive amounts of RAM and keeping more thumbs cached). 
+                        // If you zoom in to 2 massive columns, it loads them large.
+                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                         .build(),
                     contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f),
                     contentScale = ContentScale.Crop,
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                contentDescription = null,
+                                // Faint icon while loading so it doesn't look empty
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                    },
                     error = {
                         Box(
                             modifier = Modifier

@@ -18,6 +18,7 @@ data class ToolbarAction(
     val icon: ImageVector,
     val contentDescription: String,
     val tint: Color? = null,
+    val containerColor: Color? = null,
     val onClick: () -> Unit
 )
 
@@ -38,29 +39,27 @@ fun FloatingSelectionToolbar(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = if (startContent != null) Arrangement.SpaceBetween else Arrangement.Start,
+            horizontalArrangement = if (startContent != null || moreContent != null) Arrangement.SpaceBetween else Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (startContent != null) {
                 startContent()
             }
             
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (actions.isNotEmpty()) {
-                    SplitButtonGroup(
-                        actions = actions,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        height = 56.dp,
-                        minWidth = 56.dp,
-                        iconSize = 28.dp
-                    )
-                }
-                if (moreContent != null) {
-                    moreContent()
-                }
+            // Action buttons (left group in selection mode)
+            if (actions.isNotEmpty()) {
+                SplitButtonGroup(
+                    actions = actions,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    height = 56.dp,
+                    minWidth = 56.dp,
+                    iconSize = 28.dp
+                )
+            }
+
+            // Overflow menu (right-aligned in selection mode)
+            if (moreContent != null) {
+                moreContent()
             }
         }
     }

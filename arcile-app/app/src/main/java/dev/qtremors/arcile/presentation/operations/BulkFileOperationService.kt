@@ -77,6 +77,13 @@ class BulkFileOperationService : Service() {
                             }
                             BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths)
                             BulkFileOperationType.DELETE -> repository.deletePermanently(request.sourcePaths)
+                            BulkFileOperationType.CREATE_FAKE -> repository.createFakeFile(
+                                requireNotNull(request.destinationPath),
+                                request.sourcePaths.first(),
+                                requireNotNull(request.fakeFileSize)
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                            }
                         }
 
                         result.onSuccess {
@@ -111,6 +118,7 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.MOVE -> "Moving files"
             BulkFileOperationType.TRASH -> "Moving files to Trash"
             BulkFileOperationType.DELETE -> "Deleting files"
+            BulkFileOperationType.CREATE_FAKE -> "Creating fake file"
         }
         val content = "Processing ${request.sourcePaths.size} item(s) in the background"
 

@@ -24,7 +24,7 @@ data class PropertiesUiModel(
     val isDirectory: Boolean?
 )
 
-internal fun SelectionProperties.toUiModel(): PropertiesUiModel = PropertiesUiModel(
+fun SelectionProperties.toUiModel(): PropertiesUiModel = PropertiesUiModel(
     title = displayName,
     pathSummary = pathSummary,
     itemCount = itemCount,

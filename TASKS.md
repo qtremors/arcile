@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.6.3
+> **Version:** 0.6.4
 > **Last Updated:** 2026-05-10
 
 ---
@@ -157,7 +157,6 @@
 
 ### Tools & Development
 - **Operation Logs Page**: A dedicated page tracking the history of all major file manipulations for auditing purposes.
-- **Dummy File Generator**: A developer/testing tool to quickly create fake files of a specified size to fill space or test transfers.
 - **Developer Mode Toggle**: Unlock hidden developer options by rapidly holding or tapping the version number in the About screen.
 - **FOSS / Libre Build**: Ensure a fully free-and-open-source build flavor suitable for F-Droid without proprietary blobs or dependencies.
 

@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -97,6 +98,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFakeFileDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
 
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
@@ -166,6 +170,10 @@ import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
+import dev.qtremors.arcile.presentation.operations.rememberSmoothedProgress
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 
 /**
  * Full-featured file browser screen.
@@ -185,6 +193,7 @@ private data class FileManagerContentKey(
 fun BrowserScreen(
     state: BrowserState,
     onNavigateBack: () -> Unit,
+    onSwipeBack: () -> Unit = {},
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
@@ -192,6 +201,7 @@ fun BrowserScreen(
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
+    onCreateFakeFile: (String, Long) -> Unit,
     onRequestDeleteSelected: () -> Unit,
     onConfirmDelete: () -> Unit,
     onTogglePermanentDelete: () -> Unit,
@@ -209,6 +219,7 @@ fun BrowserScreen(
     onClearFileOperationStatusMessage: () -> Unit = {},
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
+    onClearActiveFileOperation: () -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
@@ -225,6 +236,7 @@ fun BrowserScreen(
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCreateFileDialog by remember { mutableStateOf(false) }
+    var showCreateFakeFileDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showClipboardContents by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
@@ -553,6 +565,14 @@ fun BrowserScreen(
                                         isFabExpanded = false
                                         showCreateFileDialog = true
                                     }
+                                ),
+                                dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
+                                    label = stringResource(R.string.new_fake_file),
+                                    icon = androidx.compose.material.icons.Icons.Default.Extension,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFakeFileDialog = true
+                                    }
                                 )
                             )
                         )
@@ -577,7 +597,7 @@ fun BrowserScreen(
                         onDragStart = { offsetX = 0f },
                         onDragEnd = {
                             if (offsetX > 150f) {
-                                onNavigateBack()
+                                onSwipeBack()
                             }
                             offsetX = 0f
                         },
@@ -902,34 +922,73 @@ fun BrowserScreen(
                 } else if (state.clipboardState != null || state.activeFileOperation != null) {
                     val clipboard = state.clipboardState
                     val activeOp = state.activeFileOperation
-                    
-                    val progress = if (activeOp != null) {
-                        val byteProgress = activeOp.totalBytes
-                            ?.takeIf { it > 0L }
-                            ?.let { total -> ((activeOp.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
-                        val itemProgress = activeOp.totalItems
-                            .takeIf { it > 0 }
-                            ?.let { activeOp.completedItems.toFloat() / it.toFloat() }
-                            ?.coerceIn(0f, 1f)
-                        byteProgress ?: itemProgress
-                    } else null
 
-                    val animatedProgress by animateFloatAsState(
-                        targetValue = progress ?: 0f,
-                        animationSpec = spring(stiffness = Spring.StiffnessLow),
-                        label = "pill_progress"
-                    )
+                    // ── Smoothed Progress Engine ──
+                    val smoothedState = rememberSmoothedProgress()
 
-                    val actions = if (activeOp != null) {
+                    // Feed raw progress into the smoothing engine
+                    LaunchedEffect(activeOp) {
+                        if (activeOp != null) {
+                            // Detect terminal status — snap to full fill instantly
+                            val terminal = activeOp.terminalStatus
+                            if (terminal != null) {
+                                smoothedState.markComplete(terminal)
+                            } else {
+                                // Initialize on first progress event
+                                if (smoothedState.operationStartTime == 0L) {
+                                    smoothedState.reset(activeOp.startTimeMillis)
+                                }
+                                val byteProgress = activeOp.totalBytes
+                                    ?.takeIf { it > 0L }
+                                    ?.let { total -> ((activeOp.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+                                val itemProgress = activeOp.totalItems
+                                    .takeIf { it > 0 }
+                                    ?.let { activeOp.completedItems.toFloat() / it.toFloat() }
+                                    ?.coerceIn(0f, 1f)
+                                val rawProgress = byteProgress ?: itemProgress
+                                if (rawProgress != null) {
+                                    smoothedState.updateTarget(rawProgress)
+                                }
+                            }
+                        } else {
+                            // Operation cleared from ViewModel — reset for next time
+                            smoothedState.reset()
+                        }
+                    }
+
+                    // Auto-dismiss: clear operation state after animation finishes
+                    LaunchedEffect(smoothedState.isAnimationFinished) {
+                        if (smoothedState.isAnimationFinished) {
+                            onClearActiveFileOperation()
+                            smoothedState.reset()
+                        }
+                    }
+
+                    val hasActiveProgress = activeOp != null
+                    val smoothedProgress = smoothedState.displayedProgress
+
+                    // Determine pill fill color based on terminal status
+                    val successColor = Color(0xFF4CAF50).copy(alpha = 0.25f)
+                    val failureColor = Color(0xFFF44336).copy(alpha = 0.25f)
+                    val inProgressColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    val progressFillColor = when (activeOp?.terminalStatus) {
+                        OperationCompletionStatus.SUCCESS -> successColor
+                        OperationCompletionStatus.FAILED,
+                        OperationCompletionStatus.CANCELLED -> failureColor
+                        null -> inProgressColor
+                    }
+
+                    val actions = if (activeOp != null && activeOp.terminalStatus == null) {
                         listOf(
                             ToolbarAction(
                                 icon = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.action_cancel_transfer),
-                                tint = MaterialTheme.colorScheme.error,
+                                containerColor = Color(0xFFF44336),
+                                tint = Color.White,
                                 onClick = onCancelClipboard
                             )
                         )
-                    } else {
+                    } else if (activeOp == null) {
                         listOf(
                             ToolbarAction(
                                 icon = Icons.Default.ContentPaste,
@@ -939,12 +998,16 @@ fun BrowserScreen(
                             ToolbarAction(
                                 icon = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.action_cancel_transfer),
-                                tint = MaterialTheme.colorScheme.error,
+                                containerColor = Color(0xFFF44336),
+                                tint = Color.White,
                                 onClick = onCancelClipboard
                             )
                         )
+                    } else {
+                        // Terminal state — no actions while showing completion fill
+                        emptyList()
                     }
-                    
+
                     dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
                         isVisible = true,
                         actions = actions,
@@ -962,16 +1025,27 @@ fun BrowserScreen(
                                     .widthIn(min = 140.dp)
                                     .animateContentSize()
                             ) {
-                                Box {
-                                    if (progress != null || activeOp != null) {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxHeight()
-                                                .fillMaxWidth(animatedProgress)
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                // drawBehind paints the progress fill inside the
+                                // existing pill shape without adding a child Box
+                                // that could alter the pill's measured size.
+                                Box(
+                                    contentAlignment = Alignment.CenterStart,
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (hasActiveProgress) {
+                                                Modifier.drawBehind {
+                                                    val fillWidth = size.width * smoothedProgress
+                                                    drawRect(
+                                                        color = progressFillColor,
+                                                        size = Size(fillWidth, size.height)
+                                                    )
+                                                }
+                                            } else {
+                                                Modifier
+                                            }
                                         )
-                                    }
-
+                                ) {
                                     Row(
                                         modifier = Modifier.padding(horizontal = 16.dp),
                                         verticalAlignment = Alignment.CenterVertically,
@@ -980,6 +1054,7 @@ fun BrowserScreen(
                                         val opIcon = when {
                                             activeOp?.type == BulkFileOperationType.MOVE || clipboard?.operation == ClipboardOperation.CUT -> Icons.Default.ContentCut
                                             activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
+                                            activeOp?.type == BulkFileOperationType.CREATE_FAKE -> Icons.Default.Extension
                                             else -> Icons.Default.ContentCopy
                                         }
                                         val opTint = if (activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH) {
@@ -1078,6 +1153,16 @@ fun BrowserScreen(
             onConfirm = { fileName ->
                 showCreateFileDialog = false
                 onCreateFile(fileName)
+            }
+        )
+    }
+
+    if (showCreateFakeFileDialog) {
+        CreateFakeFileDialog(
+            onDismiss = { showCreateFakeFileDialog = false },
+            onConfirm = { fileName, size ->
+                showCreateFakeFileDialog = false
+                onCreateFakeFile(fileName, size)
             }
         )
     }

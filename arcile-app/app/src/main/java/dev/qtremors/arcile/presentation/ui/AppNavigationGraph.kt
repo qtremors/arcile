@@ -7,9 +7,15 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -58,85 +64,186 @@ fun AppNavigationGraph(
     val context = LocalContext.current
                 NavHost(
                     navController = navController,
-                    startDestination = AppRoutes.Home,
+                    startDestination = AppRoutes.Main(),
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
                     exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
                     popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
                     popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
                 ) {
-                composable<AppRoutes.Home> {
-                    val viewModel = hiltViewModel<HomeViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    HomeScreen(
-                        state = state,
-                        onOpenFileBrowser = {
-                            navController.navigate(AppRoutes.Explorer()) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.Explorer(path = path)) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onOpenFile = onOpenFile,
-                        onCategoryClick = { categoryName ->
-                            navController.navigate(AppRoutes.Explorer(category = categoryName)) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onSettingsClick = {
-                            navController.navigate(AppRoutes.Settings)
-                        },
-                        onNavigateToTools = {
-                            navController.navigate(AppRoutes.Tools) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToAbout = {
-                            navController.navigate(AppRoutes.About)
-                        },
-                        onNavigateToTrash = {
-                            navController.navigate(AppRoutes.Trash) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToRecentFiles = {
-                            navController.navigate(AppRoutes.RecentFiles()) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onNavigateToSaf = { uriString ->
-                            if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
-                                android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        },
-                        onNavigateToQuickAccess = {
-                            navController.navigate(AppRoutes.QuickAccess)
-                        },
-                        onOpenStorageDashboard = { volumeId ->
-                            navController.navigate(AppRoutes.StorageDashboard(volumeId)) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
-                                launchSingleTop = true
-                            }
-                        },
-                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
-                        onRefresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
-                        onResumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
-                        onSetVolumeClassification = { storageKey, kind -> viewModel.setVolumeClassification(storageKey, kind) },
-                        onHideClassificationPrompt = { storageKey -> viewModel.hideClassificationPrompt(storageKey) }
+                composable<AppRoutes.Main> { backStackEntry ->
+                    val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()
+                    val homeViewModel = hiltViewModel<HomeViewModel>()
+                    val browserViewModel = hiltViewModel<BrowserViewModel>()
+                    val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
+
+                    val pagerState = rememberPagerState(
+                        initialPage = mainArgs.initialPage,
+                        pageCount = { 2 }
                     )
+                    val coroutineScope = rememberCoroutineScope()
+
+                    // Handle incoming arguments for browser or deep links
+                    androidx.compose.runtime.LaunchedEffect(mainArgs) {
+                        if (mainArgs.initialPage == 1) {
+                            when {
+                                !mainArgs.path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(mainArgs.path)
+                                !mainArgs.category.isNullOrEmpty() -> browserViewModel.navigateToCategory(mainArgs.category, mainArgs.volumeId)
+                                else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
+                            }
+                            pagerState.scrollToPage(1)
+                        }
+                    }
+
+                    // Ensure browser restores last location if empty when swiped into
+                    androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
+                        if (pagerState.currentPage == 1 && browserViewModel.state.value.currentPath.isEmpty()) {
+                            browserViewModel.openFileBrowser(restorePersistentLocation = true)
+                        }
+                    }
+
+                    BackHandler(enabled = pagerState.currentPage == 1) {
+                        if (!browserViewModel.navigateBack()) {
+                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                        }
+                    }
+
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = true,
+                        beyondViewportPageCount = 0
+                    ) { page ->
+                        when (page) {
+                            0 -> {
+                                val state by homeViewModel.state.collectAsStateWithLifecycle()
+                                HomeScreen(
+                                    state = state,
+                                    onOpenFileBrowser = {
+                                        browserViewModel.openFileBrowser(restorePersistentLocation = false)
+                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                    },
+                                    onSwipeToBrowser = {
+                                        // Handled by Pager
+                                    },
+                                    onNavigateToPath = { path ->
+                                        browserViewModel.navigateToSpecificFolder(path)
+                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                    },
+                                    onOpenFile = onOpenFile,
+                                    onCategoryClick = { categoryName ->
+                                        browserViewModel.navigateToCategory(categoryName)
+                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                    },
+                                    onSettingsClick = {
+                                        navController.navigate(AppRoutes.Settings)
+                                    },
+                                    onNavigateToTools = {
+                                        navController.navigate(AppRoutes.Tools) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onNavigateToAbout = {
+                                        navController.navigate(AppRoutes.About)
+                                    },
+                                    onNavigateToTrash = {
+                                        navController.navigate(AppRoutes.Trash) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onNavigateToRecentFiles = {
+                                        navController.navigate(AppRoutes.RecentFiles()) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onNavigateToSaf = { uriString ->
+                                        if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
+                                            android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
+                                        }
+                                    },
+                                    onNavigateToQuickAccess = {
+                                        navController.navigate(AppRoutes.QuickAccess)
+                                    },
+                                    onOpenStorageDashboard = { volumeId ->
+                                        navController.navigate(AppRoutes.StorageDashboard(volumeId)) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onSearchFiltersChange = { homeViewModel.updateSearchFilters(it) },
+                                    onToggleSearchFilterMenu = { homeViewModel.toggleSearchFilterMenu(it) },
+                                    onRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.MANUAL) },
+                                    onResumeRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.SILENT) },
+                                    onSetVolumeClassification = { storageKey, kind -> homeViewModel.setVolumeClassification(storageKey, kind) },
+                                    onHideClassificationPrompt = { storageKey -> homeViewModel.hideClassificationPrompt(storageKey) }
+                                )
+                            }
+                            1 -> {
+                                val state by browserViewModel.state.collectAsStateWithLifecycle()
+                                BrowserScreen(
+                                    state = state,
+                                    onNavigateBack = {
+                                        if (!browserViewModel.navigateBack()) {
+                                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                                        }
+                                    },
+                                    onSwipeBack = {
+                                        coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                                    },
+                                    onNavigateTo = { browserViewModel.navigateToFolder(it) },
+                                    onOpenFile = onOpenFile,
+                                    onToggleSelection = { browserViewModel.toggleSelection(it) },
+                                    onSelectMultiple = { browserViewModel.selectMultiple(it) },
+                                    onClearSelection = { browserViewModel.clearSelection() },
+                                    onCreateFolder = { browserViewModel.createFolder(it) },
+                                    onCreateFile = { browserViewModel.createFile(it) },
+                                    onCreateFakeFile = { name, size -> browserViewModel.createFakeFile(name, size) },
+                                    onRequestDeleteSelected = { browserViewModel.requestDeleteSelected() },
+                                    onConfirmDelete = { browserViewModel.confirmDeleteSelected() },
+                                    onTogglePermanentDelete = { browserViewModel.togglePermanentDelete() },
+                                    onDismissDeleteConfirmation = { browserViewModel.dismissDeleteConfirmation() },
+                                    onRenameFile = { path, newName -> browserViewModel.renameFile(path, newName) },
+                                    onSearchQueryChange = { browserViewModel.updateBrowserSearchQuery(it) },
+                                    onClearSearch = { browserViewModel.updateBrowserSearchQuery("") },
+                                    onPresentationChange = { presentation, applyToSubfolders ->
+                                        browserViewModel.updateBrowserPresentation(presentation, applyToSubfolders)
+                                    },
+                                    onClearError = { browserViewModel.clearError() },
+                                    onCopySelected = { browserViewModel.copySelectedToClipboard() },
+                                    onCutSelected = { browserViewModel.cutSelectedToClipboard() },
+                                    onPasteFromClipboard = { browserViewModel.pasteFromClipboard() },
+                                    onCancelClipboard = { browserViewModel.cancelClipboard() },
+                                    onShareSelected = {
+                                        if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
+                                            browserViewModel.clearSelection()
+                                        }
+                                    },
+                                    onClearFileOperationStatusMessage = { browserViewModel.clearFileOperationStatusMessage() },
+                                    onOpenProperties = { browserViewModel.openPropertiesForSelection() },
+                                    onDismissProperties = { browserViewModel.dismissProperties() },
+                                    onClearActiveFileOperation = { browserViewModel.clearActiveFileOperation() },
+                                    isRefreshing = state.isPullToRefreshing,
+                                    onRefresh = { browserViewModel.refresh(pullToRefresh = true) },
+                                    onSearchFiltersChange = { browserViewModel.updateSearchFilters(it) },
+                                    onToggleSearchFilterMenu = { browserViewModel.toggleSearchFilterMenu(it) },
+                                    onResolvingConflicts = { browserViewModel.resolveConflicts(it) },
+                                    onDismissConflictDialog = { browserViewModel.dismissConflictDialog() },
+                                    onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
+                                    onNativeRequestResult = { confirmed -> browserViewModel.handleNativeActionResult(confirmed) },
+                                    onSelectAll = { browserViewModel.selectAll(it) },
+                                    onInvertSelection = { browserViewModel.invertSelection(it) },
+                                    onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
+                                    nativeRequestFlow = browserViewModel.nativeRequestFlow
+                                )
+                            }
+                        }
+                    }
                 }
                 composable<AppRoutes.StorageDashboard> { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry<AppRoutes.Home>()
+                        navController.getBackStackEntry<AppRoutes.Main>()
                     }
                     val viewModel = hiltViewModel<HomeViewModel>(parentEntry)
                     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -147,67 +254,23 @@ fun AppNavigationGraph(
                         selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
-                            navController.navigate(AppRoutes.Explorer(category = categoryName, volumeId = scopedVolumeId)) {
+                            navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId)) {
                                 popUpTo<AppRoutes.StorageDashboard> { inclusive = true }
                             }
                         }
                     )
                 }
-                composable<AppRoutes.Explorer> {
-                    val viewModel = hiltViewModel<BrowserViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
-
-                    BrowserScreen(
-                        state = state,
-                        onNavigateBack = {
-                            if (!viewModel.navigateBack()) {
-                                navController.popBackStack()
-                            }
-                        },
-                        onNavigateTo = { viewModel.navigateToFolder(it) },
-                        onOpenFile = onOpenFile,
-                        onToggleSelection = { viewModel.toggleSelection(it) },
-                        onSelectMultiple = { viewModel.selectMultiple(it) },
-                        onClearSelection = { viewModel.clearSelection() },
-                        onCreateFolder = { viewModel.createFolder(it) },
-                        onCreateFile = { viewModel.createFile(it) },
-                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
-                        onConfirmDelete = { viewModel.confirmDeleteSelected() },
-                        onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
-                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
-                        onRenameFile = { path, newName -> viewModel.renameFile(path, newName) },
-                        onSearchQueryChange = { viewModel.updateBrowserSearchQuery(it) },
-                        onClearSearch = { viewModel.updateBrowserSearchQuery("") },
-                        onPresentationChange = { presentation, applyToSubfolders ->
-                            viewModel.updateBrowserPresentation(presentation, applyToSubfolders)
-                        },
-                        onClearError = { viewModel.clearError() },
-                        onCopySelected = { viewModel.copySelectedToClipboard() },
-                        onCutSelected = { viewModel.cutSelectedToClipboard() },
-                        onPasteFromClipboard = { viewModel.pasteFromClipboard() },
-                        onCancelClipboard = { viewModel.cancelClipboard() },
-                        onShareSelected = {
-                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
-                                viewModel.clearSelection()
-                            }
-                        },
-                        onClearFileOperationStatusMessage = { viewModel.clearFileOperationStatusMessage() },
-                        onOpenProperties = { viewModel.openPropertiesForSelection() },
-                        onDismissProperties = { viewModel.dismissProperties() },
-                        isRefreshing = state.isPullToRefreshing,
-                        onRefresh = { viewModel.refresh(pullToRefresh = true) },
-                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onToggleSearchFilterMenu = { viewModel.toggleSearchFilterMenu(it) },
-                        onResolvingConflicts = { viewModel.resolveConflicts(it) },
-                        onDismissConflictDialog = { viewModel.dismissConflictDialog() },
-                        onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
-                        onNativeRequestResult = { confirmed -> viewModel.handleNativeActionResult(confirmed) },
-                        onSelectAll = { viewModel.selectAll(it) },
-                        onInvertSelection = { viewModel.invertSelection(it) },
-                        onRemoveFromClipboard = { viewModel.removeFromClipboard(it) },
-                        nativeRequestFlow = viewModel.nativeRequestFlow
-                    )
+                composable<AppRoutes.Explorer> { backStackEntry ->
+                    val explorer = backStackEntry.toRoute<AppRoutes.Explorer>()
+                    navController.navigate(AppRoutes.Main(
+                        initialPage = 1,
+                        path = explorer.path,
+                        category = explorer.category,
+                        volumeId = explorer.volumeId,
+                        restorePersistentLocation = explorer.restorePersistentLocation
+                    )) {
+                        popUpTo<AppRoutes.Main> { inclusive = true }
+                    }
                 }
                 composable<AppRoutes.Trash> {
                     val viewModel = hiltViewModel<TrashViewModel>()
@@ -255,6 +318,8 @@ fun AppNavigationGraph(
                         onClearSearch = { viewModel.updateSearchQuery("") },
                         onLoadMore = { viewModel.loadMore() },
                         onClearError = { viewModel.clearError() },
+                        onOpenProperties = { viewModel.openPropertiesForSelection() },
+                        onDismissProperties = { viewModel.dismissProperties() },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -278,7 +343,7 @@ fun AppNavigationGraph(
                 }
                 composable<AppRoutes.StorageManagement> { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry<AppRoutes.Home>()
+                        navController.getBackStackEntry<AppRoutes.Main>()
                     }
                     val viewModel = hiltViewModel<HomeViewModel>(parentEntry)
                     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -307,8 +372,8 @@ fun AppNavigationGraph(
                         state = state,
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.Explorer(path = path)) {
-                                popUpTo(AppRoutes.Home) { saveState = true }
+                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path)) {
+                                popUpTo(AppRoutes.Main()) { saveState = true }
                                 launchSingleTop = true
                             }
                         },

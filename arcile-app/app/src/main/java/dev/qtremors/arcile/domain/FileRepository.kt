@@ -71,6 +71,21 @@ interface FileRepository {
     suspend fun createFile(parentPath: String, name: String): Result<FileModel>
 
     /**
+     * Creates a new file named [name] inside [parentPath] with the specified [size].
+     * The file content will be filled with pseudo-random data.
+     *
+     * @return [Result.success] with a [FileModel] for the new file, or [Result.failure]
+     *   if creation fails.
+     */
+    suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<FileModel>
+
+
+    /**
      * Soft-deletes the file or directory at [path] by moving it to the app Trash.
      *
      * Implementations may move the file/directory to Trash rather than permanently removing it.

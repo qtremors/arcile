@@ -212,7 +212,7 @@ class DefaultMediaStoreClient(
                 MediaStore.Files.FileColumns.MIME_TYPE
             )
 
-            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+            val sortOrder = "MAX(${MediaStore.Files.FileColumns.DATE_MODIFIED}, ${MediaStore.Files.FileColumns.DATE_ADDED}) DESC"
             val selectionParts = mutableListOf("(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)")
             val selectionArgs = mutableListOf<String>()
             if (minTimestamp > 0) {
@@ -448,7 +448,8 @@ class DefaultMediaStoreClient(
                 MediaStore.Files.FileColumns.MIME_TYPE,
                 MediaStore.Files.FileColumns.DISPLAY_NAME,
                 MediaStore.Files.FileColumns.SIZE,
-                MediaStore.Files.FileColumns.DATE_MODIFIED
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.DATE_ADDED
             )
             
             val selectionBuilder = StringBuilder()
@@ -481,7 +482,8 @@ class DefaultMediaStoreClient(
                 val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                 val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
                 val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
                 
                 while (cursor.moveToNext()) {
                     val path = cursor.getString(dataCol)
@@ -493,11 +495,14 @@ class DefaultMediaStoreClient(
                         
                         if (cat == category) {
                             val name = cursor.getString(nameCol) ?: path.substringAfterLast('/', "")
+                            val dateAdded = cursor.getLong(dateAddedCol) * 1000L
+                            val dateModified = cursor.getLong(dateModifiedCol) * 1000L
+                            
                             filesList.add(FileModel(
                                 name = name,
                                 absolutePath = path,
                                 size = cursor.getLong(sizeCol),
-                                lastModified = cursor.getLong(dateCol) * 1000L,
+                                lastModified = maxOf(dateAdded, dateModified),
                                 isDirectory = false,
                                 extension = extension,
                                 isHidden = name.startsWith("."),
@@ -584,6 +589,7 @@ class DefaultMediaStoreClient(
                     MediaStore.Files.FileColumns.DISPLAY_NAME,
                     MediaStore.Files.FileColumns.SIZE,
                     MediaStore.Files.FileColumns.DATE_MODIFIED,
+                    MediaStore.Files.FileColumns.DATE_ADDED,
                     MediaStore.Files.FileColumns.MIME_TYPE
                 )
                 val selectionBuilder = StringBuilder("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
@@ -615,7 +621,7 @@ class DefaultMediaStoreClient(
                     }
                 }
                 
-                val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+                val sortOrder = "MAX(${MediaStore.Files.FileColumns.DATE_MODIFIED}, ${MediaStore.Files.FileColumns.DATE_ADDED}) DESC"
                 val bundle = android.os.Bundle().apply {
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selectionBuilder.toString())
                     putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
@@ -634,23 +640,29 @@ class DefaultMediaStoreClient(
                     val dataCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     val nameCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
                     val sizeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                    val dateCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                    val mimeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
+                    val dateAddedCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
+                    val dateModifiedCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
+                    val mimeTypeCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                     while (c.moveToNext()) {
                         val path = c.getString(dataCol)
                         if (path != null && !path.contains("/.") && matchesScope(path, scope, volumes)) {
                             val name = c.getString(nameCol) ?: path.substringAfterLast('/')
                             if (!name.startsWith(".")) {
+                                val size = c.getLong(sizeCol)
+                                val dateAdded = c.getLong(dateAddedCol) * 1000L
+                                val dateModified = c.getLong(dateModifiedCol) * 1000L
+                                val mimeType = c.getString(mimeTypeCol)
+                                
                                 filesList.add(
                                     FileModel(
                                         name = name,
                                         absolutePath = path,
-                                        size = c.getLong(sizeCol),
-                                        lastModified = c.getLong(dateCol) * 1000L,
+                                        size = size,
+                                        lastModified = maxOf(dateAdded, dateModified),
                                         isDirectory = false,
                                         extension = path.substringAfterLast('.', ""),
                                         isHidden = false,
-                                        mimeType = c.getString(mimeCol)
+                                        mimeType = mimeType
                                     )
                                 )
                             }

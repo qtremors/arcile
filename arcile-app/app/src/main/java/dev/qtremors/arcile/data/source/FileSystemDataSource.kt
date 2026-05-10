@@ -28,6 +28,7 @@ interface FileSystemDataSource {
     suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>>
     suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
     suspend fun moveFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
+    suspend fun createFakeFile(parentPath: String, name: String, size: Long, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<FileModel>
 }
 
 class DefaultFileSystemDataSource(
@@ -283,6 +284,7 @@ class DefaultFileSystemDataSource(
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
+
 
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -670,6 +672,59 @@ class DefaultFileSystemDataSource(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(FileOperationException.Unknown(cause = e))
+        }
+    }
+
+    override suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<FileModel> = withContext(Dispatchers.IO) {
+        try {
+            validateFileName(name).getOrThrow()
+            val parentFile = File(parentPath)
+            validatePath(parentFile).getOrThrow()
+
+            val targetFile = File(parentFile, name)
+            if (targetFile.exists()) {
+                return@withContext Result.failure(Exception("File already exists"))
+            }
+
+            val bufferSize = 1024 * 1024 // 1MB
+            val buffer = ByteArray(bufferSize)
+            val random = java.util.Random()
+            
+            targetFile.outputStream().use { output ->
+                var remaining = size
+                var totalWritten = 0L
+                
+                while (remaining > 0) {
+                    ensureActive()
+                    val toWrite = remaining.coerceAtMost(bufferSize.toLong()).toInt()
+                    random.nextBytes(buffer) // Pseudo-randomize
+                    output.write(buffer, 0, toWrite)
+                    
+                    remaining -= toWrite
+                    totalWritten += toWrite
+                    
+                    onProgress?.invoke(
+                        BulkFileOperationProgress(
+                            completedItems = 0,
+                            totalItems = 1,
+                            currentPath = targetFile.absolutePath,
+                            bytesCopied = totalWritten,
+                            totalBytes = size
+                        )
+                    )
+                }
+            }
+
+            finalizeMutation(targetFile.absolutePath)
+            Result.success(targetFile.toFileModel())
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
         }
     }
 }

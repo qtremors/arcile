@@ -41,7 +41,7 @@ fun SplitButtonGroup(
             Surface(
                 onClick = action.onClick,
                 shape = shape,
-                color = containerColor,
+                color = action.containerColor ?: containerColor,
                 contentColor = action.tint ?: contentColor,
                 modifier = Modifier
                     .height(height)

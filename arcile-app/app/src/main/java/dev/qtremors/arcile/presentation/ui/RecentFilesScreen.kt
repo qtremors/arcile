@@ -87,6 +87,8 @@ fun RecentFilesScreen(
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
     onLoadMore: () -> Unit = {},
+    onOpenProperties: () -> Unit = {},
+    onDismissProperties: () -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
 
@@ -403,24 +405,42 @@ fun RecentFilesScreen(
                                 }
                             }
                             androidx.compose.material3.DropdownMenu(
+                                shape = MaterialTheme.shapes.extraLarge,
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
                                 expanded = showMoreMenu,
                                 onDismissRequest = { showMoreMenu = false }
                             ) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            ) {
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.properties_title)) },
-                                    leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null) },
-                                    onClick = {
-                                        showMoreMenu = false
-                                        // onOpenProperties()
+                                val menuActions = remember(onOpenProperties) {
+                                    mutableListOf<@Composable () -> Unit>().apply {
+                                        add {
+                                            androidx.compose.material3.DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.properties_title)) },
+                                                leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null) },
+                                                onClick = {
+                                                    showMoreMenu = false
+                                                    onOpenProperties()
+                                                }
+                                            )
+                                        }
                                     }
-                                )
-                            }
+                                }
+
+                                menuActions.forEachIndexed { index, action ->
+                                    val shape = when {
+                                        menuActions.size == 1 -> RoundedCornerShape(24.dp)
+                                        index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                        index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                                        else -> RoundedCornerShape(4.dp)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                                            .clip(shape)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                    ) {
+                                        action()
+                                    }
+                                }
                             }
                         }
                     }
@@ -450,6 +470,14 @@ fun RecentFilesScreen(
                     Text(stringResource(R.string.ok))
                 }
             }
+        )
+    }
+
+    if (state.isPropertiesVisible) {
+        dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog(
+            properties = state.properties,
+            isLoading = state.isPropertiesLoading,
+            onDismiss = onDismissProperties
         )
     }
 }

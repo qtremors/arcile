@@ -58,7 +58,7 @@ class NavigationDelegate(
         when {
             !explorer.path.isNullOrEmpty() -> navigateToSpecificFolder(explorer.path)
             !explorer.category.isNullOrEmpty() -> navigateToCategory(explorer.category, explorer.volumeId)
-            else -> openFileBrowser()
+            else -> openFileBrowser(restorePersistentLocation = explorer.restorePersistentLocation)
         }
     }
 
@@ -92,16 +92,31 @@ class NavigationDelegate(
                     path.startsWith(it.path + java.io.File.separator)
             }
 
-    fun openFileBrowser(errorMessage: String? = null) {
-        val volumes = state.value.storageVolumes
-        if (volumes.size <= 1) {
-            val onlyVolume = volumes.firstOrNull()
-            if (onlyVolume != null) {
-                loadDirectory(onlyVolume.path, onlyVolume.id, clearHistory = true, errorMessage = errorMessage)
-                return
+    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) {
+        viewModelScope.launch {
+            if (restorePersistentLocation) {
+                val prefs = browserPreferencesRepository.preferencesFlow.first()
+                val lastPath = prefs.lastOpenedPath
+                val lastVolumeId = prefs.lastOpenedVolumeId
+
+                if (!lastPath.isNullOrEmpty() && !lastVolumeId.isNullOrEmpty()) {
+                    val volume = state.value.storageVolumes.firstOrNull { it.id == lastVolumeId }
+                    if (volume != null) {
+                        loadDirectory(lastPath, lastVolumeId, clearHistory = true, errorMessage = errorMessage)
+                        return@launch
+                    }
+                }
+            }
+
+            val volumes = state.value.storageVolumes
+            val primaryVolume = volumes.find { it.isPrimary } ?: volumes.firstOrNull()
+
+            if (primaryVolume != null) {
+                loadDirectory(primaryVolume.path, primaryVolume.id, clearHistory = true, errorMessage = errorMessage)
+            } else {
+                openVolumeRoots(errorMessage)
             }
         }
-        openVolumeRoots(errorMessage)
     }
 
     fun openVolumeRoots(errorMessage: String? = null) {
@@ -137,7 +152,7 @@ class NavigationDelegate(
     fun navigateToSpecificFolder(path: String) {
         val volume = findVolumeForPath(path)
         if (volume == null) {
-            openFileBrowser("Storage for this path is not available")
+            openFileBrowser(errorMessage = "Storage for this path is not available")
             return
         }
         pathHistory.clear()
@@ -212,7 +227,7 @@ class NavigationDelegate(
     ) {
         val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
         if (resolvedVolumeId == null) {
-            openFileBrowser("Storage for this path is not available")
+            openFileBrowser(errorMessage = "Storage for this path is not available")
             return
         }
         if (clearHistory) {
@@ -233,6 +248,7 @@ class NavigationDelegate(
         }
         saveNavState()
         viewModelScope.launch {
+            browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             applyPresentation(prefs.getPresentationForPath(path))
 

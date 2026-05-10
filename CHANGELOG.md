@@ -1,10 +1,34 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.3
+> **Version:** 0.6.4
 > **Last Updated:** 2026-05-10
 
 ---
+
+## [0.6.4] - 2026-05-10
+
+### UI & UX
+- **Premium Progress Engine:** Implemented a frame-clock-driven interpolation system for buttery-smooth progress visualization. Features exponential smoothing, velocity clamping, and a 300ms debounce to eliminate jitter and flickering.
+- **Visual Feedback:** Added instant-snap completion feedback and status-aware final fill colors (Success: Green, Failure/Cancel: Red) with graceful auto-dismissal.
+- **Selection Menu Refinement:** Replaced the generic selection "More" menu in Recent Files with a premium, pill-based design consistent with the core file browser.
+- **Thumbnail Performance:** Configured a persistent 50MB+ disk cache and integrated `ContentResolver.loadThumbnail` for video files. By leveraging the Android system's built-in MediaStore thumbnail cache, video previews are now nearly instant and persist across app restarts, eliminating expensive on-the-fly decoding.
+- **Grid Thumbnail Optimization:** Removed hardcoded size limits from `FileGrid` media previews. Coil now dynamically bounds memory to the exact layout constraints, drastically reducing memory consumption and stopping aggressive cache evictions. Added crossfade animations and a subtle loading placeholder to ensure buttery-smooth scrolling without jarring pop-ins.
+- **Unified Pager Architecture:** Transitioned the core app navigation to a `HorizontalPager` system. The Home and Browser screens now exist side-by-side, enabling a high-end, real-time "live" preview as you swipe between them.
+- **Swipe-to-Peek Performance:** Optimized the navigation viewport to keep both screens composed in memory, ensuring zero-latency transitions and eliminating blank flickers during gestures.
+- **Smart Session Restoration:** Refined the "last-opened" folder logic. Swipe gestures and app restarts now restore your previous browser session for continuity, while clicking the storage summary bar intelligently defaults to the main internal storage for quick access.
+- **Layout Stability:** Locked pill geometry using Canvas drawing to prevent shape distortion. Fixed text alignment and resolved overlapping toolbar button issues.
+- **Random Fake File Generator:** Implemented a new utility to generate files of any size and extension filled with pseudo-random data.
+  - Features a background operation pipeline using `BulkFileOperationService` for large file creation.
+  - Added a dedicated `CreateFakeFileDialog` with size unit selection (KB, MB, GB).
+  - Integrated into the file browser FAB menu.
+
+### Architecture
+- **State Hardening:** Updated `BrowserViewModel` to track terminal operation states and start times, enabling decoupled UI animation lifecycles.
+
+### Correctness & Reliability
+- **Properties Dialog:** Fixed a bug where the Properties action in Recent Files was non-functional. It now correctly computes and displays detailed file metadata.
+- **Recent Files Ranking:** Fixed a bug where recently copied files with old modification dates were buried in the "Recent Files" list. Queries now sort by the maximum of `date_added` and `date_modified` to ensure new copies and downloads always appear at the top.
 
 ## [0.6.3] - 2026-05-10
 

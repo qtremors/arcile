@@ -177,7 +177,16 @@ class LocalFileRepository(
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createFile(parentPath, name)
 
+    override suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<FileModel> =
+        fileSystemDataSource.createFakeFile(parentPath, name, size, onProgress)
+
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+
         val volume = getVolumeForPath(path).getOrNull()
             ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
         if (!volume.kind.supportsTrash) {

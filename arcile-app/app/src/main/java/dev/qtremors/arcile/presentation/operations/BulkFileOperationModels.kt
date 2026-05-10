@@ -8,7 +8,8 @@ enum class BulkFileOperationType {
     COPY,
     MOVE,
     TRASH,
-    DELETE
+    DELETE,
+    CREATE_FAKE
 }
 
 @Serializable
@@ -17,7 +18,8 @@ data class BulkFileOperationRequest(
     val type: BulkFileOperationType,
     val sourcePaths: List<String>,
     val destinationPath: String? = null,
-    val resolutions: Map<String, ConflictResolution> = emptyMap()
+    val resolutions: Map<String, ConflictResolution> = emptyMap(),
+    val fakeFileSize: Long? = null
 )
 
 @Serializable

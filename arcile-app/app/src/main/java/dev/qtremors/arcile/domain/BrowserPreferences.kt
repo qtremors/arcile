@@ -36,7 +36,9 @@ data class BrowserPresentationPreferences(
 data class BrowserPreferences(
     val globalPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(),
     val pathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
-    val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap()
+    val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
+    val lastOpenedPath: String? = null,
+    val lastOpenedVolumeId: String? = null
 ) {
     val globalSortOption: FileSortOption
         get() = globalPresentation.sortOption

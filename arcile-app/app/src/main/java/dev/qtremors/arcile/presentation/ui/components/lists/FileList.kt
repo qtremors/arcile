@@ -227,7 +227,9 @@ fun FileItemRow(
                     SubcomposeAsyncImage(
                         model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                             .data(File(file.absolutePath))
-                            .size(256)
+                            .size(128)
+                            .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                             .build(),
                         contentDescription = stringResource(R.string.desc_thumbnail),
                         modifier = Modifier

@@ -25,7 +25,8 @@ interface BulkFileOperationCoordinator {
         type: BulkFileOperationType,
         sourcePaths: List<String>,
         destinationPath: String?,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        fakeFileSize: Long? = null
     ): Boolean
 
     fun cancelActiveOperation()
@@ -55,7 +56,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         type: BulkFileOperationType,
         sourcePaths: List<String>,
         destinationPath: String?,
-        resolutions: Map<String, ConflictResolution>
+        resolutions: Map<String, ConflictResolution>,
+        fakeFileSize: Long?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -64,7 +66,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             type = type,
             sourcePaths = sourcePaths,
             destinationPath = destinationPath,
-            resolutions = resolutions
+            resolutions = resolutions,
+            fakeFileSize = fakeFileSize
         )
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

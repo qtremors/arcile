@@ -32,6 +32,8 @@ interface BrowserPreferencesStore {
         presentation: BrowserPresentationPreferences?,
         applyToSubfolders: Boolean = false
     )
+
+    suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
 }
 
 class BrowserPreferencesRepository(
@@ -43,6 +45,8 @@ class BrowserPreferencesRepository(
     private val GLOBAL_LIST_ZOOM_KEY = floatPreferencesKey("global_list_zoom")
     private val GLOBAL_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("global_grid_min_cell_size")
     private val GLOBAL_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("global_show_thumbnails")
+    private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
+    private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
 
     override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
@@ -138,7 +142,9 @@ class BrowserPreferencesRepository(
             BrowserPreferences(
                 globalPresentation = globalPresentation,
                 pathPresentationOptions = pathMap.mapValues { it.value.normalized() },
-                exactPathPresentationOptions = exactPathMap.mapValues { it.value.normalized() }
+                exactPathPresentationOptions = exactPathMap.mapValues { it.value.normalized() },
+                lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
+                lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
         }
         .flowOn(Dispatchers.IO)
@@ -171,6 +177,17 @@ class BrowserPreferencesRepository(
                 prefs[keys.viewMode] = normalized.viewMode.name
                 prefs[keys.listZoom] = normalized.listZoom
                 prefs[keys.gridMinCellSize] = normalized.gridMinCellSize
+            }
+        }
+    }
+
+    override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
+        dataStore.edit { prefs ->
+            prefs[LAST_OPENED_PATH_KEY] = path
+            if (volumeId != null) {
+                prefs[LAST_OPENED_VOLUME_ID_KEY] = volumeId
+            } else {
+                prefs.remove(LAST_OPENED_VOLUME_ID_KEY)
             }
         }
     }
