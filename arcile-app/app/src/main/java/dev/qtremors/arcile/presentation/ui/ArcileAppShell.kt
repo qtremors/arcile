@@ -24,11 +24,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,6 +51,7 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -61,14 +65,26 @@ fun ArcileAppShell(
     val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.Home
     val context = LocalContext.current
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
     androidx.compose.animation.SharedTransitionLayout {
-        Box(modifier = Modifier.fillMaxSize()) {
-            AppNavigationGraph(
-                navController = navController,
-                currentThemeState = currentThemeState,
-                onThemeChange = onThemeChange,
-                onOpenFile = onOpenFile
-            )
+        Scaffold(
+            snackbarHost = { ArcileSnackbarHost(hostState = snackbarHostState) },
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                AppNavigationGraph(
+                    navController = navController,
+                    currentThemeState = currentThemeState,
+                    onThemeChange = onThemeChange,
+                    onOpenFile = onOpenFile
+                )
+            }
         }
     }
 }

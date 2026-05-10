@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
@@ -68,6 +70,7 @@ fun FileGrid(
     modifier: Modifier = Modifier,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
+    showThumbnails: Boolean = true,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(16.dp)
@@ -97,6 +100,7 @@ fun FileGrid(
                 isSelected = selectedFiles.contains(file.absolutePath),
                 folderStats = folderStatsByPath[file.absolutePath],
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
+                showThumbnails = showThumbnails,
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -131,6 +135,7 @@ fun FileGridItem(
     file: FileModel,
     formattedDate: String,
     isSelected: Boolean,
+    showThumbnails: Boolean = true,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false,
     onClick: () -> Unit,
@@ -197,7 +202,7 @@ fun FileGridItem(
                 .fillMaxWidth()
                 .animateContentSize()
         ) {
-            val isMedia = !file.isDirectory && (
+            val isMedia = showThumbnails && !file.isDirectory && (
                 FileCategories.Images.extensions.contains(file.extension) ||
                     FileCategories.Videos.extensions.contains(file.extension) ||
                     FileCategories.APKs.extensions.contains(file.extension) ||
@@ -205,7 +210,7 @@ fun FileGridItem(
                 )
 
             if (isMedia) {
-                AsyncImage(
+                SubcomposeAsyncImage(
                     model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                         .data(File(file.absolutePath))
                         .size(256)
@@ -214,7 +219,22 @@ fun FileGridItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    error = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                contentDescription = if (file.isDirectory) "Folder" else "File",
+                                tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                    }
                 )
             } else {
                 Box(
@@ -225,7 +245,7 @@ fun FileGridItem(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                        imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
                         contentDescription = if (file.isDirectory) "Folder" else "File",
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)

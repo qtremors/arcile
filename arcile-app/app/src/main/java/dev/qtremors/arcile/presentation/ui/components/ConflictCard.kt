@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileConflict
@@ -145,18 +146,26 @@ private fun FileThumbnail(file: FileModel, size: Int) {
             FileCategories.Videos.extensions.contains(ext)
 
     if (hasPreview) {
-        AsyncImage(
+        SubcomposeAsyncImage(
             model = File(file.absolutePath),
             contentDescription = stringResource(R.string.thumbnail),
             modifier = Modifier
                 .size(size.dp)
                 .clip(MaterialTheme.shapes.extraLarge),
-            contentScale = ContentScale.Crop
+            contentScale = ContentScale.Crop,
+            error = {
+                Icon(
+                    imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                    contentDescription = null,
+                    tint = if (file.isDirectory) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(size.dp)
+                )
+            }
         )
     } else {
         Icon(
-            imageVector = if (file.isDirectory) Icons.Default.Folder
-            else Icons.AutoMirrored.Filled.InsertDriveFile,
+            imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
             contentDescription = null,
             tint = if (file.isDirectory) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant,

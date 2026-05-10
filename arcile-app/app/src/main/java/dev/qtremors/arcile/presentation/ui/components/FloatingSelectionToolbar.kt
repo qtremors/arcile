@@ -21,12 +21,12 @@ data class ToolbarAction(
     val onClick: () -> Unit
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FloatingSelectionToolbar(
     isVisible: Boolean,
     modifier: Modifier = Modifier,
     actions: List<ToolbarAction>,
+    startContent: (@Composable () -> Unit)? = null,
     moreContent: (@Composable () -> Unit)? = null
 ) {
     AnimatedVisibility(
@@ -38,20 +38,29 @@ fun FloatingSelectionToolbar(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
+            horizontalArrangement = if (startContent != null) Arrangement.SpaceBetween else Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (actions.isNotEmpty()) {
-                SplitButtonGroup(
-                    actions = actions,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
+            if (startContent != null) {
+                startContent()
             }
-            if (moreContent != null) {
+            
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (actions.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(8.dp))
+                    SplitButtonGroup(
+                        actions = actions,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        height = 56.dp,
+                        minWidth = 56.dp,
+                        iconSize = 28.dp
+                    )
                 }
-                moreContent()
+                if (moreContent != null) {
+                    moreContent()
+                }
             }
         }
     }

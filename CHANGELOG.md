@@ -1,10 +1,43 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.2
-> **Last Updated:** 2026-05-03
+> **Version:** 0.6.3
+> **Last Updated:** 2026-05-10
 
 ---
+
+## [0.6.3] - 2026-05-10
+
+### UI & Rendering
+- **Appearance Settings Overhaul:** Reimagined theme and accent color selectors with a modern horizontal layout inspired by Material Design 3.
+  - Theme modes now use icon-in-container layouts with labels and distinct selection shapes.
+  - The accent picker is now a scrollable row of color circles with "squircle" selection markers and long-press support for the full color picker.
+- **Enhanced File Visuals:** 
+  - Replaced generic file icons with descriptive vector icons for audio, archives, documents, and code.
+  - Implemented robust thumbnail fallbacks using `SubcomposeAsyncImage` to gracefully handle missing media previews.
+  - Added a "Show Thumbnails" toggle in Settings to optionally disable all media previews for a minimal look.
+- **Streamlined File Operations:**
+  - Redesigned the clipboard status "pill" to double as a real-time progress indicator with a filling background and remaining size display.
+  - Polished the copy/move/paste flow with a persistent status pill and optimized action button placement.
+  - Introduced a Clipboard Management dialog for viewing and removing individual items.
+- **Polished Feedback:** Upgraded Snackbars to Material 3 Expressive standards with tonal colors and squircle shapes, managed by a new global host.
+
+### Security
+- **Platform Cleanup:** Removed unreachable SDK guards redundant on `minSdk 30`.
+
+### Architecture
+- **Foreground Service Hardening:** `BulkFileOperationService` now captures `startId` locally to prevent stuck notifications and features improved cancellation guards to reduce unnecessary IPC.
+- **State Management:**
+  - `ClipboardDelegate` now clears state immediately after paste to prevent duplicate operations.
+  - `HomeViewModel` now utilizes a single source of truth for time-anchored data, eliminating redundant object instations.
+
+### Correctness & Reliability
+- **Query Optimization:** `MediaStoreClient` now filters category queries by volume at the SQL level, significantly improving performance on multi-volume devices.
+- **State Fixes:** Resolved "stuck" loading indicators in the Browser and Recent Files by ensuring immediate state cleanup after bulk handoffs.
+
+### Build & CI
+- **ProGuard Hardening:** Unified serialization keep rules under a blanket `@Serializable` rule for all persisted data.
+- **Notification Aesthetics:** Swapped the launcher icon for a monochrome alpha-only drawable in foreground service notifications for better system integration.
 
 ## [0.6.2] - 2026-05-03
 

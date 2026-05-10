@@ -11,7 +11,8 @@ data class BrowserPresentationPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
     val viewMode: BrowserViewMode = DEFAULT_VIEW_MODE,
     val listZoom: Float = DEFAULT_LIST_ZOOM,
-    val gridMinCellSize: Float = DEFAULT_GRID_MIN_CELL_SIZE
+    val gridMinCellSize: Float = DEFAULT_GRID_MIN_CELL_SIZE,
+    val showThumbnails: Boolean = DEFAULT_SHOW_THUMBNAILS
 ) {
     companion object {
         val DEFAULT_SORT_OPTION: FileSortOption = FileSortOption.NAME_ASC
@@ -19,6 +20,7 @@ data class BrowserPresentationPreferences(
         val DEFAULT_VIEW_MODE: BrowserViewMode = BrowserViewMode.LIST
         const val DEFAULT_LIST_ZOOM: Float = 1f
         const val DEFAULT_GRID_MIN_CELL_SIZE: Float = 132f
+        const val DEFAULT_SHOW_THUMBNAILS: Boolean = true
         const val MIN_LIST_ZOOM: Float = 0.85f
         const val MAX_LIST_ZOOM: Float = 1.25f
         const val MIN_GRID_MIN_CELL_SIZE: Float = 96f

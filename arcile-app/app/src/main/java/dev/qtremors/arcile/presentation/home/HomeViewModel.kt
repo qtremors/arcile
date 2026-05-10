@@ -76,13 +76,6 @@ class HomeViewModel @Inject constructor(
     private var lastAnalyticsRefreshTime = 0L
 
     init {
-        val cal = java.util.Calendar.getInstance()
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        _state.update { it.copy(todayStart = cal.timeInMillis) }
-
         viewModelScope.launch {
             quickAccessRepo.quickAccessItems.collectLatest { items ->
                 _state.update { it.copy(quickAccessItems = items) }

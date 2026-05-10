@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
 import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
@@ -171,9 +172,16 @@ fun TrashScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            ArcileSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = snackbarPadding)
+            )
+        },
         topBar = {
             if (showSearchBar) {
                 SearchTopBar(
@@ -333,10 +341,14 @@ fun TrashScreen(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(56.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = stringResource(R.string.action_more_options),
+                                        modifier = Modifier.size(28.dp)
+                                    )
                                 }
                             }
                             androidx.compose.material3.DropdownMenu(

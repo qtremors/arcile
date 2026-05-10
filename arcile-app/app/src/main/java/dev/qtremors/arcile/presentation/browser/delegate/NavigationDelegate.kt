@@ -125,6 +125,7 @@ class NavigationDelegate(
                     browserViewMode = presentation.viewMode,
                     browserListZoom = presentation.listZoom,
                     browserGridMinCellSize = presentation.gridMinCellSize,
+                    browserShowThumbnails = presentation.showThumbnails,
                     isLoading = false,
                     isPullToRefreshing = false
                 )
@@ -300,7 +301,8 @@ class NavigationDelegate(
                         browserSortOption = categoryPresentation.sortOption,
                         browserViewMode = categoryPresentation.viewMode,
                         browserListZoom = categoryPresentation.listZoom,
-                        browserGridMinCellSize = categoryPresentation.gridMinCellSize
+                        browserGridMinCellSize = categoryPresentation.gridMinCellSize,
+                        browserShowThumbnails = categoryPresentation.showThumbnails
                     )
                 }
                 saveNavState()
@@ -322,7 +324,8 @@ class NavigationDelegate(
                 browserSortOption = presentation.sortOption,
                 browserViewMode = presentation.viewMode,
                 browserListZoom = presentation.listZoom,
-                browserGridMinCellSize = presentation.gridMinCellSize
+                browserGridMinCellSize = presentation.gridMinCellSize,
+                browserShowThumbnails = presentation.showThumbnails
             )
         }
     }

@@ -20,24 +20,38 @@ class ClipboardDelegate(
     private val refreshAction: () -> Unit
 ) {
     fun copySelectedToClipboard() {
-        val selected = state.value.selectedFiles.toList()
-        if (selected.isNotEmpty()) {
+        val selectedPaths = state.value.selectedFiles
+        val selectedFiles = state.value.files.filter { it.absolutePath in selectedPaths }.map { file ->
+            if (file.isDirectory) {
+                file.copy(size = state.value.folderStatsByPath[file.absolutePath]?.totalBytes ?: 0L)
+            } else file
+        }
+        
+        if (selectedFiles.isNotEmpty()) {
             state.update {
                 it.copy(
-                    clipboardState = ClipboardState(ClipboardOperation.COPY, selected),
-                    selectedFiles = emptySet()
+                    clipboardState = ClipboardState(ClipboardOperation.COPY, selectedFiles),
+                    selectedFiles = emptySet(),
+                    selectedFilesTotalSize = 0L
                 )
             }
         }
     }
 
     fun cutSelectedToClipboard() {
-        val selected = state.value.selectedFiles.toList()
-        if (selected.isNotEmpty()) {
+        val selectedPaths = state.value.selectedFiles
+        val selectedFiles = state.value.files.filter { it.absolutePath in selectedPaths }.map { file ->
+            if (file.isDirectory) {
+                file.copy(size = state.value.folderStatsByPath[file.absolutePath]?.totalBytes ?: 0L)
+            } else file
+        }
+        
+        if (selectedFiles.isNotEmpty()) {
             state.update {
                 it.copy(
-                    clipboardState = ClipboardState(ClipboardOperation.CUT, selected),
-                    selectedFiles = emptySet()
+                    clipboardState = ClipboardState(ClipboardOperation.CUT, selectedFiles),
+                    selectedFiles = emptySet(),
+                    selectedFilesTotalSize = 0L
                 )
             }
         }
@@ -48,6 +62,18 @@ class ClipboardDelegate(
         state.update { it.copy(clipboardState = null) }
     }
 
+    fun removeFromClipboard(path: String) {
+        state.update { currentState ->
+            val clipboard = currentState.clipboardState ?: return@update currentState
+            val updatedFiles = clipboard.files.filter { it.absolutePath != path }
+            if (updatedFiles.isEmpty()) {
+                currentState.copy(clipboardState = null)
+            } else {
+                currentState.copy(clipboardState = clipboard.copy(files = updatedFiles))
+            }
+        }
+    }
+
     fun pasteFromClipboard() {
         val clipboard = state.value.clipboardState ?: return
         val currentPath = state.value.currentPath
@@ -56,7 +82,8 @@ class ClipboardDelegate(
         viewModelScope.launch {
             state.update { it.copy(isLoading = true, error = null) }
 
-            repository.detectCopyConflicts(clipboard.sourcePaths, currentPath).onSuccess { conflicts ->
+            val sourcePaths = clipboard.files.map { it.absolutePath }
+            repository.detectCopyConflicts(sourcePaths, currentPath).onSuccess { conflicts ->
                 if (conflicts.isNotEmpty()) {
                     state.update {
                         it.copy(
@@ -101,12 +128,14 @@ class ClipboardDelegate(
         }
         val started = bulkFileOperationCoordinator.startOperation(
             type = operationType,
-            sourcePaths = clipboard.sourcePaths,
+            sourcePaths = clipboard.files.map { it.absolutePath },
             destinationPath = destinationPath,
             resolutions = resolutions
         )
 
-        if (!started) {
+        if (started) {
+            state.update { it.copy(isLoading = false) }
+        } else {
             state.update { it.copy(isLoading = false, error = "Another file operation is already running") }
         }
     }

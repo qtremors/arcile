@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.mutableFloatStateOf
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -106,10 +107,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.qtremors.arcile.domain.FileModel
@@ -123,6 +124,7 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ClipboardOperation
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
 import dev.qtremors.arcile.presentation.ui.components.PasteConflictDialog
@@ -217,12 +219,14 @@ fun BrowserScreen(
     onNativeRequestResult: (Boolean) -> Unit = {},
     onInvertSelection: (List<String>) -> Unit = {},
     onSelectAll: (List<String>) -> Unit = {},
+    onRemoveFromClipboard: (String) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCreateFileDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
+    var showClipboardContents by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
     
     var isFabExpanded by remember { mutableStateOf(false) }
@@ -264,13 +268,15 @@ fun BrowserScreen(
         state.browserSortOption,
         state.browserViewMode,
         state.browserListZoom,
-        state.browserGridMinCellSize
+        state.browserGridMinCellSize,
+        state.browserShowThumbnails
     ) {
         BrowserPresentationPreferences(
             sortOption = state.browserSortOption,
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
-            gridMinCellSize = state.browserGridMinCellSize
+            gridMinCellSize = state.browserGridMinCellSize,
+            showThumbnails = state.browserShowThumbnails
         )
     }
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
@@ -305,7 +311,7 @@ fun BrowserScreen(
     LaunchedEffect(state.clipboardState) {
         state.clipboardState?.let { clipboard ->
             val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
-            val count = clipboard.sourcePaths.size
+            val count = clipboard.files.size
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(context.getString(R.string.clipboard_feedback, count, action))
             }
@@ -440,9 +446,18 @@ fun BrowserScreen(
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    val isSelectionMode = state.selectedFiles.isNotEmpty()
+    val isClipboardActive = state.clipboardState != null
+    val snackbarPadding = if (isSelectionMode || isClipboardActive) 80.dp else 0.dp
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = {
+            ArcileSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = snackbarPadding)
+            )
+        },
         topBar = {
             if (showSearchBar) {
                 Column {
@@ -515,14 +530,7 @@ fun BrowserScreen(
         },
         bottomBar = {},
         floatingActionButton = {
-            if (state.activeFileOperation != null) {
-                Box(modifier = Modifier.widthIn(max = 280.dp)) {
-                    ActiveFileOperationFabInternal(
-                        operation = state.activeFileOperation,
-                        onCancel = onCancelClipboard
-                    )
-                }
-            } else if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen && state.clipboardState == null) {
+            if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen && state.clipboardState == null && state.activeFileOperation == null) {
                 Box {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
@@ -619,6 +627,7 @@ fun BrowserScreen(
                                     file = file,
                                     formattedDate = formatter.format(Date(file.lastModified)),
                                     isSelected = false,
+                                    showThumbnails = currentPresentation.showThumbnails,
                                     onClick = {
                                         showSearchBar = false
                                         onClearSearch()
@@ -724,6 +733,7 @@ fun BrowserScreen(
                                 onOpenFile = onOpenFile,
                                  onToggleSelection = onToggleSelection,
                                  onSelectMultiple = onSelectMultiple,
+                                 showThumbnails = currentPresentation.showThumbnails,
                                  modifier = Modifier.fillMaxSize(),
                                  gridState = gridState,
                                  minCellSize = state.browserGridMinCellSize.dp,
@@ -744,6 +754,7 @@ fun BrowserScreen(
                                 onOpenFile = onOpenFile,
                                  onToggleSelection = onToggleSelection,
                                  onSelectMultiple = onSelectMultiple,
+                                 showThumbnails = currentPresentation.showThumbnails,
                                  modifier = Modifier.fillMaxSize(),
                                  listState = listState,
                                  zoom = state.browserListZoom,
@@ -817,10 +828,14 @@ fun BrowserScreen(
                                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                                     shadowElevation = 4.dp,
                                     tonalElevation = 4.dp,
-                                    modifier = Modifier.size(48.dp)
+                                    modifier = Modifier.size(56.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = stringResource(R.string.action_more_options),
+                                            modifier = Modifier.size(28.dp)
+                                        )
                                     }
                                 }
                                 androidx.compose.material3.DropdownMenu(
@@ -884,23 +899,136 @@ fun BrowserScreen(
                             }
                         }
                     )
-                } else if (state.clipboardState != null) {
-                    val pasteActions = listOf(
-                        ToolbarAction(
-                            icon = Icons.Default.ContentPaste,
-                            contentDescription = stringResource(R.string.action_paste_here),
-                            onClick = onPasteFromClipboard
-                        ),
-                        ToolbarAction(
-                            icon = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.action_cancel_transfer),
-                            tint = MaterialTheme.colorScheme.error,
-                            onClick = onCancelClipboard
-                        )
+                } else if (state.clipboardState != null || state.activeFileOperation != null) {
+                    val clipboard = state.clipboardState
+                    val activeOp = state.activeFileOperation
+                    
+                    val progress = if (activeOp != null) {
+                        val byteProgress = activeOp.totalBytes
+                            ?.takeIf { it > 0L }
+                            ?.let { total -> ((activeOp.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+                        val itemProgress = activeOp.totalItems
+                            .takeIf { it > 0 }
+                            ?.let { activeOp.completedItems.toFloat() / it.toFloat() }
+                            ?.coerceIn(0f, 1f)
+                        byteProgress ?: itemProgress
+                    } else null
+
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = progress ?: 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessLow),
+                        label = "pill_progress"
                     )
+
+                    val actions = if (activeOp != null) {
+                        listOf(
+                            ToolbarAction(
+                                icon = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.action_cancel_transfer),
+                                tint = MaterialTheme.colorScheme.error,
+                                onClick = onCancelClipboard
+                            )
+                        )
+                    } else {
+                        listOf(
+                            ToolbarAction(
+                                icon = Icons.Default.ContentPaste,
+                                contentDescription = stringResource(R.string.action_paste_here),
+                                onClick = onPasteFromClipboard
+                            ),
+                            ToolbarAction(
+                                icon = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.action_cancel_transfer),
+                                tint = MaterialTheme.colorScheme.error,
+                                onClick = onCancelClipboard
+                            )
+                        )
+                    }
+                    
                     dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
                         isVisible = true,
-                        actions = pasteActions
+                        actions = actions,
+                        startContent = {
+                            Surface(
+                                onClick = { if (activeOp == null) showClipboardContents = true },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                tonalElevation = 4.dp,
+                                shadowElevation = 2.dp,
+                                modifier = Modifier
+                                    .height(56.dp)
+                                    .padding(end = 8.dp)
+                                    .widthIn(min = 140.dp)
+                                    .animateContentSize()
+                            ) {
+                                Box {
+                                    if (progress != null || activeOp != null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxHeight()
+                                                .fillMaxWidth(animatedProgress)
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                                        )
+                                    }
+
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        val opIcon = when {
+                                            activeOp?.type == BulkFileOperationType.MOVE || clipboard?.operation == ClipboardOperation.CUT -> Icons.Default.ContentCut
+                                            activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
+                                            else -> Icons.Default.ContentCopy
+                                        }
+                                        val opTint = if (activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        }
+                                        Icon(
+                                            imageVector = opIcon,
+                                            contentDescription = null,
+                                            tint = opTint,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Column(
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        ) {
+                                            val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
+                                            Text(
+                                                text = if (itemCount == 1) "1 item" else "$itemCount items",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            
+                                            val subtitle = if (activeOp != null) {
+                                                if (activeOp.totalBytes != null && activeOp.totalBytes!! > 0L) {
+                                                    val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
+                                                    formatFileSize(remaining.coerceAtLeast(0L))
+                                                } else {
+                                                    "${activeOp.completedItems} / ${activeOp.totalItems}"
+                                                }
+                                            } else {
+                                                formatFileSize(clipboard?.totalSize ?: 0L)
+                                            }
+                                            
+                                            Text(
+                                                text = subtitle,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     )
                 }
             }
@@ -993,6 +1121,14 @@ fun BrowserScreen(
             properties = state.properties,
             isLoading = state.isPropertiesLoading,
             onDismiss = onDismissProperties
+        )
+    }
+
+    if (showClipboardContents && state.clipboardState != null) {
+        dev.qtremors.arcile.presentation.ui.components.dialogs.ClipboardContentsDialog(
+            state = state.clipboardState,
+            onRemoveItem = onRemoveFromClipboard,
+            onDismiss = { showClipboardContents = false }
         )
     }
 }

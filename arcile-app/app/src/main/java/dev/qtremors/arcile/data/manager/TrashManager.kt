@@ -591,7 +591,6 @@ class DefaultTrashManager(
         try {
             val list = mutableListOf<TrashMetadata>()
             val volumes = volumeProvider.currentVolumes()
-            var hasDeviceBoundUnreadableMetadata = false
 
             for (volume in trashEnabledVolumes(volumes)) {
                 val trashDir = getTrashDirForVolume(volume)
@@ -644,22 +643,30 @@ class DefaultTrashManager(
                                 if (e is kotlinx.coroutines.CancellationException) throw e
                                 if (e is TrashCryptoHelper.KeyStoreUnavailableException) {
                                     AppLogger.w("TrashManager", "Trash metadata cannot be decrypted on this device", e)
-                                    hasDeviceBoundUnreadableMetadata = true
-                                    return@forEach
+                                } else {
+                                    AppLogger.e("TrashManager", "Corrupted trash metadata detected", e)
                                 }
-                                AppLogger.e("TrashManager", "Deleting corrupted trash metadata", e)
-                                metadataFile.delete()
+
+                                val id = metadataFile.nameWithoutExtension
+                                val trashedFile = File(trashDir, id)
+                                if (trashedFile.exists()) {
+                                    val spoofedModel = FileModel(
+                                        name = "Recovered Item ($id)",
+                                        absolutePath = trashedFile.absolutePath,
+                                        size = if (trashedFile.isFile) trashedFile.length() else 0L,
+                                        lastModified = trashedFile.lastModified(),
+                                        isDirectory = trashedFile.isDirectory,
+                                        extension = "",
+                                        isHidden = false
+                                    )
+                                    list.add(TrashMetadata(id, "", trashedFile.lastModified(), spoofedModel, volume.id, volume.kind))
+                                } else {
+                                    metadataFile.delete()
+                                }
                             }
                         }
                     }
                 }
-            }
-            if (hasDeviceBoundUnreadableMetadata) {
-                return@withContext Result.failure(
-                    IllegalStateException(
-                        "Some Trash metadata was encrypted on another device and cannot be restored here. Review or empty Trash before migrating devices."
-                    )
-                )
             }
             Result.success(list.sortedByDescending { it.deletionTime })
         } catch (e: Exception) {

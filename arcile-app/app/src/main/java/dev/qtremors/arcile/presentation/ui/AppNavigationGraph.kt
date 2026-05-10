@@ -23,6 +23,30 @@ import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import dev.qtremors.arcile.domain.BrowserPreferences
+import dev.qtremors.arcile.data.BrowserPreferencesStore
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val browserPreferencesStore: BrowserPreferencesStore
+) : ViewModel() {
+    val browserPreferences = browserPreferencesStore.preferencesFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserPreferences())
+
+    fun updateShowThumbnails(show: Boolean) {
+        viewModelScope.launch {
+            val current = browserPreferences.value.globalPresentation
+            browserPreferencesStore.updateGlobalPresentation(current.copy(showThumbnails = show))
+        }
+    }
+}
 
 @Composable
 fun AppNavigationGraph(
@@ -181,6 +205,7 @@ fun AppNavigationGraph(
                         onNativeRequestResult = { confirmed -> viewModel.handleNativeActionResult(confirmed) },
                         onSelectAll = { viewModel.selectAll(it) },
                         onInvertSelection = { viewModel.invertSelection(it) },
+                        onRemoveFromClipboard = { viewModel.removeFromClipboard(it) },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -229,6 +254,7 @@ fun AppNavigationGraph(
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
                         onLoadMore = { viewModel.loadMore() },
+                        onClearError = { viewModel.clearError() },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -238,8 +264,12 @@ fun AppNavigationGraph(
                     )
                 }
                 composable<AppRoutes.Settings> {
+                    val viewModel = hiltViewModel<SettingsViewModel>()
+                    val browserPrefs by viewModel.browserPreferences.collectAsStateWithLifecycle()
                     SettingsScreen(
                         currentThemeState = currentThemeState,
+                        showThumbnails = browserPrefs.globalPresentation.showThumbnails,
+                        onShowThumbnailsChange = { viewModel.updateShowThumbnails(it) },
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },

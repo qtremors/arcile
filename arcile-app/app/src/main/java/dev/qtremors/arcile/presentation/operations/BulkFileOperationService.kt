@@ -5,7 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
-import android.os.Build
+
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,12 +35,11 @@ class BulkFileOperationService : Service() {
     private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
-    private var latestStartId: Int = 0
+
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        latestStartId = startId
         when (intent?.action) {
             ACTION_CANCEL -> {
                 val cancelOperationId = intent.getStringExtra(EXTRA_OPERATION_ID)
@@ -58,6 +57,7 @@ class BulkFileOperationService : Service() {
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
                 startForeground(NOTIFICATION_ID, buildNotification(request))
+                val capturedStartId = startId
                 currentOperationJob = serviceScope.launch {
                     try {
                         val result = when (request.type) {
@@ -91,7 +91,7 @@ class BulkFileOperationService : Service() {
                         currentRequest = null
                         currentOperationJob = null
                         stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf(latestStartId)
+                        stopSelf(capturedStartId)
                     }
                 }
             }
@@ -115,7 +115,7 @@ class BulkFileOperationService : Service() {
         val content = "Processing ${request.sourcePaths.size} item(s) in the background"
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
             .setOngoing(true)
@@ -125,7 +125,6 @@ class BulkFileOperationService : Service() {
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             CHANNEL_ID,

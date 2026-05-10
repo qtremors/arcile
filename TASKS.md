@@ -1,35 +1,12 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.6.2
-> **Last Updated:** 2026-05-03
+> **Version:** 0.6.3
+> **Last Updated:** 2026-05-10
 
 ---
 
-### 🎨 UI & Rendering
-
-- [ ] **Polished Snackbar aesthetics for Material 3 Expressive** `[Medium]`
-  - **Location:** `BrowserScreen.kt`, `ArcileAppShell.kt`
-  - **Problem:** The current snackbars use default styling which feels detached from the app's custom "squircle" and tonal container aesthetic.
-  - **Impact:** Visual inconsistency between file operation feedback and the rest of the polished M3 Expressive UI.
-  - **Fix:** Customize the `SnackbarHost` to use `MaterialTheme.shapes.extraLarge` (squircle), apply tonal container colors, and ensure font-weight/spacing matches the app's design language.
-  - **Verification:** Operation feedback snackbars appear with rounded squircle shapes and cohesive theme-aware coloring.
-
-- [ ] **Client-side sorting in `BrowserScreen` recomputes on every state update** `[Low]`
-  - **Location:** `BrowserScreen.kt` (sort logic applied via `LaunchedEffect` on lines ~297–318)
-  - **Problem:** File sorting and search filtering are performed inside `LaunchedEffect` blocks keyed on `state.browserSortOption`, `state.currentPath`, and `state.browserSearchQuery`. These produce new `List` instances that trigger recomposition of the entire file list even when the actual content hasn't changed.
-  - **Impact:** Redundant list re-creation and recomposition when unrelated state fields update.
-  - **Fix:** Move sort/filter logic into a `remember`/`derivedStateOf` block or perform sorting in the ViewModel before emitting to the state flow.
-  - **Verification:** Changing an unrelated state field (e.g., `selectedFiles`) does not re-trigger file list sorting.
-
-### 🏗️ Architecture
-
-- [ ] **Eliminate `pathWithAncestors` duplication** `[Low]`
-  - **Location:** `TrashManager.kt:217–242`, `FileSystemDataSource.kt:83–113`
-  - **Problem:** Identical `pathWithAncestors()` implementations exist in both files, duplicating ~30 lines of non-trivial path traversal logic.
-  - **Impact:** Bug fixes must be applied in two places; inconsistent behavior possible if one copy drifts.
-  - **Fix:** Extract to a shared utility function (e.g., `data/util/PathUtils.kt`).
-  - **Verification:** Both consumers delegate to the shared function; existing tests pass.
+## 🏗️ Architecture
 
 - [ ] **Reduce `FileSystemDataSource` surface area** `[Low]`
   - **Location:** `FileSystemDataSource.kt` (676 lines)
@@ -45,14 +22,16 @@
   - **Fix:** Extract to a shared `MutationFinalizer` utility or inject it as a dependency into both classes.
   - **Verification:** All mutation paths still trigger media scan and cache invalidation.
 
-- [ ] **`validatePath` is duplicated across `TrashManager` and `FileSystemDataSource`** `[Low]`
-  - **Location:** `TrashManager.kt:244–253`, `FileSystemDataSource.kt:39–49`
-  - **Problem:** Identical `validatePath()` implementations exist in both classes, checking canonical paths against `volumeProvider.activeStorageRoots`. This is a third instance of cross-class duplication (alongside `pathWithAncestors` and `finalizeMutation`).
-  - **Impact:** Security-sensitive path validation logic must be maintained in three places. A fix to one may not propagate.
-  - **Fix:** Extract to a shared `PathValidator` utility injected into both classes.
-  - **Verification:** Both classes delegate to the shared validator; existing tests pass.
+- [ ] **`RecentFilesViewModel` and `TrashViewModel` duplicate local search/debounce pattern** `[Low]`
+  - **Location:** `RecentFilesViewModel.kt:252–272`, `TrashViewModel.kt:215–236`
+  - **Problem:** Both ViewModels implement an identical pattern: `searchJob` field, `updateSearchQuery()` method, `debouncedSearch()` with 300ms delay, in-memory list filter. This is the same boilerplate duplicated across two files.
+  - **Impact:** Any behavior change (e.g., changing debounce duration, adding match highlighting) must be applied in both places.
+  - **Fix:** Extract a reusable `LocalSearchHelper` or delegate that encapsulates the debounce + filter pattern.
+  - **Verification:** Both ViewModels delegate to the shared helper; search behavior is unchanged.
 
-### 🛠️ Build & CI
+---
+
+## 🛠️ Build & CI
 
 - [ ] **Add regression coverage and CI gates for recent escapes** `[Medium]`
   - **Location:** `app/src/test`, `app/src/androidTest`, `app/build.gradle.kts`
@@ -61,20 +40,34 @@
   - **Fix:** Add CI tasks for `:app:assembleRelease` and lint; add targeted tests for bulk operations and date boundaries.
   - **Verification:** CI fails correctly when those regressions are reintroduced.
 
-- [ ] **Ensure ProGuard rules cover all serialized models** `[Medium]`
-  - **Location:** `proguard-rules.pro`
-  - **Problem:** `proguard-rules.pro` explicitly keeps `TrashMetadataEntity` (line 57) but does not keep `BulkFileOperationRequest`, `BulkFileOperationProgress`, `CategoryCacheEntity`, `CacheRootEntity`, `FolderStatsCacheEntity`, or other `@Serializable` data classes that are serialized to disk or Intent extras. The generic `kotlinx.serialization` keep rules (lines 27–52) rely on companion-object-based serializer resolution, which may break if the class itself is renamed/obfuscated.
-  - **Impact:** Release builds may crash on deserialization of serialized models (e.g., resuming a bulk operation after process death, or reading analytics cache).
-  - **Fix:** Add explicit `-keep` rules for all `@Serializable` data classes that are persisted to disk or passed via Intent extras. Alternatively, add a blanket rule for all `@Serializable` classes in the `dev.qtremors.arcile` package.
-  - **Verification:** `assembleRelease` followed by a bulk copy/move and trash operation works correctly.
+---
 
-- [ ] **`BulkFileOperationService` notification uses launcher icon instead of monochrome** `[Low]`
-  - **Location:** `BulkFileOperationService.kt:107`
-  - **Problem:** `setSmallIcon(R.mipmap.ic_launcher)` uses the full-color launcher mipmap as the notification small icon. Android requires notification small icons to be monochrome (alpha-only) — the system will render a solid white/colored square on most devices.
-  - **Impact:** Broken notification icon appearance during file operations.
-  - **Verification:** Foreground service notification displays a recognizable monochrome icon.
+## ⚡ Performance
 
-### 🧪 Testing
+- [ ] **`MediaStoreClient.getCategoryStorageSizes` performs unbounded cursor scan for categories needing calculation** `[Medium]`
+  - **Location:** `MediaStoreClient.kt:369–397`
+  - **Problem:** When `StorageStatsManager` is unavailable or the scope is `AllStorage`, the query fetches every file matching any extension across all categories and iterates the full cursor in-memory. The `selection` string is built from all categories needing calculation but the cursor has no `LIMIT`, so on a device with a large media library this can process hundreds of thousands of rows.
+  - **Impact:** Potential ANR or heavy CPU usage during Home screen initial load on large libraries.
+  - **Fix:** Consider batching category queries or adding a reasonable limit with incremental progress, or cache more aggressively.
+  - **Verification:** Home screen load time on a device with >50k media files stays under 3 seconds.
+
+- [ ] **`ExternalFileAccessHelper.stageFile` copies the entire file synchronously before returning** `[Low]`
+  - **Location:** `ExternalFileAccessHelper.kt:94–110`
+  - **Problem:** Opening or sharing a file copies its entire contents into the cache staging area on the calling thread. For large files (e.g., 2GB videos), this blocks the UI thread or the calling coroutine for an extended period with no progress indication.
+  - **Impact:** UI freeze or ANR when opening/sharing large files.
+  - **Fix:** Perform the copy on `Dispatchers.IO` and show progress, or use streaming/deferred access if possible.
+  - **Verification:** Sharing a 500MB file does not cause an ANR.
+
+- [ ] **`appendVolumeSelection` generates O(2×volumes) bind parameters per query** `[Low]`
+  - **Location:** `MediaStoreClient.kt:142–159`
+  - **Problem:** Each volume adds 2 bind parameters (`= ?` and `LIKE ?`) to the selection. With many mounted volumes, the resulting SQL query grows linearly. This is unlikely to hit SQLite's 999-parameter limit in practice but is inefficient for multi-volume devices.
+  - **Impact:** Minor query overhead with many volumes. No crash expected.
+  - **Fix:** Consider using `IN` clauses or reducing to a single `LIKE` per volume.
+  - **Verification:** Query works correctly with 10+ mounted volumes.
+
+---
+
+## 🧪 Testing
 
 - [ ] **Add `ClipboardDelegate` unit tests** `[Medium]`
   - **Location:** `app/src/test/.../presentation/browser/delegate/`
@@ -115,6 +108,23 @@
   - **Problem:** The 15-second timeout with partial category data (see Correctness section) has no test coverage. The `supervisorScope` + nested `async` + `withTimeoutOrNull` composition is complex and untested.
   - **Fix:** Create tests simulating slow volume responses and verifying partial vs. complete data indicators.
   - **Verification:** Timeout scenario produces the expected partial-data error message.
+
+- [ ] **Add `SearchDelegate` unit tests** `[Low]`
+  - **Location:** `app/src/test/.../presentation/browser/delegate/`
+  - **Problem:** `SearchDelegate` (84 lines) has no dedicated unit tests. Its debounce, scope resolution, and clear behavior are untested in isolation.
+  - **Fix:** Create `SearchDelegateTest.kt` covering: debounced query, scope-based search dispatch, clear search, and empty query guard.
+  - **Verification:** Tests pass; search delegate behavior matches BrowserViewModel integration behavior.
+
+---
+
+## 📝 Correctness & Reliability
+
+- [ ] **`TrashViewModel` does not observe `BulkFileOperationCoordinator` events** `[Low]`
+  - **Location:** `TrashViewModel.kt`
+  - **Problem:** `TrashViewModel.deletePermanentlySelected()` calls `repository.deletePermanentlyFromTrash()` directly (not via the coordinator). This is consistent and correct. However, if `BulkFileOperationService` is used for trash/delete in the future, the TrashVM would need coordinator event observation similar to `BrowserViewModel`.
+  - **Impact:** Currently none — this is a maintainability observation. The direct repository call is correct for now.
+  - **Fix:** No immediate action required. Document the architectural decision.
+  - **Verification:** N/A
 
 ---
 

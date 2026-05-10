@@ -3,6 +3,7 @@ package dev.qtremors.arcile.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -41,6 +42,7 @@ class BrowserPreferencesRepository(
     private val GLOBAL_VIEW_MODE_KEY = stringPreferencesKey("global_view_mode")
     private val GLOBAL_LIST_ZOOM_KEY = floatPreferencesKey("global_list_zoom")
     private val GLOBAL_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("global_grid_min_cell_size")
+    private val GLOBAL_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("global_show_thumbnails")
 
     override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
@@ -59,7 +61,8 @@ class BrowserPreferencesRepository(
                 viewMode = parseViewMode(prefs[GLOBAL_VIEW_MODE_KEY]),
                 listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY]
-                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE
+                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+                showThumbnails = prefs[GLOBAL_SHOW_THUMBNAILS_KEY] ?: BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS
             ).normalized()
 
             val pathMap = mutableMapOf<String, BrowserPresentationPreferences>()
@@ -147,6 +150,7 @@ class BrowserPreferencesRepository(
             prefs[GLOBAL_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[GLOBAL_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+            prefs[GLOBAL_SHOW_THUMBNAILS_KEY] = normalized.showThumbnails
         }
     }
 

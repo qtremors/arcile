@@ -17,6 +17,9 @@ fun SplitButtonGroup(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     contentColor: Color = MaterialTheme.colorScheme.onSurface,
+    height: androidx.compose.ui.unit.Dp = 48.dp,
+    minWidth: androidx.compose.ui.unit.Dp = 48.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 24.dp,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
     Row(
@@ -41,14 +44,14 @@ fun SplitButtonGroup(
                 color = containerColor,
                 contentColor = action.tint ?: contentColor,
                 modifier = Modifier
-                    .height(48.dp)
-                    .widthIn(min = 48.dp)
+                    .height(height)
+                    .widthIn(min = minWidth)
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                     Icon(
                         imageVector = action.icon,
                         contentDescription = action.contentDescription,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(iconSize)
                     )
                 }
             }
@@ -57,8 +60,8 @@ fun SplitButtonGroup(
         if (trailingContent != null) {
             Box(
                 modifier = Modifier
-                    .height(48.dp)
-                    .widthIn(min = 48.dp)
+                    .height(height)
+                    .widthIn(min = minWidth)
             ) {
                 // We wrap the trailing content (usually an IconButton with a menu)
                 // The trailing content should ideally handle its own shape if it wants to match

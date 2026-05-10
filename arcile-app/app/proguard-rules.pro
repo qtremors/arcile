@@ -54,5 +54,8 @@
 # Coil Custom Fetchers
 -keep class dev.qtremors.arcile.image.** { *; }
 -keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }
--keep class dev.qtremors.arcile.data.manager.TrashMetadataEntity { *; }
+
+# Keep all @Serializable data classes that are persisted to disk or passed via Intent extras
+-keep class dev.qtremors.arcile.** implements kotlinx.serialization.KSerializer { *; }
+-keep @kotlinx.serialization.Serializable class dev.qtremors.arcile.** { *; }
 

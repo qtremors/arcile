@@ -370,11 +370,24 @@ class DefaultMediaStoreClient(
                 selectionBuilder.append(clauses.joinToString(" OR "))
             }
 
-            val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }
-            val args = selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
+            // Build the final selection with volume scope filter
+            val selectionParts = mutableListOf<String>()
+            val volumeArgs = mutableListOf<String>()
+
+            val categoryClause = selectionBuilder.toString()
+            if (categoryClause.isNotEmpty()) {
+                selectionParts += "($categoryClause)"
+            }
+
+            // Scope query to relevant volumes at the SQL level
+            appendVolumeSelection(selectionParts, volumeArgs, volumes)
+
+            val selection = selectionParts.joinToString(" AND ").takeIf { it.isNotEmpty() }
+            val args = (selectionArgs + volumeArgs).toTypedArray().takeIf { it.isNotEmpty() }
 
             if (selection != null) {
-                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
+                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
                     val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                     
@@ -395,6 +408,7 @@ class DefaultMediaStoreClient(
                     }
                 }
             }
+
 
             val result = FileCategories.all.mapIndexed { index, cat ->
                 CategoryStorage(

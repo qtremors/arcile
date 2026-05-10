@@ -84,12 +84,11 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     }
 
     override fun cancelActiveOperation() {
-        _activeRequest.value?.let { request ->
-            _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
-        }
+        val request = _activeRequest.value ?: return
+        _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
         val intent = Intent(context, BulkFileOperationService::class.java).apply {
             action = BulkFileOperationService.ACTION_CANCEL
-            putExtra(BulkFileOperationService.EXTRA_OPERATION_ID, _activeRequest.value?.operationId)
+            putExtra(BulkFileOperationService.EXTRA_OPERATION_ID, request.operationId)
         }
         context.startService(intent)
     }

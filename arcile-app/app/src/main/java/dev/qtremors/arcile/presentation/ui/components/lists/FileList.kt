@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
@@ -72,6 +73,7 @@ fun FileList(
     modifier: Modifier = Modifier,
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
+    showThumbnails: Boolean = true,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
@@ -97,6 +99,7 @@ fun FileList(
                 formattedDate = formatter.format(Date(file.lastModified)),
                 isSelected = selectedFiles.contains(file.absolutePath),
                 zoom = zoom,
+                showThumbnails = showThumbnails,
                 folderStats = folderStatsByPath[file.absolutePath],
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 onClick = {
@@ -136,6 +139,7 @@ fun FileItemRow(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
+    showThumbnails: Boolean = true,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false
 ) {
@@ -212,7 +216,7 @@ fun FileItemRow(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                val isMedia = !file.isDirectory && (
+                val isMedia = showThumbnails && !file.isDirectory && (
                     FileCategories.Images.extensions.contains(file.extension) ||
                         FileCategories.Videos.extensions.contains(file.extension) ||
                         FileCategories.APKs.extensions.contains(file.extension) ||
@@ -220,7 +224,7 @@ fun FileItemRow(
                     )
 
                 if (isMedia) {
-                    AsyncImage(
+                    SubcomposeAsyncImage(
                         model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                             .data(File(file.absolutePath))
                             .size(256)
@@ -229,11 +233,21 @@ fun FileItemRow(
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        error = {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                    contentDescription = if (file.isDirectory) "Folder" else "File",
+                                    tint = if (file.isDirectory) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(iconSize * 0.5f)
+                                )
+                            }
+                        }
                     )
                 } else {
                     Icon(
-                        imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                        imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
                         contentDescription = if (file.isDirectory) "Folder" else "File",
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(iconSize * 0.5f)

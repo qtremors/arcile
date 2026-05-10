@@ -34,27 +34,37 @@ fun ThemeModeSelector(
     currentMode: ThemeMode,
     onModeSelected: (ThemeMode) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Text(
             text = stringResource(R.string.theme_mode),
             style = MaterialTheme.typography.titleMediumBold,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
         )
 
         Row(
-            modifier = Modifier.fillMaxWidth().selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            ThemeModeCard(ThemeMode.SYSTEM, stringResource(R.string.theme_system), Icons.Default.SettingsSuggest, currentMode == ThemeMode.SYSTEM, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.SYSTEM, onClick = { onModeSelected(ThemeMode.SYSTEM) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
-            ThemeModeCard(ThemeMode.LIGHT, stringResource(R.string.theme_light), Icons.Default.LightMode, currentMode == ThemeMode.LIGHT, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.LIGHT, onClick = { onModeSelected(ThemeMode.LIGHT) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ThemeModeCard(ThemeMode.DARK, stringResource(R.string.theme_dark), Icons.Default.DarkMode, currentMode == ThemeMode.DARK, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.DARK, onClick = { onModeSelected(ThemeMode.DARK) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
-            ThemeModeCard(ThemeMode.OLED, stringResource(R.string.theme_oled), Icons.Default.Contrast, currentMode == ThemeMode.OLED, Modifier.weight(1f).selectable(selected = currentMode == ThemeMode.OLED, onClick = { onModeSelected(ThemeMode.OLED) }, role = androidx.compose.ui.semantics.Role.RadioButton), onModeSelected)
+            ThemeMode.entries.forEach { mode ->
+                val (label, icon) = when (mode) {
+                    ThemeMode.SYSTEM -> stringResource(R.string.theme_system) to Icons.Default.SettingsSuggest
+                    ThemeMode.LIGHT -> stringResource(R.string.theme_light) to Icons.Default.LightMode
+                    ThemeMode.DARK -> stringResource(R.string.theme_dark) to Icons.Default.DarkMode
+                    ThemeMode.OLED -> stringResource(R.string.theme_oled) to Icons.Default.Contrast
+                }
+                
+                ThemeModeCard(
+                    mode = mode,
+                    label = label,
+                    icon = icon,
+                    isSelected = currentMode == mode,
+                    modifier = Modifier.weight(1f),
+                    onClick = onModeSelected
+                )
+            }
         }
     }
 }
@@ -72,46 +82,62 @@ fun ThemeModeCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (isPressed) 0.92f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
             stiffness = Spring.StiffnessMediumLow), label = "cardScale"
     )
 
     val containerColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
         label = "containerColor"
     )
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
         label = "contentColor"
     )
 
-    Surface(
-        shape = MaterialTheme.shapes.extraLarge,
-        color = containerColor,
-        contentColor = contentColor,
-        border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
+    Column(
         modifier = modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(MaterialTheme.shapes.extraLarge)
-            .clickable(
+            .selectable(
+                selected = isSelected,
+                onClick = { onClick(mode) },
+                role = androidx.compose.ui.semantics.Role.RadioButton,
                 interactionSource = interactionSource,
-                indication = androidx.compose.foundation.LocalIndication.current,
-                onClick = { onClick(mode) }
+                indication = null
             )
+            .padding(horizontal = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+        Surface(
+            shape = if (isSelected) MaterialTheme.shapes.extraLarge else MaterialTheme.shapes.large,
+            color = containerColor,
+            contentColor = contentColor,
+            border = if (!isSelected) androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant) else null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
         ) {
-            Icon(imageVector = icon, contentDescription = label, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(text = label, style = MaterialTheme.typography.labelLarge)
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
+        
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
     }
 }

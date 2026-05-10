@@ -85,6 +85,7 @@ class DeleteFlowDelegate(
             callbacks.dismissDeleteConfirmation()
 
             if (startBulkDeleteOperation(BulkFileOperationType.TRASH, selected)) {
+                callbacks.setLoading(false)
                 callbacks.clearSelection()
             } else {
                 callbacks.setLoading(false)
@@ -103,6 +104,7 @@ class DeleteFlowDelegate(
             callbacks.dismissDeleteConfirmation()
 
             if (startBulkDeleteOperation(BulkFileOperationType.DELETE, selected)) {
+                callbacks.setLoading(false)
                 callbacks.clearSelection()
             } else {
                 callbacks.setLoading(false)

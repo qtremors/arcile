@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Surface
 import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
 import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,6 +83,7 @@ fun RecentFilesScreen(
     onShareSelected: () -> Unit,
     onSelectAll: () -> Unit,
     onRefresh: () -> Unit,
+    onClearError: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
     onLoadMore: () -> Unit = {},
@@ -101,6 +104,15 @@ fun RecentFilesScreen(
                 dev.qtremors.arcile.presentation.recentfiles.RecentNativeAction.TRASH -> onConfirmDelete()
                 null -> {}
             }
+        }
+    }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.error) {
+        state.error?.let { errorMsg ->
+            snackbarHostState.showSnackbar(errorMsg)
+            onClearError()
         }
     }
 
@@ -125,7 +137,15 @@ fun RecentFilesScreen(
 
 
 
+    val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
+
     Scaffold(
+        snackbarHost = {
+            ArcileSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = snackbarPadding)
+            )
+        },
         topBar = {
             if (isSelectionMode) {
                 TopAppBar(
@@ -372,10 +392,14 @@ fun RecentFilesScreen(
                                 shape = CircleShape,
                                 color = MaterialTheme.colorScheme.primaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(56.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
-                                    Icon(androidx.compose.material.icons.Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                                    Icon(
+                                        imageVector = androidx.compose.material.icons.Icons.Default.MoreVert,
+                                        contentDescription = stringResource(R.string.action_more_options),
+                                        modifier = Modifier.size(28.dp)
+                                    )
                                 }
                             }
                             androidx.compose.material3.DropdownMenu(

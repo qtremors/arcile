@@ -38,6 +38,8 @@ import dev.qtremors.arcile.R
 @Composable
 fun SettingsScreen(
     currentThemeState: ThemeState,
+    showThumbnails: Boolean,
+    onShowThumbnailsChange: (Boolean) -> Unit,
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit,
     onOpenStorageManagement: () -> Unit = {},
@@ -75,7 +77,6 @@ fun SettingsScreen(
                             onThemeChange(currentThemeState.copy(themeMode = it))
                         }
                     )
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     AccentColorSelector(
                         currentAccent = currentThemeState.accentColor,
                         onAccentSelected = {
@@ -93,6 +94,23 @@ fun SettingsScreen(
                         leadingContent = { Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onOpenStorageManagement)
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Appearance") {
+                    ListItem(
+                        headlineContent = { Text("Show Thumbnails") },
+                        supportingContent = { Text("Display image and video thumbnails instead of file icons.") },
+                        trailingContent = {
+                            Switch(
+                                checked = showThumbnails,
+                                onCheckedChange = onShowThumbnailsChange
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { onShowThumbnailsChange(!showThumbnails) }
                     )
                 }
             }

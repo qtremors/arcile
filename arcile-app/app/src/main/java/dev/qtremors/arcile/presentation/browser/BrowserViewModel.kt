@@ -71,6 +71,7 @@ data class BrowserState(
     val browserViewMode: BrowserViewMode = BrowserViewMode.LIST,
     val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
     val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+    val browserShowThumbnails: Boolean = BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS,
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
@@ -280,6 +281,27 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            browserPreferencesRepository.preferencesFlow.collectLatest { prefs ->
+                _state.update { currentState ->
+                    val pathPresentation = if (currentState.isCategoryScreen) {
+                        prefs.getPresentationForCategory(currentState.activeCategoryName)
+                    } else if (currentState.currentPath.isNotEmpty()) {
+                        prefs.getPresentationForPath(currentState.currentPath)
+                    } else {
+                        prefs.globalPresentation
+                    }
+                    currentState.copy(
+                        browserSortOption = pathPresentation.sortOption,
+                        browserViewMode = pathPresentation.viewMode,
+                        browserListZoom = pathPresentation.listZoom,
+                        browserGridMinCellSize = pathPresentation.gridMinCellSize,
+                        browserShowThumbnails = pathPresentation.showThumbnails
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
             bulkFileOperationCoordinator.events.collectLatest { event ->
                 when (event) {
                     is BulkFileOperationEvent.Started -> {
@@ -343,6 +365,7 @@ class BrowserViewModel @Inject constructor(
                             it.copy(
                                 isLoading = false,
                                 activeFileOperation = null,
+                                clipboardState = null,
                                 fileOperationStatusMessage = event.message
                             )
                         }
@@ -352,6 +375,7 @@ class BrowserViewModel @Inject constructor(
                             it.copy(
                                 isLoading = false,
                                 activeFileOperation = null,
+                                clipboardState = null,
                                 fileOperationStatusMessage = "File operation cancelled"
                             )
                         }
@@ -471,7 +495,8 @@ class BrowserViewModel @Inject constructor(
                 browserSortOption = normalized.sortOption,
                 browserViewMode = normalized.viewMode,
                 browserListZoom = normalized.listZoom,
-                browserGridMinCellSize = normalized.gridMinCellSize
+                browserGridMinCellSize = normalized.gridMinCellSize,
+                browserShowThumbnails = normalized.showThumbnails
             )
         }
         viewModelScope.launch {
@@ -609,6 +634,7 @@ class BrowserViewModel @Inject constructor(
     fun cutSelectedToClipboard() = clipboardDelegate.cutSelectedToClipboard()
     fun cancelClipboard() = clipboardDelegate.cancelClipboard()
     fun pasteFromClipboard() = clipboardDelegate.pasteFromClipboard()
+    fun removeFromClipboard(path: String) = clipboardDelegate.removeFromClipboard(path)
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
 
