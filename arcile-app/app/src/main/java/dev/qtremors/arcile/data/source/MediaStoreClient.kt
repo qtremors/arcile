@@ -150,10 +150,9 @@ class DefaultMediaStoreClient(
             prefix = "(",
             postfix = ")"
         ) {
-            "${MediaStore.Files.FileColumns.DATA} = ? OR ${MediaStore.Files.FileColumns.DATA} LIKE ?"
+            "${MediaStore.Files.FileColumns.DATA} LIKE ?"
         }
         volumes.forEach { volume ->
-            selectionArgs += volume.path
             selectionArgs += volume.path.trimEnd('/') + "/%"
         }
     }
@@ -328,7 +327,7 @@ class DefaultMediaStoreClient(
                             }
                         }
                     } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         AppLogger.e("MediaStoreClient", "StorageStatsManager query failed", e)
                     }
                 }
@@ -341,68 +340,54 @@ class DefaultMediaStoreClient(
                 MediaStore.Files.FileColumns.MIME_TYPE
             )
             
-            val selectionBuilder = StringBuilder()
-            val selectionArgs = mutableListOf<String>()
-
-            val clauses = mutableListOf<String>()
-
             FileCategories.all.forEachIndexed { index, cat ->
-                if (needsCalculation[index]) {
-                    if (cat.mimePrefix != null) {
-                        val prefix = cat.mimePrefix
-                        if (prefix.endsWith("/")) {
-                            clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?")
-                            selectionArgs.add("$prefix%")
-                        } else {
-                            clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
-                            selectionArgs.add(prefix)
-                        }
-                    }
+                if (!needsCalculation[index]) return@forEachIndexed
+                currentCoroutineContext().ensureActive()
 
-                    cat.extensions.forEach { ext ->
-                        clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
-                        selectionArgs.add("%.${ext}")
+                val categoryClauses = mutableListOf<String>()
+                val categoryArgs = mutableListOf<String>()
+
+                cat.mimePrefix?.let { prefix ->
+                    if (prefix.endsWith("/")) {
+                        categoryClauses += "${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?"
+                        categoryArgs += "$prefix%"
+                    } else {
+                        categoryClauses += "${MediaStore.Files.FileColumns.MIME_TYPE} = ?"
+                        categoryArgs += prefix
                     }
                 }
-            }
 
-            if (clauses.isNotEmpty()) {
-                selectionBuilder.append(clauses.joinToString(" OR "))
-            }
+                cat.extensions.forEach { ext ->
+                    categoryClauses += "${MediaStore.Files.FileColumns.DATA} LIKE ?"
+                    categoryArgs += "%.${ext}"
+                }
 
-            // Build the final selection with volume scope filter
-            val selectionParts = mutableListOf<String>()
-            val volumeArgs = mutableListOf<String>()
+                if (categoryClauses.isEmpty()) return@forEachIndexed
 
-            val categoryClause = selectionBuilder.toString()
-            if (categoryClause.isNotEmpty()) {
-                selectionParts += "($categoryClause)"
-            }
+                val selectionParts = mutableListOf("(${categoryClauses.joinToString(" OR ")})")
+                val volumeArgs = mutableListOf<String>()
+                appendVolumeSelection(selectionParts, volumeArgs, volumes)
 
-            // Scope query to relevant volumes at the SQL level
-            appendVolumeSelection(selectionParts, volumeArgs, volumes)
+                val selection = selectionParts.joinToString(" AND ")
+                val args = (categoryArgs + volumeArgs).toTypedArray()
 
-            val selection = selectionParts.joinToString(" AND ").takeIf { it.isNotEmpty() }
-            val args = (selectionArgs + volumeArgs).toTypedArray().takeIf { it.isNotEmpty() }
-
-            if (selection != null) {
                 context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
                     val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
                     val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
                     
                     while (cursor.moveToNext()) {
+                        currentCoroutineContext().ensureActive()
                         val path = cursor.getString(dataCol)
                         val size = cursor.getLong(sizeCol)
                         val mime = cursor.getString(mimeCol)
                         
                         if (path != null && matchesScope(path, scope, volumes)) {
                             val file = File(path)
-                            val cat = FileCategories.getCategoryForFile(file.extension, mime)
-                            val catIndex = FileCategories.all.indexOf(cat)
+                            val matchedCategory = FileCategories.getCategoryForFile(file.extension, mime)
                             
-                            if (catIndex != -1 && needsCalculation[catIndex]) {
-                                sizes[catIndex] += size
+                            if (matchedCategory == cat) {
+                                sizes[index] += size
                             }
                         }
                     }
@@ -473,6 +458,18 @@ class DefaultMediaStoreClient(
 
             if (clauses.isNotEmpty()) {
                 selectionBuilder.append(clauses.joinToString(" OR "))
+            }
+
+            if (volumes.isNotEmpty()) {
+                val volumeParts = mutableListOf<String>()
+                val volumeArgs = mutableListOf<String>()
+                appendVolumeSelection(volumeParts, volumeArgs, volumes)
+                if (selectionBuilder.isNotEmpty()) {
+                    selectionBuilder.insert(0, "(")
+                    selectionBuilder.append(") AND ")
+                }
+                selectionBuilder.append(volumeParts.joinToString(" AND "))
+                selectionArgs += volumeArgs
             }
 
             val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }

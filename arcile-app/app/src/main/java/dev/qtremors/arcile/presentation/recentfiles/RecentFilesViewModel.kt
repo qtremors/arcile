@@ -12,6 +12,7 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.utils.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -66,6 +67,15 @@ class RecentFilesViewModel @Inject constructor(
 
     private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>()
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+
+    private val localSearchHelper = LocalSearchHelper(
+        scope = viewModelScope,
+        source = { _state.value.recentFiles },
+        matches = { file: FileModel, query: String -> file.name.contains(query, ignoreCase = true) },
+        onQueryChanged = { query -> _state.update { it.copy(searchQuery = query) } },
+        onSearchingChanged = { isSearching -> _state.update { it.copy(isSearching = isSearching) } },
+        onResultsChanged = { results -> _state.update { it.copy(searchResults = results) } }
+    )
 
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
@@ -265,26 +275,8 @@ class RecentFilesViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
-    private var searchJob: kotlinx.coroutines.Job? = null
-
     fun updateSearchQuery(query: String) {
-        _state.update { it.copy(searchQuery = query) }
-        if (query.isBlank()) {
-            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
-            searchJob?.cancel()
-        } else {
-            debouncedSearch(query)
-        }
-    }
-
-    private fun debouncedSearch(query: String) {
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(300)
-            _state.update { it.copy(isSearching = true) }
-            val filtered = _state.value.recentFiles.filter { it.name.contains(query, ignoreCase = true) }
-            _state.update { it.copy(isSearching = false, searchResults = filtered) }
-        }
+        localSearchHelper.updateQuery(query)
     }
 
     fun openPropertiesForSelection() {

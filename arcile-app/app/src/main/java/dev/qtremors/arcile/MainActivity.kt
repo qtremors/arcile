@@ -1,6 +1,7 @@
 package dev.qtremors.arcile
 
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.webkit.MimeTypeMap
 import android.widget.Toast
@@ -8,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -46,6 +48,7 @@ class MainActivity : ComponentActivity() {
         
         enableEdgeToEdge()
         viewModel.checkPermission()
+        requestNotificationPermissionIfNeeded()
 
         var keepSplashScreen = true
         lifecycleScope.launch {
@@ -99,16 +102,18 @@ class MainActivity : ComponentActivity() {
 
     // open a file via Intent.ACTION_VIEW using FileProvider
     private fun openFile(path: String) {
-        try {
-            if (!ExternalFileAccessHelper.isAllowedUserFile(this, java.io.File(path))) {
-                Toast.makeText(this, "Cannot open sensitive files", Toast.LENGTH_SHORT).show()
-                return
+        lifecycleScope.launch {
+            try {
+                if (!ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))) {
+                    Toast.makeText(this@MainActivity, "Cannot open sensitive files", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                startActivity(ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path))
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                AppLogger.e("Arcile", "Failed to open file", e)
+                Toast.makeText(this@MainActivity, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
             }
-            startActivity(ExternalFileAccessHelper.createOpenIntent(this, path))
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            AppLogger.e("Arcile", "Failed to open file", e)
-            Toast.makeText(this, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -124,6 +129,21 @@ class MainActivity : ComponentActivity() {
             fallbackIntent.action = android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
             startActivity(fallbackIntent)
         }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+            REQUEST_POST_NOTIFICATIONS
+        )
+    }
+
+    private companion object {
+        const val REQUEST_POST_NOTIFICATIONS = 1002
     }
 }
 

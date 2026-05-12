@@ -8,6 +8,8 @@ import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import dev.qtremors.arcile.utils.AppLogger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
 
@@ -91,7 +93,7 @@ object ExternalFileAccessHelper {
         }
     }
 
-    private fun stageFile(context: Context, file: File, purpose: String): File {
+    private suspend fun stageFile(context: Context, file: File, purpose: String): File = withContext(Dispatchers.IO) {
         require(file.exists() && file.isFile) { "Source file does not exist" }
         require(isAllowedUserFile(context, file)) { "Unsupported file path" }
 
@@ -106,10 +108,10 @@ object ExternalFileAccessHelper {
             }
         }
         stagedFile.setLastModified(file.lastModified())
-        return stagedFile
+        stagedFile
     }
 
-    fun createOpenIntent(context: Context, path: String): Intent {
+    suspend fun createOpenIntent(context: Context, path: String): Intent {
         val sourceFile = File(path)
         val stagedFile = stageFile(context, sourceFile, OPEN_STAGING)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile)
@@ -122,7 +124,7 @@ object ExternalFileAccessHelper {
         }
     }
 
-    fun createShareUris(context: Context, filePaths: List<String>): List<Uri> {
+    suspend fun createShareUris(context: Context, filePaths: List<String>): List<Uri> {
         return filePaths.mapNotNull { path ->
             runCatching {
                 val stagedFile = stageFile(context, File(path), SHARE_STAGING)

@@ -3,9 +3,8 @@ package dev.qtremors.arcile.data.manager
 import android.content.Context
 import android.provider.MediaStore
 import android.provider.Settings
-import dev.qtremors.arcile.data.FolderStatsStore
+import dev.qtremors.arcile.data.MutationFinalizer
 import dev.qtremors.arcile.data.provider.VolumeProvider
-import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.data.util.PathSafety
 import dev.qtremors.arcile.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.data.util.trashEnabledVolumes
@@ -234,8 +233,7 @@ private object TrashCryptoHelper {
 class DefaultTrashManager(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
-    private val mediaStoreClient: MediaStoreClient,
-    private val folderStatsStore: FolderStatsStore
+    private val mutationFinalizer: MutationFinalizer
 ) : TrashManager {
 
     private fun getTrashDirForVolume(volume: StorageVolume): File {
@@ -264,20 +262,8 @@ class DefaultTrashManager(
         return metadataDir
     }
 
-    private fun scanMediaFiles(vararg paths: String) {
-        if (paths.isEmpty()) return
-        android.media.MediaScannerConnection.scanFile(context.applicationContext, paths, null, null)
-    }
-
     private suspend fun finalizeMutation(vararg paths: String) {
-        mediaStoreClient.invalidateCache(*paths)
-        volumeProvider.invalidateCache()
-        folderStatsStore.invalidate(paths.flatMap(::pathWithAncestors))
-        scanMediaFiles(*paths)
-    }
-
-    private fun pathWithAncestors(path: String): List<String> {
-        return PathSafety.pathWithAncestors(path, volumeProvider.activeStorageRoots)
+        mutationFinalizer.finalize(*paths)
     }
 
     private fun validatePath(file: File): Result<Unit> {
@@ -480,13 +466,17 @@ class DefaultTrashManager(
                     if (text.trimStart().startsWith("{")) {
                         text
                     } else {
-                        throw Exception("Failed to decrypt or parse metadata", e)
+                        null
                     }
                 }
-                val entity = jsonFormat.decodeFromString<TrashMetadataEntity>(jsonString)
-                val originalPath = entity.originalPath
+                val entity = jsonString?.let { jsonFormat.decodeFromString<TrashMetadataEntity>(it) }
+                val originalPath = entity?.originalPath.orEmpty()
 
-                val originalFileContext = File(originalPath)
+                val originalFileContext = if (entity != null) {
+                    File(originalPath)
+                } else {
+                    File("Recovered Item ($id)")
+                }
                 var targetFile = if (destinationPath != null) {
                     File(destinationPath, originalFileContext.name)
                 } else {
@@ -494,6 +484,10 @@ class DefaultTrashManager(
                 }
 
                 if (destinationPath == null) {
+                    if (entity == null) {
+                        idsRequiringDestination.add("legacy:$id")
+                        continue
+                    }
                     val validationResult = validatePath(targetFile)
                     if (validationResult.isFailure) {
                         idsRequiringDestination.add("legacy:$id")

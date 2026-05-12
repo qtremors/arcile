@@ -11,6 +11,7 @@ import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.LocalFileRepository
+import dev.qtremors.arcile.data.MutationFinalizer
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.data.manager.DefaultTrashManager
@@ -89,10 +90,9 @@ object RepositoryModule {
     fun provideTrashManager(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient,
-        folderStatsStore: FolderStatsStore
+        mutationFinalizer: MutationFinalizer
     ): TrashManager {
-        return DefaultTrashManager(context, volumeProvider, mediaStoreClient, folderStatsStore)
+        return DefaultTrashManager(context, volumeProvider, mutationFinalizer)
     }
 
     @Provides
@@ -100,10 +100,20 @@ object RepositoryModule {
     fun provideFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient,
-        folderStatsStore: FolderStatsStore
+        mutationFinalizer: MutationFinalizer
     ): FileSystemDataSource {
-        return DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient, folderStatsStore)
+        return DefaultFileSystemDataSource(context, volumeProvider, mutationFinalizer)
+    }
+
+    @Provides
+    @Singleton
+    fun provideMutationFinalizer(
+        @ApplicationContext context: Context,
+        mediaStoreClient: MediaStoreClient,
+        volumeProvider: VolumeProvider,
+        folderStatsStore: FolderStatsStore
+    ): MutationFinalizer {
+        return MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
     }
 
     @Provides

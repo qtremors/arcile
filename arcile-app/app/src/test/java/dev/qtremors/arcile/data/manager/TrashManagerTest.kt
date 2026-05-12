@@ -3,6 +3,7 @@ package dev.qtremors.arcile.data.manager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.data.FolderStatsStore
+import dev.qtremors.arcile.data.MutationFinalizer
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FolderStatUpdate
@@ -57,7 +58,11 @@ class TrashManagerTest {
             override fun invalidate(paths: Collection<String>) = Unit
         }
 
-        trashManager = DefaultTrashManager(context, volumeProvider, mediaStoreClient, folderStatsStore)
+        trashManager = DefaultTrashManager(
+            context,
+            volumeProvider,
+            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+        )
     }
 
     @After
@@ -137,6 +142,30 @@ class TrashManagerTest {
         val result = trashManager.getTrashFiles()
         assertTrue(result.isSuccess)
         assertEquals(0, result.getOrThrow().size)
+    }
+
+    @Test
+    fun `restoreFromTrash restores recovered item to selected destination`() = runTest {
+        val arcileDir = File(root, ".arcile")
+        val metadataDir = File(arcileDir, ".metadata").apply { mkdirs() }
+        val trashDir = File(arcileDir, ".trash").apply { mkdirs() }
+        val trashId = "corrupted"
+        File(metadataDir, "$trashId.json").writeBytes(byteArrayOf(0x01, 0x02, 0x03))
+        File(trashDir, trashId).writeText("recoverable")
+        val destination = File(root, "restore-destination").apply { mkdirs() }
+
+        val listed = trashManager.getTrashFiles().getOrThrow()
+        assertEquals(1, listed.size)
+        assertEquals("Recovered Item ($trashId)", listed.first().fileModel.name)
+
+        val originalRestore = trashManager.restoreFromTrash(listOf(trashId), null)
+        assertTrue(originalRestore.isFailure)
+
+        val destinationRestore = trashManager.restoreFromTrash(listOf(trashId), destination.absolutePath)
+        assertTrue(destinationRestore.isSuccess)
+        assertEquals("recoverable", File(destination, "Recovered Item ($trashId)").readText())
+        assertFalse(File(trashDir, trashId).exists())
+        assertFalse(File(metadataDir, "$trashId.json").exists())
     }
 
     @Test

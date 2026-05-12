@@ -3,6 +3,7 @@ package dev.qtremors.arcile.data.source
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.data.FolderStatsStore
+import dev.qtremors.arcile.data.MutationFinalizer
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FolderStatUpdate
@@ -55,7 +56,11 @@ class FileSystemDataSourceTest {
             override fun invalidate(paths: Collection<String>) = Unit
         }
 
-        dataSource = DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient, folderStatsStore)
+        dataSource = DefaultFileSystemDataSource(
+            context,
+            volumeProvider,
+            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+        )
     }
 
     @After

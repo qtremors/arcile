@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
@@ -5,10 +7,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -29,12 +29,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.runtime.mutableFloatStateOf
-import kotlin.math.roundToInt
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -193,7 +187,6 @@ private data class FileManagerContentKey(
 fun BrowserScreen(
     state: BrowserState,
     onNavigateBack: () -> Unit,
-    onSwipeBack: () -> Unit = {},
     onNavigateTo: (String) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
@@ -581,37 +574,9 @@ fun BrowserScreen(
             }
         }
     ) { padding ->
-        var offsetX by remember { mutableFloatStateOf(0f) }
-        val animatedOffsetX by animateFloatAsState(
-            targetValue = offsetX,
-            label = "swipeOffset",
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-        )
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offsetX = 0f },
-                        onDragEnd = {
-                            if (offsetX > 150f) {
-                                onSwipeBack()
-                            }
-                            offsetX = 0f
-                        },
-                        onDragCancel = { offsetX = 0f },
-                        onHorizontalDrag = { _, dragAmount ->
-                            val newOffset = offsetX + dragAmount
-                            if (newOffset >= 0f) {
-                                offsetX = newOffset
-                            } else {
-                                offsetX = 0f
-                            }
-                        }
-                    )
-                }
         ) {
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
@@ -672,7 +637,7 @@ fun BrowserScreen(
                         LoadingIndicator()
                     }
                 } else {
-                    if (!state.isVolumeRootScreen) {
+                    if (!state.isVolumeRootScreen && !state.isCategoryScreen) {
                         Breadcrumbs(
                             currentPath = state.currentPath,
                             storageVolumes = state.storageVolumes,

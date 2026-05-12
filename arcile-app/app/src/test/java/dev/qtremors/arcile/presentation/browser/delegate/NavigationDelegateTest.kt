@@ -8,6 +8,7 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -100,6 +101,34 @@ class NavigationDelegateTest {
     }
 
     @Test
+    fun `openFileBrowser from explicit root entry does not overwrite last opened location`() = testScope.runTest {
+        repository.filesByPath = mapOf("/storage/emulated/0" to emptyList())
+
+        delegate.openFileBrowser(restorePersistentLocation = false)
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0", state.value.currentPath)
+        coVerify(exactly = 0) { browserPreferencesRepository.updateLastOpenedLocation(any(), any()) }
+    }
+
+    @Test
+    fun `openFileBrowser restores persisted location for swipe entry`() = testScope.runTest {
+        every { browserPreferencesRepository.preferencesFlow } returns kotlinx.coroutines.flow.flowOf(
+            dev.qtremors.arcile.domain.BrowserPreferences(
+                lastOpenedPath = "/storage/emulated/0/Documents",
+                lastOpenedVolumeId = "vol1"
+            )
+        )
+        repository.filesByPath = mapOf("/storage/emulated/0/Documents" to emptyList())
+
+        delegate.openFileBrowser(restorePersistentLocation = true)
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Documents", state.value.currentPath)
+        coVerify { browserPreferencesRepository.updateLastOpenedLocation("/storage/emulated/0/Documents", "vol1") }
+    }
+
+    @Test
     fun `navigateBack returns false when history is empty`() = testScope.runTest {
         state.value = state.value.copy(
             currentPath = "/storage/emulated/0/some/path"
@@ -140,6 +169,7 @@ class NavigationDelegateTest {
 
     @Test
     fun `navigateToCategory updates state and loads category files`() = testScope.runTest {
+        state.value = state.value.copy(currentPath = "/storage/emulated/0/Music")
         val files = listOf(FileModel(
             name = "test",
             absolutePath = "/test",
@@ -156,6 +186,7 @@ class NavigationDelegateTest {
 
         assertTrue(state.value.isCategoryScreen)
         assertEquals("Images", state.value.activeCategoryName)
+        assertEquals("", state.value.currentPath)
         assertEquals("vol1", state.value.currentVolumeId)
         assertFalse(state.value.isLoading)
         assertEquals(files, state.value.files)

@@ -8,6 +8,7 @@ import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import dev.qtremors.arcile.image.ApkIconFetcher
 import dev.qtremors.arcile.image.AudioAlbumArtFetcher
+import dev.qtremors.arcile.image.PdfThumbnailFetcher
 import dev.qtremors.arcile.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
 
@@ -27,6 +28,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
                     .build()
             }
             .components {
+                add(PdfThumbnailFetcher.Factory())
                 add(VideoThumbnailFetcher.Factory())
                 add(VideoFrameDecoder.Factory())
                 add(ApkIconFetcher.Factory())

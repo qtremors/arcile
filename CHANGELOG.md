@@ -2,11 +2,31 @@
 
 > **Project:** Arcile
 > **Version:** 0.6.5
-> **Last Updated:** 2026-05-10
+> **Last Updated:** 2026-05-12
 
 ---
 
-## [0.6.5] - 2026-05-10
+## [0.6.5] - 2026-05-12
+
+### Architecture
+- **File Operation Decomposition:** Extracted copy/move execution into `FileTransferEngine`, conflict detection into `FileConflictDetector`, and shared mutation cleanup into `MutationFinalizer`.
+- **Search Reuse:** Added a shared local search helper for Recent Files and Trash debounce/filter behavior.
+
+### Performance
+- **Category Storage Queries:** Reworked category-size calculation into exact per-category MediaStore scans and reduced volume-selection bind parameters.
+- **External File Staging:** Moved open/share staging copies onto `Dispatchers.IO` to avoid blocking callers during large-file access.
+- **Gesture Navigation Smoothness:** Removed the browser screen's duplicate full-screen horizontal drag detector so the shared Home/Browser pager exclusively owns swipe gestures, reducing touch competition with scrolling, pull-to-refresh, and file-list interactions.
+
+### UI & UX
+- **Swipe Quick Access Restoration:** Fixed Home-to-Browser swipes so they restore the last opened folder from persistent browser preferences, while storage summary bar taps continue to open the internal storage root without overwriting that saved quick-access location.
+- **Category Navigation Isolation:** Hardened pager restoration, saved-state restore, and category breadcrumbs so category views remain labeled as Images, Videos, Audio, Docs, Archives, or APKs instead of leaking or restoring the last opened folder path.
+
+### Media
+- **PDF Thumbnails:** Added a Coil-backed PDF thumbnail fetcher using Android `PdfRenderer`.
+
+### Maintenance
+- **Regression Gates:** Added coverage for the refactored file-operation, MediaStore, share, and thumbnail paths, and verified unit tests, lint, and release assembly locally.
+- **Task Tracker Cleanup:** Removed completed remediation items from `TASKS.md`.
 
 ### Testing
 - **Test Coverage Expansion:** Added comprehensive unit tests for `ClipboardDelegate`, `NavigationDelegate`, and `DeleteFlowDelegate`, covering complex UI state and edge cases.

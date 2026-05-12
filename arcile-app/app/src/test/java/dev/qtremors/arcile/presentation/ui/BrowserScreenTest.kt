@@ -125,6 +125,50 @@ class BrowserScreenTest {
         assertEquals("/storage/emulated/0", navigatedPath)
     }
 
+    @Test
+    fun `category screen hides stale folder breadcrumbs`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        isCategoryScreen = true,
+                        activeCategoryName = "Images",
+                        currentPath = "/storage/emulated/0/Download",
+                        currentVolumeId = "primary",
+                        storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0"))
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Images").assertExists()
+        composeRule.onAllNodesWithText("Download").assertCountEquals(0)
+    }
+
     @org.junit.Ignore("Outdated UI test, ModalBottomSheet interactions fail in Robolectric after 0.6.0")
     @Test
     fun `browser controls sheet shows grid controls when opened`() {

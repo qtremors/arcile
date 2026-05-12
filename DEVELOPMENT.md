@@ -2,7 +2,7 @@
 
 > Comprehensive documentation for developers working on Arcile.
 
-**Version:** 0.6.0 | **Last Updated:** 2026-04-19
+**Version:** 0.6.5 | **Last Updated:** 2026-05-12
 **Scope:** Internal Development, Security, Architecture, UI Paradigms, and Style Specification
 
 ---
@@ -415,8 +415,8 @@ Arcile maintains a layered JVM test suite covering domain logic, data-layer busi
 - Wrap tested composables in `ArcileTestTheme` so typography, shapes, colors, and composition locals match production defaults.
 
 ### Remaining Coverage Gaps
-- **Data Layer:** `FileSystemDataSource`, `TrashManager`, `MediaStoreClient`, and `LocalFileRepository` have no test coverage. These contain all destructive file operations and are the highest-priority gap.
-- **ViewModels:** `SettingsViewModel` is untested. `NavigationDelegate` history stack edge cases need coverage.
+- **Data Layer:** Fault-injection coverage for cancellation, partial I/O failure, replace rollback, and device-specific MediaStore behavior remains the highest-priority gap around destructive operations.
+- **ViewModels:** `SettingsViewModel` is lightly covered through integration paths but still lacks focused state tests. `NavigationDelegate` history stack edge cases need coverage.
 - **UI Components:** Most dialogs, list components, and all full screens beyond `HomeScreen` lack test coverage.
 - **Navigation:** No end-to-end navigation integration tests exist.
 
@@ -439,7 +439,7 @@ fun overflowMenu_dispatchesGridViewAction()
 ```bash
 ./gradlew assembleDebug
 ```
-APK output: `app/build/outputs/apk/debug/Arcile-dev.qtremors.arcile.debug-{versionName}-debug.apk`
+APK output: `app/build/outputs/apk/debug/Arcile-{versionName}-debug.apk`
 
 ### Release Build
 ```bash

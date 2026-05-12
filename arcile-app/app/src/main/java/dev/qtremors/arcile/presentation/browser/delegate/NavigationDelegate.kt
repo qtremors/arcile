@@ -115,7 +115,13 @@ class NavigationDelegate(
                 val primaryVolume = volumes.find { it.isPrimary } ?: volumes.firstOrNull()
 
                 if (primaryVolume != null) {
-                    loadDirectory(primaryVolume.path, primaryVolume.id, clearHistory = true, errorMessage = errorMessage)
+                    loadDirectory(
+                        primaryVolume.path,
+                        primaryVolume.id,
+                        clearHistory = true,
+                        errorMessage = errorMessage,
+                        persistAsLastOpened = false
+                    )
                 } else {
                     openVolumeRoots(errorMessage)
                 }
@@ -227,7 +233,8 @@ class NavigationDelegate(
         path: String,
         volumeId: String?,
         clearHistory: Boolean,
-        errorMessage: String? = null
+        errorMessage: String? = null,
+        persistAsLastOpened: Boolean = true
     ) {
         val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
         if (resolvedVolumeId == null) {
@@ -252,7 +259,9 @@ class NavigationDelegate(
         }
         saveNavState()
         viewModelScope.launch {
-            browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
+            if (persistAsLastOpened) {
+                browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
+            }
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             applyPresentation(prefs.getPresentationForPath(path))
 
@@ -300,6 +309,7 @@ class NavigationDelegate(
                 isCategoryScreen = true,
                 isVolumeRootScreen = false,
                 activeCategoryName = categoryName,
+                currentPath = "",
                 currentVolumeId = volumeId,
                 folderStatsByPath = emptyMap(),
                 folderStatsLoadingPaths = emptySet(),

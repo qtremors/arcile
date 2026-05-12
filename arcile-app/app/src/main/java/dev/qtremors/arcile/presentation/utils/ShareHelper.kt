@@ -6,7 +6,7 @@ import dev.qtremors.arcile.utils.AppLogger
 import java.util.ArrayList
 
 object ShareHelper {
-    fun shareFiles(context: Context, filePaths: List<String>): Boolean {
+    suspend fun shareFiles(context: Context, filePaths: List<String>): Boolean {
         if (filePaths.isEmpty()) return false
 
         try {

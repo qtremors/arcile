@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.foundation.Image

@@ -8,6 +8,7 @@ import dev.qtremors.arcile.domain.TrashMetadata
 import android.content.IntentSender
 import dev.qtremors.arcile.domain.DestinationRequiredException
 import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
+import dev.qtremors.arcile.presentation.utils.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,15 @@ class TrashViewModel @Inject constructor(
 
     private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
     val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+
+    private val localSearchHelper = LocalSearchHelper(
+        scope = viewModelScope,
+        source = { _state.value.trashFiles },
+        matches = { item: TrashMetadata, query: String -> item.fileModel.name.contains(query, ignoreCase = true) },
+        onQueryChanged = { query -> _state.update { it.copy(searchQuery = query) } },
+        onSearchingChanged = { isSearching -> _state.update { it.copy(isSearching = isSearching) } },
+        onResultsChanged = { results -> _state.update { it.copy(searchResults = results) } }
+    )
 
     init {
         loadTrashFiles()
@@ -196,6 +206,8 @@ class TrashViewModel @Inject constructor(
         val selectedIds = _state.value.selectedFiles.toList()
         if (selectedIds.isEmpty()) return
 
+        // Permanent trash deletion is intentionally repository-backed for now. If trash/delete
+        // operations move into BulkFileOperationService later, this VM should observe coordinator events.
         _state.update { it.copy(isLoading = true, error = null, showPermanentDeleteConfirmation = false) }
         viewModelScope.launch {
             repository.deletePermanentlyFromTrash(selectedIds).onSuccess {
@@ -212,27 +224,8 @@ class TrashViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
-    private var searchJob: kotlinx.coroutines.Job? = null
-
     fun updateSearchQuery(query: String) {
-        _state.update { it.copy(searchQuery = query) }
-        if (query.isBlank()) {
-            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
-            searchJob?.cancel()
-        } else {
-            debouncedSearch(query)
-        }
-    }
-
-    private fun debouncedSearch(query: String) {
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(300)
-            _state.update { it.copy(isSearching = true) }
-            val filtered = _state.value.trashFiles.filter { it.fileModel.name.contains(query, ignoreCase = true) }
-            _state.update { it.copy(isSearching = false, searchResults = filtered) }
-
-        }
+        localSearchHelper.updateQuery(query)
     }
 }
 

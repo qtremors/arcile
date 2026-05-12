@@ -43,12 +43,14 @@ class MediaStoreClientTest {
         var queryCount = 0
         var lastSelection: String? = null
         var lastSelectionArgs: Array<String> = emptyArray()
+        val allSelectionArgs = mutableListOf<String>()
         every {
             resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
         } answers {
             queryCount += 1
             lastSelection = arg(2)
             lastSelectionArgs = arg<Array<String>>(3)
+            allSelectionArgs += lastSelectionArgs
             categoryCursor(
                 Triple(fsPath("storage", "emulated", "0", "DCIM", "cat.jpg"), 125L, "image/jpeg"),
                 Triple(fsPath("storage", "emulated", "0", "Music", "song.mp3"), 250L, "audio/mpeg"),
@@ -74,13 +76,13 @@ class MediaStoreClientTest {
         val first = client.getCategoryStorageSizes(StorageScope.Volume("primary")).getOrThrow()
         val second = client.getCategoryStorageSizes(StorageScope.Volume("primary")).getOrThrow()
 
-        assertEquals(1, queryCount)
+        assertEquals(6, queryCount)
         assertCategorySize(first, "Images", 125L)
         assertCategorySize(first, "Audio", 250L)
         assertCategorySize(first, "Docs", 75L)
         assertEquals(first, second)
         assertTrue(lastSelection.orEmpty().contains(MediaStore.Files.FileColumns.MIME_TYPE))
-        assertTrue(lastSelectionArgs.any { it == "%.jpg" })
+        assertTrue(allSelectionArgs.any { it == "%.jpg" })
     }
 
     @Test
@@ -117,7 +119,7 @@ class MediaStoreClientTest {
         assertCategorySize(first, "Images", 120L)
         assertEquals(first, cached)
         assertCategorySize(refreshed, "Images", 480L)
-        assertEquals(2, queryCount)
+        assertEquals(12, queryCount)
     }
 
     private fun assertCategorySize(data: List<CategoryStorage>, name: String, expectedSize: Long) {

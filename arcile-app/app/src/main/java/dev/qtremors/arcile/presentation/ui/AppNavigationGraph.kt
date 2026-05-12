@@ -6,7 +6,9 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -62,7 +64,7 @@ fun AppNavigationGraph(
     onOpenFile: (String) -> Unit
 ) {
     val context = LocalContext.current
-                NavHost(
+    NavHost(
                     navController = navController,
                     startDestination = AppRoutes.Main(),
                     enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
@@ -81,10 +83,12 @@ fun AppNavigationGraph(
                         pageCount = { 2 }
                     )
                     val coroutineScope = rememberCoroutineScope()
+                    var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
 
                     // Handle incoming arguments for browser or deep links
                     androidx.compose.runtime.LaunchedEffect(mainArgs) {
                         if (mainArgs.initialPage == 1) {
+                            pendingExplicitBrowserEntry = true
                             when {
                                 !mainArgs.path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(mainArgs.path)
                                 !mainArgs.category.isNullOrEmpty() -> browserViewModel.navigateToCategory(mainArgs.category, mainArgs.volumeId)
@@ -94,10 +98,15 @@ fun AppNavigationGraph(
                         }
                     }
 
-                    // Ensure browser restores last location if empty when swiped into
+                    // Plain swipes are quick access into the persisted folder. Explicit
+                    // browser entries (category/path/root taps) keep their requested target.
                     androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
-                        if (pagerState.currentPage == 1 && browserViewModel.state.value.currentPath.isEmpty()) {
-                            browserViewModel.openFileBrowser(restorePersistentLocation = true)
+                        if (pagerState.currentPage == 1) {
+                            if (pendingExplicitBrowserEntry) {
+                                pendingExplicitBrowserEntry = false
+                            } else {
+                                browserViewModel.openFileBrowser(restorePersistentLocation = true)
+                            }
                         }
                     }
 
@@ -119,6 +128,7 @@ fun AppNavigationGraph(
                                 HomeScreen(
                                     state = state,
                                     onOpenFileBrowser = {
+                                        pendingExplicitBrowserEntry = true
                                         browserViewModel.openFileBrowser(restorePersistentLocation = false)
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
@@ -126,11 +136,13 @@ fun AppNavigationGraph(
                                         // Handled by Pager
                                     },
                                     onNavigateToPath = { path ->
+                                        pendingExplicitBrowserEntry = true
                                         browserViewModel.navigateToSpecificFolder(path)
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
                                     onOpenFile = onOpenFile,
                                     onCategoryClick = { categoryName ->
+                                        pendingExplicitBrowserEntry = true
                                         browserViewModel.navigateToCategory(categoryName)
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
@@ -189,9 +201,6 @@ fun AppNavigationGraph(
                                             coroutineScope.launch { pagerState.animateScrollToPage(0) }
                                         }
                                     },
-                                    onSwipeBack = {
-                                        coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                                    },
                                     onNavigateTo = { browserViewModel.navigateToFolder(it) },
                                     onOpenFile = onOpenFile,
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
@@ -216,8 +225,10 @@ fun AppNavigationGraph(
                                     onPasteFromClipboard = { browserViewModel.pasteFromClipboard() },
                                     onCancelClipboard = { browserViewModel.cancelClipboard() },
                                     onShareSelected = {
-                                        if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
-                                            browserViewModel.clearSelection()
+                                        coroutineScope.launch {
+                                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
+                                                browserViewModel.clearSelection()
+                                            }
                                         }
                                     },
                                     onClearFileOperationStatusMessage = { browserViewModel.clearFileOperationStatusMessage() },
@@ -297,6 +308,7 @@ fun AppNavigationGraph(
                 composable<AppRoutes.RecentFiles> {
                     val viewModel = hiltViewModel<RecentFilesViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
+                    val recentFilesCoroutineScope = rememberCoroutineScope()
                     RecentFilesScreen(
                         state = state,
                         onNavigateBack = { navController.popBackStack() },
@@ -308,8 +320,10 @@ fun AppNavigationGraph(
                         onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
                         onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
                         onShareSelected = {
-                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
-                                viewModel.clearSelection()
+                            recentFilesCoroutineScope.launch {
+                                if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
+                                    viewModel.clearSelection()
+                                }
                             }
                         },
                         onSelectAll = { viewModel.selectAll() },

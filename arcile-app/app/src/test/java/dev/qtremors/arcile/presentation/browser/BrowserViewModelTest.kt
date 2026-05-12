@@ -457,10 +457,39 @@ class BrowserViewModelTest {
 
         assertTrue(viewModel.state.value.isCategoryScreen)
         assertEquals("Images", viewModel.state.value.activeCategoryName)
+        assertEquals("", viewModel.state.value.currentPath)
         assertEquals("primary", viewModel.state.value.currentVolumeId)
         assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
         assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
         assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
+    }
+
+    @Test
+    fun `restored category location ignores stale saved folder path`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByCategory = mapOf("Audio" to listOf(browserFile("song.mp3", "/storage/emulated/0/Music/song.mp3")))
+            ),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "currentPath" to "/storage/emulated/0/Download",
+                    "isCategoryScreen" to true,
+                    "activeCategoryName" to "Audio",
+                    "currentVolumeId" to "primary",
+                    "isVolumeRootScreen" to false
+                )
+            )
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.isCategoryScreen)
+        assertEquals("Audio", viewModel.state.value.activeCategoryName)
+        assertEquals("", viewModel.state.value.currentPath)
+        assertEquals(listOf("song.mp3"), viewModel.state.value.files.map { it.name })
     }
 
     @Test
