@@ -39,7 +39,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.domain.BrowserPreferences
+import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.presentation.archive.ArchiveViewerViewModel
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -64,6 +66,13 @@ fun AppNavigationGraph(
     onOpenFile: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val openPath: (String) -> Unit = { path ->
+        if (ArchiveFormat.isSupported(path)) {
+            navController.navigate(AppRoutes.ArchiveViewer(path))
+        } else {
+            onOpenFile(path)
+        }
+    }
     NavHost(
                     navController = navController,
                     startDestination = AppRoutes.Main(),
@@ -77,6 +86,7 @@ fun AppNavigationGraph(
                     val homeViewModel = hiltViewModel<HomeViewModel>()
                     val browserViewModel = hiltViewModel<BrowserViewModel>()
                     val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
+                    val browserState by browserViewModel.state.collectAsStateWithLifecycle()
 
                     val pagerState = rememberPagerState(
                         initialPage = mainArgs.initialPage,
@@ -119,7 +129,7 @@ fun AppNavigationGraph(
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = true,
+                        userScrollEnabled = !(pagerState.currentPage == 1 && browserState.isCategoryScreen),
                         beyondViewportPageCount = 0
                     ) { page ->
                         when (page) {
@@ -140,7 +150,7 @@ fun AppNavigationGraph(
                                         browserViewModel.navigateToSpecificFolder(path)
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
-                                    onOpenFile = onOpenFile,
+                                    onOpenFile = openPath,
                                     onCategoryClick = { categoryName ->
                                         pendingExplicitBrowserEntry = true
                                         browserViewModel.navigateToCategory(categoryName)
@@ -193,16 +203,15 @@ fun AppNavigationGraph(
                                 )
                             }
                             1 -> {
-                                val state by browserViewModel.state.collectAsStateWithLifecycle()
                                 BrowserScreen(
-                                    state = state,
+                                    state = browserState,
                                     onNavigateBack = {
                                         if (!browserViewModel.navigateBack()) {
                                             coroutineScope.launch { pagerState.animateScrollToPage(0) }
                                         }
                                     },
                                     onNavigateTo = { browserViewModel.navigateToFolder(it) },
-                                    onOpenFile = onOpenFile,
+                                    onOpenFile = openPath,
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
                                     onSelectMultiple = { browserViewModel.selectMultiple(it) },
                                     onClearSelection = { browserViewModel.clearSelection() },
@@ -226,7 +235,7 @@ fun AppNavigationGraph(
                                     onCancelClipboard = { browserViewModel.cancelClipboard() },
                                     onShareSelected = {
                                         coroutineScope.launch {
-                                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
+                                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, browserState.selectedFiles.toList())) {
                                                 browserViewModel.clearSelection()
                                             }
                                         }
@@ -235,7 +244,7 @@ fun AppNavigationGraph(
                                     onOpenProperties = { browserViewModel.openPropertiesForSelection() },
                                     onDismissProperties = { browserViewModel.dismissProperties() },
                                     onClearActiveFileOperation = { browserViewModel.clearActiveFileOperation() },
-                                    isRefreshing = state.isPullToRefreshing,
+                                    isRefreshing = browserState.isPullToRefreshing,
                                     onRefresh = { browserViewModel.refresh(pullToRefresh = true) },
                                     onSearchFiltersChange = { browserViewModel.updateSearchFilters(it) },
                                     onToggleSearchFilterMenu = { browserViewModel.toggleSearchFilterMenu(it) },
@@ -246,6 +255,10 @@ fun AppNavigationGraph(
                                     onSelectAll = { browserViewModel.selectAll(it) },
                                     onInvertSelection = { browserViewModel.invertSelection(it) },
                                     onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
+                                    onSelectFolderTab = { browserViewModel.selectFolderTab(it) },
+                                    onExtractSelectedArchive = { browserViewModel.extractSelectedArchiveHere() },
+                                    onExtractSelectedArchiveToFolder = { browserViewModel.extractSelectedArchiveToFolder() },
+                                    onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )
                             }
@@ -312,7 +325,7 @@ fun AppNavigationGraph(
                     RecentFilesScreen(
                         state = state,
                         onNavigateBack = { navController.popBackStack() },
-                        onOpenFile = onOpenFile,
+                        onOpenFile = openPath,
                         onToggleSelection = { viewModel.toggleSelection(it) },
                         onClearSelection = { viewModel.clearSelection() },
                         onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
@@ -334,6 +347,14 @@ fun AppNavigationGraph(
                         onClearError = { viewModel.clearError() },
                         onOpenProperties = { viewModel.openPropertiesForSelection() },
                         onDismissProperties = { viewModel.dismissProperties() },
+                        onSelectFolderTab = { viewModel.selectFolderTab(it) },
+                        onSelectFileType = { viewModel.selectFileType(it) },
+                        onOpenContainingFolder = { path ->
+                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path)) {
+                                popUpTo<AppRoutes.Main> { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
@@ -404,6 +425,19 @@ fun AppNavigationGraph(
                                 viewModel.addSafFolder(uri, label)
                             }
                         }
+                    )
+                }
+                composable<AppRoutes.ArchiveViewer> {
+                    val viewModel = hiltViewModel<ArchiveViewerViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    ArchiveViewerScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateUpInArchive = { viewModel.navigateBack() },
+                        onOpenFolder = { viewModel.openFolder(it) },
+                        onExtractAll = { viewModel.extractAll() },
+                        onExtractCurrentFolder = { viewModel.extractCurrentFolder() },
+                        onClearError = { viewModel.clearError() }
                     )
                 }
             }

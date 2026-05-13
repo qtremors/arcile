@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.testutil
 
 import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
@@ -23,10 +24,12 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         sourcePaths: List<String>,
         destinationPath: String?,
         resolutions: Map<String, ConflictResolution>,
-        fakeFileSize: Long?
+        fakeFileSize: Long?,
+        archiveFormat: ArchiveFormat?,
+        archiveEntryPrefix: String?
     ): Boolean {
         if (!startResult) return false
-        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions, fakeFileSize)
+        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix)
         startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

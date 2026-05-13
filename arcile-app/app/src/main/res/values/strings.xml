@@ -156,6 +156,10 @@
     <string name="thumbnail">Thumbnail</string>
 
     <string name="folders">Folders</string>
+    <string name="all_files">All</string>
+    <string name="folder_tabs_content_description">Folder filters</string>
+    <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
+    <string name="open_containing_folder">Open containing folder</string>
     <string name="utilities">Utilities</string>
     <string name="show_all">Show All</string>
     <string name="recent_files">Recent Files</string>
@@ -234,6 +238,9 @@
     <string name="properties_access_limited">Limited</string>
     <string name="properties_contains">Contains</string>
     <string name="properties_contains_value">%1$d files • %2$s</string>
+    <string name="archive_compress_zip">Compress to ZIP</string>
+    <string name="archive_extract_here">Extract here</string>
+    <string name="archive_extract_to_folder">Extract to folder</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>
@@ -252,6 +259,7 @@
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>
+    <string name="recent_type_all">All types</string>
 
     <!-- Tools -->
     <string name="tools_title">Tools &amp; Utilities</string>

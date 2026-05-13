@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -64,6 +65,7 @@ data class BrowserState(
     val isVolumeRootScreen: Boolean = false,
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
+    val selectedFolderTabPath: String? = null,
     val files: List<FileModel> = emptyList(),
     val folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     val folderStatsLoadingPaths: Set<String> = emptySet(),
@@ -491,6 +493,19 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
+    fun selectFolderTab(path: String?) {
+        _state.update { currentState ->
+            currentState.copy(
+                selectedFolderTabPath = path,
+                selectedFiles = emptySet(),
+                selectedFilesTotalSize = 0L,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
     fun updateBrowserSearchQuery(query: String) = searchDelegate.updateBrowserSearchQuery(query)
     fun updateSearchFilters(filters: SearchFilters) = searchDelegate.updateSearchFilters(filters)
     fun toggleSearchFilterMenu(visible: Boolean) = searchDelegate.toggleSearchFilterMenu(visible)
@@ -568,6 +583,54 @@ class BrowserViewModel @Inject constructor(
         )
     }
 
+    fun extractSelectedArchiveHere() {
+        val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
+        if (!ArchiveFormat.isSupported(archivePath)) {
+            _state.update { it.copy(error = "Selected file is not a supported archive") }
+            return
+        }
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf(archivePath),
+            destinationPath = _state.value.currentPath,
+            resolutions = emptyMap<String, ConflictResolution>()
+        )
+        clearSelection()
+    }
+
+    fun extractSelectedArchiveToFolder() {
+        val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
+        val currentPath = _state.value.currentPath
+        if (!ArchiveFormat.isSupported(archivePath) || currentPath.isEmpty()) {
+            _state.update { it.copy(error = "Selected file is not a supported archive") }
+            return
+        }
+        val archive = java.io.File(archivePath)
+        val destination = java.io.File(currentPath, archive.nameWithoutExtension).absolutePath
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf(archivePath),
+            destinationPath = destination,
+            resolutions = emptyMap<String, ConflictResolution>()
+        )
+        clearSelection()
+    }
+
+    fun createZipFromSelection() {
+        val selected = _state.value.selectedFiles.toList()
+        val currentPath = _state.value.currentPath
+        if (selected.isEmpty() || currentPath.isEmpty()) return
+        val archivePath = nextArchivePath(currentPath, selected)
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = selected,
+            destinationPath = archivePath,
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archiveFormat = ArchiveFormat.ZIP
+        )
+        clearSelection()
+    }
+
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
     fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
@@ -628,11 +691,14 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+                val archiveSummary = selectedPaths.singleOrNull()
+                    ?.takeIf { ArchiveFormat.isSupported(it) }
+                    ?.let { repository.getArchiveMetadata(it).getOrNull() }
                 _state.update {
                     it.copy(
                         isPropertiesVisible = true,
                         isPropertiesLoading = false,
-                        properties = properties.toUiModel()
+                        properties = properties.toUiModel().copy(archiveSummary = archiveSummary)
                     )
                 }
             }.onFailure { error ->
@@ -676,7 +742,24 @@ class BrowserViewModel @Inject constructor(
             BulkFileOperationType.TRASH -> "Moved to Trash"
             BulkFileOperationType.DELETE -> "Deleted"
             BulkFileOperationType.CREATE_FAKE -> "Created"
+            BulkFileOperationType.EXTRACT_ARCHIVE -> "Extracted"
+            BulkFileOperationType.CREATE_ARCHIVE -> "Archived"
         }
         return "$verb $itemCount item(s)"
+    }
+
+    private fun nextArchivePath(currentPath: String, selected: List<String>): String {
+        val baseName = if (selected.size == 1) {
+            java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
+        } else {
+            "Archive"
+        }
+        var candidate = java.io.File(currentPath, "$baseName.zip")
+        var index = 1
+        while (candidate.exists()) {
+            candidate = java.io.File(currentPath, "$baseName ($index).zip")
+            index += 1
+        }
+        return candidate.absolutePath
     }
 }

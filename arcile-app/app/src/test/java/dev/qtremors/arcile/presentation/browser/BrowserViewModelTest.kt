@@ -526,6 +526,65 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun `category folder tab starts on all and can be selected`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByCategory = mapOf(
+                    "Images" to listOf(
+                        browserFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg"),
+                        browserFile("two.jpg", "/storage/emulated/0/Download/two.jpg")
+                    )
+                )
+            ),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToCategory("Images", "primary")
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.selectedFolderTabPath)
+
+        viewModel.selectFolderTab("/storage/emulated/0/DCIM")
+
+        assertEquals("/storage/emulated/0/DCIM", viewModel.state.value.selectedFolderTabPath)
+    }
+
+    @Test
+    fun `category folder tab selection clears selection and resets on normal folder navigation`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
+                filesByCategory = mapOf(
+                    "Images" to listOf(
+                        browserFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg"),
+                        browserFile("two.jpg", "/storage/emulated/0/DCIM/two.jpg")
+                    )
+                )
+            ),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToCategory("Images", "primary")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/DCIM/one.jpg")
+        viewModel.selectFolderTab("/storage/emulated/0/DCIM")
+
+        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.selectedFolderTabPath)
+        assertFalse(viewModel.state.value.isCategoryScreen)
+    }
+
+    @Test
     fun `renameFile handles collisions or append copy behavior without throwing error`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val repo = BrowserFakeFileRepository(
@@ -844,9 +903,11 @@ private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         sourcePaths: List<String>,
         destinationPath: String?,
         resolutions: Map<String, ConflictResolution>,
-        fakeFileSize: Long?
+        fakeFileSize: Long?,
+        archiveFormat: dev.qtremors.arcile.domain.ArchiveFormat?,
+        archiveEntryPrefix: String?
     ): Boolean {
-        val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions)
+        val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix)
         startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

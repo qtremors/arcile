@@ -14,6 +14,7 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.presentation.recentfiles.visibleRecentFiles
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.FakeFileRepository
@@ -27,6 +28,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -137,6 +139,91 @@ class RecentFilesViewModelTest {
         assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
         assertEquals(listOf("/storage/emulated/0/Holiday.jpg"), coordinator.startedRequests.single().sourcePaths)
         assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+    }
+
+    @Test
+    fun `folder tab selection starts on all and scopes select all`() = runTest(mainDispatcherRule.dispatcher) {
+        val files = listOf(
+            recentFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg"),
+            recentFile("two.jpg", "/storage/emulated/0/Download/two.jpg")
+        )
+        val repository = FakeFileRepository(
+            initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
+        )
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
+
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.selectedFolderTabPath)
+
+        viewModel.selectFolderTab("/storage/emulated/0/DCIM")
+        viewModel.selectAll()
+
+        assertEquals("/storage/emulated/0/DCIM", viewModel.state.value.selectedFolderTabPath)
+        assertEquals(setOf("/storage/emulated/0/DCIM/one.jpg"), viewModel.state.value.selectedFiles)
+    }
+
+    @Test
+    fun `refresh and blank search reset selected folder tab`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeFileRepository(
+            initialRecentFilesByScope = mapOf(
+                StorageScope.AllStorage to listOf(recentFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg"))
+            )
+        )
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
+
+        advanceUntilIdle()
+        viewModel.selectFolderTab("/storage/emulated/0/DCIM")
+        viewModel.updateSearchQuery("")
+
+        assertNull(viewModel.state.value.selectedFolderTabPath)
+
+        viewModel.selectFolderTab("/storage/emulated/0/DCIM")
+        viewModel.loadRecentFiles(pullToRefresh = true)
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.selectedFolderTabPath)
+    }
+
+    @Test
+    fun `load more keeps selected folder tab while appending files`() = runTest(mainDispatcherRule.dispatcher) {
+        val firstPage = List(50) { index ->
+            recentFile("image_$index.jpg", "/storage/emulated/0/DCIM/image_$index.jpg")
+        }
+        val secondPage = listOf(recentFile("download.jpg", "/storage/emulated/0/Download/download.jpg"))
+        val repository = FakeFileRepository().apply {
+            recentFilesResultProvider = { _, _, offset, _ ->
+                Result.success(if (offset == 0) firstPage else secondPage)
+            }
+        }
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
+
+        advanceUntilIdle()
+        viewModel.selectFolderTab("/storage/emulated/0/DCIM")
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/DCIM", viewModel.state.value.selectedFolderTabPath)
+        assertEquals(51, viewModel.state.value.recentFiles.size)
+    }
+
+    @Test
+    fun `file type chip filters visible recents and scopes select all`() = runTest(mainDispatcherRule.dispatcher) {
+        val files = listOf(
+            recentFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg"),
+            recentFile("notes.txt", "/storage/emulated/0/Download/notes.txt")
+        )
+        val repository = FakeFileRepository(
+            initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
+        )
+        val viewModel = RecentFilesViewModel(repository, FakeBulkFileOperationCoordinator(), SavedStateHandle())
+
+        advanceUntilIdle()
+        viewModel.selectFileType("Images")
+        viewModel.selectAll()
+
+        assertEquals(listOf("one.jpg"), viewModel.state.value.visibleRecentFiles().map { it.name })
+        assertEquals(setOf("/storage/emulated/0/DCIM/one.jpg"), viewModel.state.value.selectedFiles)
     }
 }
 

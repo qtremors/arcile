@@ -84,6 +84,20 @@ class BulkFileOperationService : Service() {
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                             }
+                            BulkFileOperationType.EXTRACT_ARCHIVE -> repository.extractArchive(
+                                archivePath = request.sourcePaths.first(),
+                                destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
+                                entryPrefix = request.archiveEntryPrefix
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                            }
+                            BulkFileOperationType.CREATE_ARCHIVE -> repository.createArchive(
+                                sourcePaths = request.sourcePaths,
+                                destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
+                                format = requireNotNull(request.archiveFormat) { "Archive format is required" }
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                            }
                         }
 
                         result.onSuccess {
@@ -119,6 +133,8 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.TRASH -> "Moving files to Trash"
             BulkFileOperationType.DELETE -> "Deleting files"
             BulkFileOperationType.CREATE_FAKE -> "Creating fake file"
+            BulkFileOperationType.EXTRACT_ARCHIVE -> "Extracting archive"
+            BulkFileOperationType.CREATE_ARCHIVE -> "Creating archive"
         }
         val content = "Processing ${request.sourcePaths.size} item(s) in the background"
 

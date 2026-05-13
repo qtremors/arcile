@@ -19,7 +19,12 @@ class SearchDelegate(
     private var searchJob: Job? = null
 
     fun updateBrowserSearchQuery(query: String) {
-        state.update { it.copy(browserSearchQuery = query) }
+        state.update {
+            it.copy(
+                browserSearchQuery = query,
+                selectedFolderTabPath = if (query.isBlank()) null else it.selectedFolderTabPath
+            )
+        }
         debouncedSearch(query)
     }
 

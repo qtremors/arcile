@@ -51,6 +51,22 @@ interface FileRepository {
     fun queueFolderStats(paths: List<String>)
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
     suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
+    suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
+        Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
+        Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun extractArchive(
+        archivePath: String,
+        destinationPath: String,
+        entryPrefix: String? = null,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun createArchive(
+        sourcePaths: List<String>,
+        destinationArchivePath: String,
+        format: ArchiveFormat = ArchiveFormat.ZIP,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 
     // ─── File mutations ──────────────────────────────────────────────────────
 

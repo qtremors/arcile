@@ -16,8 +16,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 49
-        versionName = "0.6.5"
+        versionCode = 50
+        versionName = "0.6.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -163,6 +163,8 @@ dependencies {
     implementation(libs.coil.video)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.material.kolor)
+    implementation(libs.apache.commons.compress)
+    implementation(libs.tukaani.xz)
 
     // Hilt DI
     implementation(libs.hilt.android)

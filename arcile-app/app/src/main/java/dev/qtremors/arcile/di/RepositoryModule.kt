@@ -15,7 +15,9 @@ import dev.qtremors.arcile.data.MutationFinalizer
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.data.manager.DefaultTrashManager
+import dev.qtremors.arcile.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.data.manager.TrashManager
+import dev.qtremors.arcile.domain.ArchiveManager
 import dev.qtremors.arcile.data.provider.DefaultVolumeProvider
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.DefaultFileSystemDataSource
@@ -97,6 +99,15 @@ object RepositoryModule {
 
     @Provides
     @Singleton
+    fun provideArchiveManager(
+        volumeProvider: VolumeProvider,
+        mutationFinalizer: MutationFinalizer
+    ): ArchiveManager {
+        return DefaultArchiveManager(volumeProvider, mutationFinalizer)
+    }
+
+    @Provides
+    @Singleton
     fun provideFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
@@ -130,6 +141,7 @@ object RepositoryModule {
         volumeProvider: VolumeProvider,
         mediaStoreClient: MediaStoreClient,
         trashManager: TrashManager,
+        archiveManager: ArchiveManager,
         fileSystemDataSource: FileSystemDataSource,
         folderStatsStore: FolderStatsStore
     ): FileRepository {
@@ -138,7 +150,8 @@ object RepositoryModule {
             mediaStoreClient,
             trashManager,
             fileSystemDataSource,
-            folderStatsStore
+            folderStatsStore,
+            archiveManager
         )
     }
 

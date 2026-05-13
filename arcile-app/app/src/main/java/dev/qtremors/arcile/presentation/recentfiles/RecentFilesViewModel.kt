@@ -6,11 +6,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
+import dev.qtremors.arcile.presentation.filterFilesByFolderTab
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.utils.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -38,6 +40,8 @@ data class RecentFilesState(
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = true,
     val currentOffset: Int = 0,
+    val selectedFolderTabPath: String? = null,
+    val selectedFileType: String? = null,
     val error: String? = null,
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
@@ -191,7 +195,17 @@ class RecentFilesViewModel @Inject constructor(
             if (loadMore) {
                 it.copy(isLoadingMore = true, error = null, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
             } else {
-                it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null, currentOffset = 0, hasMore = true, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
+                it.copy(
+                    isLoading = !pullToRefresh,
+                    isPullToRefreshing = pullToRefresh,
+                    error = null,
+                    currentOffset = 0,
+                    hasMore = true,
+                    selectedFolderTabPath = null,
+                    selectedFileType = null,
+                    todayStart = newTodayStart,
+                    yesterdayStart = newYesterdayStart
+                )
             }
         }
         viewModelScope.launch {
@@ -265,7 +279,7 @@ class RecentFilesViewModel @Inject constructor(
             val allPaths = if (currentState.searchQuery.isNotBlank()) {
                 currentState.searchResults.map { it.absolutePath }
             } else {
-                currentState.recentFiles.map { it.absolutePath }
+                currentState.visibleRecentFiles().map { it.absolutePath }
             }
             currentState.copy(selectedFiles = allPaths.toSet())
         }
@@ -276,7 +290,34 @@ class RecentFilesViewModel @Inject constructor(
     }
 
     fun updateSearchQuery(query: String) {
+        if (query.isBlank()) {
+            _state.update { it.copy(selectedFolderTabPath = null) }
+        }
         localSearchHelper.updateQuery(query)
+    }
+
+    fun selectFolderTab(path: String?) {
+        _state.update { currentState ->
+            currentState.copy(
+                selectedFolderTabPath = path,
+                selectedFiles = emptySet(),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
+    fun selectFileType(categoryName: String?) {
+        _state.update { currentState ->
+            currentState.copy(
+                selectedFileType = categoryName,
+                selectedFiles = emptySet(),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
     }
 
     fun openPropertiesForSelection() {
@@ -320,6 +361,18 @@ class RecentFilesViewModel @Inject constructor(
                 isPropertiesLoading = false,
                 properties = null
             )
+        }
+    }
+}
+
+fun RecentFilesState.visibleRecentFiles(): List<FileModel> {
+    val folderFiltered = filterFilesByFolderTab(recentFiles, selectedFolderTabPath)
+    val category = selectedFileType?.let { selected -> FileCategories.all.find { it.name == selected } }
+    return if (category == null) {
+        folderFiltered
+    } else {
+        folderFiltered.filter { file ->
+            FileCategories.getCategoryForFile(file.extension, file.mimeType)?.name == category.name
         }
     }
 }

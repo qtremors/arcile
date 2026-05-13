@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.ArchiveFormat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -26,7 +27,9 @@ interface BulkFileOperationCoordinator {
         sourcePaths: List<String>,
         destinationPath: String?,
         resolutions: Map<String, ConflictResolution>,
-        fakeFileSize: Long? = null
+        fakeFileSize: Long? = null,
+        archiveFormat: ArchiveFormat? = null,
+        archiveEntryPrefix: String? = null
     ): Boolean
 
     fun cancelActiveOperation()
@@ -57,7 +60,9 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         sourcePaths: List<String>,
         destinationPath: String?,
         resolutions: Map<String, ConflictResolution>,
-        fakeFileSize: Long?
+        fakeFileSize: Long?,
+        archiveFormat: ArchiveFormat?,
+        archiveEntryPrefix: String?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -67,7 +72,9 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             sourcePaths = sourcePaths,
             destinationPath = destinationPath,
             resolutions = resolutions,
-            fakeFileSize = fakeFileSize
+            fakeFileSize = fakeFileSize,
+            archiveFormat = archiveFormat,
+            archiveEntryPrefix = archiveEntryPrefix
         )
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

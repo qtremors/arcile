@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
@@ -190,5 +191,53 @@ class NavigationDelegateTest {
         assertEquals("vol1", state.value.currentVolumeId)
         assertFalse(state.value.isLoading)
         assertEquals(files, state.value.files)
+    }
+
+    @Test
+    fun `navigateToFolder clears previous files while loading new directory`() = testScope.runTest {
+        val previousFiles = listOf(FileModel("old", "/storage/emulated/0/old", 0L, 0L, false, "", false))
+        val loadedFiles = listOf(FileModel("new", "/storage/emulated/0/new", 0L, 0L, false, "", false))
+        val deferredFiles = CompletableDeferred<Result<List<FileModel>>>()
+        repository.listFilesResultProvider = { deferredFiles.await() }
+        state.value = state.value.copy(
+            currentPath = "/storage/emulated/0",
+            currentVolumeId = "vol1",
+            files = previousFiles
+        )
+
+        delegate.navigateToFolder("/storage/emulated/0/Downloads")
+
+        assertTrue(state.value.isLoading)
+        assertEquals(emptyList<FileModel>(), state.value.files)
+
+        deferredFiles.complete(Result.success(loadedFiles))
+        advanceUntilIdle()
+
+        assertFalse(state.value.isLoading)
+        assertEquals(loadedFiles, state.value.files)
+    }
+
+    @Test
+    fun `navigateToCategory clears previous files while loading category`() = testScope.runTest {
+        val previousFiles = listOf(FileModel("old", "/storage/emulated/0/old", 0L, 0L, false, "", false))
+        val loadedFiles = listOf(FileModel("image", "/storage/emulated/0/image.jpg", 0L, 0L, false, "jpg", false))
+        val deferredFiles = CompletableDeferred<Result<List<FileModel>>>()
+        repository.filesByCategoryResultProvider = { _, _ -> deferredFiles.await() }
+        state.value = state.value.copy(
+            currentPath = "/storage/emulated/0",
+            currentVolumeId = "vol1",
+            files = previousFiles
+        )
+
+        delegate.navigateToCategory("Images", "vol1")
+
+        assertTrue(state.value.isLoading)
+        assertEquals(emptyList<FileModel>(), state.value.files)
+
+        deferredFiles.complete(Result.success(loadedFiles))
+        advanceUntilIdle()
+
+        assertFalse(state.value.isLoading)
+        assertEquals(loadedFiles, state.value.files)
     }
 }

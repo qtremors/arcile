@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.FolderOff
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.SearchOff
@@ -60,6 +61,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -112,12 +114,15 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.buildFolderTabs
+import dev.qtremors.arcile.presentation.filterFilesByFolderTab
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.presentation.filterAndSortFiles
@@ -125,6 +130,7 @@ import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
+import dev.qtremors.arcile.presentation.ui.components.FolderTabsRow
 import dev.qtremors.arcile.presentation.ui.components.PasteConflictDialog
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
@@ -224,6 +230,10 @@ fun BrowserScreen(
     onInvertSelection: (List<String>) -> Unit = {},
     onSelectAll: (List<String>) -> Unit = {},
     onRemoveFromClipboard: (String) -> Unit = {},
+    onSelectFolderTab: (String?) -> Unit = {},
+    onExtractSelectedArchive: () -> Unit = {},
+    onExtractSelectedArchiveToFolder: () -> Unit = {},
+    onCreateZipFromSelection: () -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
@@ -266,8 +276,11 @@ fun BrowserScreen(
         }
     }
 
-    val displayedFiles = remember(state.files, state.browserSortOption) {
-        filterAndSortFiles(state.files, "", state.browserSortOption)
+    val tabFilteredFiles = remember(state.files, state.selectedFolderTabPath) {
+        filterFilesByFolderTab(state.files, state.selectedFolderTabPath)
+    }
+    val displayedFiles = remember(tabFilteredFiles, state.browserSortOption) {
+        filterAndSortFiles(tabFilteredFiles, "", state.browserSortOption)
     }
     val currentPresentation = remember(
         state.browserSortOption,
@@ -668,6 +681,17 @@ fun BrowserScreen(
                         }
                     }
 
+                    if (state.isCategoryScreen) {
+                        val folderTabs = remember(state.files) {
+                            buildFolderTabs(state.files, context.getString(R.string.all_files))
+                        }
+                        FolderTabsRow(
+                            tabs = folderTabs,
+                            selectedPath = state.selectedFolderTabPath,
+                            onSelectTab = onSelectFolderTab
+                        )
+                    }
+
                     val pullRefreshState = rememberPullToRefreshState()
 
                     PullToRefreshBox(
@@ -707,7 +731,11 @@ fun BrowserScreen(
                             EmptyState(
                                 icon = Icons.Default.FolderOff,
                                 title = stringResource(R.string.empty_directory),
-                                description = stringResource(R.string.empty_directory_description),
+                                description = if (state.isCategoryScreen && state.selectedFolderTabPath != null) {
+                                    stringResource(R.string.empty_folder_tab_description)
+                                } else {
+                                    stringResource(R.string.empty_directory_description)
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else if (state.browserViewMode == BrowserViewMode.GRID) {
@@ -775,6 +803,7 @@ fun BrowserScreen(
                 contentAlignment = Alignment.BottomCenter
             ) {
                 if (state.selectedFiles.isNotEmpty()) {
+                    val selectedArchive = state.selectedFiles.singleOrNull()?.let { ArchiveFormat.isSupported(it) } == true
                     val mainActions = mutableListOf<ToolbarAction>()
                     mainActions.add(ToolbarAction(
                         icon = Icons.Default.ContentCopy,
@@ -831,6 +860,38 @@ fun BrowserScreen(
                                 ) {
                                     val menuActions = remember(onShareSelected, displayedFiles) {
                                         mutableListOf<@Composable () -> Unit>().apply {
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.archive_compress_zip)) },
+                                                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onCreateZipFromSelection()
+                                                    }
+                                                )
+                                            }
+                                            if (selectedArchive) {
+                                                add {
+                                                    androidx.compose.material3.DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.archive_extract_here)) },
+                                                        leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
+                                                        onClick = {
+                                                            showSelectionMenu = false
+                                                            onExtractSelectedArchive()
+                                                        }
+                                                    )
+                                                }
+                                                add {
+                                                    androidx.compose.material3.DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.archive_extract_to_folder)) },
+                                                        leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                                        onClick = {
+                                                            showSelectionMenu = false
+                                                            onExtractSelectedArchiveToFolder()
+                                                        }
+                                                    )
+                                                }
+                                            }
                                             add {
                                                 androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text(stringResource(R.string.share)) },

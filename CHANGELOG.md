@@ -1,10 +1,30 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.5
-> **Last Updated:** 2026-05-12
+> **Version:** 0.6.6
+> **Last Updated:** 2026-05-13
 
 ---
+
+## [0.6.6] - 2026-05-13
+
+### UI & UX
+- **Archive Support:** Added first-class ZIP and 7z support, including archive creation, extraction, safe metadata viewing, and an in-app archive browser that lets users inspect archive contents without extracting them.
+- **Archive Browser Actions:** Added file-browser actions to compress selections to ZIP, extract archives in place, and extract archives into a dedicated folder.
+- **Category Gesture Lock:** Disabled Home/Browser pager swipes while viewing category screens so Images, Videos, Audio, Docs, Archives, and APKs remain isolated until the user explicitly navigates back.
+- **Stale Content Flash Fix:** Cleared previous folder/category file lists immediately when navigating to a new folder or category, preventing old contents from flashing during async debug builds and slower reloads.
+- **Folder Tabs for Categories:** Added horizontal folder tabs to category views, with an `All` tab first and per-folder tabs grouped by containing folder so large categories are easier to browse.
+- **Recent Files Folder Tabs:** Added the same folder-tab experience to Recent Files, preserving date grouping while letting users narrow recents by containing folder.
+- **Recents Type Filters:** Added file-type chips for Recent Files, including Images, Videos, Audio, Docs, Archives, and APKs.
+- **Richer Folder Context:** Folder tabs now show item counts and total size, and single-file Recent selections can jump directly to the containing folder.
+
+### Architecture
+- **Archive Engine:** Integrated Apache Commons Compress with an archive manager, repository APIs, foreground bulk-operation support, safe extraction checks, and ZIP/7z runtime dependencies.
+
+### Testing
+- **Archive Coverage:** Added unit coverage for archive format detection, ZIP/7z create-list-extract flows, safe extraction path rejection, and keep-both conflict handling.
+- **Navigation Regression Coverage:** Added tests confirming folder and category navigation clear stale file lists while the new destination is loading.
+- **Folder Tab Coverage:** Added regression tests for folder-tab grouping, duplicate folder names, tab-filtered selection, recents type filters, refresh/search resets, and load-more behavior.
 
 ## [0.6.5] - 2026-05-12
 

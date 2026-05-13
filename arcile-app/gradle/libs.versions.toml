@@ -22,6 +22,8 @@ material-kolor = "4.1.1"
 robolectric = "4.14.1"
 mockk = "1.13.10"
 turbine = "1.1.0"
+commonsCompress = "1.28.0"
+xz = "1.10"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -55,6 +57,8 @@ material-kolor = { group = "com.materialkolor", name = "material-kolor", version
 org-robolectric-robolectric = { group = "org.robolectric", name = "robolectric", version.ref = "robolectric" }
 io-mockk-mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 app-cash-turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+apache-commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
+tukaani-xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
