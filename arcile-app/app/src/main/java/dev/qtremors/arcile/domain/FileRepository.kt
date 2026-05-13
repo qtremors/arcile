@@ -53,18 +53,24 @@ interface FileRepository {
     suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
     suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
         Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
+        listArchiveEntries(archivePath)
     suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
         Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
+        getArchiveMetadata(archivePath)
     suspend fun extractArchive(
         archivePath: String,
         destinationPath: String,
         entryPrefix: String? = null,
+        password: String? = null,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
     suspend fun createArchive(
         sourcePaths: List<String>,
         destinationArchivePath: String,
         format: ArchiveFormat = ArchiveFormat.ZIP,
+        password: String? = null,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 

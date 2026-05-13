@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -31,11 +31,8 @@ import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -65,16 +62,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.util.Date
-import java.util.Locale
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.presentation.buildFolderTabs
-import dev.qtremors.arcile.presentation.filterFilesByFolderTab
 import dev.qtremors.arcile.presentation.containingFolderPath
-import dev.qtremors.arcile.presentation.recentfiles.visibleRecentFiles
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.FolderTabsRow
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 
@@ -99,8 +90,6 @@ fun RecentFilesScreen(
     onLoadMore: () -> Unit = {},
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
-    onSelectFolderTab: (String?) -> Unit = {},
-    onSelectFileType: (String?) -> Unit = {},
     onOpenContainingFolder: (String) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
@@ -264,7 +253,7 @@ fun RecentFilesScreen(
                 val filesToDisplay = if (showSearchBar) {
                     state.searchResults
                 } else {
-                    state.visibleRecentFiles()
+                    state.recentFiles
                 }
                 val groupFormat = rememberDateFormatter("EEEE, MMM dd")
                 val groupedFiles = remember(filesToDisplay, showSearchBar, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
@@ -315,35 +304,20 @@ fun RecentFilesScreen(
                     }
                 ) {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = padding.calculateTopPadding()),
                         state = listState,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            top = padding.calculateTopPadding(),
                             bottom = padding.calculateBottomPadding() + 100.dp
                         )
                     ) {
-                    if (!showSearchBar) {
-                        item {
-                            val folderTabs = buildFolderTabs(state.recentFiles, stringResource(R.string.all_files))
-                            FolderTabsRow(
-                                tabs = folderTabs,
-                                selectedPath = state.selectedFolderTabPath,
-                                onSelectTab = onSelectFolderTab
-                            )
-                        }
-                        item {
-                            RecentTypeChips(
-                                selectedType = state.selectedFileType,
-                                onSelectType = onSelectFileType
-                            )
-                        }
-                    }
                     if (filesToDisplay.isEmpty() && !state.isLoading) {
                         item {
                             EmptyState(
                                 icon = Icons.Default.History,
                                 title = stringResource(R.string.no_recent_files),
-                                description = stringResource(R.string.empty_folder_tab_description),
+                                description = stringResource(R.string.no_recent_files_description),
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -367,11 +341,11 @@ fun RecentFilesScreen(
                             }
                         }
 
-                        items(
+                        itemsIndexed(
                             items = files,
-                            key = { it.absolutePath },
-                            contentType = { if (it.isDirectory) "directory" else "file" }
-                        ) { file ->
+                            key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
+                            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+                        ) { _, file ->
                             FileItemRow(
                                 file = file,
                                 formattedDate = formatter.format(Date(file.lastModified)),
@@ -536,32 +510,4 @@ fun RecentFilesScreen(
         )
     }
 }
-}
-
-@Composable
-private fun RecentTypeChips(
-    selectedType: String?,
-    onSelectType: (String?) -> Unit
-) {
-    androidx.compose.foundation.lazy.LazyRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item {
-            FilterChip(
-                selected = selectedType == null,
-                onClick = { onSelectType(null) },
-                label = { Text(stringResource(R.string.recent_type_all)) }
-            )
-        }
-        items(FileCategories.all, key = { it.name }) { category ->
-            FilterChip(
-                selected = selectedType == category.name,
-                onClick = { onSelectType(category.name) },
-                label = { Text(category.name) }
-            )
-        }
-    }
 }

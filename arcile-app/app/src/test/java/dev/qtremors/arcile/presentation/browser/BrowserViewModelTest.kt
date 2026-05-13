@@ -290,6 +290,42 @@ class BrowserViewModelTest {
     }
 
     @Test
+    fun `completed bulk operation refreshes current folder contents`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(browserFile("before.txt", "/storage/emulated/0/Download/before.txt"))
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        assertEquals(listOf("before.txt"), viewModel.state.value.files.map { it.name })
+
+        viewModel.createFakeFile("after.txt", 128L)
+        advanceUntilIdle()
+        val request = coordinator.activeRequest.value!!
+        repo.filesByPath = mapOf(
+            "/storage/emulated/0/Download" to listOf(browserFile("after.txt", "/storage/emulated/0/Download/after.txt"))
+        )
+
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+
+        assertEquals(listOf("after.txt"), viewModel.state.value.files.map { it.name })
+        assertEquals("Created 1 item(s)", viewModel.state.value.fileOperationStatusMessage)
+    }
+
+    @Test
     fun `requestDeleteSelected shows mixed explanation for cross-policy selection`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val otg = browserVolume("otg", "USB", "/storage/otg", isPrimary = false, isRemovable = true, kind = StorageKind.OTG)
@@ -834,6 +870,11 @@ private class BrowserFakeFileRepository(
         get() = delegate.renameRequests.lastOrNull()?.first
     val lastRenameNewName: String?
         get() = delegate.renameRequests.lastOrNull()?.second
+    var filesByPath: Map<String, List<FileModel>>
+        get() = delegate.filesByPath
+        set(value) {
+            delegate.filesByPath = value
+        }
 
     override suspend fun listFiles(path: String) = delegate.listFiles(path)
     override suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.getCachedFolderStats(paths)
@@ -905,9 +946,10 @@ private class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         resolutions: Map<String, ConflictResolution>,
         fakeFileSize: Long?,
         archiveFormat: dev.qtremors.arcile.domain.ArchiveFormat?,
-        archiveEntryPrefix: String?
+        archiveEntryPrefix: String?,
+        archivePassword: String?
     ): Boolean {
-        val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix)
+        val request = BulkFileOperationRequest("test-op", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix, archivePassword)
         startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

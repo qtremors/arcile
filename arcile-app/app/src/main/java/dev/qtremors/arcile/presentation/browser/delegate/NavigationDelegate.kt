@@ -160,14 +160,14 @@ class NavigationDelegate(
         }
     }
 
-    fun navigateToSpecificFolder(path: String) {
+    fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) {
         val volume = findVolumeForPath(path)
         if (volume == null) {
             openFileBrowser(errorMessage = "Storage for this path is not available")
             return
         }
         pathHistory.clear()
-        if (path != volume.path) {
+        if (seedInitialPathHistory && path != volume.path) {
             pathHistory.push(volume.path)
         }
         loadDirectory(path, volume.id, clearHistory = false)
@@ -196,6 +196,19 @@ class NavigationDelegate(
     fun navigateBack(): Boolean {
         if (state.value.browserSearchQuery.isNotEmpty()) {
             onClearSearch()
+            return true
+        }
+
+        if (state.value.selectedFiles.isNotEmpty()) {
+            state.update {
+                it.copy(
+                    selectedFiles = emptySet(),
+                    selectedFilesTotalSize = 0L,
+                    isPropertiesVisible = false,
+                    isPropertiesLoading = false,
+                    properties = null
+                )
+            }
             return true
         }
 

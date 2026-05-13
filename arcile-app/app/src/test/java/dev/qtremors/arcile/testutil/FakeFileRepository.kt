@@ -56,10 +56,10 @@ class FakeFileRepository(
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var selectionPropertiesResultProvider: (suspend (List<String>) -> Result<SelectionProperties>)? = null
-    var archiveEntriesResultProvider: (suspend (String) -> Result<List<ArchiveEntryModel>>)? = null
-    var archiveMetadataResultProvider: (suspend (String) -> Result<ArchiveSummary>)? = null
-    var extractArchiveResultProvider: (suspend (String, String, String?, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
-    var createArchiveResultProvider: (suspend (List<String>, String, ArchiveFormat, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
+    var archiveEntriesResultProvider: (suspend (String, String?) -> Result<List<ArchiveEntryModel>>)? = null
+    var archiveMetadataResultProvider: (suspend (String, String?) -> Result<ArchiveSummary>)? = null
+    var extractArchiveResultProvider: (suspend (String, String, String?, String?, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
+    var createArchiveResultProvider: (suspend (List<String>, String, ArchiveFormat, String?, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveToTrashResultProvider: (suspend (List<String>) -> Result<Unit>)? = null
     var restoreFromTrashResultProvider: (suspend (List<String>, String?) -> Result<Unit>)? = null
     var emptyTrashResult: Result<Unit> = Result.failure(NotImplementedError())
@@ -95,8 +95,8 @@ class FakeFileRepository(
         val resolutions: Map<String, ConflictResolution>
     )
     data class RestoreRequest(val trashIds: List<String>, val destinationPath: String?)
-    data class ArchiveExtractRequest(val archivePath: String, val destinationPath: String, val entryPrefix: String?)
-    data class ArchiveCreateRequest(val sourcePaths: List<String>, val destinationArchivePath: String, val format: ArchiveFormat)
+    data class ArchiveExtractRequest(val archivePath: String, val destinationPath: String, val entryPrefix: String?, val password: String?)
+    data class ArchiveCreateRequest(val sourcePaths: List<String>, val destinationArchivePath: String, val format: ArchiveFormat, val password: String?)
 
     fun emitVolumes(volumes: List<StorageVolume>) {
         observedVolumes.tryEmit(volumes)
@@ -161,29 +161,37 @@ class FakeFileRepository(
     }
 
     override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
-        archiveEntriesResultProvider?.invoke(archivePath) ?: Result.success(emptyList())
+        listArchiveEntries(archivePath, null)
+
+    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
+        archiveEntriesResultProvider?.invoke(archivePath, password) ?: Result.success(emptyList())
 
     override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
-        archiveMetadataResultProvider?.invoke(archivePath) ?: Result.failure(NotImplementedError())
+        getArchiveMetadata(archivePath, null)
+
+    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
+        archiveMetadataResultProvider?.invoke(archivePath, password) ?: Result.failure(NotImplementedError())
 
     override suspend fun extractArchive(
         archivePath: String,
         destinationPath: String,
         entryPrefix: String?,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> {
-        extractArchiveRequests += ArchiveExtractRequest(archivePath, destinationPath, entryPrefix)
-        return extractArchiveResultProvider?.invoke(archivePath, destinationPath, entryPrefix, onProgress) ?: Result.success(Unit)
+        extractArchiveRequests += ArchiveExtractRequest(archivePath, destinationPath, entryPrefix, password)
+        return extractArchiveResultProvider?.invoke(archivePath, destinationPath, entryPrefix, password, onProgress) ?: Result.success(Unit)
     }
 
     override suspend fun createArchive(
         sourcePaths: List<String>,
         destinationArchivePath: String,
         format: ArchiveFormat,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> {
-        createArchiveRequests += ArchiveCreateRequest(sourcePaths, destinationArchivePath, format)
-        return createArchiveResultProvider?.invoke(sourcePaths, destinationArchivePath, format, onProgress) ?: Result.success(Unit)
+        createArchiveRequests += ArchiveCreateRequest(sourcePaths, destinationArchivePath, format, password)
+        return createArchiveResultProvider?.invoke(sourcePaths, destinationArchivePath, format, password, onProgress) ?: Result.success(Unit)
     }
 
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> {

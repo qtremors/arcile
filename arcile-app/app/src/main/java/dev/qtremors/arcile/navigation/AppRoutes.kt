@@ -14,7 +14,8 @@ object AppRoutes {
         val path: String? = null,
         val category: String? = null,
         val volumeId: String? = null,
-        val restorePersistentLocation: Boolean = true
+        val restorePersistentLocation: Boolean = true,
+        val seedInitialPathHistory: Boolean = true
     )
     @Serializable object Home
     @Serializable data class Explorer(

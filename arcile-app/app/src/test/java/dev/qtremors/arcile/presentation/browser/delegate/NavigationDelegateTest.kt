@@ -143,6 +143,48 @@ class NavigationDelegateTest {
     }
 
     @Test
+    fun `navigateBack clears selection before navigating folder history`() = testScope.runTest {
+        repository.filesByPath = mapOf(
+            "/storage/emulated/0/parent/child" to emptyList(),
+            "/storage/emulated/0" to listOf(FileModel("parent", "/storage/emulated/0/parent", 0L, 0L, true, "", false))
+        )
+
+        delegate.navigateToSpecificFolder("/storage/emulated/0/parent/child")
+        advanceUntilIdle()
+        state.update {
+            it.copy(
+                selectedFiles = setOf("/storage/emulated/0/parent/child/file.txt"),
+                selectedFilesTotalSize = 123L
+            )
+        }
+
+        val result = delegate.navigateBack()
+        advanceUntilIdle()
+
+        assertTrue(result)
+        assertEquals("/storage/emulated/0/parent/child", state.value.currentPath)
+        assertTrue(state.value.selectedFiles.isEmpty())
+        assertEquals(0L, state.value.selectedFilesTotalSize)
+    }
+
+    @Test
+    fun `navigateBack returns false from category screen so app back stack can handle it`() = testScope.runTest {
+        state.value = state.value.copy(
+            isCategoryScreen = true,
+            activeCategoryName = "Images",
+            currentPath = "",
+            currentVolumeId = "vol1"
+        )
+
+        val result = delegate.navigateBack()
+        advanceUntilIdle()
+
+        assertFalse(result)
+        assertTrue(state.value.isCategoryScreen)
+        assertEquals("Images", state.value.activeCategoryName)
+    }
+
+    @Test
     fun `navigateToSpecificFolder saves history, then navigateBack pops history and loads directory`() = testScope.runTest {
         state.value = state.value.copy(currentPath = "/storage/emulated/0/parent")
         repository.filesByPath = mapOf(
@@ -165,6 +207,20 @@ class NavigationDelegateTest {
         assertEquals("/storage/emulated/0", state.value.currentPath)
         
         // 4. Try navigating back again, should fail since history is empty now
+        assertFalse(delegate.navigateBack())
+    }
+
+    @Test
+    fun `navigateToSpecificFolder can skip initial root history for external app origins`() = testScope.runTest {
+        repository.filesByPath = mapOf("/storage/emulated/0/Download" to emptyList())
+
+        delegate.navigateToSpecificFolder(
+            path = "/storage/emulated/0/Download",
+            seedInitialPathHistory = false
+        )
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", state.value.currentPath)
         assertFalse(delegate.navigateBack())
     }
 

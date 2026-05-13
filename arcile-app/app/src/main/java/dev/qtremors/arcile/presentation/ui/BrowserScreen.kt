@@ -80,6 +80,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -174,6 +175,8 @@ import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import dev.qtremors.arcile.presentation.operations.rememberSmoothedProgress
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 
 /**
  * Full-featured file browser screen.
@@ -231,15 +234,18 @@ fun BrowserScreen(
     onSelectAll: (List<String>) -> Unit = {},
     onRemoveFromClipboard: (String) -> Unit = {},
     onSelectFolderTab: (String?) -> Unit = {},
-    onExtractSelectedArchive: () -> Unit = {},
-    onExtractSelectedArchiveToFolder: () -> Unit = {},
+    onExtractSelectedArchive: (String?) -> Unit = {},
+    onExtractSelectedArchiveToFolder: (String?) -> Unit = {},
     onCreateZipFromSelection: () -> Unit = {},
+    onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit = { _, _, _ -> },
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCreateFileDialog by remember { mutableStateOf(false) }
     var showCreateFakeFileDialog by remember { mutableStateOf(false) }
+    var showCreateArchiveDialog by remember { mutableStateOf(false) }
+    var showExtractArchiveDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showClipboardContents by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
@@ -300,6 +306,25 @@ fun BrowserScreen(
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
     }
+    val categoryFolderTabs = remember(state.isCategoryScreen, state.files, context) {
+        if (state.isCategoryScreen) {
+            buildFolderTabs(state.files, context.getString(R.string.all_files))
+        } else {
+            emptyList()
+        }
+    }
+    val selectedCategoryFolderTabIndex = remember(categoryFolderTabs, state.selectedFolderTabPath) {
+        categoryFolderTabs.indexOfFirst { it.path == state.selectedFolderTabPath }.takeIf { it >= 0 } ?: 0
+    }
+    val switchCategoryFolderTab: (Int) -> Unit = { direction ->
+        if (categoryFolderTabs.size > 1) {
+            val nextIndex = (selectedCategoryFolderTabIndex + direction)
+                .coerceIn(0, categoryFolderTabs.lastIndex)
+            if (nextIndex != selectedCategoryFolderTabIndex) {
+                onSelectFolderTab(categoryFolderTabs[nextIndex].path)
+            }
+        }
+    }
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
@@ -317,13 +342,32 @@ fun BrowserScreen(
         }
     }
 
-    BackHandler {
-        if (showSearchBar) {
-            showSearchBar = false
-            onClearSearch()
-        } else {
-            onNavigateBack()
+    val handleBrowserBack: () -> Unit = {
+        when {
+            showCreateFolderDialog -> showCreateFolderDialog = false
+            showCreateFileDialog -> showCreateFileDialog = false
+            showCreateFakeFileDialog -> showCreateFakeFileDialog = false
+            showCreateArchiveDialog -> showCreateArchiveDialog = false
+            showExtractArchiveDialog -> showExtractArchiveDialog = false
+            showRenameDialog -> showRenameDialog = false
+            showSortDialog -> showSortDialog = false
+            showClipboardContents -> showClipboardContents = false
+            state.isSearchFilterMenuVisible -> onToggleSearchFilterMenu(false)
+            state.showConflictDialog -> onDismissConflictDialog()
+            state.isPropertiesVisible -> onDismissProperties()
+            state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation -> onDismissDeleteConfirmation()
+            isFabExpanded -> isFabExpanded = false
+            showSearchBar -> {
+                showSearchBar = false
+                onClearSearch()
+            }
+            state.selectedFiles.isNotEmpty() -> onClearSelection()
+            else -> onNavigateBack()
         }
+    }
+
+    BackHandler {
+        handleBrowserBack()
     }
 
     LaunchedEffect(state.clipboardState) {
@@ -516,7 +560,7 @@ fun BrowserScreen(
                     showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty(),
                     isGridView = state.browserViewMode == BrowserViewMode.GRID,
                     scrollBehavior = scrollBehavior,
-                    onBackClick = onNavigateBack,
+                    onBackClick = handleBrowserBack,
                     onClearSelection = onClearSelection,
                     onSearchClick = { showSearchBar = true },
                     onSortClick = { showSortDialog = true },
@@ -682,11 +726,8 @@ fun BrowserScreen(
                     }
 
                     if (state.isCategoryScreen) {
-                        val folderTabs = remember(state.files) {
-                            buildFolderTabs(state.files, context.getString(R.string.all_files))
-                        }
                         FolderTabsRow(
-                            tabs = folderTabs,
+                            tabs = categoryFolderTabs,
                             selectedPath = state.selectedFolderTabPath,
                             onSelectTab = onSelectFolderTab
                         )
@@ -700,7 +741,29 @@ fun BrowserScreen(
                         state = pullRefreshState,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
+                            .weight(1f)
+                            .then(
+                                if (state.isCategoryScreen && categoryFolderTabs.size > 1) {
+                                    Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
+                                        var horizontalDrag = 0f
+                                        detectHorizontalDragGestures(
+                                            onDragStart = { horizontalDrag = 0f },
+                                            onHorizontalDrag = { change, dragAmount ->
+                                                horizontalDrag += dragAmount
+                                                if (kotlin.math.abs(horizontalDrag) > 96f) {
+                                                    change.consume()
+                                                    switchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
+                                                    horizontalDrag = 0f
+                                                }
+                                            },
+                                            onDragEnd = { horizontalDrag = 0f },
+                                            onDragCancel = { horizontalDrag = 0f }
+                                        )
+                                    }
+                                } else {
+                                    Modifier
+                                }
+                            ),
                         indicator = {
                             ArcilePullRefreshIndicator(
                                 isRefreshing = isRefreshing,
@@ -866,7 +929,7 @@ fun BrowserScreen(
                                                     leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
                                                     onClick = {
                                                         showSelectionMenu = false
-                                                        onCreateZipFromSelection()
+                                                        showCreateArchiveDialog = true
                                                     }
                                                 )
                                             }
@@ -877,17 +940,7 @@ fun BrowserScreen(
                                                         leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
                                                         onClick = {
                                                             showSelectionMenu = false
-                                                            onExtractSelectedArchive()
-                                                        }
-                                                    )
-                                                }
-                                                add {
-                                                    androidx.compose.material3.DropdownMenuItem(
-                                                        text = { Text(stringResource(R.string.archive_extract_to_folder)) },
-                                                        leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-                                                        onClick = {
-                                                            showSelectionMenu = false
-                                                            onExtractSelectedArchiveToFolder()
+                                                            showExtractArchiveDialog = true
                                                         }
                                                     )
                                                 }
@@ -1080,6 +1133,8 @@ fun BrowserScreen(
                                         val opIcon = when {
                                             activeOp?.type == BulkFileOperationType.MOVE || clipboard?.operation == ClipboardOperation.CUT -> Icons.Default.ContentCut
                                             activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
+                                            activeOp?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
+                                            activeOp?.type == BulkFileOperationType.EXTRACT_ARCHIVE -> Icons.Default.Unarchive
                                             activeOp?.type == BulkFileOperationType.CREATE_FAKE -> Icons.Default.Extension
                                             else -> Icons.Default.ContentCopy
                                         }
@@ -1098,9 +1153,16 @@ fun BrowserScreen(
                                             verticalArrangement = Arrangement.Center,
                                             modifier = Modifier.weight(1f, fill = false)
                                         ) {
-                                            val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
+                                            val operationTitle = when (activeOp?.type) {
+                                                BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
+                                                BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
+                                                else -> {
+                                                    val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
+                                                    if (itemCount == 1) "1 item" else "$itemCount items"
+                                                }
+                                            }
                                             Text(
-                                                text = if (itemCount == 1) "1 item" else "$itemCount items",
+                                                text = operationTitle,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1,
@@ -1193,6 +1255,40 @@ fun BrowserScreen(
         )
     }
 
+    if (showCreateArchiveDialog && state.selectedFiles.isNotEmpty()) {
+        val defaultName = remember(state.selectedFiles) {
+            state.selectedFiles.singleOrNull()
+                ?.let { File(it).nameWithoutExtension }
+                ?.ifBlank { "Archive" }
+                ?: "Archive"
+        }
+        CreateArchiveDialog(
+            defaultName = defaultName,
+            selectedCount = state.selectedFiles.size,
+            destinationPath = state.currentPath,
+            onDismiss = { showCreateArchiveDialog = false },
+            onConfirm = { name, format, password ->
+                showCreateArchiveDialog = false
+                onCreateArchiveFromSelection(name, format, password)
+            }
+        )
+    }
+
+    if (showExtractArchiveDialog && state.selectedFiles.size == 1) {
+        ExtractArchiveDialog(
+            archiveName = File(state.selectedFiles.first()).name,
+            onDismiss = { showExtractArchiveDialog = false },
+            onExtractHere = { password ->
+                showExtractArchiveDialog = false
+                onExtractSelectedArchive(password)
+            },
+            onExtractToFolder = { password ->
+                showExtractArchiveDialog = false
+                onExtractSelectedArchiveToFolder(password)
+            }
+        )
+    }
+
     if (showRenameDialog && state.selectedFiles.size == 1) {
         val selectedPath = state.selectedFiles.first()
         val currentName = selectedPath.substringAfterLast('/')
@@ -1242,4 +1338,171 @@ fun BrowserScreen(
             onDismiss = { showClipboardContents = false }
         )
     }
+}
+
+@Composable
+private fun CreateArchiveDialog(
+    defaultName: String,
+    selectedCount: Int,
+    destinationPath: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, ArchiveFormat, String?) -> Unit
+) {
+    var archiveName by rememberSaveable(defaultName) { mutableStateOf(defaultName) }
+    var format by rememberSaveable { mutableStateOf(ArchiveFormat.ZIP) }
+    var usePassword by rememberSaveable { mutableStateOf(false) }
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
+    val trimmedName = archiveName.trim()
+    val passwordError = usePassword && password != confirmPassword
+    val canCreate = trimmedName.isNotEmpty() && (!usePassword || (password.isNotEmpty() && !passwordError))
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+        title = { Text(stringResource(R.string.archive_create_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.archive_create_summary, selectedCount),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = archiveName,
+                    onValueChange = { archiveName = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.archive_name)) },
+                    suffix = { Text(".${format.extension}") },
+                    isError = trimmedName.isEmpty()
+                )
+                Column {
+                    ArchiveFormatChoice(ArchiveFormat.ZIP, format, onSelect = { format = it })
+                    ArchiveFormatChoice(ArchiveFormat.SEVEN_Z, format, onSelect = { format = it })
+                }
+                InputChip(
+                    selected = usePassword,
+                    onClick = { usePassword = !usePassword },
+                    label = { Text(stringResource(R.string.archive_password_protect)) }
+                )
+                if (usePassword) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.archive_password)) }
+                    )
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.archive_confirm_password)) },
+                        isError = passwordError,
+                        supportingText = if (passwordError) {
+                            { Text(stringResource(R.string.archive_password_mismatch)) }
+                        } else {
+                            null
+                        }
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.archive_destination, destinationPath),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = canCreate,
+                onClick = {
+                    onConfirm(trimmedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                }
+            ) {
+                Text(stringResource(R.string.archive_create_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ArchiveFormatChoice(
+    option: ArchiveFormat,
+    selected: ArchiveFormat,
+    onSelect: (ArchiveFormat) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable { onSelect(option) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = option == selected, onClick = { onSelect(option) })
+        Text(option.displayName, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun ExtractArchiveDialog(
+    archiveName: String,
+    onDismiss: () -> Unit,
+    onExtractHere: (String?) -> Unit,
+    onExtractToFolder: (String?) -> Unit
+) {
+    var password by rememberSaveable { mutableStateOf("") }
+    var usePassword by rememberSaveable { mutableStateOf(false) }
+    val archivePassword = password.takeIf { usePassword && it.isNotEmpty() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
+        title = { Text(stringResource(R.string.archive_extract_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = archiveName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                InputChip(
+                    selected = usePassword,
+                    onClick = { usePassword = !usePassword },
+                    label = { Text(stringResource(R.string.archive_has_password)) }
+                )
+                if (usePassword) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.archive_password)) },
+                        supportingText = { Text(stringResource(R.string.archive_password_hint)) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onExtractToFolder(archivePassword) }) {
+                Text(stringResource(R.string.archive_extract_to_folder))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+                TextButton(onClick = { onExtractHere(archivePassword) }) {
+                    Text(stringResource(R.string.archive_extract_here))
+                }
+            }
+        }
+    )
 }

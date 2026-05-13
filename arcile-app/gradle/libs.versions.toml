@@ -24,6 +24,7 @@ mockk = "1.13.10"
 turbine = "1.1.0"
 commonsCompress = "1.28.0"
 xz = "1.10"
+zip4j = "2.11.6"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -59,6 +60,7 @@ io-mockk-mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 app-cash-turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 apache-commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
 tukaani-xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
+zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

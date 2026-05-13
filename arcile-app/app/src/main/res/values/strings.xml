@@ -238,9 +238,23 @@
     <string name="properties_access_limited">Limited</string>
     <string name="properties_contains">Contains</string>
     <string name="properties_contains_value">%1$d files • %2$s</string>
-    <string name="archive_compress_zip">Compress to ZIP</string>
+    <string name="archive_compress_zip">Create archive</string>
     <string name="archive_extract_here">Extract here</string>
     <string name="archive_extract_to_folder">Extract to folder</string>
+    <string name="archive_create_title">Create archive</string>
+    <string name="archive_create_summary">%1$d selected item(s)</string>
+    <string name="archive_name">Archive name</string>
+    <string name="archive_password_protect">Password protect</string>
+    <string name="archive_has_password">Archive has password</string>
+    <string name="archive_password">Password</string>
+    <string name="archive_confirm_password">Confirm password</string>
+    <string name="archive_password_mismatch">Passwords do not match</string>
+    <string name="archive_password_hint">Leave off for normal archives; enable only if this archive is encrypted.</string>
+    <string name="archive_destination">Destination: %1$s</string>
+    <string name="archive_create_action">Create</string>
+    <string name="archive_extract_title">Extract archive</string>
+    <string name="file_operation_creating_archive">Creating archive</string>
+    <string name="file_operation_extracting_archive">Extracting archive</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>

@@ -26,10 +26,11 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         resolutions: Map<String, ConflictResolution>,
         fakeFileSize: Long?,
         archiveFormat: ArchiveFormat?,
-        archiveEntryPrefix: String?
+        archiveEntryPrefix: String?,
+        archivePassword: String?
     ): Boolean {
         if (!startResult) return false
-        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix)
+        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix, archivePassword)
         startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

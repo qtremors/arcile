@@ -58,6 +58,18 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
+internal enum class BrowserBackFallback {
+    PopAppBackStack,
+    ShowHomePager
+}
+
+internal fun browserBackFallback(hasPreviousBackStackEntry: Boolean): BrowserBackFallback =
+    if (hasPreviousBackStackEntry) {
+        BrowserBackFallback.PopAppBackStack
+    } else {
+        BrowserBackFallback.ShowHomePager
+    }
+
 @Composable
 fun AppNavigationGraph(
     navController: NavHostController,
@@ -94,13 +106,26 @@ fun AppNavigationGraph(
                     )
                     val coroutineScope = rememberCoroutineScope()
                     var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
+                    val navigateBackFromBrowser: () -> Unit = {
+                        if (!browserViewModel.navigateBack()) {
+                            when (browserBackFallback(navController.previousBackStackEntry != null)) {
+                                BrowserBackFallback.PopAppBackStack -> navController.popBackStack()
+                                BrowserBackFallback.ShowHomePager -> coroutineScope.launch {
+                                    pagerState.animateScrollToPage(0)
+                                }
+                            }
+                        }
+                    }
 
                     // Handle incoming arguments for browser or deep links
                     androidx.compose.runtime.LaunchedEffect(mainArgs) {
                         if (mainArgs.initialPage == 1) {
                             pendingExplicitBrowserEntry = true
                             when {
-                                !mainArgs.path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(mainArgs.path)
+                                !mainArgs.path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
+                                    mainArgs.path,
+                                    seedInitialPathHistory = mainArgs.seedInitialPathHistory
+                                )
                                 !mainArgs.category.isNullOrEmpty() -> browserViewModel.navigateToCategory(mainArgs.category, mainArgs.volumeId)
                                 else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
                             }
@@ -121,9 +146,7 @@ fun AppNavigationGraph(
                     }
 
                     BackHandler(enabled = pagerState.currentPage == 1) {
-                        if (!browserViewModel.navigateBack()) {
-                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                        }
+                        navigateBackFromBrowser()
                     }
 
                     HorizontalPager(
@@ -205,11 +228,7 @@ fun AppNavigationGraph(
                             1 -> {
                                 BrowserScreen(
                                     state = browserState,
-                                    onNavigateBack = {
-                                        if (!browserViewModel.navigateBack()) {
-                                            coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                                        }
-                                    },
+                                    onNavigateBack = navigateBackFromBrowser,
                                     onNavigateTo = { browserViewModel.navigateToFolder(it) },
                                     onOpenFile = openPath,
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
@@ -256,9 +275,12 @@ fun AppNavigationGraph(
                                     onInvertSelection = { browserViewModel.invertSelection(it) },
                                     onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
                                     onSelectFolderTab = { browserViewModel.selectFolderTab(it) },
-                                    onExtractSelectedArchive = { browserViewModel.extractSelectedArchiveHere() },
-                                    onExtractSelectedArchiveToFolder = { browserViewModel.extractSelectedArchiveToFolder() },
+                                    onExtractSelectedArchive = { password -> browserViewModel.extractSelectedArchiveHere(password) },
+                                    onExtractSelectedArchiveToFolder = { password -> browserViewModel.extractSelectedArchiveToFolder(password) },
                                     onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
+                                    onCreateArchiveFromSelection = { name, format, password ->
+                                        browserViewModel.createArchiveFromSelection(name, format, password)
+                                    },
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )
                             }
@@ -278,9 +300,7 @@ fun AppNavigationGraph(
                         selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId)) {
-                                popUpTo<AppRoutes.StorageDashboard> { inclusive = true }
-                            }
+                            navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
                         }
                     )
                 }
@@ -347,13 +367,8 @@ fun AppNavigationGraph(
                         onClearError = { viewModel.clearError() },
                         onOpenProperties = { viewModel.openPropertiesForSelection() },
                         onDismissProperties = { viewModel.dismissProperties() },
-                        onSelectFolderTab = { viewModel.selectFolderTab(it) },
-                        onSelectFileType = { viewModel.selectFileType(it) },
                         onOpenContainingFolder = { path ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path)) {
-                                popUpTo<AppRoutes.Main> { saveState = true }
-                                launchSingleTop = true
-                            }
+                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                         },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
@@ -407,10 +422,7 @@ fun AppNavigationGraph(
                         state = state,
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path)) {
-                                popUpTo(AppRoutes.Main()) { saveState = true }
-                                launchSingleTop = true
-                            }
+                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                         },
                         onNavigateToSaf = { uriString ->
                             ExternalFileAccessHelper.openInFilesApp(context, uriString)
@@ -435,8 +447,9 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateUpInArchive = { viewModel.navigateBack() },
                         onOpenFolder = { viewModel.openFolder(it) },
-                        onExtractAll = { viewModel.extractAll() },
-                        onExtractCurrentFolder = { viewModel.extractCurrentFolder() },
+                        onExtractAll = { password -> viewModel.extractAll(password) },
+                        onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
+                        onSubmitPassword = { viewModel.submitPassword(it) },
                         onClearError = { viewModel.clearError() }
                     )
                 }

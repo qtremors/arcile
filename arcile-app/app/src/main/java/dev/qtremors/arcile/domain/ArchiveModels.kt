@@ -45,19 +45,44 @@ data class ArchiveSummary(
         get() = totalUncompressedSize.takeIf { it > 0L }?.let { archiveSize.toDouble() / it.toDouble() }
 }
 
+enum class ArchiveExtractionDestination {
+    HERE,
+    NAMED_FOLDER
+}
+
+@Immutable
+data class ArchiveCreateOptions(
+    val password: String? = null
+) {
+    val hasPassword: Boolean get() = !password.isNullOrEmpty()
+}
+
+@Immutable
+data class ArchiveExtractOptions(
+    val password: String? = null
+) {
+    val hasPassword: Boolean get() = !password.isNullOrEmpty()
+}
+
 interface ArchiveManager {
     suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>>
+    suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
+        listArchiveEntries(archivePath)
     suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary>
+    suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
+        getArchiveMetadata(archivePath)
     suspend fun extractArchive(
         archivePath: String,
         destinationPath: String,
         entryPrefix: String? = null,
+        password: String? = null,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit>
     suspend fun createArchive(
         sourcePaths: List<String>,
         destinationArchivePath: String,
         format: ArchiveFormat,
+        password: String? = null,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit>
 }

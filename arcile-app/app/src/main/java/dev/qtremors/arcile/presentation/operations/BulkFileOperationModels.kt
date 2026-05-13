@@ -24,7 +24,8 @@ data class BulkFileOperationRequest(
     val resolutions: Map<String, ConflictResolution> = emptyMap(),
     val fakeFileSize: Long? = null,
     val archiveFormat: ArchiveFormat? = null,
-    val archiveEntryPrefix: String? = null
+    val archiveEntryPrefix: String? = null,
+    val archivePassword: String? = null
 )
 
 @Serializable

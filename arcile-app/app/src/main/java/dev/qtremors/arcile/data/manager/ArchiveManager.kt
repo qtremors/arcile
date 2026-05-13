@@ -19,6 +19,11 @@ import org.apache.commons.compress.archivers.zip.ZipFile
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZFile
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
+import net.lingala.zip4j.ZipFile as Zip4jFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.AesKeyStrength
+import net.lingala.zip4j.model.enums.CompressionMethod
+import net.lingala.zip4j.model.enums.EncryptionMethod
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -34,23 +39,31 @@ class DefaultArchiveManager(
     }
 
     override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> = withContext(Dispatchers.IO) {
+        listArchiveEntries(archivePath, null)
+    }
+
+    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> = withContext(Dispatchers.IO) {
         runArchiveCatching {
             val archive = File(archivePath)
             validatePath(archive).getOrThrow()
             require(archive.isFile) { "Archive is not available" }
             when (ArchiveFormat.fromPath(archivePath) ?: throw IllegalArgumentException("Unsupported archive format")) {
-                ArchiveFormat.ZIP -> listZipEntries(archive)
-                ArchiveFormat.SEVEN_Z -> listSevenZEntries(archive)
+                ArchiveFormat.ZIP -> listZipEntries(archive, password)
+                ArchiveFormat.SEVEN_Z -> listSevenZEntries(archive, password)
             }
         }
     }
 
     override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> = withContext(Dispatchers.IO) {
+        getArchiveMetadata(archivePath, null)
+    }
+
+    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> = withContext(Dispatchers.IO) {
         runArchiveCatching {
             val archive = File(archivePath)
             validatePath(archive).getOrThrow()
             val format = ArchiveFormat.fromPath(archivePath) ?: throw IllegalArgumentException("Unsupported archive format")
-            summarize(archive, format, listArchiveEntries(archivePath).getOrThrow())
+            summarize(archive, format, listArchiveEntries(archivePath, password).getOrThrow())
         }
     }
 
@@ -58,6 +71,7 @@ class DefaultArchiveManager(
         archivePath: String,
         destinationPath: String,
         entryPrefix: String?,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runArchiveCatching {
@@ -69,8 +83,8 @@ class DefaultArchiveManager(
             if (!destination.exists()) destination.mkdirs()
             require(destination.isDirectory) { "Destination must be a folder" }
             when (ArchiveFormat.fromPath(archivePath) ?: throw IllegalArgumentException("Unsupported archive format")) {
-                ArchiveFormat.ZIP -> extractZip(archive, destination, entryPrefix, onProgress)
-                ArchiveFormat.SEVEN_Z -> extractSevenZ(archive, destination, entryPrefix, onProgress)
+                ArchiveFormat.ZIP -> extractZip(archive, destination, entryPrefix, password, onProgress)
+                ArchiveFormat.SEVEN_Z -> extractSevenZ(archive, destination, entryPrefix, password, onProgress)
             }
             mutationFinalizer.finalize(destination.absolutePath)
         }
@@ -80,6 +94,7 @@ class DefaultArchiveManager(
         sourcePaths: List<String>,
         destinationArchivePath: String,
         format: ArchiveFormat,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runArchiveCatching {
@@ -94,8 +109,8 @@ class DefaultArchiveManager(
             if (staging.exists()) staging.delete()
             try {
                 when (format) {
-                    ArchiveFormat.ZIP -> createZip(sources, staging, onProgress)
-                    ArchiveFormat.SEVEN_Z -> createSevenZ(sources, staging, onProgress)
+                    ArchiveFormat.ZIP -> createZip(sources, staging, password, onProgress)
+                    ArchiveFormat.SEVEN_Z -> createSevenZ(sources, staging, password, onProgress)
                 }
                 if (!staging.renameTo(target)) throw IOException("Failed to create archive")
             } catch (e: Exception) {
@@ -117,15 +132,35 @@ class DefaultArchiveManager(
             val message = e.message.orEmpty()
             val friendly = when {
                 message.contains("password", ignoreCase = true) ||
+                    message.contains("Wrong Password", ignoreCase = true) ||
+                    message.contains("invalid password", ignoreCase = true) ||
+                    message.contains("Cannot read encrypted", ignoreCase = true) ||
                     message.contains("encrypted", ignoreCase = true) ->
-                    IllegalArgumentException("Password-protected archives are not supported yet", e)
+                    IllegalArgumentException("A password is required or the password is incorrect", e)
                 else -> e
             }
             Result.failure(friendly)
         }
 
-    private fun listZipEntries(archive: File): List<ArchiveEntryModel> =
-        ZipFile.builder().setFile(archive).get().use { zip ->
+    private fun listZipEntries(archive: File, password: String?): List<ArchiveEntryModel> {
+        val zip4j = Zip4jFile(archive, password?.toCharArray())
+        if (zip4j.isEncrypted && password.isNullOrEmpty()) {
+            throw IllegalArgumentException("A password is required or the password is incorrect")
+        }
+        if (zip4j.isEncrypted) {
+            return zip4j.fileHeaders.map { entry ->
+                ArchiveEntryModel(
+                    name = entry.fileName.substringAfterLast('/').ifBlank { entry.fileName.trimEnd('/') },
+                    path = entry.fileName.normalizeEntryName(),
+                    size = entry.uncompressedSize.coerceAtLeast(0L),
+                    compressedSize = entry.compressedSize.coerceAtLeast(0L),
+                    lastModified = entry.lastModifiedTimeEpoch.takeIf { it > 0L },
+                    isDirectory = entry.isDirectory,
+                    canRead = true
+                )
+            }
+        }
+        return ZipFile.builder().setFile(archive).get().use { zip ->
             zip.entries.asSequence().map { entry ->
                 ArchiveEntryModel(
                     name = entry.name.substringAfterLast('/').ifBlank { entry.name.trimEnd('/') },
@@ -138,9 +173,10 @@ class DefaultArchiveManager(
                 )
             }.toList()
         }
+    }
 
-    private fun listSevenZEntries(archive: File): List<ArchiveEntryModel> =
-        SevenZFile(archive).use { sevenZ ->
+    private fun listSevenZEntries(archive: File, password: String?): List<ArchiveEntryModel> =
+        openSevenZ(archive, password).use { sevenZ ->
             generateSequence { sevenZ.nextEntry }.map { entry ->
                 ArchiveEntryModel(
                     name = (entry.name ?: "unnamed").substringAfterLast('/'),
@@ -173,8 +209,14 @@ class DefaultArchiveManager(
         archive: File,
         destination: File,
         entryPrefix: String?,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
+        val zip4j = Zip4jFile(archive, password?.toCharArray())
+        if (zip4j.isEncrypted || !password.isNullOrEmpty()) {
+            extractZip4j(zip4j, destination, entryPrefix, onProgress)
+            return
+        }
         val prefix = entryPrefix?.normalizeEntryName()?.trimEnd('/')?.takeIf { it.isNotBlank() }
         ZipFile.builder().setFile(archive).get().use { zip ->
             val entries = zip.entries.asSequence()
@@ -212,13 +254,14 @@ class DefaultArchiveManager(
         archive: File,
         destination: File,
         entryPrefix: String?,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
-        val allEntries = listSevenZEntries(archive).filter { it.path.matchesPrefix(entryPrefix) }
+        val allEntries = listSevenZEntries(archive, password).filter { it.path.matchesPrefix(entryPrefix) }
         val totalBytes = allEntries.sumOf { it.size }.coerceAtLeast(1L)
         var copied = 0L
         var completed = 0
-        SevenZFile(archive).use { sevenZ ->
+        openSevenZ(archive, password).use { sevenZ ->
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val entry = sevenZ.nextEntry ?: break
@@ -270,8 +313,13 @@ class DefaultArchiveManager(
     private suspend fun createZip(
         sources: List<File>,
         target: File,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
+        if (!password.isNullOrEmpty()) {
+            createEncryptedZip(sources, target, password, onProgress)
+            return
+        }
         val files = sources.flatMap { it.walkArchiveFiles() }
         val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
         var copied = 0L
@@ -303,13 +351,15 @@ class DefaultArchiveManager(
     private suspend fun createSevenZ(
         sources: List<File>,
         target: File,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val files = sources.flatMap { it.walkArchiveFiles() }
         val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
         var copied = 0L
         var completed = 0
-        SevenZOutputFile(target).use { sevenZ ->
+        val archivePassword = password?.takeIf { it.isNotEmpty() }?.toCharArray()
+        SevenZOutputFile(target, archivePassword).use { sevenZ ->
             for ((sourceRoot, file) in files) {
                 currentCoroutineContext().ensureActive()
                 val entry = SevenZArchiveEntry().apply {
@@ -338,6 +388,98 @@ class DefaultArchiveManager(
             }
         }
     }
+
+    private suspend fun extractZip4j(
+        zip: Zip4jFile,
+        destination: File,
+        entryPrefix: String?,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        val entries = zip.fileHeaders
+            .filter { it.fileName.matchesPrefix(entryPrefix) }
+        val totalBytes = entries.sumOf { it.uncompressedSize.coerceAtLeast(0L) }.coerceAtLeast(1L)
+        var copied = 0L
+        var completed = 0
+        for (entry in entries) {
+            currentCoroutineContext().ensureActive()
+            val target = resolveExtractionTarget(destination, entry.fileName, entry.isDirectory)
+            if (entry.isDirectory) {
+                target.mkdirs()
+            } else {
+                target.parentFile?.mkdirs()
+                zip.getInputStream(entry).use { input ->
+                    BufferedInputStream(input).use { buffered ->
+                        BufferedOutputStream(target.outputStream()).use { output ->
+                            copied += copyWithProgress(buffered::read, output::write) {
+                                onProgress?.invoke(
+                                    BulkFileOperationProgress(
+                                        completed,
+                                        entries.size,
+                                        entry.fileName,
+                                        copied + it,
+                                        totalBytes
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                entry.lastModifiedTimeEpoch.takeIf { it > 0L }?.let { target.setLastModified(it) }
+            }
+            completed += 1
+            onProgress?.invoke(
+                BulkFileOperationProgress(
+                    completed,
+                    entries.size,
+                    entry.fileName,
+                    copied.coerceAtMost(totalBytes),
+                    totalBytes
+                )
+            )
+        }
+    }
+
+    private suspend fun createEncryptedZip(
+        sources: List<File>,
+        target: File,
+        password: String,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        val files = sources.flatMap { it.walkArchiveFiles() }
+        val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
+        val zip = Zip4jFile(target, password.toCharArray())
+        var copied = 0L
+        var completed = 0
+        for ((sourceRoot, file) in files) {
+            currentCoroutineContext().ensureActive()
+            val name = archiveEntryName(sourceRoot, file)
+            val parameters = ZipParameters().apply {
+                fileNameInZip = name + if (file.isDirectory) "/" else ""
+                compressionMethod = CompressionMethod.DEFLATE
+                isEncryptFiles = true
+                encryptionMethod = EncryptionMethod.AES
+                aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
+                lastModifiedFileTime = file.lastModified()
+            }
+            if (file.isDirectory) {
+                zip.addStream(ByteArray(0).inputStream(), parameters)
+            } else {
+                file.inputStream().use { input ->
+                    zip.addStream(input, parameters)
+                }
+                copied += file.length()
+            }
+            completed += 1
+            onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied.coerceAtMost(totalBytes), totalBytes))
+        }
+    }
+
+    private fun openSevenZ(archive: File, password: String?): SevenZFile =
+        if (password.isNullOrEmpty()) {
+            SevenZFile.builder().setFile(archive).get()
+        } else {
+            SevenZFile.builder().setFile(archive).setPassword(password.toCharArray()).get()
+        }
 
     private suspend fun copyWithProgress(
         read: (ByteArray) -> Int,

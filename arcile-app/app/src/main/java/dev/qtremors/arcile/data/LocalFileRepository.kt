@@ -50,6 +50,7 @@ class LocalFileRepository(
             archivePath: String,
             destinationPath: String,
             entryPrefix: String?,
+            password: String?,
             onProgress: ((BulkFileOperationProgress) -> Unit)?
         ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 
@@ -57,6 +58,7 @@ class LocalFileRepository(
             sourcePaths: List<String>,
             destinationArchivePath: String,
             format: ArchiveFormat,
+            password: String?,
             onProgress: ((BulkFileOperationProgress) -> Unit)?
         ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
     }
@@ -202,21 +204,29 @@ class LocalFileRepository(
     override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
         archiveManager.getArchiveMetadata(archivePath)
 
+    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
+        archiveManager.listArchiveEntries(archivePath, password)
+
+    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
+        archiveManager.getArchiveMetadata(archivePath, password)
+
     override suspend fun extractArchive(
         archivePath: String,
         destinationPath: String,
         entryPrefix: String?,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> =
-        archiveManager.extractArchive(archivePath, destinationPath, entryPrefix, onProgress)
+        archiveManager.extractArchive(archivePath, destinationPath, entryPrefix, password, onProgress)
 
     override suspend fun createArchive(
         sourcePaths: List<String>,
         destinationArchivePath: String,
         format: ArchiveFormat,
+        password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> =
-        archiveManager.createArchive(sourcePaths, destinationArchivePath, format, onProgress)
+        archiveManager.createArchive(sourcePaths, destinationArchivePath, format, password, onProgress)
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createDirectory(parentPath, name)

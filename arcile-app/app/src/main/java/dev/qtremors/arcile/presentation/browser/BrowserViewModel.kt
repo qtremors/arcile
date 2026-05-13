@@ -368,6 +368,7 @@ class BrowserViewModel @Inject constructor(
                                 )
                             )
                         }
+                        navigationDelegate.refresh()
                     }
                     is BulkFileOperationEvent.Failed -> {
                         _state.update {
@@ -399,7 +400,8 @@ class BrowserViewModel @Inject constructor(
     }
 
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) = navigationDelegate.openFileBrowser(restorePersistentLocation, errorMessage)
-    fun navigateToSpecificFolder(path: String) = navigationDelegate.navigateToSpecificFolder(path)
+    fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
+        navigationDelegate.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationDelegate.navigateToCategory(categoryName, volumeId)
     fun navigateToFolder(path: String) = navigationDelegate.navigateToFolder(path)
     fun navigateBack(): Boolean = navigationDelegate.navigateBack()
@@ -583,7 +585,7 @@ class BrowserViewModel @Inject constructor(
         )
     }
 
-    fun extractSelectedArchiveHere() {
+    fun extractSelectedArchiveHere(password: String? = null) {
         val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
         if (!ArchiveFormat.isSupported(archivePath)) {
             _state.update { it.copy(error = "Selected file is not a supported archive") }
@@ -593,12 +595,13 @@ class BrowserViewModel @Inject constructor(
             type = BulkFileOperationType.EXTRACT_ARCHIVE,
             sourcePaths = listOf(archivePath),
             destinationPath = _state.value.currentPath,
-            resolutions = emptyMap<String, ConflictResolution>()
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archivePassword = password
         )
         clearSelection()
     }
 
-    fun extractSelectedArchiveToFolder() {
+    fun extractSelectedArchiveToFolder(password: String? = null) {
         val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
         val currentPath = _state.value.currentPath
         if (!ArchiveFormat.isSupported(archivePath) || currentPath.isEmpty()) {
@@ -611,24 +614,40 @@ class BrowserViewModel @Inject constructor(
             type = BulkFileOperationType.EXTRACT_ARCHIVE,
             sourcePaths = listOf(archivePath),
             destinationPath = destination,
-            resolutions = emptyMap<String, ConflictResolution>()
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archivePassword = password
+        )
+        clearSelection()
+    }
+
+    fun createArchiveFromSelection(
+        archiveName: String,
+        format: ArchiveFormat,
+        password: String? = null
+    ) {
+        val selected = _state.value.selectedFiles.toList()
+        val currentPath = _state.value.currentPath
+        if (selected.isEmpty() || currentPath.isEmpty()) return
+        val archivePath = nextArchivePath(currentPath, selected, archiveName, format)
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = selected,
+            destinationPath = archivePath,
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archiveFormat = format,
+            archivePassword = password
         )
         clearSelection()
     }
 
     fun createZipFromSelection() {
         val selected = _state.value.selectedFiles.toList()
-        val currentPath = _state.value.currentPath
-        if (selected.isEmpty() || currentPath.isEmpty()) return
-        val archivePath = nextArchivePath(currentPath, selected)
-        bulkFileCoordinator.startOperation(
-            type = BulkFileOperationType.CREATE_ARCHIVE,
-            sourcePaths = selected,
-            destinationPath = archivePath,
-            resolutions = emptyMap<String, ConflictResolution>(),
-            archiveFormat = ArchiveFormat.ZIP
-        )
-        clearSelection()
+        val defaultName = if (selected.size == 1) {
+            java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
+        } else {
+            "Archive"
+        }
+        createArchiveFromSelection(defaultName, ArchiveFormat.ZIP)
     }
 
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
@@ -748,16 +767,29 @@ class BrowserViewModel @Inject constructor(
         return "$verb $itemCount item(s)"
     }
 
-    private fun nextArchivePath(currentPath: String, selected: List<String>): String {
-        val baseName = if (selected.size == 1) {
+    private fun nextArchivePath(
+        currentPath: String,
+        selected: List<String>,
+        requestedName: String? = null,
+        format: ArchiveFormat = ArchiveFormat.ZIP
+    ): String {
+        val defaultBaseName = if (selected.size == 1) {
             java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
         } else {
             "Archive"
         }
-        var candidate = java.io.File(currentPath, "$baseName.zip")
+        val extension = format.extension
+        val cleanedName = requestedName
+            ?.substringBeforeLast(".${extension}", requestedName)
+            ?.replace('/', '_')
+            ?.replace('\\', '_')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: defaultBaseName
+        var candidate = java.io.File(currentPath, "$cleanedName.$extension")
         var index = 1
         while (candidate.exists()) {
-            candidate = java.io.File(currentPath, "$baseName ($index).zip")
+            candidate = java.io.File(currentPath, "$cleanedName ($index).$extension")
             index += 1
         }
         return candidate.absolutePath

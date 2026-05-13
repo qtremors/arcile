@@ -1,10 +1,30 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.6
-> **Last Updated:** 2026-05-13
+> **Version:** 0.6.7
+> **Last Updated:** 2026-05-14
 
 ---
+
+## [0.6.7] - 2026-05-13
+
+### UI & UX
+- **Complete Archive UX:** Replaced the basic ZIP-only archive action with create/extract dialogs for ZIP and 7z, including archive naming, format selection, destination choices, and password entry.
+- **Archive Viewer Password Flow:** Archive browsing now supports password-protected ZIP and 7z files with an in-view password prompt and retry path for encrypted archives.
+- **Back Gesture Priority:** Fixed Browser back handling so system back gestures and toolbar back first close transient UI state such as dialogs, sheets, search, expanded FAB menus, and file selections before navigating away from the current folder.
+- **Selection Back Fix:** File selections now clear on back instead of unexpectedly popping folder history, matching the visible close-selection affordance in the top bar.
+- **Back Stack Memory:** Browser entries opened from Storage Dashboard, Recent Files, and Quick Access now preserve the originating screen, so the back gesture returns to the last visible view instead of collapsing to Home or detouring through a synthetic folder root.
+- **Operation Refresh:** Completed file operations now automatically refresh the visible folder or category so newly created, moved, copied, archived, extracted, or deleted items appear without a manual pull-to-refresh.
+- **Category Tab Swipes:** Category folder tabs can now be switched by swiping horizontally across the file area, in addition to tapping the tab row.
+- **Recent Files Simplification:** Removed folder tabs and file-type chips from Recent Files to avoid heavy client-side filtering, odd calculations, and refresh edge cases.
+- **Recent Files Stability:** Duplicate MediaStore rows now render safely in Recent Files, and sticky date headers stay below the top app bar while scrolling.
+
+### Testing
+- **Archive Password Coverage:** Added tests for password-protected ZIP and 7z create/list/extract flows, wrong-password errors, and archive progress completion.
+- **Navigation Regression Coverage:** Added regression tests confirming browser back clears selected files before consuming folder navigation history, category back delegates to app-level navigation, external browser entries can skip seeded root history, browser fallback chooses app-stack pop before Home-pager fallback, and completed file operations reload the current folder.
+
+### Dependencies
+- **Open Archive Libraries:** Added Zip4j 2.11.6 for encrypted ZIP support and documented Zip4j, Apache Commons Compress 1.28.0, and Tukaani XZ 1.10 in the Open Source Licenses screen.
 
 ## [0.6.6] - 2026-05-13
 

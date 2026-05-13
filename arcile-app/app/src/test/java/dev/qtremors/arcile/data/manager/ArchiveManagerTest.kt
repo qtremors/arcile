@@ -81,6 +81,72 @@ class ArchiveManagerTest {
     }
 
     @Test
+    fun `password zip archive can be created listed and extracted`() = runTest {
+        val source = File(root, "secret.txt").apply { writeText("zip secret") }
+        val archive = File(root, "secret.zip")
+        val destination = File(root, "zip-secret-out").apply { mkdirs() }
+        val progress = mutableListOf<Long>()
+
+        assertTrue(
+            manager.createArchive(
+                listOf(source.absolutePath),
+                archive.absolutePath,
+                ArchiveFormat.ZIP,
+                password = "pass123"
+            ) { update ->
+                progress += update.bytesCopied ?: 0L
+            }.isSuccess
+        )
+        assertTrue(manager.listArchiveEntries(archive.absolutePath).isFailure)
+        assertTrue(manager.listArchiveEntries(archive.absolutePath, "pass123").getOrThrow().any { it.path == "secret.txt" })
+
+        assertTrue(manager.extractArchive(archive.absolutePath, destination.absolutePath, password = "pass123").isSuccess)
+        assertEquals("zip secret", File(destination, "secret.txt").readText())
+        assertEquals(source.length(), progress.last())
+    }
+
+    @Test
+    fun `password 7z archive can be created listed and extracted`() = runTest {
+        val source = File(root, "vault.txt").apply { writeText("seven secret") }
+        val archive = File(root, "vault.7z")
+        val destination = File(root, "seven-secret-out").apply { mkdirs() }
+
+        assertTrue(
+            manager.createArchive(
+                listOf(source.absolutePath),
+                archive.absolutePath,
+                ArchiveFormat.SEVEN_Z,
+                password = "pass123"
+            ).isSuccess
+        )
+        assertTrue(manager.listArchiveEntries(archive.absolutePath, "pass123").getOrThrow().any { it.path == "vault.txt" })
+
+        assertTrue(manager.extractArchive(archive.absolutePath, File(root, "seven-wrong-out").absolutePath, password = "wrong").isFailure)
+        assertTrue(manager.extractArchive(archive.absolutePath, destination.absolutePath, password = "pass123").isSuccess)
+        assertEquals("seven secret", File(destination, "vault.txt").readText())
+    }
+
+    @Test
+    fun `wrong archive password returns friendly failure`() = runTest {
+        val source = File(root, "wrong-password.txt").apply { writeText("secret") }
+        val archive = File(root, "wrong-password.zip")
+
+        assertTrue(
+            manager.createArchive(
+                listOf(source.absolutePath),
+                archive.absolutePath,
+                ArchiveFormat.ZIP,
+                password = "correct"
+            ).isSuccess
+        )
+
+        val result = manager.extractArchive(archive.absolutePath, File(root, "wrong-out").absolutePath, password = "wrong")
+
+        assertTrue(result.isFailure)
+        assertEquals("A password is required or the password is incorrect", result.exceptionOrNull()?.message)
+    }
+
+    @Test
     fun `zip extraction rejects traversal entries`() = runTest {
         val archive = File(root, "unsafe.zip")
         ZipArchiveOutputStream(archive).use { zip ->

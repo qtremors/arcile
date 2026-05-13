@@ -29,7 +29,8 @@ interface BulkFileOperationCoordinator {
         resolutions: Map<String, ConflictResolution>,
         fakeFileSize: Long? = null,
         archiveFormat: ArchiveFormat? = null,
-        archiveEntryPrefix: String? = null
+        archiveEntryPrefix: String? = null,
+        archivePassword: String? = null
     ): Boolean
 
     fun cancelActiveOperation()
@@ -62,7 +63,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         resolutions: Map<String, ConflictResolution>,
         fakeFileSize: Long?,
         archiveFormat: ArchiveFormat?,
-        archiveEntryPrefix: String?
+        archiveEntryPrefix: String?,
+        archivePassword: String?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -74,7 +76,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             resolutions = resolutions,
             fakeFileSize = fakeFileSize,
             archiveFormat = archiveFormat,
-            archiveEntryPrefix = archiveEntryPrefix
+            archiveEntryPrefix = archiveEntryPrefix,
+            archivePassword = archivePassword?.takeIf { it.isNotEmpty() }
         )
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))

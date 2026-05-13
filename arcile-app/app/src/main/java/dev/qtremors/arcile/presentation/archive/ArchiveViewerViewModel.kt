@@ -35,7 +35,9 @@ data class ArchiveViewerState(
     val entries: List<ArchiveEntryModel> = emptyList(),
     val visibleItems: List<ArchiveBrowserItem> = emptyList(),
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val passwordRequired: Boolean = false,
+    val archivePassword: String? = null
 )
 
 @HiltViewModel
@@ -56,15 +58,18 @@ class ArchiveViewerViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            val entriesResult = repository.listArchiveEntries(archivePath)
-            val metadataResult = repository.getArchiveMetadata(archivePath)
+            val password = _state.value.archivePassword
+            val entriesResult = repository.listArchiveEntries(archivePath, password)
+            val metadataResult = repository.getArchiveMetadata(archivePath, password)
             if (entriesResult.isFailure || metadataResult.isFailure) {
+                val message = entriesResult.exceptionOrNull()?.message
+                    ?: metadataResult.exceptionOrNull()?.message
+                    ?: "Failed to read archive"
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = entriesResult.exceptionOrNull()?.message
-                            ?: metadataResult.exceptionOrNull()?.message
-                            ?: "Failed to read archive"
+                        error = message,
+                        passwordRequired = message.contains("password", ignoreCase = true)
                     )
                 }
                 return@launch
@@ -75,10 +80,16 @@ class ArchiveViewerViewModel @Inject constructor(
                     entries = entries,
                     summary = metadataResult.getOrThrow(),
                     visibleItems = buildVisibleItems(entries, it.currentPrefix),
-                    isLoading = false
+                    isLoading = false,
+                    passwordRequired = false
                 )
             }
         }
+    }
+
+    fun submitPassword(password: String) {
+        _state.update { it.copy(archivePassword = password.takeIf { value -> value.isNotEmpty() }, passwordRequired = false, error = null) }
+        load()
     }
 
     fun openFolder(path: String) {
@@ -102,19 +113,19 @@ class ArchiveViewerViewModel @Inject constructor(
         return true
     }
 
-    fun extractAll() {
-        startExtract(null)
+    fun extractAll(password: String? = null) {
+        startExtract(null, password)
     }
 
-    fun extractCurrentFolder() {
-        startExtract(_state.value.currentPrefix)
+    fun extractCurrentFolder(password: String? = null) {
+        startExtract(_state.value.currentPrefix, password)
     }
 
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
 
-    private fun startExtract(prefix: String?) {
+    private fun startExtract(prefix: String?, password: String?) {
         val archive = File(archivePath)
         val destination = File(archive.parentFile ?: return, archive.nameWithoutExtension).absolutePath
         bulkFileOperationCoordinator.startOperation(
@@ -122,7 +133,8 @@ class ArchiveViewerViewModel @Inject constructor(
             sourcePaths = listOf(archivePath),
             destinationPath = destination,
             resolutions = emptyMap<String, ConflictResolution>(),
-            archiveEntryPrefix = prefix
+            archiveEntryPrefix = prefix,
+            archivePassword = password ?: _state.value.archivePassword
         )
     }
 

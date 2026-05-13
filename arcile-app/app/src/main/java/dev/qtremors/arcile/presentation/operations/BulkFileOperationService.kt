@@ -87,14 +87,16 @@ class BulkFileOperationService : Service() {
                             BulkFileOperationType.EXTRACT_ARCHIVE -> repository.extractArchive(
                                 archivePath = request.sourcePaths.first(),
                                 destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
-                                entryPrefix = request.archiveEntryPrefix
+                                entryPrefix = request.archiveEntryPrefix,
+                                password = request.archivePassword
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                             }
                             BulkFileOperationType.CREATE_ARCHIVE -> repository.createArchive(
                                 sourcePaths = request.sourcePaths,
                                 destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
-                                format = requireNotNull(request.archiveFormat) { "Archive format is required" }
+                                format = requireNotNull(request.archiveFormat) { "Archive format is required" },
+                                password = request.archivePassword
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                             }
