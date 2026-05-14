@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.6.7
+> **Version:** 0.6.8
 > **Last Updated:** 2026-05-14
 
 ---

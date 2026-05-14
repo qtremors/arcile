@@ -10,14 +10,14 @@ plugins {
 
 android {
     namespace = "dev.qtremors.arcile"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 51
-        versionName = "0.6.7"
+        versionCode = 52
+        versionName = "0.6.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -114,6 +114,7 @@ tasks.register("checkProductionStrings") {
             "src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt",
             "src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt",
             "src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt",
+            "src/main/java/dev/qtremors/arcile/presentation/ui/OnboardingScreen.kt",
             "src/main/java/dev/qtremors/arcile/presentation/ui/components/ArcileTopBar.kt",
             "src/main/java/dev/qtremors/arcile/presentation/ui/components/SearchFiltersBottomSheet.kt",
             "src/main/java/dev/qtremors/arcile/presentation/ui/components/SortOptionDialog.kt"
@@ -154,6 +155,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.adaptive)
+    implementation(libs.androidx.compose.material3.adaptive.layout)
+    implementation(libs.androidx.compose.material3.adaptive.navigation)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
@@ -171,6 +175,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

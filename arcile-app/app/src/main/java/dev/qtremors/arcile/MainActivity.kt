@@ -1,15 +1,14 @@
 package dev.qtremors.arcile
 
-import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.webkit.MimeTypeMap
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,11 +17,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.qtremors.arcile.data.OnboardingPreferencesStore
+import dev.qtremors.arcile.domain.OnboardingPreferences
 import dev.qtremors.arcile.presentation.MainViewModel
+import dev.qtremors.arcile.presentation.onboarding.OnboardingStep
+import dev.qtremors.arcile.presentation.onboarding.OnboardingViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.utils.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
+import dev.qtremors.arcile.presentation.ui.OnboardingScreen
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -42,13 +46,15 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var themePreferences: ThemePreferences
 
+    @Inject
+    lateinit var onboardingPreferencesStore: OnboardingPreferencesStore
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         
         enableEdgeToEdge()
         viewModel.checkPermission()
-        requestNotificationPermissionIfNeeded()
 
         var keepSplashScreen = true
         lifecycleScope.launch {
@@ -64,7 +70,20 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
+            val onboardingPreferences by onboardingPreferencesStore.preferencesFlow.collectAsStateWithLifecycle(
+                initialValue = OnboardingPreferences()
+            )
+            val onboardingViewModel: OnboardingViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
+            val onboardingState by onboardingViewModel.state.collectAsStateWithLifecycle()
             val coroutineScope = rememberCoroutineScope()
+            val notificationPermissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+            val hasNotificationPermission = !notificationPermissionRequired ||
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val notificationLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) {
+                onboardingViewModel.handleNotificationPermissionResult()
+            }
 
             ArcileTheme(themeState = themeState) {
                 Surface(
@@ -73,7 +92,49 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
 
-                    if (hasPermission) {
+                    LaunchedEffect(hasPermission, hasNotificationPermission, notificationPermissionRequired) {
+                        onboardingViewModel.updatePermissionState(
+                            hasStoragePermission = hasPermission,
+                            hasNotificationPermission = hasNotificationPermission,
+                            notificationPermissionRequired = notificationPermissionRequired
+                        )
+                    }
+
+                    LaunchedEffect(onboardingPreferences.isCompleted, hasPermission, onboardingState.step) {
+                        if (!onboardingPreferences.isCompleted &&
+                            hasPermission &&
+                            onboardingState.step == OnboardingStep.Welcome
+                        ) {
+                            onboardingViewModel.markExistingUserCompleted()
+                        }
+                    }
+
+                    val shouldAutoCompleteExistingUser = !onboardingPreferences.isCompleted &&
+                        hasPermission &&
+                        onboardingState.step == OnboardingStep.Welcome
+
+                    if (!onboardingPreferences.isCompleted && !shouldAutoCompleteExistingUser) {
+                        OnboardingScreen(
+                            state = onboardingState,
+                            currentThemeState = themeState,
+                            onThemeChange = { newState ->
+                                coroutineScope.launch {
+                                    themePreferences.saveThemeState(newState)
+                                }
+                            },
+                            onNext = { onboardingViewModel.next() },
+                            onBack = { onboardingViewModel.back() },
+                            onSkip = { onboardingViewModel.skipToPermissions() },
+                            onOpenStoragePermissionSettings = { requestStoragePermission() },
+                            onRequestNotificationPermission = {
+                                if (notificationPermissionRequired) {
+                                    notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    onboardingViewModel.handleNotificationPermissionResult()
+                                }
+                            }
+                        )
+                    } else if (hasPermission) {
                         ArcileAppShell(
                             currentThemeState = themeState,
                             onThemeChange = { newState ->
@@ -129,21 +190,6 @@ class MainActivity : ComponentActivity() {
             fallbackIntent.action = android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
             startActivity(fallbackIntent)
         }
-    }
-
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
-
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-            REQUEST_POST_NOTIFICATIONS
-        )
-    }
-
-    private companion object {
-        const val REQUEST_POST_NOTIFICATIONS = 1002
     }
 }
 

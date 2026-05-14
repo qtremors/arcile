@@ -12,6 +12,8 @@ import dev.qtremors.arcile.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.data.MutationFinalizer
+import dev.qtremors.arcile.data.OnboardingPreferencesRepository
+import dev.qtremors.arcile.data.OnboardingPreferencesStore
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.data.manager.DefaultTrashManager
@@ -168,6 +170,22 @@ object RepositoryModule {
     fun provideBrowserPreferencesStore(
         repository: BrowserPreferencesRepository
     ): BrowserPreferencesStore {
+        return repository
+    }
+
+    @Provides
+    @Singleton
+    fun provideOnboardingPreferencesRepository(
+        @ApplicationContext context: Context
+    ): OnboardingPreferencesRepository {
+        return OnboardingPreferencesRepository(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideOnboardingPreferencesStore(
+        repository: OnboardingPreferencesRepository
+    ): OnboardingPreferencesStore {
         return repository
     }
 

@@ -1,10 +1,36 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.7
+> **Version:** 0.6.8
 > **Last Updated:** 2026-05-14
 
 ---
+
+## [0.6.8] - 2026-05-14
+
+### UI & UX
+- **Complete First-Run Onboarding:** Added a polished new-user setup flow with a welcome screen, feature overview, theme/accent selection, required storage-access setup, notification-permission explanation, and a skip path that still preserves required permission setup.
+- **Permission UX Upgrade:** Replaced the abrupt startup notification prompt with an onboarding-time request for Android 13+ notifications, and upgraded the storage recovery screen shown when all-files access is revoked after setup.
+- **Containing Folder Navigation Fix:** Fixed secondary-screen folder handoffs so Recent Files and Quick Access reliably replace the saved Main browser entry instead of stacking stale browser state.
+
+### Architecture
+- **Onboarding Persistence:** Added DataStore-backed onboarding preferences for completion state, completed version, and notification-permission handling.
+- **Onboarding State Model:** Added a dedicated onboarding ViewModel to manage setup steps, skip behavior, permission state, and completion without embedding permission logic in Compose screens.
+
+### Testing
+- **Onboarding Coverage:** Added repository, ViewModel, and Compose regression tests for first-launch rendering, skip-to-permissions behavior, storage gating, notification denial/skip completion, and revoked-storage recovery.
+- **Regression Verification:** Added onboarding UI files to the production string guard and verified the debug unit test suite.
+
+### Dependencies
+- **Android 17 Build Readiness:** Updated the project to compile against Android SDK 37 while keeping `targetSdk` at 36 to avoid opting into new runtime behavior prematurely.
+- **Compose & Material Refresh:** Updated the Compose BOM to 2026.05.00 and Material 3 to 1.5.0-alpha19, preserving Arcile's existing Material 3 Expressive surfaces while aligning with the newer Compose stack.
+- **Adaptive UI Foundation:** Added Material 3 Adaptive libraries for future tablet, foldable, list-detail, and multi-pane file-manager layouts.
+- **AndroidX Platform Updates:** Updated Activity Compose, Lifecycle, Navigation Compose, DataStore, Core KTX, SplashScreen, and Hilt Compose integration to compatible newer releases.
+- **Runtime/Test Library Updates:** Updated coroutines, Kotlin serialization, Coil, Robolectric, MockK, Turbine, and Tukaani XZ.
+
+### Maintenance
+- **Hilt Compose Migration:** Moved `hiltViewModel` imports to the newer lifecycle ViewModel Compose artifact introduced by AndroidX Hilt 1.3.0.
+- **Upgrade Verification:** Verified the dependency set with debug Kotlin compilation and debug unit tests.
 
 ## [0.6.7] - 2026-05-13
 

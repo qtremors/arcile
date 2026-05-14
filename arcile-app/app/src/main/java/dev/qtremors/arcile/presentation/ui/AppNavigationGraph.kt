@@ -11,7 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -99,6 +99,9 @@ fun AppNavigationGraph(
                     val browserViewModel = hiltViewModel<BrowserViewModel>()
                     val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
                     val browserState by browserViewModel.state.collectAsStateWithLifecycle()
+                    val showBrowserPageRequest by backStackEntry.savedStateHandle
+                        .getStateFlow("showBrowserPage", false)
+                        .collectAsStateWithLifecycle()
 
                     val pagerState = rememberPagerState(
                         initialPage = mainArgs.initialPage,
@@ -130,6 +133,14 @@ fun AppNavigationGraph(
                                 else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
                             }
                             pagerState.scrollToPage(1)
+                        }
+                    }
+
+                    androidx.compose.runtime.LaunchedEffect(showBrowserPageRequest) {
+                        if (showBrowserPageRequest) {
+                            pendingExplicitBrowserEntry = true
+                            pagerState.scrollToPage(1)
+                            backStackEntry.savedStateHandle["showBrowserPage"] = false
                         }
                     }
 
@@ -339,6 +350,10 @@ fun AppNavigationGraph(
 
                 }
                 composable<AppRoutes.RecentFiles> {
+                    val parentEntry = remember {
+                        navController.getBackStackEntry<AppRoutes.Main>()
+                    }
+                    val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
                     val viewModel = hiltViewModel<RecentFilesViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     val recentFilesCoroutineScope = rememberCoroutineScope()
@@ -368,7 +383,9 @@ fun AppNavigationGraph(
                         onOpenProperties = { viewModel.openPropertiesForSelection() },
                         onDismissProperties = { viewModel.dismissProperties() },
                         onOpenContainingFolder = { path ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
+                            browserViewModel.navigateToSpecificFolder(path, seedInitialPathHistory = false)
+                            parentEntry.savedStateHandle["showBrowserPage"] = true
+                            navController.popBackStack<AppRoutes.Main>(inclusive = false)
                         },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
@@ -416,13 +433,19 @@ fun AppNavigationGraph(
                     )
                 }
                 composable<AppRoutes.QuickAccess> {
+                    val parentEntry = remember {
+                        navController.getBackStackEntry<AppRoutes.Main>()
+                    }
+                    val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
                     val viewModel = hiltViewModel<QuickAccessViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     QuickAccessScreen(
                         state = state,
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToPath = { path ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
+                            browserViewModel.navigateToSpecificFolder(path, seedInitialPathHistory = false)
+                            parentEntry.savedStateHandle["showBrowserPage"] = true
+                            navController.popBackStack<AppRoutes.Main>(inclusive = false)
                         },
                         onNavigateToSaf = { uriString ->
                             ExternalFileAccessHelper.openInFilesApp(context, uriString)

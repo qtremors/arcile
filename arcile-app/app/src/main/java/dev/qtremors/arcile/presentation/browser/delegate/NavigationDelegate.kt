@@ -53,12 +53,26 @@ class NavigationDelegate(
     }
 
     fun initializeFromArgs() {
-        val explorer = savedStateHandle.toRoute<AppRoutes.Explorer>()
+        val main = runCatching { savedStateHandle.toRoute<AppRoutes.Main>() }.getOrNull()
+        val path = main?.path?.takeIf { it.isNotEmpty() }
+            ?: savedStateHandle.get<String>("path")?.takeIf { it.isNotEmpty() }
+        val category = main?.category?.takeIf { it.isNotEmpty() }
+            ?: savedStateHandle.get<String>("category")?.takeIf { it.isNotEmpty() }
+        val volumeId = main?.volumeId ?: savedStateHandle.get<String>("volumeId")
+        val seedInitialPathHistory = main?.seedInitialPathHistory
+            ?: savedStateHandle.get<Boolean>("seedInitialPathHistory")
+            ?: true
+        val restorePersistentLocation = main?.restorePersistentLocation
+            ?: savedStateHandle.get<Boolean>("restorePersistentLocation")
+            ?: true
 
         when {
-            !explorer.path.isNullOrEmpty() -> navigateToSpecificFolder(explorer.path)
-            !explorer.category.isNullOrEmpty() -> navigateToCategory(explorer.category, explorer.volumeId)
-            else -> openFileBrowser(restorePersistentLocation = explorer.restorePersistentLocation)
+            path != null -> navigateToSpecificFolder(
+                path,
+                seedInitialPathHistory = seedInitialPathHistory
+            )
+            category != null -> navigateToCategory(category, volumeId)
+            else -> openFileBrowser(restorePersistentLocation = restorePersistentLocation)
         }
     }
 
