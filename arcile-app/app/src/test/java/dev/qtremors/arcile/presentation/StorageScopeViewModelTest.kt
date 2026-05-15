@@ -20,6 +20,7 @@ import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
+import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +90,7 @@ class StorageScopeViewModelTest {
 
         val viewModel = RecentFilesViewModel(
             repository = repository,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
             bulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
             savedStateHandle = SavedStateHandle(mapOf("volumeId" to "sd"))
         )
@@ -108,6 +110,7 @@ class StorageScopeViewModelTest {
 
         val viewModel = RecentFilesViewModel(
             repository = repository,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
             bulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
             savedStateHandle = SavedStateHandle(mapOf("volumeId" to ""))
         )

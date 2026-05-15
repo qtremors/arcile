@@ -1,7 +1,19 @@
 package dev.qtremors.arcile.presentation.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +30,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
@@ -29,38 +44,51 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.RestoreFromTrash
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Source
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.material3.FilledTonalButton
+import coil.compose.AsyncImage
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.presentation.onboarding.OnboardingStep
 import dev.qtremors.arcile.presentation.onboarding.OnboardingUiState
-import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
+import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorPickerSheet
+import dev.qtremors.arcile.presentation.ui.components.settings.accentLabelRes
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.ui.theme.spacing
+import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -71,30 +99,47 @@ fun OnboardingScreen(
     onNext: () -> Unit,
     onBack: () -> Unit,
     onSkip: () -> Unit,
+    onStepSelected: (OnboardingStep) -> Unit,
     onOpenStoragePermissionSettings: () -> Unit,
-    onRequestNotificationPermission: () -> Unit
+    onRequestNotificationPermission: () -> Unit,
+    showOlderAndroidWarning: Boolean = false
 ) {
-    val stepIndex = when (state.step) {
-        OnboardingStep.Welcome -> 0
-        OnboardingStep.Features -> 1
-        OnboardingStep.Theme -> 2
-        OnboardingStep.StoragePermission -> 3
-        OnboardingStep.NotificationPermission -> 4
-        OnboardingStep.Done -> 5
+    val steps = OnboardingStep.entries.toTypedArray()
+    val pagerState = rememberPagerState(pageCount = { steps.size })
+
+    // Sync Pager -> ViewModel
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            if (state.step != steps[page]) {
+                onStepSelected(steps[page])
+            }
+        }
     }
-    val totalVisibleSteps = 5
-    val visibleStep = (stepIndex + 1).coerceAtMost(totalVisibleSteps)
-    val stepLabel = stringResource(R.string.onboarding_step_count, visibleStep, totalVisibleSteps)
-    val progressDescription = stringResource(R.string.onboarding_progress_description)
+
+    // Sync ViewModel -> Pager
+    LaunchedEffect(state.step) {
+        val targetPage = steps.indexOf(state.step)
+        if (pagerState.currentPage != targetPage) {
+            pagerState.animateScrollToPage(
+                page = targetPage,
+                animationSpec = tween(durationMillis = 420)
+            )
+        }
+    }
+
+    val isPermissionOrDonePage = state.step == OnboardingStep.SetupPermissions ||
+                                 state.step == OnboardingStep.Done
+                                 
+    // Allow swiping unless they are blocked on a permission step
+    val canSwipe = !isPermissionOrDonePage || state.canContinue
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             OnboardingHeader(
                 state = state,
-                stepLabel = stepLabel,
-                progress = visibleStep / totalVisibleSteps.toFloat(),
-                progressDescription = "$progressDescription: $stepLabel",
+                stepsCount = steps.size,
+                currentPage = pagerState.currentPage,
                 onBack = onBack,
                 onSkip = onSkip
             )
@@ -108,21 +153,40 @@ fun OnboardingScreen(
             )
         }
     ) { padding ->
-        Box(
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-        ) {
-            when (state.step) {
-                OnboardingStep.Welcome -> OnboardingWelcome()
-                OnboardingStep.Features -> OnboardingFeatures()
-                OnboardingStep.Theme -> OnboardingTheme(
-                    currentThemeState = currentThemeState,
-                    onThemeChange = onThemeChange
-                )
-                OnboardingStep.StoragePermission -> OnboardingStoragePermission(state.hasStoragePermission)
-                OnboardingStep.NotificationPermission -> OnboardingNotificationPermission(state.hasNotificationPermission)
-                OnboardingStep.Done -> OnboardingDone()
+                .padding(padding),
+            userScrollEnabled = canSwipe,
+            beyondViewportPageCount = 1
+        ) { page ->
+            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+            val alpha = 1f - (pageOffset.coerceIn(0f, 1f) * 0.18f)
+            val scale = 1f - (pageOffset.coerceIn(0f, 1f) * 0.03f)
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        this.alpha = alpha
+                        this.scaleX = scale
+                        this.scaleY = scale
+                    }
+            ) {
+                when (steps[page]) {
+                    OnboardingStep.WelcomeAndFeatures -> OnboardingWelcomeAndFeatures()
+                    OnboardingStep.Privacy -> OnboardingPrivacy()
+                    OnboardingStep.Theme -> OnboardingTheme(
+                        currentThemeState = currentThemeState,
+                        onThemeChange = onThemeChange
+                    )
+                    OnboardingStep.SetupPermissions -> OnboardingSetupPermissions(
+                        state = state,
+                        showOlderAndroidWarning = showOlderAndroidWarning
+                    )
+                    OnboardingStep.Done -> OnboardingDone()
+                }
             }
         }
     }
@@ -131,9 +195,8 @@ fun OnboardingScreen(
 @Composable
 private fun OnboardingHeader(
     state: OnboardingUiState,
-    stepLabel: String,
-    progress: Float,
-    progressDescription: String,
+    stepsCount: Int,
+    currentPage: Int,
     onBack: () -> Unit,
     onSkip: () -> Unit
 ) {
@@ -154,59 +217,60 @@ private fun OnboardingHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (state.step != OnboardingStep.Welcome && state.step != OnboardingStep.Done) {
-                    TextButton(
+                if (state.step != OnboardingStep.WelcomeAndFeatures && state.step != OnboardingStep.Done) {
+                    FilledTonalButton(
                         onClick = onBack,
-                        modifier = Modifier.defaultMinSize(minWidth = 72.dp, minHeight = 44.dp)
+                        modifier = Modifier
+                            .width(92.dp)
+                            .defaultMinSize(minHeight = 44.dp)
                     ) {
                         Text(stringResource(R.string.back))
                     }
                 } else {
-                    Spacer(modifier = Modifier.size(width = 72.dp, height = 44.dp))
+                    Spacer(modifier = Modifier.size(width = 92.dp, height = 44.dp))
                 }
 
-                Surface(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                // Dot Indicators
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = stepLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
+                    repeat(stepsCount) { index ->
+                        val isSelected = index == currentPage
+                        val width by animateDpAsState(
+                            targetValue = if (isSelected) 24.dp else 8.dp,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy),
+                            label = "indicator_width"
+                        )
+                        val color by animateColorAsState(
+                            targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+                            label = "indicator_color"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .height(8.dp)
+                                .width(width)
+                                .clip(CircleShape)
+                                .background(color)
+                        )
+                    }
                 }
 
-                if (state.step == OnboardingStep.Welcome ||
-                    state.step == OnboardingStep.Features ||
+                if (state.step == OnboardingStep.WelcomeAndFeatures ||
+                    state.step == OnboardingStep.Privacy ||
                     state.step == OnboardingStep.Theme
                 ) {
-                    TextButton(
+                    FilledTonalButton(
                         onClick = onSkip,
-                        modifier = Modifier.defaultMinSize(minWidth = 72.dp, minHeight = 44.dp)
+                        modifier = Modifier
+                            .width(92.dp)
+                            .defaultMinSize(minHeight = 44.dp)
                     ) {
                         Text(stringResource(R.string.onboarding_skip))
                     }
                 } else {
-                    Spacer(modifier = Modifier.size(width = 72.dp, height = 44.dp))
+                    Spacer(modifier = Modifier.size(width = 92.dp, height = 44.dp))
                 }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(MaterialTheme.shapes.extraLarge)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                    .semantics { contentDescription = progressDescription }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progress)
-                        .height(8.dp)
-                        .clip(MaterialTheme.shapes.extraLarge)
-                        .background(MaterialTheme.colorScheme.primary)
-                )
             }
         }
     }
@@ -219,19 +283,26 @@ private fun OnboardingBottomBar(
     onOpenStoragePermissionSettings: () -> Unit,
     onRequestNotificationPermission: () -> Unit
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        tonalElevation = 4.dp
-    ) {
+    AnimatedContent(
+        targetState = state.step,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(220)) + slideInVertically(
+                animationSpec = tween(220),
+                initialOffsetY = { it / 5 }
+            ) togetherWith fadeOut(animationSpec = tween(160)) using SizeTransform(clip = false)
+        },
+        label = "bottom_bar_animation",
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = MaterialTheme.spacing.large, vertical = MaterialTheme.spacing.space12)
+    ) { step ->
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = MaterialTheme.spacing.large, vertical = MaterialTheme.spacing.space12),
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            when (state.step) {
-                OnboardingStep.StoragePermission -> {
+            when (step) {
+                OnboardingStep.SetupPermissions -> {
                     Button(
                         onClick = onOpenStoragePermissionSettings,
                         modifier = Modifier
@@ -242,19 +313,8 @@ private fun OnboardingBottomBar(
                         Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
                         Text(stringResource(R.string.onboarding_open_storage_settings))
                     }
-                    Button(
-                        onClick = onNext,
-                        enabled = state.hasStoragePermission,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 56.dp)
-                    ) {
-                        Text(stringResource(R.string.onboarding_continue))
-                    }
-                }
-                OnboardingStep.NotificationPermission -> {
                     if (state.notificationPermissionRequired && !state.hasNotificationPermission) {
-                        Button(
+                        FilledTonalButton(
                             onClick = onRequestNotificationPermission,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -264,23 +324,15 @@ private fun OnboardingBottomBar(
                             Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
                             Text(stringResource(R.string.onboarding_enable_notifications))
                         }
-                        OutlinedButton(
-                            onClick = onNext,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 56.dp)
-                        ) {
-                            Text(stringResource(R.string.onboarding_not_now))
-                        }
-                    } else {
-                        Button(
-                            onClick = onNext,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 56.dp)
-                        ) {
-                            Text(stringResource(R.string.onboarding_finish))
-                        }
+                    }
+                    Button(
+                        onClick = onNext,
+                        enabled = state.hasStoragePermission,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 56.dp)
+                    ) {
+                        Text(stringResource(R.string.onboarding_finish))
                     }
                 }
                 OnboardingStep.Done -> {
@@ -311,7 +363,8 @@ private fun OnboardingBottomBar(
 
 @Composable
 private fun OnboardingPage(
-    icon: ImageVector,
+    icon: ImageVector? = null,
+    customIcon: (@Composable () -> Unit)? = null,
     title: String,
     description: String,
     hasBodyContent: Boolean = false,
@@ -324,7 +377,7 @@ private fun OnboardingPage(
             .padding(horizontal = MaterialTheme.spacing.large)
             .padding(
                 top = if (hasBodyContent) MaterialTheme.spacing.large else MaterialTheme.spacing.extraLarge,
-                bottom = if (hasBodyContent) 96.dp else MaterialTheme.spacing.extraLarge
+                bottom = if (hasBodyContent) 184.dp else 144.dp
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = if (hasBodyContent) {
@@ -342,14 +395,18 @@ private fun OnboardingPage(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 tonalElevation = 4.dp,
-                modifier = Modifier.size(if (hasBodyContent) 88.dp else 104.dp)
+                modifier = Modifier.size(if (hasBodyContent) 88.dp else 120.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(if (hasBodyContent) 40.dp else 48.dp)
-                    )
+                    if (customIcon != null) {
+                        customIcon()
+                    } else if (icon != null) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(if (hasBodyContent) 40.dp else 56.dp)
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(if (hasBodyContent) MaterialTheme.spacing.large else MaterialTheme.spacing.extraLarge))
@@ -373,26 +430,38 @@ private fun OnboardingPage(
 }
 
 @Composable
-private fun OnboardingWelcome() {
+private fun OnboardingWelcomeAndFeatures() {
     OnboardingPage(
-        icon = Icons.Default.Folder,
-        title = stringResource(R.string.onboarding_welcome_title),
-        description = stringResource(R.string.onboarding_welcome_description)
-    )
+        customIcon = {
+            AsyncImage(
+                model = R.mipmap.ic_launcher,
+                contentDescription = stringResource(R.string.app_name),
+                modifier = Modifier.fillMaxSize()
+            )
+        },
+        title = "Welcome to Arcile",
+        description = "An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.",
+        hasBodyContent = true
+    ) {
+        FeatureRow(Icons.Default.Storage, "Multi-Volume Support", "Seamlessly manage Internal Storage, SD Cards, and USB OTG devices")
+        FeatureRow(Icons.Default.Bolt, "Batch Operations", "Multi-select files for copy, cut, move, or permanent delete")
+        FeatureRow(Icons.Default.Category, "Instant Categories", "Jump into images, videos, audio, documents, archives, and APKs")
+        FeatureRow(Icons.Default.RestoreFromTrash, "Trash Subsystem", "Safely remove files with metadata-aware restoration")
+    }
 }
 
 @Composable
-private fun OnboardingFeatures() {
+private fun OnboardingPrivacy() {
     OnboardingPage(
-        icon = Icons.Default.Bolt,
-        title = stringResource(R.string.onboarding_features_title),
-        description = stringResource(R.string.onboarding_features_description),
+        icon = Icons.Default.PrivacyTip,
+        title = "Privacy Policy & Terms",
+        description = "Arcile is a personal project built with a privacy-first mindset.",
         hasBodyContent = true
     ) {
-        FeatureRow(Icons.Default.Storage, stringResource(R.string.onboarding_feature_browser), stringResource(R.string.onboarding_feature_browser_description))
-        FeatureRow(Icons.Default.Category, stringResource(R.string.onboarding_feature_categories), stringResource(R.string.onboarding_feature_categories_description))
-        FeatureRow(Icons.Default.RestoreFromTrash, stringResource(R.string.onboarding_feature_trash), stringResource(R.string.onboarding_feature_trash_description))
-        FeatureRow(Icons.Default.Security, stringResource(R.string.onboarding_feature_restricted), stringResource(R.string.onboarding_feature_restricted_description))
+        FeatureRow(androidx.compose.material.icons.Icons.Default.CloudOff, "Offline by Design", "Arcile does not declare the INTERNET permission, your files and activity data cannot leave your device.")
+        FeatureRow(androidx.compose.material.icons.Icons.Default.Block, "No Trackers", "The application contains zero advertisements and zero third-party tracking SDKs.")
+        FeatureRow(Icons.Default.Folder, "Local File Access", "All file operations are executed locally on your device — no data is transmitted externally.")
+        FeatureRow(androidx.compose.material.icons.Icons.Default.Source, "Source Availability", "Arcile's source code is publicly available for inspection on GitHub.")
     }
 }
 
@@ -401,6 +470,8 @@ private fun OnboardingTheme(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit
 ) {
+    var showAccentPicker by remember { mutableStateOf(false) }
+
     OnboardingPage(
         icon = Icons.Default.Palette,
         title = stringResource(R.string.onboarding_theme_title),
@@ -411,23 +482,49 @@ private fun OnboardingTheme(
             currentMode = currentThemeState.themeMode,
             onModeSelected = { onThemeChange(currentThemeState.copy(themeMode = it)) }
         )
-        AccentColorSelector(
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.accent_color)) },
+            supportingContent = { Text(stringResource(accentLabelRes(currentThemeState.accentColor))) },
+            leadingContent = {
+                Icon(Icons.Default.ColorLens, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            trailingContent = {
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
+            },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .clickable { showAccentPicker = true }
+        )
+    }
+
+    if (showAccentPicker) {
+        AccentColorPickerSheet(
             currentAccent = currentThemeState.accentColor,
-            onAccentSelected = { onThemeChange(currentThemeState.copy(accentColor = it)) }
+            onAccentSelected = {
+                onThemeChange(currentThemeState.copy(accentColor = it))
+                showAccentPicker = false
+            },
+            onDismiss = { showAccentPicker = false }
         )
     }
 }
 
 @Composable
-private fun OnboardingStoragePermission(hasStoragePermission: Boolean) {
+private fun OnboardingSetupPermissions(
+    state: OnboardingUiState,
+    showOlderAndroidWarning: Boolean
+) {
     OnboardingPage(
-        icon = if (hasStoragePermission) Icons.Default.CheckCircle else Icons.Default.Folder,
-        title = if (hasStoragePermission) {
+        icon = if (state.hasStoragePermission) Icons.Default.CheckCircle else Icons.Default.Folder,
+        title = if (state.hasStoragePermission) {
             stringResource(R.string.onboarding_storage_ready_title)
         } else {
             stringResource(R.string.onboarding_storage_title)
         },
-        description = if (hasStoragePermission) {
+        description = if (state.hasStoragePermission) {
             stringResource(R.string.onboarding_storage_ready_description)
         } else {
             stringResource(R.string.onboarding_storage_description)
@@ -437,24 +534,27 @@ private fun OnboardingStoragePermission(hasStoragePermission: Boolean) {
         FeatureRow(Icons.Default.CheckCircle, stringResource(R.string.onboarding_storage_can_read), stringResource(R.string.onboarding_storage_can_read_description))
         FeatureRow(Icons.Default.PrivacyTip, stringResource(R.string.onboarding_storage_private), stringResource(R.string.onboarding_storage_private_description))
         FeatureRow(Icons.Default.WarningAmber, stringResource(R.string.onboarding_storage_restricted), stringResource(R.string.onboarding_storage_restricted_description))
-    }
-}
-
-@Composable
-private fun OnboardingNotificationPermission(hasNotificationPermission: Boolean) {
-    OnboardingPage(
-        icon = if (hasNotificationPermission) Icons.Default.CheckCircle else Icons.Default.Notifications,
-        title = if (hasNotificationPermission) {
-            stringResource(R.string.onboarding_notifications_ready_title)
-        } else {
-            stringResource(R.string.onboarding_notifications_title)
-        },
-        description = if (hasNotificationPermission) {
-            stringResource(R.string.onboarding_notifications_ready_description)
-        } else {
-            stringResource(R.string.onboarding_notifications_description)
+        FeatureRow(
+            icon = if (state.hasNotificationPermission) Icons.Default.CheckCircle else Icons.Default.Notifications,
+            title = if (state.hasNotificationPermission) {
+                stringResource(R.string.onboarding_notifications_ready_title)
+            } else {
+                stringResource(R.string.onboarding_notifications_title)
+            },
+            description = if (state.notificationPermissionRequired) {
+                stringResource(R.string.onboarding_notifications_description)
+            } else {
+                stringResource(R.string.onboarding_notifications_not_required_description)
+            }
+        )
+        AnimatedVisibility(visible = showOlderAndroidWarning) {
+            FeatureRow(
+                icon = Icons.Default.WarningAmber,
+                title = stringResource(R.string.onboarding_limited_android_title),
+                description = stringResource(R.string.onboarding_limited_android_description)
+            )
         }
-    )
+    }
 }
 
 @Composable

@@ -86,6 +86,15 @@
     <string name="section_info">Info</string>
     <string name="about_headline">About</string>
     <string name="about_description">"App info, privacy policy, and changelogs"</string>
+    <string name="section_setup">Setup</string>
+    <string name="run_onboarding_again">Run onboarding again</string>
+    <string name="run_onboarding_again_description">Restart Arcile and show the setup flow again.</string>
+    <string name="restart_onboarding_title">Run onboarding again?</string>
+    <string name="restart_onboarding_description">Arcile will reset the setup flow. Restart the app to begin onboarding again.</string>
+    <string name="restart_now">Restart now</string>
+    <string name="later">Later</string>
+    <string name="settings_show_thumbnails">Show Thumbnails</string>
+    <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
     
     <!-- Theme Selection -->
     <string name="theme_mode">Theme Mode</string>
@@ -187,6 +196,8 @@
     <!-- Browser / File Manager -->
     <string name="browse_title">Browse</string>
     <string name="search_placeholder">Search all files…</string>
+    <string name="search_files_placeholder">Search files...</string>
+    <string name="search_category_placeholder">Search %1$s...</string>
     <string name="no_results_found">No results found</string>
     <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
     <string name="empty_directory">Empty Directory</string>
@@ -274,6 +285,7 @@
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>
     <string name="recent_type_all">All types</string>
+    <string name="recent_sort_title">Sort recent files</string>
 
     <!-- Tools -->
     <string name="tools_title">Tools &amp; Utilities</string>
@@ -401,14 +413,17 @@
     <string name="onboarding_storage_can_read_description">Arcile can read and write user-visible files on internal storage, SD cards, and supported USB drives.</string>
     <string name="onboarding_storage_private">Private app data remains protected</string>
     <string name="onboarding_storage_private_description">Android still blocks other apps\' private Android/data folders and other restricted areas.</string>
-    <string name="onboarding_storage_restricted">System settings required</string>
-    <string name="onboarding_storage_restricted_description">Android grants this permission from Settings, then Arcile checks it when you return.</string>
-    <string name="onboarding_open_storage_settings">Open storage settings</string>
+    <string name="onboarding_storage_restricted">Grant from settings</string>
+    <string name="onboarding_storage_restricted_description">Android will open Settings to grant this permission, then Arcile checks it when you return.</string>
+    <string name="onboarding_open_storage_settings">Grant Permission</string>
     <string name="onboarding_notifications_title">Keep file operations visible</string>
     <string name="onboarding_notifications_description">Notifications help show progress for long copy, move, delete, and archive work while Arcile keeps running.</string>
     <string name="onboarding_notifications_ready_title">Notifications are ready</string>
     <string name="onboarding_notifications_ready_description">Arcile can show progress for long-running file operations.</string>
+    <string name="onboarding_notifications_not_required_description">This Android version does not require a separate notification permission.</string>
     <string name="onboarding_enable_notifications">Enable notifications</string>
+    <string name="onboarding_limited_android_title">Limited features on older Android</string>
+    <string name="onboarding_limited_android_description">Some file-management features may be limited on older Android versions. Arcile will show the best supported path for this device.</string>
     <string name="onboarding_done_title">You\'re ready</string>
     <string name="onboarding_done_description">Arcile is set up and ready to browse your files.</string>
     <string name="permission_recovery_title">Storage access is off</string>

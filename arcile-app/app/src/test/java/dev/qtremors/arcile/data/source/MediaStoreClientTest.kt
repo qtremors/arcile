@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.database.Cursor
 import android.database.MatrixCursor
+import android.os.Bundle
 import android.provider.MediaStore
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.data.provider.VolumeProvider
@@ -76,13 +77,13 @@ class MediaStoreClientTest {
         val first = client.getCategoryStorageSizes(StorageScope.Volume("primary")).getOrThrow()
         val second = client.getCategoryStorageSizes(StorageScope.Volume("primary")).getOrThrow()
 
-        assertEquals(6, queryCount)
+        assertEquals(1, queryCount)
         assertCategorySize(first, "Images", 125L)
         assertCategorySize(first, "Audio", 250L)
         assertCategorySize(first, "Docs", 75L)
         assertEquals(first, second)
-        assertTrue(lastSelection.orEmpty().contains(MediaStore.Files.FileColumns.MIME_TYPE))
-        assertTrue(allSelectionArgs.any { it == "%.jpg" })
+        assertTrue(lastSelection.orEmpty().contains(MediaStore.MediaColumns.VOLUME_NAME))
+        assertTrue(allSelectionArgs.any { it == MediaStore.VOLUME_EXTERNAL_PRIMARY })
     }
 
     @Test
@@ -119,7 +120,41 @@ class MediaStoreClientTest {
         assertCategorySize(first, "Images", 120L)
         assertEquals(first, cached)
         assertCategorySize(refreshed, "Images", 480L)
-        assertEquals(12, queryCount)
+        assertEquals(2, queryCount)
+    }
+
+    @Test
+    fun `getRecentFiles maps modern MediaStore row when raw data path is missing`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val primaryRoot = fsPath("storage", "emulated", "0")
+        val resolver = mockk<ContentResolver>()
+        every {
+            resolver.query(any(), any(), any<Bundle>(), isNull())
+        } returns recentCursor(
+            data = null,
+            displayName = "photo.jpg",
+            relativePath = "DCIM/Camera/",
+            volumeName = MediaStore.VOLUME_EXTERNAL_PRIMARY,
+            size = 512L,
+            mimeType = "image/jpeg"
+        )
+        val context = TestContext(
+            base = baseContext,
+            cacheDir = temporaryFolder.root,
+            contentResolver = resolver
+        )
+        val client = DefaultMediaStoreClient(
+            context = context,
+            volumeProvider = FakeVolumeProvider(listOf(storageVolume("primary", primaryRoot, isPrimary = true)))
+        )
+
+        val result = client.getRecentFiles(StorageScope.AllStorage, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()
+
+        assertEquals(1, result.size)
+        assertEquals("photo.jpg", result.single().name)
+        assertEquals(fsPath("storage", "emulated", "0", "DCIM", "Camera", "photo.jpg"), result.single().absolutePath)
+        assertEquals("jpg", result.single().extension)
+        assertEquals("image/jpeg", result.single().mimeType)
     }
 
     private fun assertCategorySize(data: List<CategoryStorage>, name: String, expectedSize: Long) {
@@ -137,6 +172,43 @@ class MediaStoreClientTest {
             rows.forEach { (path, size, mimeType) ->
                 addRow(arrayOf<Any>(path, size, mimeType))
             }
+        }
+    }
+
+    private fun recentCursor(
+        data: String?,
+        displayName: String,
+        relativePath: String,
+        volumeName: String,
+        size: Long,
+        mimeType: String
+    ): Cursor {
+        return MatrixCursor(
+            arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.DATE_ADDED,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                MediaStore.MediaColumns.VOLUME_NAME
+            )
+        ).apply {
+            addRow(
+                arrayOf<Any?>(
+                    42L,
+                    data,
+                    displayName,
+                    size,
+                    1_700_000_000L,
+                    1_700_000_100L,
+                    mimeType,
+                    relativePath,
+                    volumeName
+                )
+            )
         }
     }
 

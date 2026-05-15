@@ -11,17 +11,17 @@ class FolderTabsTest {
     @Test
     fun `buildFolderTabs puts all first and groups by parent path`() {
         val files = listOf(
+            file("three.jpg", "/storage/emulated/0/Download/three.jpg"),
             file("one.jpg", "/storage/emulated/0/DCIM/one.jpg"),
-            file("two.jpg", "/storage/emulated/0/DCIM/two.jpg"),
-            file("three.jpg", "/storage/emulated/0/Download/three.jpg")
+            file("two.jpg", "/storage/emulated/0/DCIM/two.jpg")
         )
 
         val tabs = buildFolderTabs(files, "All")
 
-        assertEquals(listOf(null, "/storage/emulated/0/DCIM", "/storage/emulated/0/Download"), tabs.map { it.path })
-        assertEquals(listOf("All", "DCIM", "Download"), tabs.map { it.label })
-        assertEquals(listOf(3, 2, 1), tabs.map { it.count })
-        assertEquals(listOf(3L, 2L, 1L), tabs.map { it.totalSizeBytes })
+        assertEquals(listOf(null, "/storage/emulated/0/Download", "/storage/emulated/0/DCIM"), tabs.map { it.path })
+        assertEquals(listOf("All", "Download", "DCIM"), tabs.map { it.label })
+        assertEquals(listOf(3, 1, 2), tabs.map { it.count })
+        assertEquals(listOf(3L, 1L, 2L), tabs.map { it.totalSizeBytes })
     }
 
     @Test
@@ -35,7 +35,21 @@ class FolderTabsTest {
 
         assertEquals(3, tabs.size)
         assertEquals(listOf("Camera", "Camera"), tabs.drop(1).map { it.label })
-        assertEquals(listOf("/storage/1234-5678/DCIM/Camera", "/storage/emulated/0/DCIM/Camera"), tabs.drop(1).map { it.path })
+        assertEquals(listOf("/storage/emulated/0/DCIM/Camera", "/storage/1234-5678/DCIM/Camera"), tabs.drop(1).map { it.path })
+    }
+
+    @Test
+    fun `buildFolderTabs follows the order of the provided files`() {
+        val files = listOf(
+            file("newest.jpg", "/storage/emulated/0/Camera/newest.jpg", lastModified = 300L),
+            file("middle.jpg", "/storage/emulated/0/Screenshots/middle.jpg", lastModified = 200L),
+            file("older.jpg", "/storage/emulated/0/Camera/older.jpg", lastModified = 100L)
+        )
+        val sortedFiles = filterAndSortFiles(files, query = "", sortOption = FileSortOption.DATE_NEWEST)
+
+        val tabs = buildFolderTabs(sortedFiles, "All")
+
+        assertEquals(listOf(null, "/storage/emulated/0/Camera", "/storage/emulated/0/Screenshots"), tabs.map { it.path })
     }
 
     @Test
@@ -59,11 +73,11 @@ class FolderTabsTest {
     }
 }
 
-private fun file(name: String, path: String) = FileModel(
+private fun file(name: String, path: String, lastModified: Long = 1L) = FileModel(
     name = name,
     absolutePath = path,
     size = 1L,
-    lastModified = 1L,
+    lastModified = lastModified,
     isDirectory = false,
     extension = name.substringAfterLast('.', ""),
     isHidden = false

@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import kotlinx.coroutines.launch
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
@@ -43,9 +45,58 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit,
     onOpenStorageManagement: () -> Unit = {},
-    onNavigateToAbout: () -> Unit = {}
+    onNavigateToAbout: () -> Unit = {},
+    onRunOnboardingAgain: suspend () -> Unit = {},
+    onRestartApp: () -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val coroutineScope = rememberCoroutineScope()
+    var showResetOnboardingDialog by remember { mutableStateOf(false) }
+    var showRestartDialog by remember { mutableStateOf(false) }
+
+    if (showResetOnboardingDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetOnboardingDialog = false },
+            title = { Text(stringResource(R.string.restart_onboarding_title)) },
+            text = { Text(stringResource(R.string.restart_onboarding_description)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            onRunOnboardingAgain()
+                            showResetOnboardingDialog = false
+                            showRestartDialog = true
+                        }
+                    }
+                ) {
+                    Text(stringResource(R.string.ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetOnboardingDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showRestartDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestartDialog = false },
+            title = { Text(stringResource(R.string.restart_onboarding_title)) },
+            text = { Text(stringResource(R.string.run_onboarding_again_description)) },
+            confirmButton = {
+                TextButton(onClick = onRestartApp) {
+                    Text(stringResource(R.string.restart_now))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestartDialog = false }) {
+                    Text(stringResource(R.string.later))
+                }
+            }
+        )
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -83,6 +134,18 @@ fun SettingsScreen(
                             onThemeChange(currentThemeState.copy(accentColor = it))
                         }
                     )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_show_thumbnails)) },
+                        supportingContent = { Text(stringResource(R.string.settings_show_thumbnails_description)) },
+                        trailingContent = {
+                            Switch(
+                                checked = showThumbnails,
+                                onCheckedChange = onShowThumbnailsChange
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { onShowThumbnailsChange(!showThumbnails) }
+                    )
                 }
             }
 
@@ -99,18 +162,13 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Appearance") {
+                SettingsSection(title = stringResource(R.string.section_setup)) {
                     ListItem(
-                        headlineContent = { Text("Show Thumbnails") },
-                        supportingContent = { Text("Display image and video thumbnails instead of file icons.") },
-                        trailingContent = {
-                            Switch(
-                                checked = showThumbnails,
-                                onCheckedChange = onShowThumbnailsChange
-                            )
-                        },
+                        headlineContent = { Text(stringResource(R.string.run_onboarding_again)) },
+                        supportingContent = { Text(stringResource(R.string.run_onboarding_again_description)) },
+                        leadingContent = { Icon(Icons.Default.RestartAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { onShowThumbnailsChange(!showThumbnails) }
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { showResetOnboardingDialog = true }
                     )
                 }
             }

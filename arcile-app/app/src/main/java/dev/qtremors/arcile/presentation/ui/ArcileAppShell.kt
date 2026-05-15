@@ -59,7 +59,8 @@ import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 fun ArcileAppShell(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
-    onOpenFile: (String) -> Unit
+    onOpenFile: (String) -> Unit,
+    onRestartApp: () -> Unit
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -83,7 +84,8 @@ fun ArcileAppShell(
                     navController = navController,
                     currentThemeState = currentThemeState,
                     onThemeChange = onThemeChange,
-                    onOpenFile = onOpenFile
+                    onOpenFile = onOpenFile,
+                    onRestartApp = onRestartApp
                 )
             }
         }

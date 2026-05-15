@@ -105,6 +105,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -288,6 +289,9 @@ fun BrowserScreen(
     val displayedFiles = remember(tabFilteredFiles, state.browserSortOption) {
         filterAndSortFiles(tabFilteredFiles, "", state.browserSortOption)
     }
+    val sortedCategoryFiles = remember(state.files, state.browserSortOption) {
+        filterAndSortFiles(state.files, "", state.browserSortOption)
+    }
     val currentPresentation = remember(
         state.browserSortOption,
         state.browserViewMode,
@@ -306,9 +310,9 @@ fun BrowserScreen(
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
     }
-    val categoryFolderTabs = remember(state.isCategoryScreen, state.files, context) {
+    val categoryFolderTabs = remember(state.isCategoryScreen, sortedCategoryFiles, context) {
         if (state.isCategoryScreen) {
-            buildFolderTabs(state.files, context.getString(R.string.all_files))
+            buildFolderTabs(sortedCategoryFiles, context.getString(R.string.all_files))
         } else {
             emptyList()
         }
@@ -511,6 +515,7 @@ fun BrowserScreen(
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val isClipboardActive = state.clipboardState != null
     val snackbarPadding = if (isSelectionMode || isClipboardActive) 80.dp else 0.dp
+    val layoutDirection = LocalLayoutDirection.current
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -524,7 +529,7 @@ fun BrowserScreen(
             if (showSearchBar) {
                 Column {
                     val searchPlaceholder = if (state.isCategoryScreen) {
-                        "Search ${state.activeCategoryName.lowercase()}..."
+                        stringResource(R.string.search_category_placeholder, state.activeCategoryName.lowercase())
                     } else {
                         stringResource(R.string.search_placeholder)
                     }
@@ -786,8 +791,8 @@ fun BrowserScreen(
                                 contentPadding = PaddingValues(
                                     top = 8.dp,
                                     bottom = padding.calculateBottomPadding() + 100.dp,
-                                    start = padding.calculateLeftPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-                                    end = padding.calculateRightPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+                                    start = padding.calculateLeftPadding(layoutDirection),
+                                    end = padding.calculateRightPadding(layoutDirection)
                                 )
                             )
                         } else if (displayedFiles.isEmpty() && !state.isLoading) {

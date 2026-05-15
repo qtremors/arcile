@@ -36,6 +36,7 @@ class OnboardingScreenTest {
                     onNext = {},
                     onBack = {},
                     onSkip = {},
+                    onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
                 )
@@ -43,7 +44,7 @@ class OnboardingScreenTest {
         }
 
         composeRule.onNodeWithText("Welcome to Arcile").assertExists()
-        composeRule.onNodeWithText("Step 1 of 5").assertExists()
+
         composeRule.onNodeWithText("Skip").assertExists()
     }
 
@@ -59,7 +60,8 @@ class OnboardingScreenTest {
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
-                    onSkip = { state = state.copy(step = OnboardingStep.StoragePermission, skipMode = true) },
+                    onSkip = { state = state.copy(step = OnboardingStep.SetupPermissions, skipMode = true) },
+                    onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
                 )
@@ -69,13 +71,13 @@ class OnboardingScreenTest {
         composeRule.onNodeWithText("Skip").performClick()
 
         composeRule.onNodeWithText("Allow file access").assertExists()
-        composeRule.onNodeWithText("Step 4 of 5").assertExists()
-        composeRule.onNodeWithText("Built for real file work").assertDoesNotExist()
-        composeRule.onNodeWithText("Continue").assertIsNotEnabled()
+        composeRule.onNodeWithText("Keep file operations visible").assertExists()
+        composeRule.onNodeWithText("Privacy Policy & Terms").assertDoesNotExist()
+        composeRule.onNodeWithText("Finish").assertIsNotEnabled()
     }
 
     @Test
-    fun `theme step renders existing theme controls`() {
+    fun `theme step renders accent picker trigger`() {
         composeRule.setContent {
             ArcileTestTheme {
                 OnboardingScreen(
@@ -85,6 +87,7 @@ class OnboardingScreenTest {
                     onNext = {},
                     onBack = {},
                     onSkip = {},
+                    onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
                 )
@@ -92,9 +95,11 @@ class OnboardingScreenTest {
         }
 
         composeRule.onNodeWithText("Make it comfortable").assertExists()
-        composeRule.onNodeWithText("Step 3 of 5").assertExists()
         composeRule.onNodeWithText("Theme Mode").assertExists()
         composeRule.onNodeWithText("Accent Color").assertExists()
+        composeRule.onNodeWithText("Select Accent Color").assertDoesNotExist()
+        composeRule.onNodeWithText("Back").assertExists()
+        composeRule.onNodeWithText("Skip").assertExists()
     }
 
     @Test
@@ -103,14 +108,16 @@ class OnboardingScreenTest {
             ArcileTestTheme {
                 OnboardingScreen(
                     state = OnboardingUiState(
-                        step = OnboardingStep.StoragePermission,
-                        hasStoragePermission = true
+                        step = OnboardingStep.SetupPermissions,
+                        hasStoragePermission = true,
+                        notificationPermissionRequired = true
                     ),
                     currentThemeState = ThemeState(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
                     onSkip = {},
+                    onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
                 )
@@ -118,7 +125,8 @@ class OnboardingScreenTest {
         }
 
         composeRule.onNodeWithText("Storage access is ready").assertExists()
-        composeRule.onNodeWithText("Continue").assertIsEnabled()
+        composeRule.onNodeWithText("Enable notifications").assertExists()
+        composeRule.onNodeWithText("Finish").assertIsEnabled()
     }
 
     @Test

@@ -35,6 +35,9 @@ data class BrowserPresentationPreferences(
 
 data class BrowserPreferences(
     val globalPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(),
+    val recentPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+        sortOption = BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION
+    ),
     val pathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
     val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
     val lastOpenedPath: String? = null,

@@ -24,7 +24,6 @@ fun buildFolderTabs(
                 totalSizeBytes = folderFiles.sumOf { it.size }
             )
         }
-        .sortedWith(compareBy<FolderTab> { it.label.lowercase() }.thenBy { it.path.orEmpty().lowercase() })
 
     return listOf(FolderTab(path = null, label = allLabel, count = files.size, totalSizeBytes = files.sumOf { it.size })) + folderTabs
 }

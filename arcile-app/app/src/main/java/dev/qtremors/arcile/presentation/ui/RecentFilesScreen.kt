@@ -1,35 +1,40 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.clip
-import androidx.compose.material3.Surface
-import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
-import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
-import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -38,36 +43,49 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
-import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
-
-import androidx.compose.material3.LoadingIndicator
-
-
-
-import kotlinx.coroutines.delay
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleResumeEffect
-import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
-import java.util.Date
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
-import dev.qtremors.arcile.presentation.containingFolderPath
-import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.containingFolderPath
+import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
+import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
+import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
+import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
+import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
+import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
+import dev.qtremors.arcile.presentation.ui.components.lists.ActiveFiltersRow
+import dev.qtremors.arcile.presentation.ui.components.lists.FileGrid
+import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
+import dev.qtremors.arcile.presentation.ui.components.lists.FileList
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
+import kotlinx.coroutines.delay
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -87,21 +105,24 @@ fun RecentFilesScreen(
     onClearError: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
+    onSearchFiltersChange: (SearchFilters) -> Unit = {},
+    onPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
+    onSelectMultiple: (List<String>) -> Unit = {},
     onLoadMore: () -> Unit = {},
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
     onOpenContainingFolder: (String) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
-
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
+    val launcher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
             when (state.pendingNativeAction) {
@@ -111,8 +132,6 @@ fun RecentFilesScreen(
         }
     }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             snackbarHostState.showSnackbar(errorMsg)
@@ -120,15 +139,16 @@ fun RecentFilesScreen(
         }
     }
 
-    androidx.compose.runtime.LaunchedEffect(nativeRequestFlow) {
+    LaunchedEffect(nativeRequestFlow) {
         nativeRequestFlow?.collect { sender ->
-            launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+            launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
+    var showFilterSheet by rememberSaveable { mutableStateOf(false) }
+    var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
 
-    // Intercept system back to clear selection before navigating away
     BackHandler(enabled = isSelectionMode || showSearchBar) {
         if (isSelectionMode) {
             onClearSelection()
@@ -138,9 +158,7 @@ fun RecentFilesScreen(
         }
     }
 
-
-
-
+    val filesToDisplay = if (showSearchBar) state.searchResults else state.displayedRecentFiles
     val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
 
     Scaffold(
@@ -151,61 +169,56 @@ fun RecentFilesScreen(
             )
         },
         topBar = {
-            if (isSelectionMode) {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.selected_count, state.selectedFiles.size)) },
-                    navigationIcon = {
-                        IconButton(onClick = onClearSelection) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.clear_selection))
-                        }
-                    },
-                    actions = {},
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            when {
+                isSelectionMode -> SelectionTopBar(
+                    selectedCount = state.selectedFiles.size,
+                    onClearSelection = onClearSelection
+                )
+                showSearchBar -> Column {
+                    SearchTopBar(
+                        query = state.searchQuery,
+                        onQueryChange = onSearchQueryChange,
+                        onClose = {
+                            showSearchBar = false
+                            onClearSearch()
+                        },
+                        onFilterClick = { showFilterSheet = true },
+                        placeholder = stringResource(R.string.search_recent_files_placeholder)
                     )
-                )
-            } else if (showSearchBar) {
-                SearchTopBar(
-                    query = state.searchQuery,
-                    onQueryChange = onSearchQueryChange,
-                    onClose = {
-                        showSearchBar = false
-                        onClearSearch()
-                    },
-                    placeholder = stringResource(R.string.search_recent_files_placeholder)
-                )
-            } else {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.recent_files_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                        }
-                    },
-                    actions = {
-                        val topActions = listOf(
-                            ToolbarAction(
-                                icon = Icons.Default.Search,
-                                contentDescription = stringResource(R.string.action_search),
-                                onClick = { showSearchBar = true }
-                            ),
-                            ToolbarAction(
-                                icon = Icons.AutoMirrored.Filled.Sort,
-                                contentDescription = stringResource(R.string.action_sort),
-                                onClick = { /* show sort dialog if needed */ }
+                    ActiveFiltersRow(
+                        filters = state.activeSearchFilters,
+                        onClearFilter = onSearchFiltersChange
+                    )
+                }
+                else -> Column {
+                    TopAppBar(
+                        title = { Text(stringResource(R.string.recent_files_title)) },
+                        navigationIcon = {
+                            IconButton(onClick = onNavigateBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                            }
+                        },
+                        actions = {
+                            SplitButtonGroup(
+                                actions = listOf(
+                                    ToolbarAction(
+                                        icon = Icons.Default.Search,
+                                        contentDescription = stringResource(R.string.action_search),
+                                        onClick = { showSearchBar = true }
+                                    ),
+                                    ToolbarAction(
+                                        icon = Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = stringResource(R.string.action_sort),
+                                        onClick = { showPresentationSheet = true }
+                                    )
+                                )
                             )
-                        )
-                        SplitButtonGroup(actions = topActions)
-                    },
-                    scrollBehavior = scrollBehavior
-                )
+                        },
+                        scrollBehavior = scrollBehavior
+                    )
+                }
             }
-
-        },
-        bottomBar = {},
+        }
     ) { padding ->
         var showLoading by remember { mutableStateOf(false) }
         LaunchedEffect(state.isLoading) {
@@ -216,265 +229,63 @@ fun RecentFilesScreen(
                 showLoading = false
             }
         }
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
-            if (showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
-                }
-            } else if (state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar) {
-                EmptyState(
-                    icon = Icons.Default.History,
-                    title = stringResource(R.string.no_recent_files),
-                    description = stringResource(R.string.no_recent_files_description),
-                    modifier = Modifier.fillMaxSize()
-                )
-            } else if (showSearchBar && state.isSearching) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator()
-                }
-            } else if (showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty()) {
-                EmptyState(
-                    icon = Icons.Default.SearchOff,
-                    title = stringResource(R.string.no_results_found),
-                    description = stringResource(R.string.no_results_description, state.searchQuery),
-                    modifier = Modifier.fillMaxSize()
-                )
 
-            } else {
-                val filesToDisplay = if (showSearchBar) {
-                    state.searchResults
-                } else {
-                    state.recentFiles
-                }
-                val groupFormat = rememberDateFormatter("EEEE, MMM dd")
-                val groupedFiles = remember(filesToDisplay, showSearchBar, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
-                if (showSearchBar) {
-                    // Don't group search results by date, just show flat
-                    mapOf("" to filesToDisplay)
-                } else {
-                    filesToDisplay.groupBy { file ->
-                        when {
-                            file.lastModified >= state.todayStart -> todayLabel
-                            file.lastModified >= state.yesterdayStart -> yesterdayLabel
-                            else -> groupFormat.format(Date(file.lastModified))
-                        }
-                    }
-
-                }}
-
-
-
-                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-                
-                val shouldLoadMore by remember {
-                    derivedStateOf {
-                        val totalItems = listState.layoutInfo.totalItemsCount
-                        val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                        totalItems > 0 && lastVisibleItem >= totalItems - 5
+        Box(modifier = Modifier.fillMaxSize()) {
+            when {
+                showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        LoadingIndicator()
                     }
                 }
-
-                LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
-                    if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
-                        onLoadMore()
+                state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar -> {
+                    EmptyState(
+                        icon = Icons.Default.History,
+                        title = stringResource(R.string.no_recent_files),
+                        description = stringResource(R.string.no_recent_files_description),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                showSearchBar && state.isSearching -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        LoadingIndicator()
                     }
                 }
-
-                val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-
-                androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-                    isRefreshing = state.isPullToRefreshing,
-                    onRefresh = onRefresh,
-                    state = pullRefreshState,
-                    modifier = Modifier.fillMaxSize(),
-                    indicator = {
-                        ArcilePullRefreshIndicator(
-                            isRefreshing = state.isPullToRefreshing,
-                            state = pullRefreshState
-                        )
-                    }
-                ) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = padding.calculateTopPadding()),
-                        state = listState,
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            bottom = padding.calculateBottomPadding() + 100.dp
-                        )
-                    ) {
-                    if (filesToDisplay.isEmpty() && !state.isLoading) {
-                        item {
-                            EmptyState(
-                                icon = Icons.Default.History,
-                                title = stringResource(R.string.no_recent_files),
-                                description = stringResource(R.string.no_recent_files_description),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                    groupedFiles.forEach { (dateHeader, files) ->
-                        @OptIn(ExperimentalFoundationApi::class)
-                        if (dateHeader.isNotEmpty()) {
-                            stickyHeader {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                ) {
-                                    Text(
-                                        text = dateHeader,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-
-                        itemsIndexed(
-                            items = files,
-                            key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
-                            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
-                        ) { _, file ->
-                            FileItemRow(
-                                file = file,
-                                formattedDate = formatter.format(Date(file.lastModified)),
-                                isSelected = state.selectedFiles.contains(file.absolutePath),
-                                onClick = {
-                                    if (isSelectionMode) onToggleSelection(file.absolutePath)
-                                    else onOpenFile(file.absolutePath)
-                                },
-                                onLongClick = {
-                                    onToggleSelection(file.absolutePath)
-                                }
-                            )
-                        }
-                    }
-                    if (state.isLoadingMore) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                LoadingIndicator()
-                            }
-                        }
-                    }
+                showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty() -> {
+                    EmptyState(
+                        icon = Icons.Default.SearchOff,
+                        title = stringResource(R.string.no_results_found),
+                        description = stringResource(R.string.no_results_description, state.searchQuery),
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                else -> {
+                    RecentFilesContent(
+                        state = state,
+                        filesToDisplay = filesToDisplay,
+                        showSearchBar = showSearchBar,
+                        formatter = formatter,
+                        todayLabel = todayLabel,
+                        yesterdayLabel = yesterdayLabel,
+                        contentPadding = padding,
+                        onOpenFile = onOpenFile,
+                        onToggleSelection = onToggleSelection,
+                        onSelectMultiple = onSelectMultiple,
+                        onRefresh = onRefresh,
+                        onLoadMore = onLoadMore
+                    )
                 }
             }
 
-            // Floating Selection Toolbar Overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                val mainActions = mutableListOf<dev.qtremors.arcile.presentation.ui.components.ToolbarAction>()
-                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
-                    icon = androidx.compose.material.icons.Icons.Default.SelectAll,
-                    contentDescription = stringResource(R.string.select_all),
-                    onClick = onSelectAll
-                ))
-                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
-                    icon = androidx.compose.material.icons.Icons.Default.Share,
-                    contentDescription = stringResource(R.string.share),
-                    onClick = onShareSelected
-                ))
-                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
-                    icon = androidx.compose.material.icons.Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.delete),
-                    tint = MaterialTheme.colorScheme.error,
-                    onClick = onRequestDeleteSelected
-                ))
-                
-                dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
-                    isVisible = isSelectionMode,
-                    actions = mainActions,
-                    moreContent = {
-                        var showMoreMenu by remember { mutableStateOf(false) }
-                        Box {
-                            Surface(
-                                onClick = { showMoreMenu = true },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = androidx.compose.material.icons.Icons.Default.MoreVert,
-                                        contentDescription = stringResource(R.string.action_more_options),
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                            androidx.compose.material3.DropdownMenu(
-                                shape = MaterialTheme.shapes.extraLarge,
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                expanded = showMoreMenu,
-                                onDismissRequest = { showMoreMenu = false }
-                            ) {
-                                val menuActions = remember(onOpenProperties, state.selectedFiles) {
-                                    mutableListOf<@Composable () -> Unit>().apply {
-                                        if (state.selectedFiles.size == 1) {
-                                            add {
-                                                androidx.compose.material3.DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.open_containing_folder)) },
-                                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
-                                                    onClick = {
-                                                        showMoreMenu = false
-                                                        containingFolderPath(state.selectedFiles.first())?.let(onOpenContainingFolder)
-                                                    }
-                                                )
-                                            }
-                                        }
-                                        add {
-                                            androidx.compose.material3.DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.properties_title)) },
-                                                leadingIcon = { Icon(androidx.compose.material.icons.Icons.Default.Info, contentDescription = null) },
-                                                onClick = {
-                                                    showMoreMenu = false
-                                                    onOpenProperties()
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-
-                                menuActions.forEachIndexed { index, action ->
-                                    val shape = when {
-                                        menuActions.size == 1 -> RoundedCornerShape(24.dp)
-                                        index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                                        index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                        else -> RoundedCornerShape(4.dp)
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                                            .clip(shape)
-                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                    ) {
-                                        action()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                )
-            }
+            SelectionToolbar(
+                isVisible = isSelectionMode,
+                selectedFiles = state.selectedFiles,
+                contentPadding = padding,
+                onSelectAll = onSelectAll,
+                onShareSelected = onShareSelected,
+                onRequestDeleteSelected = onRequestDeleteSelected,
+                onOpenProperties = onOpenProperties,
+                onOpenContainingFolder = onOpenContainingFolder
+            )
         }
     }
 
@@ -503,11 +314,413 @@ fun RecentFilesScreen(
     }
 
     if (state.isPropertiesVisible) {
-        dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog(
+        PropertiesDialog(
             properties = state.properties,
             isLoading = state.isPropertiesLoading,
             onDismiss = onDismissProperties
         )
     }
+
+    if (showFilterSheet) {
+        SearchFiltersBottomSheet(
+            currentFilters = state.activeSearchFilters,
+            onApplyFilters = onSearchFiltersChange,
+            onDismiss = { showFilterSheet = false },
+            showCategoryFilter = true
+        )
+    }
+
+    if (showPresentationSheet) {
+        SortOptionDialog(
+            title = stringResource(R.string.recent_sort_title),
+            selectedPreferences = state.presentation,
+            showApplyToSubfolders = false,
+            onDismiss = { showPresentationSheet = false },
+            onApply = { preferences, _ -> onPresentationChange(preferences) }
+        )
+    }
 }
+
+@Composable
+private fun SelectionTopBar(
+    selectedCount: Int,
+    onClearSelection: () -> Unit
+) {
+    TopAppBar(
+        title = { Text(stringResource(R.string.selected_count, selectedCount)) },
+        navigationIcon = {
+            IconButton(onClick = onClearSelection) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.clear_selection))
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+    )
 }
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RecentFilesContent(
+    state: RecentFilesState,
+    filesToDisplay: List<dev.qtremors.arcile.domain.FileModel>,
+    showSearchBar: Boolean,
+    formatter: java.text.DateFormat,
+    todayLabel: String,
+    yesterdayLabel: String,
+    contentPadding: PaddingValues,
+    onOpenFile: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onSelectMultiple: (List<String>) -> Unit,
+    onRefresh: () -> Unit,
+    onLoadMore: () -> Unit
+) {
+    val isSelectionMode = state.selectedFiles.isNotEmpty()
+    val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
+    val topPadding = contentPadding.calculateTopPadding()
+    val bottomPadding = contentPadding.calculateBottomPadding() + 100.dp
+
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = state.isPullToRefreshing,
+        onRefresh = onRefresh,
+        state = pullRefreshState,
+        modifier = Modifier.fillMaxSize(),
+        indicator = {
+            ArcilePullRefreshIndicator(
+                isRefreshing = state.isPullToRefreshing,
+                state = pullRefreshState
+            )
+        }
+    ) {
+        val isGroupingEnabled = shouldGroupRecentFiles(showSearchBar, state.presentation)
+
+        if (state.presentation.viewMode == BrowserViewMode.GRID) {
+            val gridState = rememberLazyGridState()
+            val shouldLoadMore by remember {
+                derivedStateOf {
+                    val totalItems = gridState.layoutInfo.totalItemsCount
+                    val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                    totalItems > 0 && lastVisibleItem >= totalItems - 5
+                }
+            }
+            LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+                if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                    onLoadMore()
+                }
+            }
+            
+            if (isGroupingEnabled) {
+                val groupFormat = rememberDateFormatter("EEEE, MMM dd")
+                val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
+                    filesToDisplay.groupBy { file ->
+                        when {
+                            file.lastModified >= state.todayStart -> todayLabel
+                            file.lastModified >= state.yesterdayStart -> yesterdayLabel
+                            else -> groupFormat.format(Date(file.lastModified))
+                        }
+                    }
+                }
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topPadding),
+                    state = gridState,
+                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
+                ) {
+                    groupedFiles.forEach { (dateHeader, files) ->
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = dateHeader,
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        gridItemsIndexed(
+                            items = files,
+                            key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
+                            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+                        ) { _, file ->
+                            dev.qtremors.arcile.presentation.ui.components.lists.FileGridItem(
+                                modifier = Modifier.animateItem(),
+                                file = file,
+                                formattedDate = formatter.format(Date(file.lastModified)),
+                                isSelected = state.selectedFiles.contains(file.absolutePath),
+                                showThumbnails = state.presentation.showThumbnails,
+                                onClick = {
+                                    if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
+                                },
+                                onLongClick = { onToggleSelection(file.absolutePath) }
+                            )
+                        }
+                    }
+                    if (state.isLoadingMore) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                LoadingIndicator()
+                            }
+                        }
+                    }
+                }
+            } else {
+                FileGrid(
+                    files = filesToDisplay,
+                    selectedFiles = state.selectedFiles,
+                    onNavigateTo = {},
+                    onOpenFile = onOpenFile,
+                    onToggleSelection = onToggleSelection,
+                    onSelectMultiple = onSelectMultiple,
+                    gridState = gridState,
+                    minCellSize = state.presentation.gridMinCellSize.dp,
+                    showThumbnails = state.presentation.showThumbnails,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = topPadding),
+                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding)
+                )
+            }
+        } else if (isGroupingEnabled) {
+            val listState = rememberLazyListState()
+            val groupFormat = rememberDateFormatter("EEEE, MMM dd")
+            val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
+                filesToDisplay.groupBy { file ->
+                    when {
+                        file.lastModified >= state.todayStart -> todayLabel
+                        file.lastModified >= state.yesterdayStart -> yesterdayLabel
+                        else -> groupFormat.format(Date(file.lastModified))
+                    }
+                }
+            }
+            val shouldLoadMore by remember {
+                derivedStateOf {
+                    val totalItems = listState.layoutInfo.totalItemsCount
+                    val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                    totalItems > 0 && lastVisibleItem >= totalItems - 5
+                }
+            }
+            LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+                if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                    onLoadMore()
+                }
+            }
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = topPadding),
+                state = listState,
+                contentPadding = PaddingValues(bottom = bottomPadding)
+            ) {
+                groupedFiles.forEach { (dateHeader, files) ->
+                    stickyHeader {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = dateHeader,
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    itemsIndexed(
+                        items = files,
+                        key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
+                        contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+                    ) { _, file ->
+                        FileItemRow(
+                            file = file,
+                            formattedDate = formatter.format(Date(file.lastModified)),
+                            isSelected = state.selectedFiles.contains(file.absolutePath),
+                            zoom = state.presentation.listZoom,
+                            showThumbnails = state.presentation.showThumbnails,
+                            onClick = {
+                                if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
+                            },
+                            onLongClick = { onToggleSelection(file.absolutePath) }
+                        )
+                    }
+                }
+                if (state.isLoadingMore) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingIndicator()
+                        }
+                    }
+                }
+            }
+        } else {
+            val listState = rememberLazyListState()
+            val shouldLoadMore by remember {
+                derivedStateOf {
+                    val totalItems = listState.layoutInfo.totalItemsCount
+                    val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                    totalItems > 0 && lastVisibleItem >= totalItems - 5
+                }
+            }
+            LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+                if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                    onLoadMore()
+                }
+            }
+            FileList(
+                files = filesToDisplay,
+                selectedFiles = state.selectedFiles,
+                onNavigateTo = {},
+                onOpenFile = onOpenFile,
+                onToggleSelection = onToggleSelection,
+                onSelectMultiple = onSelectMultiple,
+                listState = listState,
+                zoom = state.presentation.listZoom,
+                showThumbnails = state.presentation.showThumbnails,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = topPadding),
+                contentPadding = PaddingValues(bottom = bottomPadding)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectionToolbar(
+    isVisible: Boolean,
+    selectedFiles: Set<String>,
+    contentPadding: PaddingValues,
+    onSelectAll: () -> Unit,
+    onShareSelected: () -> Unit,
+    onRequestDeleteSelected: () -> Unit,
+    onOpenProperties: () -> Unit,
+    onOpenContainingFolder: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(contentPadding),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        val mainActions = listOf(
+            ToolbarAction(
+                icon = Icons.Default.SelectAll,
+                contentDescription = stringResource(R.string.select_all),
+                onClick = onSelectAll
+            ),
+            ToolbarAction(
+                icon = Icons.Default.Share,
+                contentDescription = stringResource(R.string.share),
+                onClick = onShareSelected
+            ),
+            ToolbarAction(
+                icon = Icons.Default.Delete,
+                contentDescription = stringResource(R.string.delete),
+                tint = MaterialTheme.colorScheme.error,
+                onClick = onRequestDeleteSelected
+            )
+        )
+
+        dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+            isVisible = isVisible,
+            actions = mainActions,
+            moreContent = {
+                var showMoreMenu by remember { mutableStateOf(false) }
+                Box {
+                    Surface(
+                        onClick = { showMoreMenu = true },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.action_more_options),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        shape = MaterialTheme.shapes.extraLarge,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        expanded = showMoreMenu,
+                        onDismissRequest = { showMoreMenu = false }
+                    ) {
+                        val menuActions = remember(onOpenProperties, selectedFiles) {
+                            mutableListOf<@Composable () -> Unit>().apply {
+                                if (selectedFiles.size == 1) {
+                                    add {
+                                        androidx.compose.material3.DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.open_containing_folder)) },
+                                            leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                                            onClick = {
+                                                showMoreMenu = false
+                                                containingFolderPath(selectedFiles.first())?.let(onOpenContainingFolder)
+                                            }
+                                        )
+                                    }
+                                }
+                                add {
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.properties_title)) },
+                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                        onClick = {
+                                            showMoreMenu = false
+                                            onOpenProperties()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        menuActions.forEachIndexed { index, action ->
+                            val shape = when {
+                                menuActions.size == 1 -> RoundedCornerShape(24.dp)
+                                index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                                else -> RoundedCornerShape(4.dp)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .clip(shape)
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            ) {
+                                action()
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+}
+
+private fun shouldGroupRecentFiles(
+    showSearchBar: Boolean,
+    presentation: BrowserPresentationPreferences
+): Boolean = !showSearchBar &&
+    presentation.sortOption in setOf(FileSortOption.DATE_NEWEST, FileSortOption.DATE_OLDEST)

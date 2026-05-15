@@ -2,7 +2,7 @@
 
 > **Project:** Arcile
 > **Version:** 0.6.8
-> **Last Updated:** 2026-05-14
+> **Last Updated:** 2026-05-16
 
 ---
 
@@ -38,25 +38,11 @@
   - **Fix:** Update Compose BOM and Material 3 to a current compatible set after checking release notes. Add `compose-material3-adaptive` for wide/foldable layouts. Audit experimental imports after upgrade. Run visual regression and instrumentation tests on core screens.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0005 - Recent Files sort action** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt
-  - **Problem:** The sort action is visible but no-op (`onClick = { /* show sort dialog if needed */ }`).
-  - **Impact:** This is a premium-feel breaker: users tap a polished control and nothing happens.
-  - **Fix:** Implement a Recent Files sort/filter sheet or remove the sort icon until it works. Include sort by date, name, size, type, and group mode. Persist recent sort preference.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **UI-0006 - Trash sort action** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt
   - **Problem:** The Trash sort action is visible but no-op (`onClick = { /* show sort dialog */ }`).
   - **Impact:** Trash recovery workflows become slower as trash grows, and a dead control makes the app feel unfinished.
   - **Fix:** Add Trash sort by deletion date, original path, name, size, and type. Add filter by recoverability/destination if that metadata is available. Hide the action until implemented.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0007 - Settings thumbnail strings** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt
-  - **Problem:** The thumbnails setting section uses hardcoded production strings: `"Appearance"`, `"Show Thumbnails"`, and `"Display image and video thumbnails instead of file icons."`.
-  - **Impact:** Localization breaks and the settings screen looks inconsistent with the rest of the app.
-  - **Fix:** Move all strings to `strings.xml`. Add the affected file to the hardcoded-string verification target if missing. Consider merging this Appearance section with the existing Appearance section to avoid duplicate headings.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 - [ ] **UI-0008 - Archive viewer strings** `[High]`
@@ -113,13 +99,6 @@
   - **Problem:** File metadata and date are forced into one horizontal row with a weighted spacer; grid card text uses fixed one-line labels. Extremely long filenames, large font scales, RTL, and narrow split-screen will truncate important data aggressively.
   - **Impact:** Users browsing serious file collections lose context and may misidentify files.
   - **Fix:** At compact/large-font thresholds, move date under size/count instead of right-aligning in the same row. Allow two filename lines in grid when cell width permits. Add `LocalConfiguration.fontScale` aware row variants or use `TextMeasurer`/constraints. Add screenshot tests at fontScale 1.5 and 2.0.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0016 - Search UX** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/SearchTopBar.kt
-  - **Problem:** Search actions use hardcoded content descriptions `"Clear"` and `"Filters"`, and the default placeholder is hardcoded `"Search files..."`.
-  - **Impact:** Search is one of the highest-frequency file-manager workflows; small accessibility/localization inconsistencies are highly visible.
-  - **Fix:** Require callers to provide localized labels or use string resources inside the component. Add `searchSemantics` with clear query and open filters actions. Consider active filter count in the filter button state.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 - [ ] **UI-0017 - Motion System** `[High]`
@@ -248,13 +227,6 @@
   - **Fix:** Run Compose compiler stability reports. Convert hot UI state collections to `kotlinx.collections.immutable` persistent collections or stable UI wrappers. Split large state into smaller state holders for browser files, selection, operation, search, and overlays.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0035 - RTL / Layout Direction** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt
-  - **Problem:** Volume root content padding explicitly uses `LayoutDirection.Ltr` for left/right calculations.
-  - **Impact:** RTL layouts may receive incorrect start/end padding and feel less platform-native.
-  - **Fix:** Use `LocalLayoutDirection.current` or start/end values directly. Prefer inset-aware layout APIs rather than manual LTR calculations. Add RTL screenshot test for browser root and file list.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **UI-0036 - File List Performance** `[Medium]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt
   - **Problem:** Formatted dates are computed during item composition, and list/grid item models are raw domain models rather than preformatted stable UI rows.
@@ -327,13 +299,6 @@
   - **Fix:** Introduce a `StorageBackend` abstraction with raw-file, MediaStore, and SAF implementations. Model capabilities: readable, writable, trashable, renameable, supports atomic rename, supports random access. Add persisted URI grant management and tree permission recovery flows. Keep `MANAGE_EXTERNAL_STORAGE` as one backend, not the architecture. Recommended Refactor: Move path-centric operations behind a `FileHandle`/`StorageNode` domain API instead of passing raw `String` paths everywhere. Safer Alternative: For restricted directories, route users through SAF tree grants and expose read/write operations through `ContentResolver`.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **STORAGE-0006 - MediaStore / Scoped Storage** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/MediaStoreClient.kt`
-  - **Problem:** Media queries depend heavily on `MediaStore.Files.FileColumns.DATA` and `LIKE` path filtering.
-  - **Impact:** Search/category/recent results can miss files, include stale paths, or behave differently across Android versions/OEMs.
-  - **Fix:** Prefer MediaStore ids, volume names, `RELATIVE_PATH`, `DISPLAY_NAME`, `MIME_TYPE`, and provider URIs. Validate existence/capability lazily at action time. Add stale row cleanup/rescan strategy. Recommended Refactor: Represent MediaStore results as `MediaStoreNodeRef` and only convert to raw file nodes when capability exists. Safer Alternative: Keep DATA fallback behind an Android-version-specific compatibility adapter.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 ### Architecture Tasks
 
 - [ ] **ARCH-0002 - Architecture / Storage Abstraction** `[Critical]`
@@ -387,13 +352,6 @@
   - **Problem:** Trash move/restore duplicates the same full SHA-256 verification and directory `walkTopDown().toList()` behavior as transfer operations.
   - **Impact:** Moving large folders to trash or restoring them can be slow, battery-heavy, and fragile.
   - **Fix:** Reuse `FileTransferEngine` or extract a shared `StorageTransferEngine`. Stream verification. Add operation progress for trash/restore/delete. Recommended Refactor: Make trash a specialized move destination implemented over the same transfer primitives. Safer Alternative: For same-volume trash, require atomic rename; for cross-volume fallback, use configurable verification and journaled cleanup.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **PERF-0013 - Storage Analytics / Query Efficiency** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/MediaStoreClient.kt`
-  - **Problem:** Category storage calculation performs separate MediaStore scans per category and then validates matches again in Kotlin.
-  - **Impact:** Storage dashboard can be slow or stale on large media libraries.
-  - **Fix:** Prefer single query with projection and aggregate in one cursor pass. Cache per volume with invalidation based on media generation/version where available. Add background refresh policy. Recommended Refactor: Create `StorageAnalyticsIndex` that can be backed by MediaStore snapshots and later app-owned indexing. Safer Alternative: Group categories into MIME-prefix queries first, then extension fallbacks.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ### Operations Tasks

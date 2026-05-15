@@ -28,7 +28,7 @@ class OnboardingViewModelTest {
 
         viewModel.skipToPermissions()
 
-        assertEquals(OnboardingStep.StoragePermission, viewModel.state.value.step)
+        assertEquals(OnboardingStep.SetupPermissions, viewModel.state.value.step)
         assertTrue(viewModel.state.value.skipMode)
         assertFalse(store.preferencesFlow.value.isCompleted)
     }
@@ -42,7 +42,7 @@ class OnboardingViewModelTest {
         viewModel.next()
         advanceUntilIdle()
 
-        assertEquals(OnboardingStep.StoragePermission, viewModel.state.value.step)
+        assertEquals(OnboardingStep.SetupPermissions, viewModel.state.value.step)
         assertFalse(store.preferencesFlow.value.isCompleted)
     }
 
@@ -80,5 +80,9 @@ private class FakeOnboardingPreferencesStore : OnboardingPreferencesStore {
 
     override suspend fun markNotificationPermissionHandled() {
         _preferencesFlow.value = _preferencesFlow.value.copy(notificationPermissionHandled = true)
+    }
+
+    override suspend fun resetOnboarding() {
+        _preferencesFlow.value = OnboardingPreferences()
     }
 }

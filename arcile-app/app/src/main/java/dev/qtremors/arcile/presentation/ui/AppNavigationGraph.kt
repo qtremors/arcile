@@ -41,11 +41,13 @@ import kotlinx.coroutines.launch
 import dev.qtremors.arcile.domain.BrowserPreferences
 import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.data.OnboardingPreferencesStore
 import dev.qtremors.arcile.presentation.archive.ArchiveViewerViewModel
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val browserPreferencesStore: BrowserPreferencesStore
+    private val browserPreferencesStore: BrowserPreferencesStore,
+    private val onboardingPreferencesStore: OnboardingPreferencesStore
 ) : ViewModel() {
     val browserPreferences = browserPreferencesStore.preferencesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserPreferences())
@@ -55,6 +57,10 @@ class SettingsViewModel @Inject constructor(
             val current = browserPreferences.value.globalPresentation
             browserPreferencesStore.updateGlobalPresentation(current.copy(showThumbnails = show))
         }
+    }
+
+    suspend fun resetOnboarding() {
+        onboardingPreferencesStore.resetOnboarding()
     }
 }
 
@@ -75,7 +81,8 @@ fun AppNavigationGraph(
     navController: NavHostController,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
-    onOpenFile: (String) -> Unit
+    onOpenFile: (String) -> Unit,
+    onRestartApp: () -> Unit
 ) {
     val context = LocalContext.current
     val openPath: (String) -> Unit = { path ->
@@ -378,6 +385,9 @@ fun AppNavigationGraph(
                         onRefresh = { viewModel.loadRecentFiles() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
+                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
+                        onPresentationChange = { viewModel.updatePresentation(it) },
+                        onSelectMultiple = { viewModel.selectMultiple(it) },
                         onLoadMore = { viewModel.loadMore() },
                         onClearError = { viewModel.clearError() },
                         onOpenProperties = { viewModel.openPropertiesForSelection() },
@@ -405,7 +415,9 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
-                        onNavigateToAbout = { navController.navigate(AppRoutes.About) }
+                        onNavigateToAbout = { navController.navigate(AppRoutes.About) },
+                        onRunOnboardingAgain = { viewModel.resetOnboarding() },
+                        onRestartApp = onRestartApp
                     )
                 }
                 composable<AppRoutes.StorageManagement> { backStackEntry ->

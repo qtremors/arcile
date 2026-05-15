@@ -49,6 +49,10 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var onboardingPreferencesStore: OnboardingPreferencesStore
 
+    private companion object {
+        const val FULL_FEATURE_ANDROID_SDK = Build.VERSION_CODES.R
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -61,6 +65,7 @@ class MainActivity : ComponentActivity() {
             try {
                 withTimeoutOrNull(2000L) {
                     themePreferences.themeState.first()
+                    onboardingPreferencesStore.preferencesFlow.first()
                 }
             } finally {
                 keepSplashScreen = false
@@ -70,9 +75,10 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
-            val onboardingPreferences by onboardingPreferencesStore.preferencesFlow.collectAsStateWithLifecycle(
-                initialValue = OnboardingPreferences()
-            )
+            val onboardingPreferences by produceState<OnboardingPreferences?>(initialValue = null) {
+                onboardingPreferencesStore.preferencesFlow.collect { value = it }
+            }
+            var initialOnboardingPreferences by remember { mutableStateOf<OnboardingPreferences?>(null) }
             val onboardingViewModel: OnboardingViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
             val onboardingState by onboardingViewModel.state.collectAsStateWithLifecycle()
             val coroutineScope = rememberCoroutineScope()
@@ -100,20 +106,39 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    LaunchedEffect(onboardingPreferences.isCompleted, hasPermission, onboardingState.step) {
-                        if (!onboardingPreferences.isCompleted &&
+                    val preferences = onboardingPreferences
+                    LaunchedEffect(preferences) {
+                        if (initialOnboardingPreferences == null && preferences != null) {
+                            initialOnboardingPreferences = preferences
+                        }
+                    }
+                    val suppressManualResetUntilRestart = initialOnboardingPreferences?.isCompleted == true &&
+                        preferences != null &&
+                        preferences.wasManuallyReset &&
+                        !preferences.isCompleted
+                    val isOnboardingCompletedForThisRun = preferences?.isCompleted == true || suppressManualResetUntilRestart
+
+                    LaunchedEffect(preferences?.isCompleted, hasPermission, onboardingState.step) {
+                        if (preferences != null &&
+                            !preferences.isCompleted &&
+                            !preferences.wasManuallyReset &&
                             hasPermission &&
-                            onboardingState.step == OnboardingStep.Welcome
+                            onboardingState.step == OnboardingStep.WelcomeAndFeatures
                         ) {
                             onboardingViewModel.markExistingUserCompleted()
                         }
                     }
 
-                    val shouldAutoCompleteExistingUser = !onboardingPreferences.isCompleted &&
+                    val shouldAutoCompleteExistingUser = preferences != null &&
+                        !preferences.isCompleted &&
+                        !preferences.wasManuallyReset &&
                         hasPermission &&
-                        onboardingState.step == OnboardingStep.Welcome
+                        onboardingState.step == OnboardingStep.WelcomeAndFeatures
 
-                    if (!onboardingPreferences.isCompleted && !shouldAutoCompleteExistingUser) {
+                    if (preferences == null) {
+                        // Keep the themed surface blank until DataStore emits. This prevents a
+                        // completed user from seeing the first onboarding page for one frame.
+                    } else if (!isOnboardingCompletedForThisRun && !shouldAutoCompleteExistingUser) {
                         OnboardingScreen(
                             state = onboardingState,
                             currentThemeState = themeState,
@@ -125,6 +150,7 @@ class MainActivity : ComponentActivity() {
                             onNext = { onboardingViewModel.next() },
                             onBack = { onboardingViewModel.back() },
                             onSkip = { onboardingViewModel.skipToPermissions() },
+                            onStepSelected = { step -> onboardingViewModel.setStep(step) },
                             onOpenStoragePermissionSettings = { requestStoragePermission() },
                             onRequestNotificationPermission = {
                                 if (notificationPermissionRequired) {
@@ -132,7 +158,8 @@ class MainActivity : ComponentActivity() {
                                 } else {
                                     onboardingViewModel.handleNotificationPermissionResult()
                                 }
-                            }
+                            },
+                            showOlderAndroidWarning = Build.VERSION.SDK_INT < FULL_FEATURE_ANDROID_SDK
                         )
                     } else if (hasPermission) {
                         ArcileAppShell(
@@ -142,7 +169,8 @@ class MainActivity : ComponentActivity() {
                                     themePreferences.saveThemeState(newState)
                                 }
                             },
-                            onOpenFile = { path -> openFile(path) }
+                            onOpenFile = { path -> openFile(path) },
+                            onRestartApp = { restartApp() }
                         )
                     } else {
                         PermissionRequestScreen(
@@ -189,6 +217,18 @@ class MainActivity : ComponentActivity() {
             val fallbackIntent = android.content.Intent()
             fallbackIntent.action = android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
             startActivity(fallbackIntent)
+        }
+    }
+
+    private fun restartApp() {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        if (launchIntent != null) {
+            startActivity(launchIntent)
+            finishAffinity()
+        } else {
+            recreate()
         }
     }
 }

@@ -1,10 +1,26 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.8
-> **Last Updated:** 2026-05-14
+> **Version:** 0.6.9
+> **Last Updated:** 2026-05-16
 
 ---
+
+## [0.6.9] - 2026-05-16
+
+### UI & UX
+- **Onboarding Relaunch & Polish:** Fixed the completed-user onboarding flash on app start, added a Settings action to rerun onboarding after restart, combined setup permissions into one page, simplified onboarding accent selection with a picker sheet trigger, and smoothed the onboarding controls and page transitions.
+- **Settings & Search Polish:** Moved thumbnail settings and search bar labels/placeholders to resources, merged the thumbnail toggle into the existing Appearance section, and fixed browser root padding to respect RTL layout direction.
+- **Recent Files Browser Controls:** Reused the Browser search filters and sort/view sheet on Recent Files, adding active filter chips plus list/grid, zoom, grid-size, thumbnail, and date/name/size ordering controls without changing storage queries.
+
+### Storage
+- **MediaStore Scoped-Storage Hardening:** Recent files, category browsing, and search now read modern MediaStore metadata such as display names, relative paths, MIME types, and volume names while preserving raw path fallback behavior for existing file workflows.
+- **Faster Storage Analytics:** Category storage totals now aggregate from a single MediaStore cursor pass instead of repeating one query per category, improving dashboard efficiency on large media libraries.
+
+### Testing
+- **Onboarding Regression Coverage:** Updated onboarding repository, ViewModel, and Compose tests for reset behavior, combined permission setup, storage gating, accent-picker entry, and the refined navigation controls.
+- **MediaStore Regression Coverage:** Added and updated MediaStore tests for modern rows without raw filesystem paths, scoped volume filtering, category aggregation, and cache invalidation.
+- **Recent Files Filter/View Coverage:** Added ViewModel and screen tests for Browser-style Recent Files filters, presentation sorting, search-mode filtering, select-all behavior, and load-more preservation.
 
 ## [0.6.8] - 2026-05-14
 

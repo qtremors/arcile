@@ -13,16 +13,15 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 enum class OnboardingStep {
-    Welcome,
-    Features,
+    WelcomeAndFeatures,
+    Privacy,
     Theme,
-    StoragePermission,
-    NotificationPermission,
+    SetupPermissions,
     Done
 }
 
 data class OnboardingUiState(
-    val step: OnboardingStep = OnboardingStep.Welcome,
+    val step: OnboardingStep = OnboardingStep.WelcomeAndFeatures,
     val hasStoragePermission: Boolean = false,
     val hasNotificationPermission: Boolean = false,
     val notificationPermissionRequired: Boolean = false,
@@ -31,7 +30,7 @@ data class OnboardingUiState(
     val skipMode: Boolean = false
 ) {
     val canContinue: Boolean
-        get() = step != OnboardingStep.StoragePermission || hasStoragePermission
+        get() = step != OnboardingStep.SetupPermissions || hasStoragePermission
 }
 
 @HiltViewModel
@@ -61,48 +60,43 @@ class OnboardingViewModel @Inject constructor(
 
     fun next() {
         when (_state.value.step) {
-            OnboardingStep.Welcome -> moveTo(OnboardingStep.Features)
-            OnboardingStep.Features -> moveTo(OnboardingStep.Theme)
-            OnboardingStep.Theme -> moveTo(OnboardingStep.StoragePermission)
-            OnboardingStep.StoragePermission -> {
+            OnboardingStep.WelcomeAndFeatures -> setStep(OnboardingStep.Privacy)
+            OnboardingStep.Privacy -> setStep(OnboardingStep.Theme)
+            OnboardingStep.Theme -> setStep(OnboardingStep.SetupPermissions)
+            OnboardingStep.SetupPermissions -> {
                 if (_state.value.hasStoragePermission) {
-                    moveTo(OnboardingStep.NotificationPermission)
+                    completeOnboarding(markNotificationHandled = true)
                 }
             }
-            OnboardingStep.NotificationPermission -> completeOnboarding(markNotificationHandled = true)
             OnboardingStep.Done -> completeOnboarding(markNotificationHandled = false)
         }
     }
 
     fun back() {
         val previous = when (_state.value.step) {
-            OnboardingStep.Welcome -> OnboardingStep.Welcome
-            OnboardingStep.Features -> OnboardingStep.Welcome
-            OnboardingStep.Theme -> OnboardingStep.Features
-            OnboardingStep.StoragePermission -> if (_state.value.skipMode) OnboardingStep.Welcome else OnboardingStep.Theme
-            OnboardingStep.NotificationPermission -> OnboardingStep.StoragePermission
-            OnboardingStep.Done -> OnboardingStep.NotificationPermission
+            OnboardingStep.WelcomeAndFeatures -> OnboardingStep.WelcomeAndFeatures
+            OnboardingStep.Privacy -> OnboardingStep.WelcomeAndFeatures
+            OnboardingStep.Theme -> OnboardingStep.Privacy
+            OnboardingStep.SetupPermissions -> if (_state.value.skipMode) OnboardingStep.WelcomeAndFeatures else OnboardingStep.Theme
+            OnboardingStep.Done -> OnboardingStep.SetupPermissions
         }
-        moveTo(previous)
+        setStep(previous)
     }
 
     fun skipToPermissions() {
-        _state.update { it.copy(step = OnboardingStep.StoragePermission, skipMode = true) }
+        _state.update { it.copy(step = OnboardingStep.SetupPermissions, skipMode = true) }
     }
 
     fun handleNotificationPermissionResult() {
-        completeOnboarding(markNotificationHandled = true)
+        _state.update { it.copy(notificationPermissionHandled = true) }
     }
 
     fun markExistingUserCompleted() {
         completeOnboarding(markNotificationHandled = _state.value.notificationPermissionHandled)
     }
 
-    private fun moveTo(step: OnboardingStep) {
+    fun setStep(step: OnboardingStep) {
         _state.update { it.copy(step = step) }
-        if (step == OnboardingStep.NotificationPermission && !_state.value.notificationPermissionRequired) {
-            completeOnboarding(markNotificationHandled = true)
-        }
     }
 
     private fun completeOnboarding(markNotificationHandled: Boolean) {

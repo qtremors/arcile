@@ -39,10 +39,13 @@ fun SearchTopBar(
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit,
     onFilterClick: (() -> Unit)? = null,
-    placeholder: String = "Search files..."
+    placeholder: String? = null
 
 ) {
     val focusRequester = remember { FocusRequester() }
+    val placeholderText = placeholder ?: stringResource(R.string.search_files_placeholder)
+    val clearLabel = stringResource(R.string.action_clear)
+    val filtersLabel = stringResource(R.string.action_filters)
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -63,7 +66,7 @@ fun SearchTopBar(
                 onValueChange = onQueryChange,
                 placeholder = {
                     Text(
-                        placeholder,
+                        placeholderText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 },
@@ -83,19 +86,19 @@ fun SearchTopBar(
             )
         },
         actions = {
-            val searchActions = remember(query, onFilterClick) {
+            val searchActions = remember(query, onFilterClick, clearLabel, filtersLabel) {
                 mutableListOf<ToolbarAction>().apply {
                     if (query.isNotEmpty()) {
                         add(ToolbarAction(
                             icon = Icons.Default.Clear,
-                            contentDescription = "Clear",
+                            contentDescription = clearLabel,
                             onClick = { onQueryChange("") }
                         ))
                     }
                     if (onFilterClick != null) {
                         add(ToolbarAction(
                             icon = Icons.Default.FilterList,
-                            contentDescription = "Filters",
+                            contentDescription = filtersLabel,
                             onClick = onFilterClick
                         ))
                     }

@@ -800,6 +800,10 @@ private class FakeBrowserPreferencesStore(
         _preferencesFlow.value = _preferencesFlow.value.copy(globalPresentation = presentation)
     }
 
+    override suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences) {
+        _preferencesFlow.value = _preferencesFlow.value.copy(recentPresentation = presentation)
+    }
+
     override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
         lastUpdatedPath = path
     }
