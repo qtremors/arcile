@@ -5,172 +5,180 @@
 <h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>
 
 <p align="center">
-  An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.<br><br>
+  A private, source-available Android file manager built with Kotlin, Jetpack Compose, and Material 3 Expressive.
 </p>
 
 <p align="center">
-<img src="https://img.shields.io/badge/Version-0.6.5-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.7.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
-  <img src="https://img.shields.io/badge/Jetpack_Compose-Material3-4285F4?logo=jetpackcompose" alt="Compose">
+  <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
 </p>
 
 > [!IMPORTANT]
-> **Beta Status** 🧪 Arcile is currently in **Beta**. Development has slowed down as i only get time on sundays now.
+> **Beta Status** Arcile is currently in **Beta**. Development is active, but release cadence depends on available weekend time.
 
 > [!NOTE]
-> **Personal Project** 🎯 Built to create a fast, clean, and modern file manager for Android — prioritizing smooth UX, Material You theming, and a native Kotlin-first approach.
+> **Privacy Model** Arcile does not request `android.permission.INTERNET`. File management, indexing, archive handling, thumbnails, and preferences are designed to stay local to the device.
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---------|-------------|
-| 📂 **Multi-Volume Support** | Seamlessly manage Internal Storage, SD Cards, and USB OTG devices |
-| 🗂️ **Breadcrumb Navigation** | Visual path breadcrumbs with auto-scroll and tap-to-navigate |
-| ✅ **Batch Operations** | Multi-select files for copy, cut, move, or permanent delete |
-| 🎛️ **Unified Browser Controls** | Adjust sort order, list/grid mode, list zoom, and adaptive grid sizing from one expressive browser sheet |
-| 📊 **Instant Folder Metadata** | Browser folder rows show a subtitle immediately, then upgrade to best-effort file counts and total size in the background without flashing loading text |
-| ℹ️ **Selection Properties** | Open a dedicated Properties dialog from the browser 3-dot selection menu for single or multi-select file and folder metadata |
-| 🛡️ **Conflict Resolution** | Intelligent handling of file conflicts (skip, overwrite, rename) during copy/move operations |
-| 🏠 **Home Dashboard** | Volume-scoped storage summary, category shortcuts, and recent files |
-| 🎨 **Material You Theming** | Dynamic wallpaper colors, custom accent colors, light/dark/OLED modes |
-| 🌈 **Dynamic Colors** | Powered by **MaterialKolor** for harmonious, accessible custom palettes |
-| 🌍 **Localization Base** | 130+ string resources are already extracted, with a smaller set of remaining hardcoded strings. |
-| 🗑️ **Trash Subsystem** | Safely remove files with metadata-aware restoration |
-| ⚙️ **Settings & About** | Theme customization and comprehensive app information |
+| **Multi-Volume File Browser** | Browse and manage internal storage, SD cards, and USB OTG volumes with scoped storage labels and user-controlled volume classification. |
+| **Home Dashboard** | Volume-aware storage summaries, category shortcuts, quick access entries, and a Material 3 Expressive recent-files carousel. |
+| **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
+| **Recent Files** | Browse recents with scoped volume support, date grouping, search, filters, list/grid controls, thumbnails, selection, properties, and containing-folder jumps. |
+| **Archive Workflows** | Create, browse, and extract ZIP and 7z archives, including password-protected ZIP/7z flows and safe extraction path checks. |
+| **Foreground File Operations** | Copy, move, archive, extract, and fake-file generation run through foreground operation plumbing with progress events. |
+| **Conflict Resolution** | Smart paste detects top-level name collisions and supports replace, keep both, skip, and batch resolution choices. |
+| **Trash Subsystem** | Permanent volumes use `.arcile/.trash` plus metadata sidecars for restore; temporary OTG-style volumes route deletions permanently. |
+| **Selection Properties** | Single and multi-select metadata includes paths, counts, sizes, hidden-item counts, MIME/extension details, and folder aggregate access status. |
+| **Search & Filters** | MediaStore-backed search and category browsing support type, size, and date filters across relevant scopes. |
+| **Material You Theming** | Dynamic wallpaper colors, MaterialKolor custom accents, light/dark/OLED modes, expressive components, and thumbnail display controls. |
+| **First-Run Onboarding** | Guided setup for features, theme/accent choice, All Files Access, and Android 13+ notification permission context. |
+| **Safe Open/Share** | Outbound file access is centralized through allowlisted staging and `FileProvider` handoff paths. |
+| **Offline & Ad-Free** | No internet permission, no ads, no telemetry, and no tracker dependency. |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
 | Tool | Version | Install |
 |------|---------|---------|
-| Android Studio | Latest (Ladybug+) | [developer.android.com](https://developer.android.com/studio) |
-| JDK | 11+ | Bundled with Android Studio |
-| Android SDK | API 36 | Via SDK Manager |
+| Android Studio | Current stable/canary capable of AGP 9.1.1 | [developer.android.com](https://developer.android.com/studio) |
+| JDK | 11+ | Bundled with Android Studio is fine |
+| Android SDK | API 37 installed, target SDK 36 | Via SDK Manager |
 
 ### Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/qtremors/arcile.git
-
-# Open in Android Studio
-# File → Open → select the arcile-app directory
-```
-
-Or build from the command line (run from inside `arcile-app/`):
-
-```bash
+cd arcile/arcile-app
 ./gradlew assembleDebug
 ```
 
 Install on a connected device:
 
 ```bash
-  adb install app/build/outputs/apk/debug/Arcile-0.6.5-debug.apk
+adb install app/build/outputs/apk/debug/Arcile-0.7.0-debug.apk
 ```
+
+Open the project in Android Studio by selecting the `arcile-app/` directory.
+
+> **Runtime permission:** Arcile requires Android 11+ **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) for full filesystem management. Android 13+ notification permission is requested during onboarding for foreground operation updates.
 
 ### Release Signing
 
-Release builds are signed using credentials stored in `local.properties` (not committed). To configure signing:
+Release builds read signing credentials from `signing.properties` first, then `local.properties` as a fallback. Neither file should be committed.
 
-1. Generate a keystore (or use an existing one):
-   ```bash
-   keytool -genkeypair -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-key-alias
-   ```
-2. Add the following to `arcile-app/local.properties`:
-   ```properties
-   signing.storeFile=/absolute/path/to/my-release-key.jks
-   signing.storePassword=your_store_password
-   signing.keyAlias=your_key_alias
-   signing.keyPassword=your_key_password
-   ```
-3. Build the release APK:
-   ```bash
-   ./gradlew assembleRelease
-   ```
+```properties
+signing.storeFile=/absolute/path/to/my-release-key.jks
+signing.storePassword=your_store_password
+signing.keyAlias=your_key_alias
+signing.keyPassword=your_key_password
+```
 
-> **Note:** The app requires **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) permission on Android 11+ for full file-system access.
+Build the release APK:
+
+```bash
+./gradlew assembleRelease
+```
+
+Release builds enable R8 minification and resource shrinking.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
 | **Language** | Kotlin 2.2.10 |
-| **UI Framework** | Jetpack Compose with Material 3 |
-| **Architecture** | MVVM (Feature-Scoped ViewModels + StateFlow) with Hilt DI |
-| **Navigation** | Navigation Compose |
-| **Async** | Kotlin Coroutines |
-| **Build System** | Gradle (Kotlin DSL) with Version Catalogs |
-| **Min SDK** | 30 (Android 11.0) |
-| **Target SDK** | 36 |
+| **Android Gradle Plugin** | 9.1.1 |
+| **UI** | Jetpack Compose BOM 2026.05.00, Material 3 1.5.0-alpha19, Material 3 Adaptive |
+| **Architecture** | Single-module MVVM with package boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
+| **Navigation** | Navigation Compose with `kotlinx.serialization` typed routes |
+| **Storage** | `java.io.File`, `StatFs`, MediaStore, FileProvider, foreground service operations |
+| **Persistence** | DataStore Preferences for theme, browser presentation, storage classification, quick access, and onboarding |
+| **Media** | Coil with custom APK icon, audio album art, PDF, and video thumbnail fetchers |
+| **Archives** | Apache Commons Compress, Tukaani XZ, and Zip4j |
+| **Min / Target / Compile SDK** | 30 / 36 / 37 |
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
-```
+```text
 arcile/
-├── arcile-app/                          # Android project root
-│   ├── app/src/main/
-│   │   ├── java/dev/qtremors/arcile/
-│   │   │   ├── ArcileApp.kt             # Application class (Coil image loader, Hilt app)
-│   │   │   ├── MainActivity.kt          # Entry point, permissions, nav shell
-│   │   │   ├── data/                    # Repository Implementations
-│   │   │   ├── di/                      # Dependency Injection (Hilt)
-│   │   │   ├── domain/                  # Core Models & Repository Interfaces
-│   │   │   ├── image/                   # Coil custom fetchers
-│   │   │   ├── navigation/              # Route string constants
-│   │   │   ├── presentation/            # Feature-Scoped ViewModels & UI
-│   │   │   │   ├── browser/
-│   │   │   │   ├── home/
-│   │   │   │   ├── recentfiles/
-│   │   │   │   ├── settings/
-│   │   │   │   ├── trash/
-│   │   │   │   └── ui/                  # Compose UI Screens & Components
-│   │   │   ├── ui/theme/                # Theme, colors, typography, shapes
-│   │   │   └── utils/                   # Formatting & color utilities
-│   │   └── res/                         # Android resources
-│   ├── build.gradle.kts
-│   └── gradle/libs.versions.toml        # Version catalog
-├── DEVELOPMENT.md                       # Developer documentation
-├── CHANGELOG.md                         # Version history
-├── TASKS.md                             # Audit findings and planned work
+├── arcile-app/
+│   ├── app/
+│   │   ├── src/main/
+│   │   │   ├── AndroidManifest.xml
+│   │   │   ├── java/dev/qtremors/arcile/
+│   │   │   │   ├── ArcileApp.kt                 # Hilt app + Coil image loader
+│   │   │   │   ├── MainActivity.kt              # Splash, permissions, onboarding, app shell
+│   │   │   │   ├── data/                        # Repositories, stores, managers, data sources
+│   │   │   │   │   ├── manager/                 # Trash and archive managers
+│   │   │   │   │   ├── provider/                # Storage volume provider
+│   │   │   │   │   └── source/                  # FileSystem, MediaStore, transfer/conflict engines
+│   │   │   │   ├── di/                          # Hilt providers
+│   │   │   │   ├── domain/                      # Models, repository contracts, use cases
+│   │   │   │   ├── image/                       # Coil fetchers
+│   │   │   │   ├── navigation/                  # Serializable route definitions
+│   │   │   │   ├── presentation/                # ViewModels, delegates, operation service, UI
+│   │   │   │   ├── ui/theme/                    # Theme state, MaterialKolor integration, tokens
+│   │   │   │   └── utils/                       # Logging and formatting helpers
+│   │   │   ├── test/                            # JVM + Robolectric tests
+│   │   │   └── androidTest/                     # Device/emulator tests
+│   │   └── build.gradle.kts
+│   └── gradle/libs.versions.toml
+├── docs/                                        # GitHub Pages landing site
+├── CHANGELOG.md
+├── DEVELOPMENT.md
 ├── LICENSE.md
+├── PRIVACY.md
+├── TASKS.md
 └── README.md
 ```
 
 ---
 
-## 🧪 Testing
+## Testing
 
-Run these commands from inside the `arcile-app/` directory:
+Run from `arcile-app/`:
 
 ```bash
-# Unit tests
+# JVM unit + Robolectric tests
 ./gradlew :app:testDebugUnitTest
 
-# Instrumented tests (requires device/emulator)
+# Production string guard for audited composables
+./gradlew :app:checkProductionStrings
+
+# Instrumented tests, requires device/emulator
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-> **Note:** The project includes an expanded layered JVM test suite covering domain logic, data-layer business rules, cached folder-stat behavior, ViewModel state machines, DataStore-backed browser preferences, and Robolectric-backed Compose browser/component tests.
+Current test surface:
+
+| Area | Coverage |
+|------|----------|
+| **JVM/Robolectric** | 53 Kotlin test files across data, domain, image, navigation, presentation, UI, operations, and utilities |
+| **Instrumented** | 3 Android test files for Home, Quick Access, and shared empty-state rendering |
+| **Approximate test declarations** | 229 `@Test`/test-style function hits |
+| **Key helpers** | `FakeFileRepository`, `FakeBulkFileOperationCoordinator`, `FakeBrowserPreferencesStore`, `MainDispatcherRule`, `ArcileTestTheme`, `TestFixtures` |
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [DEVELOPMENT.md](DEVELOPMENT.md) | Developer guide, architecture, and conventions |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Architecture, storage model, testing, conventions, and maintenance notes |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
 | [TASKS.md](TASKS.md) | Audit findings, planned features, and known issues |
 | [PRIVACY.md](PRIVACY.md) | Privacy policy |
@@ -178,9 +186,9 @@ Run these commands from inside the `arcile-app/` directory:
 
 ---
 
-## 📄 License
+## License
 
-**Tremors Source License (TSL)** - Source-available license allowing viewing, forking, and derivative works with **mandatory attribution**. Commercial use requires written permission.
+**Tremors Source License (TSL)** - source-available license allowing viewing, forking, and derivative works with **mandatory attribution**. Commercial use requires written permission.
 
 Web Version: [github.com/qtremors/license](https://github.com/qtremors/license)
 
@@ -189,6 +197,5 @@ See [LICENSE.md](LICENSE.md) for full terms.
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://github.com/qtremors">Tremors</a>
+  Made by <a href="https://github.com/qtremors">Tremors</a>
 </p>
-

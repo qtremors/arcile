@@ -55,6 +55,9 @@
 -keep class dev.qtremors.arcile.image.** { *; }
 -keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }
 
+# Commons Compress exposes optional Zstandard support that Arcile does not ship.
+-dontwarn com.github.luben.zstd.ZstdInputStream
+
 # Keep all @Serializable data classes that are persisted to disk or passed via Intent extras
 -keep class dev.qtremors.arcile.** implements kotlinx.serialization.KSerializer { *; }
 -keep @kotlinx.serialization.Serializable class dev.qtremors.arcile.** { *; }

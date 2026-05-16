@@ -520,19 +520,13 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
-                    } else {
-                        items(
-                            items = displayedRecentFiles,
-                            key = { it.absolutePath },
-                            contentType = { if (it.isDirectory) "directory" else "file" }
-                        ) { file ->
-
-                            FileItemRow(
-                                file = file,
-                                formattedDate = dateFormatter.format(Date(file.lastModified)),
-                                isSelected = false,
-                                onClick = { onOpenFile(file.absolutePath) },
-                                onLongClick = {}
+                    } else if (displayedRecentFiles.isNotEmpty()) {
+                        item {
+                            dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
+                                files = displayedRecentFiles,
+                                onOpenFile = onOpenFile,
+                                onNavigateToPath = onNavigateToPath,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

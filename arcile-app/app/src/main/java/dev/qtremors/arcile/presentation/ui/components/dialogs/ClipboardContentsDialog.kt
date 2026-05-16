@@ -33,7 +33,7 @@ fun ClipboardContentsDialog(
     onRemoveItem: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    BasicAlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.padding(16.dp),
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)

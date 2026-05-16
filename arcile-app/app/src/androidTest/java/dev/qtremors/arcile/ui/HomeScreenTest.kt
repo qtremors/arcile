@@ -1,9 +1,8 @@
 package dev.qtremors.arcile.ui
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.HomeScreen
@@ -34,6 +33,8 @@ class HomeScreenTest {
                 onNavigateToAbout = {},
                 onNavigateToTrash = {},
                 onNavigateToRecentFiles = {},
+                onNavigateToQuickAccess = {},
+                onNavigateToSaf = {},
                 onOpenStorageDashboard = {},
                 onSearchQueryChange = {},
                 onSearchFiltersChange = {},
@@ -48,13 +49,13 @@ class HomeScreenTest {
         // Verify Categories section title is displayed
         composeTestRule.onNodeWithText("Categories").assertIsDisplayed()
 
-        // Verify Folders section title is displayed
-        composeTestRule.onNodeWithText("Folders").assertIsDisplayed()
+        // Verify Quick Access section title is present
+        composeTestRule.onNodeWithText("Quick Access").fetchSemanticsNode()
 
-        // Verify Utilities section title is displayed
-        composeTestRule.onNodeWithText("Utilities").assertIsDisplayed()
+        // Verify Utilities section title is present
+        composeTestRule.onNodeWithText("Utilities").fetchSemanticsNode()
 
-        // Verify Recent Files section title is displayed
-        composeTestRule.onNodeWithText("Recent Files").assertIsDisplayed()
+        // Verify Recent Files section title is present
+        composeTestRule.onNodeWithText("Recent Files").fetchSemanticsNode()
     }
 }

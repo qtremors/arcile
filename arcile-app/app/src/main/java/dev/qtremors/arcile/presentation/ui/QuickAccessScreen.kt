@@ -22,12 +22,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderSpecial
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
@@ -358,7 +358,7 @@ fun QuickAccessListItem(
                         Icon(
                             imageVector = when (item.type) {
                                 QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
-                                QuickAccessType.EXTERNAL_HANDOFF -> Icons.Default.OpenInNew
+                                QuickAccessType.EXTERNAL_HANDOFF -> Icons.AutoMirrored.Filled.OpenInNew
                                 else -> Icons.Default.Folder
                             },
                             contentDescription = null,

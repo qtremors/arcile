@@ -1,10 +1,25 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.9
-> **Last Updated:** 2026-05-16
+> **Version:** 0.7.0
+> **Last Updated:** 2026-05-17
 
 ---
+
+## [0.7.0] - 2026-05-16
+
+### UI & UX
+- **Home Recent Files Carousel:** Replaced the static Home recent-files list with a Material 3 Expressive `HorizontalMultiBrowseCarousel`, including exact 4:5 item sizing, cover-flow width/shape motion, stable rounded clipping via `Modifier.maskClip`, media thumbnail gradient overlays, and inline overflow actions for opening files or their containing folders.
+- **Settings Thumbnail Toggle Polish:** Added dividers around the Appearance controls and upgraded the thumbnail switch with checked/unchecked thumb icons plus stable test tags for the row and switch.
+
+### Build
+- **Version Bump:** Updated the app version from `0.6.9` to `0.7.0` with `versionCode` 54.
+- **Release Build Hardening:** Fixed release minification by suppressing the optional Apache Commons Compress Zstandard reference that Arcile does not ship or use directly.
+
+### Testing
+- **Coverage Reporting:** Enabled debug unit-test coverage so `:app:createCoverageReport` now produces a measurable HTML coverage report instead of an empty/no-data result.
+- **Regression Coverage:** Added focused unit tests for path-boundary validation, copy-conflict detection, file use-case dispatch, and smoothed progress state transitions.
+- **Instrumented Test Maintenance:** Updated stale Home, Quick Access, and Empty State instrumented tests for the current Compose test APIs and Home screen contract; connected debug Android tests now compile and pass on device.
 
 ## [0.6.9] - 2026-05-16
 

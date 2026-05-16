@@ -1,17 +1,105 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 0.6.0
-> **Last Updated:** 2026-04-19
+> **Version:** 0.7.0
+> **Last Updated:** 2026-05-17
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v0.7.0 Beta](#v070-beta) | 2026-05-16 | Onboarding, Archives, Recent Files & Reliability |
 | [v0.6.0 Beta](#v060-beta) | 2026-04-19 | UI/UX Overhaul, Quick Access & Unified Controls |
 | [v0.5.0 Beta](#v050-beta) | 2026-03-23 | Security, Architecture & Target API Bump |
 | [v0.4.5 Beta](#v045-beta) | 2026-03-19 | Stability, Performance & Visual Polish |
 | [v0.4.0 Beta](#v040-beta) | 2026-03-16 | SD Card & OTG Support |
 | [v0.3.0 Beta](#v030-beta) | 2026-03-11 | Trash Bin & Copy/Paste |
 | [v0.2.0 Beta](#v020-beta) | 2026-03-06 | Material 3 Redesign |
+
+---
+
+# v0.7.0 Beta
+
+**Release Date:** May 16, 2026  
+**Previous release:** v0.6.0 Beta
+
+Welcome to **Arcile v0.7.0 Beta**! This is a broad feature and polish release covering everything since v0.6.0: a proper first-run setup flow, first-class ZIP/7z archive tools, a much richer Recent Files experience, smoother file-operation feedback, better thumbnails, safer destructive operations, and a large performance/reliability pass across storage, MediaStore, navigation, and foreground work.
+
+Here is what is new and improved since v0.6.0:
+
+## 🚀 What's New & Improved
+
+### 🎛️ First-Run Setup & Settings
+- **Complete Onboarding:** New users now get a guided setup flow with a welcome screen, feature overview, theme/accent selection, required storage-access setup, and Android 13+ notification-permission guidance.
+- **Skip Without Breaking Setup:** The onboarding skip path still preserves required storage setup, so users can move quickly without ending up in a broken permission state.
+- **Rerun Onboarding:** Settings now includes an action to rerun onboarding after restart, useful for testing, demos, or changing the initial setup path.
+- **Cleaner Permission Recovery:** If all-files access is revoked after setup, Arcile shows a clearer recovery experience instead of abruptly falling back into startup prompts.
+- **Appearance Polish:** Theme and accent controls were redesigned, thumbnail settings now live cleanly in Appearance, and the thumbnail switch has clearer checked/unchecked icons.
+
+### 🗂️ Recent Files Rebuilt
+- **Home Carousel:** The Home Recent Files list is now a Material 3 Expressive carousel with 4:5 media previews, cover-flow sizing motion, rounded thumbnail clipping, gradient overlays, and inline actions for opening files or their containing folders.
+- **Browser-Grade Controls:** Recent Files now uses the Browser's search filters, sort/view sheet, list/grid mode, zoom, grid sizing, thumbnail toggle, and date/name/size ordering.
+- **Active Filter Chips:** Search and filtering state is visible directly in Recent Files, so it is easier to understand why a list is narrowed.
+- **Better Recents Ranking:** Newly copied or downloaded files with older modified dates are no longer buried, because Recent Files now accounts for both added and modified timestamps.
+- **Stability Fixes:** Duplicate MediaStore rows render safely, sticky date headers stay below the top app bar, and single-file selections can jump directly to the containing folder.
+
+### 📦 ZIP & 7z Archive Tools
+- **Create Archives:** Compress selected files into ZIP or 7z archives with naming, format selection, destination choices, and optional password entry.
+- **Extract Archives:** Extract archives in place or into a dedicated folder directly from the file browser.
+- **Browse Archives In-App:** Open ZIP and 7z files to inspect their contents before extracting them.
+- **Password-Protected Archives:** Password prompts are built into archive browsing and extraction, with retry behavior for encrypted archives and wrong-password errors.
+- **Safer Extraction:** Arcile blocks unsafe archive paths, preserves keep-both conflict behavior, and refreshes the visible folder when archive work completes.
+
+### 🎨 Browser, Selection & Navigation Polish
+- **Material 3 Expressive Selection Toolbar:** Selection actions now use a floating, segmented toolbar with shape morphing, a detached secondary FAB, and a cleaner action layout.
+- **Invert Selection & Total Size:** Selection mode now supports inverting selected files and shows the total size of the current selection in the top bar.
+- **Back Behaves Like the UI Looks:** Back now closes dialogs, sheets, search, expanded FAB menus, and file selections before leaving the current folder.
+- **Better Back Stack Memory:** Opening folders from Storage Dashboard, Recent Files, and Quick Access now preserves where you came from, so back returns to the expected screen.
+- **Swipe Navigation Cleanup:** Home-to-Browser swipes restore your last opened folder, category screens remain isolated, and duplicate gesture handlers were removed for smoother scrolling and pull-to-refresh.
+- **Category Folder Tabs:** Category views now group files by containing folder, show counts and sizes, and support horizontal swipes between tabs.
+
+### 🖼️ Thumbnails, Media & Visual Feedback
+- **Faster Video Thumbnails:** Arcile now leans on Android's MediaStore thumbnail cache, making video previews much faster and more persistent across app restarts.
+- **PDF Thumbnails:** PDFs now get Coil-backed previews using Android's `PdfRenderer`.
+- **Smarter Grid Loading:** Grid thumbnails are bounded to actual layout constraints, reducing memory pressure and avoiding unnecessary cache eviction.
+- **Thumbnail Fallbacks:** Media preview failures now fall back more gracefully instead of leaving awkward blank states.
+- **Smoother Operation Progress:** Long-running operations use a frame-clock-driven progress animation with less jitter, better completion snapping, and color-coded success/failure/cancel states.
+- **Better Snackbars:** Operation feedback now uses a more polished Material 3 Expressive snackbar host.
+
+### 🛠️ File Operations, Safety & Reliability
+- **Foreground Trash/Delete:** Trash and permanent-delete operations now run through the foreground bulk-operation pipeline, giving destructive work the same foreground handling as copy/move.
+- **Stronger Trash Integrity:** Trash and restore fallback copies verify source and destination integrity with recursive SHA-256 checks before deleting originals. This is safer, but very large trash/restore jobs may take longer while verification runs.
+- **Safer Trash Crypto:** Encrypted trash metadata now records whether it used KeyStore or PBKDF2 fallback keys, strengthens fallback derivation, and preserves migration warnings instead of silently deleting unreadable metadata.
+- **Symlink Safety:** Trash and permanent-delete paths reject symlinked entries through shared path validation.
+- **Cleaner Operation State:** Copy, move, paste, cancel, trash, and delete flows now handle completion, cancellation, startup failure, and service recreation races more reliably.
+- **Clipboard Management:** Clipboard status was redesigned as a live progress pill, paste state clears more reliably after use, and a clipboard management dialog lets users inspect or remove queued items.
+- **Properties Fixes:** Properties now works from Recent Files and reports accurate metadata for selected items.
+
+### ⚡ Performance & Storage
+- **Faster MediaStore Queries:** Recent Files and search avoid unnecessary per-row filesystem stats, push pagination into MediaStore queries, and scope queries by storage root where possible.
+- **Faster Storage Analytics:** Category totals are now aggregated more efficiently, including a single-pass MediaStore path for dashboard summaries.
+- **Bounded Folder Stats:** Huge folder scans now respect cancellation and return partial results after a safety cap instead of monopolizing background workers.
+- **Less Main-Thread Work:** Browser preferences, external file staging, volume preloading, and large open/share staging work were moved off the main thread or into lifecycle-aware scopes.
+- **Stable Lists:** Browser, Home, Recent Files, and Trash lists now use stable item keys and content types, reducing scroll jumps and recomposition churn during refreshes.
+- **Release Error Visibility:** Production file-operation, storage, and trash errors are now logged instead of disappearing silently.
+
+### 🧪 Developer & Platform Updates
+- **Random Fake File Generator:** A new browser tool can create files of any size and extension through the background operation pipeline, useful for testing transfers and storage behavior.
+- **Coverage Reporting:** Debug unit-test coverage is now enabled, so the Gradle coverage task produces a real HTML report for tracking untested areas.
+- **Test Suite Maintenance:** Added regression coverage for path safety, conflict detection, use-case dispatch, and progress-state behavior, and refreshed the instrumented Home, Quick Access, and Empty State tests for the current Compose test APIs.
+- **Release Build Fix:** Release minification now handles Apache Commons Compress' optional Zstandard reference, preventing R8 from failing on a class Arcile does not package directly.
+- **Android 17 Build Readiness:** Arcile now compiles against Android SDK 37 while keeping `targetSdk` at 36.
+- **Modern Compose Stack:** Compose, Material 3, Activity, Lifecycle, Navigation, DataStore, Coil, coroutines, Robolectric, MockK, Turbine, Hilt Compose integration, and archive libraries were refreshed.
+- **Adaptive UI Foundation:** Material 3 Adaptive libraries were added to prepare for future tablet, foldable, list-detail, and multi-pane layouts.
+- **Open Source Licenses Updated:** Archive libraries such as Zip4j, Apache Commons Compress, and Tukaani XZ are documented in the licenses screen.
+
+## 🐛 Known Issues (Beta)
+
+Arcile is still in active beta. The 0.7.0 cycle resolved many older operation, onboarding, archive, navigation, and storage issues, but there are still a few important things to watch out for:
+
+- **Operation recovery is not fully durable yet:** Copy, move, trash, delete, archive, and extraction jobs now use foreground operation handling, but active requests and recovery state are not yet journaled across process death, reboot, or force stop. If Android kills Arcile mid-operation, you may need to review the affected folders for partial output or temporary files.
+- **Large transfers can take longer than expected:** Arcile performs full integrity checks before deleting originals in several copy, move, trash, and restore paths. This improves safety, but very large folders or media libraries can look slow while verification is running.
+- **Use care with huge or untrusted archives:** ZIP and 7z creation, browsing, password handling, and extraction are now built in, but archive-bomb limits, output-size caps, entry-count caps, and compression-ratio guards are still future work. Avoid extracting archives you do not trust.
+- **Check destructive-operation dialogs carefully:** Arcile has safer delete plumbing, but Trash, permanent delete, Android/native delete prompts, OTG, unclassified drives, and mixed storage selections can still behave differently. Files on OTG or unclassified drives may be permanently deleted because those locations do not support Arcile Trash.
+- **Some platform behavior is still device-specific:** Please continue reporting MediaStore oddities, external-storage quirks, archive edge cases, unusual permission flows, SD/USB volume classification problems, and background-operation issues.
 
 ---
 

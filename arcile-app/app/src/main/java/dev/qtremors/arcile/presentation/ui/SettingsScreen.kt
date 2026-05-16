@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Storage
@@ -15,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
@@ -128,11 +131,19 @@ fun SettingsScreen(
                             onThemeChange(currentThemeState.copy(themeMode = it))
                         }
                     )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
                     AccentColorSelector(
                         currentAccent = currentThemeState.accentColor,
                         onAccentSelected = {
                             onThemeChange(currentThemeState.copy(accentColor = it))
                         }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.settings_show_thumbnails)) },
@@ -140,11 +151,22 @@ fun SettingsScreen(
                         trailingContent = {
                             Switch(
                                 checked = showThumbnails,
-                                onCheckedChange = onShowThumbnailsChange
+                                onCheckedChange = onShowThumbnailsChange,
+                                thumbContent = {
+                                    Icon(
+                                        imageVector = if (showThumbnails) Icons.Default.Check else Icons.Default.Close,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                                    )
+                                },
+                                modifier = Modifier.testTag("thumbnail_switch")
                             )
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { onShowThumbnailsChange(!showThumbnails) }
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable { onShowThumbnailsChange(!showThumbnails) }
+                            .testTag("thumbnail_setting_row")
                     )
                 }
             }

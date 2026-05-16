@@ -300,7 +300,7 @@ fun ArcileTopBar(
                 }
             }
         },
-        colors = TopAppBarDefaults.largeTopAppBarColors(
+        colors = TopAppBarDefaults.topAppBarColors(
             containerColor = containerColor,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
