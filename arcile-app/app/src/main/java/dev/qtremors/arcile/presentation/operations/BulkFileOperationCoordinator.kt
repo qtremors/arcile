@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.ArchiveFormat
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -24,8 +25,12 @@ interface BulkFileOperationCoordinator {
     fun startOperation(
         type: BulkFileOperationType,
         sourcePaths: List<String>,
-        destinationPath: String,
-        resolutions: Map<String, ConflictResolution>
+        destinationPath: String?,
+        resolutions: Map<String, ConflictResolution>,
+        fakeFileSize: Long? = null,
+        archiveFormat: ArchiveFormat? = null,
+        archiveEntryPrefix: String? = null,
+        archivePassword: String? = null
     ): Boolean
 
     fun cancelActiveOperation()
@@ -45,6 +50,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
+        replay = 1,
         extraBufferCapacity = 64,
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
@@ -53,8 +59,12 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     override fun startOperation(
         type: BulkFileOperationType,
         sourcePaths: List<String>,
-        destinationPath: String,
-        resolutions: Map<String, ConflictResolution>
+        destinationPath: String?,
+        resolutions: Map<String, ConflictResolution>,
+        fakeFileSize: Long?,
+        archiveFormat: ArchiveFormat?,
+        archiveEntryPrefix: String?,
+        archivePassword: String?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -63,7 +73,11 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             type = type,
             sourcePaths = sourcePaths,
             destinationPath = destinationPath,
-            resolutions = resolutions
+            resolutions = resolutions,
+            fakeFileSize = fakeFileSize,
+            archiveFormat = archiveFormat,
+            archiveEntryPrefix = archiveEntryPrefix,
+            archivePassword = archivePassword?.takeIf { it.isNotEmpty() }
         )
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))
@@ -72,16 +86,22 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             action = BulkFileOperationService.ACTION_START
             putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, json.encodeToString(request))
         }
-        ContextCompat.startForegroundService(context, intent)
-        return true
+        return try {
+            ContextCompat.startForegroundService(context, intent)
+            true
+        } catch (e: Exception) {
+            _activeRequest.value = null
+            _events.tryEmit(BulkFileOperationEvent.Failed(request, e.message ?: "Failed to start file operation"))
+            false
+        }
     }
 
     override fun cancelActiveOperation() {
-        _activeRequest.value?.let { request ->
-            _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
-        }
+        val request = _activeRequest.value ?: return
+        _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
         val intent = Intent(context, BulkFileOperationService::class.java).apply {
             action = BulkFileOperationService.ACTION_CANCEL
+            putExtra(BulkFileOperationService.EXTRA_OPERATION_ID, request.operationId)
         }
         context.startService(intent)
     }

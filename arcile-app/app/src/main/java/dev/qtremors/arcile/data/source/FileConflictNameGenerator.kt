@@ -2,7 +2,7 @@ package dev.qtremors.arcile.data.source
 
 import java.io.File
 
-internal object FileConflictNameGenerator {
+object FileConflictNameGenerator {
     fun generateKeepBothTarget(destDir: File, sourceFile: File): File {
         val originalName = sourceFile.nameWithoutExtension
         val ext = if (sourceFile.extension.isNotEmpty()) ".${sourceFile.extension}" else ""

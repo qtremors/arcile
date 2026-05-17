@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -16,7 +17,6 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
-import dev.qtremors.arcile.domain.usecase.MoveToTrashUseCase
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.browser.delegate.ClipboardDelegate
@@ -27,6 +27,7 @@ import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -49,7 +50,9 @@ data class BrowserFileOperationUiState(
     val currentPath: String? = null,
     val isCancelling: Boolean = false,
     val bytesCopied: Long? = null,
-    val totalBytes: Long? = null
+    val totalBytes: Long? = null,
+    val startTimeMillis: Long = System.currentTimeMillis(),
+    val terminalStatus: OperationCompletionStatus? = null
 ) {
     val isIndeterminate: Boolean
         get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
@@ -62,6 +65,7 @@ data class BrowserState(
     val isVolumeRootScreen: Boolean = false,
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
+    val selectedFolderTabPath: String? = null,
     val files: List<FileModel> = emptyList(),
     val folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     val folderStatsLoadingPaths: Set<String> = emptySet(),
@@ -72,6 +76,7 @@ data class BrowserState(
     val browserViewMode: BrowserViewMode = BrowserViewMode.LIST,
     val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
     val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+    val browserShowThumbnails: Boolean = BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS,
     val selectedFiles: Set<String> = emptySet(),
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
@@ -92,7 +97,8 @@ data class BrowserState(
     val isPropertiesLoading: Boolean = false,
     val properties: PropertiesUiModel? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
-    val fileOperationStatusMessage: String? = null
+    val fileOperationStatusMessage: String? = null,
+    val selectedFilesTotalSize: Long = 0L
 )
 
 @HiltViewModel
@@ -101,8 +107,7 @@ class BrowserViewModel @Inject constructor(
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
-    private val moveToTrashUseCase: MoveToTrashUseCase,
-    bulkFileOperationCoordinator: BulkFileOperationCoordinator
+    private val bulkFileCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BrowserState())
@@ -128,7 +133,7 @@ class BrowserViewModel @Inject constructor(
         state = _state,
         viewModelScope = viewModelScope,
         repository = repository,
-        bulkFileOperationCoordinator = bulkFileOperationCoordinator,
+        bulkFileOperationCoordinator = bulkFileCoordinator,
         refreshAction = { navigationDelegate.refresh() }
     )
     private val deleteFlowDelegate = DeleteFlowDelegate(
@@ -184,7 +189,14 @@ class BrowserViewModel @Inject constructor(
                 _state.update { it.copy(selectedFiles = emptySet()) }
             }
         },
-        executeMoveToTrash = { selected -> moveToTrashUseCase(selected) },
+        startBulkDeleteOperation = { type, selected ->
+            bulkFileCoordinator.startOperation(
+                type = type,
+                sourcePaths = selected,
+                destinationPath = null,
+                resolutions = emptyMap<String, ConflictResolution>()
+            )
+        },
         emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
         onSuccess = { navigationDelegate.refresh() }
     )
@@ -192,7 +204,7 @@ class BrowserViewModel @Inject constructor(
     private var isInitialized = false
 
     init {
-        bulkFileOperationCoordinator.activeRequest.value?.let { activeReq ->
+        bulkFileCoordinator.activeRequest.value?.let { activeReq ->
             _state.update {
                 it.copy(
                     activeFileOperation = BrowserFileOperationUiState(
@@ -211,7 +223,7 @@ class BrowserViewModel @Inject constructor(
                 if (!isInitialized) {
                     isInitialized = true
                     when (val location = navigationDelegate.restoreLocationFromState()) {
-                        StorageBrowserLocation.Roots -> navigationDelegate.openFileBrowser()
+                        StorageBrowserLocation.Roots -> navigationDelegate.openVolumeRoots()
                         is StorageBrowserLocation.Directory -> {
                             _state.update {
                                 it.copy(
@@ -274,11 +286,34 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            bulkFileOperationCoordinator.events.collectLatest { event ->
+            browserPreferencesRepository.preferencesFlow.collectLatest { prefs ->
+                _state.update { currentState ->
+                    val pathPresentation = if (currentState.isCategoryScreen) {
+                        prefs.getPresentationForCategory(currentState.activeCategoryName)
+                    } else if (currentState.currentPath.isNotEmpty()) {
+                        prefs.getPresentationForPath(currentState.currentPath)
+                    } else {
+                        prefs.globalPresentation
+                    }
+                    currentState.copy(
+                        browserSortOption = pathPresentation.sortOption,
+                        browserViewMode = pathPresentation.viewMode,
+                        browserListZoom = pathPresentation.listZoom,
+                        browserGridMinCellSize = pathPresentation.gridMinCellSize,
+                        browserShowThumbnails = pathPresentation.showThumbnails
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            bulkFileCoordinator.events.collectLatest { event ->
                 when (event) {
                     is BulkFileOperationEvent.Started -> {
                         _state.update {
                             it.copy(
+                                isLoading = true,
+                                error = null,
                                 activeFileOperation = BrowserFileOperationUiState(
                                     type = event.request.type,
                                     totalItems = event.request.sourcePaths.size,
@@ -291,6 +326,7 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Progress -> {
                         _state.update {
                             it.copy(
+                                isLoading = true,
                                 activeFileOperation = BrowserFileOperationUiState(
                                     type = event.request.type,
                                     totalItems = event.progress.totalItems,
@@ -298,7 +334,9 @@ class BrowserViewModel @Inject constructor(
                                     currentPath = event.progress.currentPath,
                                     isCancelling = false,
                                     bytesCopied = event.progress.bytesCopied,
-                                    totalBytes = event.progress.totalBytes
+                                    totalBytes = event.progress.totalBytes,
+                                    startTimeMillis = it.activeFileOperation?.startTimeMillis
+                                        ?: System.currentTimeMillis()
                                 )
                             )
                         }
@@ -306,6 +344,7 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Cancelling -> {
                         _state.update { currentState ->
                             currentState.copy(
+                                isLoading = true,
                                 activeFileOperation = currentState.activeFileOperation?.copy(isCancelling = true)
                                     ?: BrowserFileOperationUiState(
                                         type = event.request.type,
@@ -318,18 +357,27 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Completed -> {
                         _state.update {
                             it.copy(
-                                activeFileOperation = null,
+                                isLoading = false,
+                                activeFileOperation = it.activeFileOperation?.copy(
+                                    terminalStatus = OperationCompletionStatus.SUCCESS
+                                ),
+                                clipboardState = null,
                                 fileOperationStatusMessage = formatOperationCompletedMessage(
                                     type = event.request.type,
                                     itemCount = event.request.sourcePaths.size
                                 )
                             )
                         }
+                        navigationDelegate.refresh()
                     }
                     is BulkFileOperationEvent.Failed -> {
                         _state.update {
                             it.copy(
-                                activeFileOperation = null,
+                                isLoading = false,
+                                activeFileOperation = it.activeFileOperation?.copy(
+                                    terminalStatus = OperationCompletionStatus.FAILED
+                                ),
+                                clipboardState = null,
                                 fileOperationStatusMessage = event.message
                             )
                         }
@@ -337,7 +385,11 @@ class BrowserViewModel @Inject constructor(
                     is BulkFileOperationEvent.Cancelled -> {
                         _state.update {
                             it.copy(
-                                activeFileOperation = null,
+                                isLoading = false,
+                                activeFileOperation = it.activeFileOperation?.copy(
+                                    terminalStatus = OperationCompletionStatus.CANCELLED
+                                ),
+                                clipboardState = null,
                                 fileOperationStatusMessage = "File operation cancelled"
                             )
                         }
@@ -347,8 +399,9 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun openFileBrowser(errorMessage: String? = null) = navigationDelegate.openFileBrowser(errorMessage)
-    fun navigateToSpecificFolder(path: String) = navigationDelegate.navigateToSpecificFolder(path)
+    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) = navigationDelegate.openFileBrowser(restorePersistentLocation, errorMessage)
+    fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
+        navigationDelegate.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationDelegate.navigateToCategory(categoryName, volumeId)
     fun navigateToFolder(path: String) = navigationDelegate.navigateToFolder(path)
     fun navigateBack(): Boolean = navigationDelegate.navigateBack()
@@ -364,6 +417,7 @@ class BrowserViewModel @Inject constructor(
             }
             currentState.copy(
                 selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -371,11 +425,57 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
+    fun selectAll(paths: List<String>) {
+        if (_state.value.isVolumeRootScreen) return
+        _state.update { currentState ->
+            val updatedSelection = paths.toSet()
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
+    fun invertSelection(allPaths: List<String>) {
+        if (_state.value.isVolumeRootScreen) return
+        _state.update { currentState ->
+            val currentlySelected = currentState.selectedFiles
+            val updatedSelection = allPaths.filter { it !in currentlySelected }.toSet()
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
+    private fun calculateSelectionSize(selectedPaths: Set<String>, currentFiles: List<FileModel>, folderStats: Map<String, FolderStats>): Long {
+        var total = 0L
+        selectedPaths.forEach { path ->
+            val file = currentFiles.find { it.absolutePath == path }
+            if (file != null) {
+                if (file.isDirectory) {
+                    total += folderStats[path]?.totalBytes ?: 0L
+                } else {
+                    total += file.size
+                }
+            }
+        }
+        return total
+    }
+
     fun selectMultiple(paths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
+            val updatedSelection = currentState.selectedFiles + paths
             currentState.copy(
-                selectedFiles = currentState.selectedFiles + paths,
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -387,6 +487,20 @@ class BrowserViewModel @Inject constructor(
         _state.update {
             it.copy(
                 selectedFiles = emptySet(),
+                selectedFilesTotalSize = 0L,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
+    }
+
+    fun selectFolderTab(path: String?) {
+        _state.update { currentState ->
+            currentState.copy(
+                selectedFolderTabPath = path,
+                selectedFiles = emptySet(),
+                selectedFilesTotalSize = 0L,
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -409,7 +523,8 @@ class BrowserViewModel @Inject constructor(
                 browserSortOption = normalized.sortOption,
                 browserViewMode = normalized.viewMode,
                 browserListZoom = normalized.listZoom,
-                browserGridMinCellSize = normalized.gridMinCellSize
+                browserGridMinCellSize = normalized.gridMinCellSize,
+                browserShowThumbnails = normalized.showThumbnails
             )
         }
         viewModelScope.launch {
@@ -457,6 +572,84 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
+    fun createFakeFile(name: String, size: Long) {
+        val currentPath = _state.value.currentPath
+        if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
+
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.CREATE_FAKE,
+            sourcePaths = listOf(name),
+            destinationPath = currentPath,
+            resolutions = emptyMap<String, ConflictResolution>(),
+            fakeFileSize = size
+        )
+    }
+
+    fun extractSelectedArchiveHere(password: String? = null) {
+        val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
+        if (!ArchiveFormat.isSupported(archivePath)) {
+            _state.update { it.copy(error = "Selected file is not a supported archive") }
+            return
+        }
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf(archivePath),
+            destinationPath = _state.value.currentPath,
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archivePassword = password
+        )
+        clearSelection()
+    }
+
+    fun extractSelectedArchiveToFolder(password: String? = null) {
+        val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
+        val currentPath = _state.value.currentPath
+        if (!ArchiveFormat.isSupported(archivePath) || currentPath.isEmpty()) {
+            _state.update { it.copy(error = "Selected file is not a supported archive") }
+            return
+        }
+        val archive = java.io.File(archivePath)
+        val destination = java.io.File(currentPath, archive.nameWithoutExtension).absolutePath
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf(archivePath),
+            destinationPath = destination,
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archivePassword = password
+        )
+        clearSelection()
+    }
+
+    fun createArchiveFromSelection(
+        archiveName: String,
+        format: ArchiveFormat,
+        password: String? = null
+    ) {
+        val selected = _state.value.selectedFiles.toList()
+        val currentPath = _state.value.currentPath
+        if (selected.isEmpty() || currentPath.isEmpty()) return
+        val archivePath = nextArchivePath(currentPath, selected, archiveName, format)
+        bulkFileCoordinator.startOperation(
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = selected,
+            destinationPath = archivePath,
+            resolutions = emptyMap<String, ConflictResolution>(),
+            archiveFormat = format,
+            archivePassword = password
+        )
+        clearSelection()
+    }
+
+    fun createZipFromSelection() {
+        val selected = _state.value.selectedFiles.toList()
+        val defaultName = if (selected.size == 1) {
+            java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
+        } else {
+            "Archive"
+        }
+        createArchiveFromSelection(defaultName, ArchiveFormat.ZIP)
+    }
+
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
     fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
@@ -499,6 +692,10 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(fileOperationStatusMessage = null) }
     }
 
+    fun clearActiveFileOperation() {
+        _state.update { it.copy(activeFileOperation = null) }
+    }
+
     fun openPropertiesForSelection() {
         val selectedPaths = _state.value.selectedFiles.toList()
         if (selectedPaths.isEmpty()) return
@@ -513,11 +710,14 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+                val archiveSummary = selectedPaths.singleOrNull()
+                    ?.takeIf { ArchiveFormat.isSupported(it) }
+                    ?.let { repository.getArchiveMetadata(it).getOrNull() }
                 _state.update {
                     it.copy(
                         isPropertiesVisible = true,
                         isPropertiesLoading = false,
-                        properties = properties.toUiModel()
+                        properties = properties.toUiModel().copy(archiveSummary = archiveSummary)
                     )
                 }
             }.onFailure { error ->
@@ -547,6 +747,7 @@ class BrowserViewModel @Inject constructor(
     fun cutSelectedToClipboard() = clipboardDelegate.cutSelectedToClipboard()
     fun cancelClipboard() = clipboardDelegate.cancelClipboard()
     fun pasteFromClipboard() = clipboardDelegate.pasteFromClipboard()
+    fun removeFromClipboard(path: String) = clipboardDelegate.removeFromClipboard(path)
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
 
@@ -554,7 +755,43 @@ class BrowserViewModel @Inject constructor(
         type: BulkFileOperationType,
         itemCount: Int
     ): String {
-        val verb = if (type == BulkFileOperationType.MOVE) "Moved" else "Copied"
+        val verb = when (type) {
+            BulkFileOperationType.COPY -> "Copied"
+            BulkFileOperationType.MOVE -> "Moved"
+            BulkFileOperationType.TRASH -> "Moved to Trash"
+            BulkFileOperationType.DELETE -> "Deleted"
+            BulkFileOperationType.CREATE_FAKE -> "Created"
+            BulkFileOperationType.EXTRACT_ARCHIVE -> "Extracted"
+            BulkFileOperationType.CREATE_ARCHIVE -> "Archived"
+        }
         return "$verb $itemCount item(s)"
+    }
+
+    private fun nextArchivePath(
+        currentPath: String,
+        selected: List<String>,
+        requestedName: String? = null,
+        format: ArchiveFormat = ArchiveFormat.ZIP
+    ): String {
+        val defaultBaseName = if (selected.size == 1) {
+            java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
+        } else {
+            "Archive"
+        }
+        val extension = format.extension
+        val cleanedName = requestedName
+            ?.substringBeforeLast(".${extension}", requestedName)
+            ?.replace('/', '_')
+            ?.replace('\\', '_')
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: defaultBaseName
+        var candidate = java.io.File(currentPath, "$cleanedName.$extension")
+        var index = 1
+        while (candidate.exists()) {
+            candidate = java.io.File(currentPath, "$cleanedName ($index).$extension")
+            index += 1
+        }
+        return candidate.absolutePath
     }
 }

@@ -53,12 +53,26 @@ class NavigationDelegate(
     }
 
     fun initializeFromArgs() {
-        val explorer = savedStateHandle.toRoute<AppRoutes.Explorer>()
+        val main = runCatching { savedStateHandle.toRoute<AppRoutes.Main>() }.getOrNull()
+        val path = main?.path?.takeIf { it.isNotEmpty() }
+            ?: savedStateHandle.get<String>("path")?.takeIf { it.isNotEmpty() }
+        val category = main?.category?.takeIf { it.isNotEmpty() }
+            ?: savedStateHandle.get<String>("category")?.takeIf { it.isNotEmpty() }
+        val volumeId = main?.volumeId ?: savedStateHandle.get<String>("volumeId")
+        val seedInitialPathHistory = main?.seedInitialPathHistory
+            ?: savedStateHandle.get<Boolean>("seedInitialPathHistory")
+            ?: true
+        val restorePersistentLocation = main?.restorePersistentLocation
+            ?: savedStateHandle.get<Boolean>("restorePersistentLocation")
+            ?: true
 
         when {
-            !explorer.path.isNullOrEmpty() -> navigateToSpecificFolder(explorer.path)
-            !explorer.category.isNullOrEmpty() -> navigateToCategory(explorer.category, explorer.volumeId)
-            else -> openFileBrowser()
+            path != null -> navigateToSpecificFolder(
+                path,
+                seedInitialPathHistory = seedInitialPathHistory
+            )
+            category != null -> navigateToCategory(category, volumeId)
+            else -> openFileBrowser(restorePersistentLocation = restorePersistentLocation)
         }
     }
 
@@ -92,16 +106,41 @@ class NavigationDelegate(
                     path.startsWith(it.path + java.io.File.separator)
             }
 
-    fun openFileBrowser(errorMessage: String? = null) {
-        val volumes = state.value.storageVolumes
-        if (volumes.size <= 1) {
-            val onlyVolume = volumes.firstOrNull()
-            if (onlyVolume != null) {
-                loadDirectory(onlyVolume.path, onlyVolume.id, clearHistory = true, errorMessage = errorMessage)
-                return
+    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) {
+        viewModelScope.launch {
+            if (restorePersistentLocation) {
+                val prefs = browserPreferencesRepository.preferencesFlow.first()
+                val lastPath = prefs.lastOpenedPath
+                val lastVolumeId = prefs.lastOpenedVolumeId
+
+                if (!lastPath.isNullOrEmpty() && !lastVolumeId.isNullOrEmpty()) {
+                    val volume = state.value.storageVolumes.firstOrNull { it.id == lastVolumeId }
+                    if (volume != null) {
+                        loadDirectory(lastPath, lastVolumeId, clearHistory = true, errorMessage = errorMessage)
+                        return@launch
+                    }
+                }
+            }
+
+            val volumes = state.value.storageVolumes
+            if (volumes.size > 1) {
+                openVolumeRoots(errorMessage)
+            } else {
+                val primaryVolume = volumes.find { it.isPrimary } ?: volumes.firstOrNull()
+
+                if (primaryVolume != null) {
+                    loadDirectory(
+                        primaryVolume.path,
+                        primaryVolume.id,
+                        clearHistory = true,
+                        errorMessage = errorMessage,
+                        persistAsLastOpened = false
+                    )
+                } else {
+                    openVolumeRoots(errorMessage)
+                }
             }
         }
-        openVolumeRoots(errorMessage)
     }
 
     fun openVolumeRoots(errorMessage: String? = null) {
@@ -116,6 +155,7 @@ class NavigationDelegate(
                     isVolumeRootScreen = true,
                     isCategoryScreen = false,
                     activeCategoryName = "",
+                    selectedFolderTabPath = null,
                     files = volumeFiles(),
                     folderStatsByPath = emptyMap(),
                     folderStatsLoadingPaths = emptySet(),
@@ -125,6 +165,7 @@ class NavigationDelegate(
                     browserViewMode = presentation.viewMode,
                     browserListZoom = presentation.listZoom,
                     browserGridMinCellSize = presentation.gridMinCellSize,
+                    browserShowThumbnails = presentation.showThumbnails,
                     isLoading = false,
                     isPullToRefreshing = false
                 )
@@ -133,14 +174,14 @@ class NavigationDelegate(
         }
     }
 
-    fun navigateToSpecificFolder(path: String) {
+    fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) {
         val volume = findVolumeForPath(path)
         if (volume == null) {
-            openFileBrowser("Storage for this path is not available")
+            openFileBrowser(errorMessage = "Storage for this path is not available")
             return
         }
         pathHistory.clear()
-        if (path != volume.path) {
+        if (seedInitialPathHistory && path != volume.path) {
             pathHistory.push(volume.path)
         }
         loadDirectory(path, volume.id, clearHistory = false)
@@ -169,6 +210,19 @@ class NavigationDelegate(
     fun navigateBack(): Boolean {
         if (state.value.browserSearchQuery.isNotEmpty()) {
             onClearSearch()
+            return true
+        }
+
+        if (state.value.selectedFiles.isNotEmpty()) {
+            state.update {
+                it.copy(
+                    selectedFiles = emptySet(),
+                    selectedFilesTotalSize = 0L,
+                    isPropertiesVisible = false,
+                    isPropertiesLoading = false,
+                    properties = null
+                )
+            }
             return true
         }
 
@@ -207,11 +261,12 @@ class NavigationDelegate(
         path: String,
         volumeId: String?,
         clearHistory: Boolean,
-        errorMessage: String? = null
+        errorMessage: String? = null,
+        persistAsLastOpened: Boolean = true
     ) {
         val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
         if (resolvedVolumeId == null) {
-            openFileBrowser("Storage for this path is not available")
+            openFileBrowser(errorMessage = "Storage for this path is not available")
             return
         }
         if (clearHistory) {
@@ -224,6 +279,8 @@ class NavigationDelegate(
                 currentPath = path,
                 currentVolumeId = resolvedVolumeId,
                 selectedFiles = emptySet(),
+                selectedFolderTabPath = null,
+                files = emptyList(),
                 folderStatsByPath = emptyMap(),
                 folderStatsLoadingPaths = emptySet(),
                 isCategoryScreen = false,
@@ -232,6 +289,9 @@ class NavigationDelegate(
         }
         saveNavState()
         viewModelScope.launch {
+            if (persistAsLastOpened) {
+                browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
+            }
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             applyPresentation(prefs.getPresentationForPath(path))
 
@@ -279,7 +339,10 @@ class NavigationDelegate(
                 isCategoryScreen = true,
                 isVolumeRootScreen = false,
                 activeCategoryName = categoryName,
+                currentPath = "",
                 currentVolumeId = volumeId,
+                files = emptyList(),
+                selectedFolderTabPath = null,
                 folderStatsByPath = emptyMap(),
                 folderStatsLoadingPaths = emptySet(),
                 selectedFiles = emptySet()
@@ -300,7 +363,8 @@ class NavigationDelegate(
                         browserSortOption = categoryPresentation.sortOption,
                         browserViewMode = categoryPresentation.viewMode,
                         browserListZoom = categoryPresentation.listZoom,
-                        browserGridMinCellSize = categoryPresentation.gridMinCellSize
+                        browserGridMinCellSize = categoryPresentation.gridMinCellSize,
+                        browserShowThumbnails = categoryPresentation.showThumbnails
                     )
                 }
                 saveNavState()
@@ -322,8 +386,10 @@ class NavigationDelegate(
                 browserSortOption = presentation.sortOption,
                 browserViewMode = presentation.viewMode,
                 browserListZoom = presentation.listZoom,
-                browserGridMinCellSize = presentation.gridMinCellSize
+                browserGridMinCellSize = presentation.gridMinCellSize,
+                browserShowThumbnails = presentation.showThumbnails
             )
         }
     }
+
 }

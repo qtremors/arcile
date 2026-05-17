@@ -14,11 +14,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Folder
@@ -46,6 +48,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
@@ -67,8 +70,10 @@ fun FileGrid(
     modifier: Modifier = Modifier,
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
+    showThumbnails: Boolean = true,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
-    folderStatsLoadingPaths: Set<String> = emptySet()
+    folderStatsLoadingPaths: Set<String> = emptySet(),
+    contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
@@ -77,14 +82,17 @@ fun FileGrid(
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = minCellSize),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         state = gridState,
         modifier = modifier.fillMaxWidth()
     ) {
-        items(files.size, key = { index -> "${files[index].absolutePath}_$index" }) { index ->
-            val file = files[index]
+        itemsIndexed(
+            items = files,
+            key = { _, file -> file.absolutePath },
+            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+        ) { index, file ->
             FileGridItem(
                 modifier = Modifier.animateItem(),
                 file = file,
@@ -92,6 +100,7 @@ fun FileGrid(
                 isSelected = selectedFiles.contains(file.absolutePath),
                 folderStats = folderStatsByPath[file.absolutePath],
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
+                showThumbnails = showThumbnails,
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -126,6 +135,7 @@ fun FileGridItem(
     file: FileModel,
     formattedDate: String,
     isSelected: Boolean,
+    showThumbnails: Boolean = true,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false,
     onClick: () -> Unit,
@@ -192,7 +202,7 @@ fun FileGridItem(
                 .fillMaxWidth()
                 .animateContentSize()
         ) {
-            val isMedia = !file.isDirectory && (
+            val isMedia = showThumbnails && !file.isDirectory && (
                 FileCategories.Images.extensions.contains(file.extension) ||
                     FileCategories.Videos.extensions.contains(file.extension) ||
                     FileCategories.APKs.extensions.contains(file.extension) ||
@@ -200,16 +210,54 @@ fun FileGridItem(
                 )
 
             if (isMedia) {
-                AsyncImage(
+                SubcomposeAsyncImage(
                     model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
                         .data(File(file.absolutePath))
-                        .size(256)
+                        .crossfade(true)
+                        .crossfade(300)
+                        // By removing the hardcoded .size(512), Coil will automatically measure 
+                        // the exact layout bounds. If you have 4 small columns, it loads tiny images 
+                        // (saving massive amounts of RAM and keeping more thumbs cached). 
+                        // If you zoom in to 2 massive columns, it loads them large.
+                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                         .build(),
                     contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    loading = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                contentDescription = null,
+                                // Faint icon while loading so it doesn't look empty
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                    },
+                    error = {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                contentDescription = if (file.isDirectory) "Folder" else "File",
+                                tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                    }
                 )
             } else {
                 Box(
@@ -220,7 +268,7 @@ fun FileGridItem(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                        imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
                         contentDescription = if (file.isDirectory) "Folder" else "File",
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)

@@ -1,10 +1,14 @@
 package dev.qtremors.arcile.presentation.ui.components.settings
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -30,29 +34,88 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import androidx.annotation.StringRes
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AccentColorSelector(
     currentAccent: AccentColor,
     onAccentSelected: (AccentColor) -> Unit
 ) {
     var showPicker by remember { mutableStateOf(false) }
+    
+    val allAccents = remember {
+        listOf(AccentColor.DYNAMIC, AccentColor.MONOCHROME) + 
+        AccentColor.entries.filter { it != AccentColor.DYNAMIC && it != AccentColor.MONOCHROME }
+    }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.accent_color), style = MaterialTheme.typography.titleMediumBold) },
-            supportingContent = { Text(stringResource(accentLabelRes(currentAccent))) },
-            trailingContent = {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(currentAccent.color ?: MaterialTheme.colorScheme.primary)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-                )
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier.clickable { showPicker = true }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Text(
+            text = stringResource(R.string.accent_color),
+            style = MaterialTheme.typography.titleMediumBold,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
         )
+
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items(allAccents) { accent ->
+                val isSelected = currentAccent == accent
+                val displayColor = when (accent) {
+                    AccentColor.DYNAMIC -> MaterialTheme.colorScheme.primary
+                    AccentColor.MONOCHROME -> if (isSystemInDarkTheme()) Color.White else Color.Black
+                    else -> accent.color ?: Color.Gray
+                }
+                
+                val shape = if (isSelected) MaterialTheme.shapes.medium else CircleShape
+                
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(shape)
+                        .background(displayColor)
+                        .combinedClickable(
+                            onClick = { onAccentSelected(accent) },
+                            onLongClick = { showPicker = true }
+                        )
+                        .semantics {
+                            selected = isSelected
+                            contentDescription = accent.name
+                        }
+                ) {
+                    when (accent) {
+                        AccentColor.DYNAMIC -> {
+                            Icon(
+                                Icons.Default.ColorLens,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        AccentColor.MONOCHROME -> {
+                            Icon(
+                                Icons.Default.Contrast,
+                                contentDescription = null,
+                                tint = if (isSystemInDarkTheme()) Color.Black else Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        else -> {
+                            if (isSelected) {
+                                Icon(
+                                    Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         if (showPicker) {
             AccentColorPickerSheet(

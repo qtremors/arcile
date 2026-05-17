@@ -269,6 +269,7 @@ fun HomeScreen(
     onNavigateToQuickAccess: () -> Unit,
     onNavigateToSaf: (String) -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
+    onSwipeToBrowser: () -> Unit = {},
     onSearchQueryChange: (String) -> Unit = {},
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
@@ -319,38 +320,10 @@ fun HomeScreen(
     ) { padding ->
 
         val pullRefreshState = rememberPullToRefreshState()
-        var offsetX by remember { mutableFloatStateOf(0f) }
-        val animatedOffsetX by animateFloatAsState(
-            targetValue = offsetX,
-            label = "swipeOffset",
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-        )
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offsetX = 0f },
-                        onDragEnd = {
-                            if (offsetX < -150f) {
-                                onOpenFileBrowser()
-                            }
-                            offsetX = 0f
-                        },
-                        onDragCancel = { offsetX = 0f },
-                        onHorizontalDrag = { _, dragAmount ->
-                            val newOffset = offsetX + dragAmount
-                            if (newOffset <= 0f) {
-                                offsetX = newOffset
-                            } else {
-                                offsetX = 0f
-                            }
-                        }
-                    )
-                }
         ) {
             PullToRefreshBox(
                 isRefreshing = state.isPullToRefreshing,
@@ -547,15 +520,13 @@ fun HomeScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
-                    } else {
-                        items(displayedRecentFiles, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
-
-                            FileItemRow(
-                                file = file,
-                                formattedDate = dateFormatter.format(Date(file.lastModified)),
-                                isSelected = false,
-                                onClick = { onOpenFile(file.absolutePath) },
-                                onLongClick = {}
+                    } else if (displayedRecentFiles.isNotEmpty()) {
+                        item {
+                            dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
+                                files = displayedRecentFiles,
+                                onOpenFile = onOpenFile,
+                                onNavigateToPath = onNavigateToPath,
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

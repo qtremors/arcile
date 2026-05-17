@@ -64,6 +64,16 @@ fun PropertiesDialog(
                             )
                         )
                     }
+                    model.archiveSummary?.let { archive ->
+                        PropertiesRow("Archive format", archive.format.displayName)
+                        PropertiesRow("Archive entries", archive.entryCount.toString())
+                        PropertiesRow("Archive files", archive.fileCount.toString())
+                        PropertiesRow("Archive folders", archive.folderCount.toString())
+                        PropertiesRow("Uncompressed size", formatFileSize(archive.totalUncompressedSize))
+                        archive.compressionRatio?.let {
+                            PropertiesRow("Compression ratio", "${(it * 100).toInt()}%")
+                        }
+                    }
 
                     PropertiesRow(stringResource(R.string.properties_location), model.pathSummary)
                     model.newestModifiedAt?.let {

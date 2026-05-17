@@ -1,6 +1,9 @@
 package dev.qtremors.arcile.data
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
@@ -10,8 +13,10 @@ import dev.qtremors.arcile.domain.BrowserPreferences
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.FileSortOption
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
@@ -22,20 +27,35 @@ interface BrowserPreferencesStore {
 
     suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences)
 
+    suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences)
+
     suspend fun updatePathPresentation(
         path: String,
         presentation: BrowserPresentationPreferences?,
         applyToSubfolders: Boolean = false
     )
+
+    suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
 }
 
-class BrowserPreferencesRepository(private val context: Context) : BrowserPreferencesStore {
+class BrowserPreferencesRepository(
+    context: Context,
+    private val dataStore: DataStore<Preferences> = context.browserDataStore
+) : BrowserPreferencesStore {
     private val GLOBAL_SORT_KEY = stringPreferencesKey("global_sort_option")
     private val GLOBAL_VIEW_MODE_KEY = stringPreferencesKey("global_view_mode")
     private val GLOBAL_LIST_ZOOM_KEY = floatPreferencesKey("global_list_zoom")
     private val GLOBAL_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("global_grid_min_cell_size")
+    private val GLOBAL_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("global_show_thumbnails")
+    private val RECENT_SORT_KEY = stringPreferencesKey("recent_sort_option")
+    private val RECENT_VIEW_MODE_KEY = stringPreferencesKey("recent_view_mode")
+    private val RECENT_LIST_ZOOM_KEY = floatPreferencesKey("recent_list_zoom")
+    private val RECENT_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("recent_grid_min_cell_size")
+    private val RECENT_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("recent_show_thumbnails")
+    private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
+    private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
 
-    override val preferencesFlow: Flow<BrowserPreferences> = context.browserDataStore.data
+    override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -52,7 +72,22 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
                 viewMode = parseViewMode(prefs[GLOBAL_VIEW_MODE_KEY]),
                 listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY]
-                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE
+                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+                showThumbnails = prefs[GLOBAL_SHOW_THUMBNAILS_KEY] ?: BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS
+            ).normalized()
+
+            val recentPresentation = BrowserPresentationPreferences(
+                sortOption = parseSortOption(
+                    prefs[RECENT_SORT_KEY],
+                    BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION
+                ),
+                viewMode = parseViewMode(prefs[RECENT_VIEW_MODE_KEY]),
+                listZoom = prefs[RECENT_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+                gridMinCellSize = prefs[RECENT_GRID_MIN_CELL_SIZE_KEY]
+                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+                showThumbnails = prefs[RECENT_SHOW_THUMBNAILS_KEY]
+                    ?: prefs[GLOBAL_SHOW_THUMBNAILS_KEY]
+                    ?: BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS
             ).normalized()
 
             val pathMap = mutableMapOf<String, BrowserPresentationPreferences>()
@@ -127,18 +162,34 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
 
             BrowserPreferences(
                 globalPresentation = globalPresentation,
+                recentPresentation = recentPresentation,
                 pathPresentationOptions = pathMap.mapValues { it.value.normalized() },
-                exactPathPresentationOptions = exactPathMap.mapValues { it.value.normalized() }
+                exactPathPresentationOptions = exactPathMap.mapValues { it.value.normalized() },
+                lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
+                lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
         }
+        .flowOn(Dispatchers.IO)
 
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         val normalized = presentation.normalized()
-        context.browserDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[GLOBAL_SORT_KEY] = normalized.sortOption.name
             prefs[GLOBAL_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[GLOBAL_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+            prefs[GLOBAL_SHOW_THUMBNAILS_KEY] = normalized.showThumbnails
+        }
+    }
+
+    override suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences) {
+        val normalized = presentation.normalized()
+        dataStore.edit { prefs ->
+            prefs[RECENT_SORT_KEY] = normalized.sortOption.name
+            prefs[RECENT_VIEW_MODE_KEY] = normalized.viewMode.name
+            prefs[RECENT_LIST_ZOOM_KEY] = normalized.listZoom
+            prefs[RECENT_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+            prefs[RECENT_SHOW_THUMBNAILS_KEY] = normalized.showThumbnails
         }
     }
 
@@ -151,7 +202,7 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
         val keys = presentationKeys(normalizedPath, applyToSubfolders)
         val keysToClear = presentationKeys(normalizedPath, true).all() + presentationKeys(normalizedPath, false).all()
 
-        context.browserDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             keysToClear.forEach { prefs.remove(it) }
             if (presentation != null) {
                 val normalized = presentation.normalized()
@@ -159,6 +210,17 @@ class BrowserPreferencesRepository(private val context: Context) : BrowserPrefer
                 prefs[keys.viewMode] = normalized.viewMode.name
                 prefs[keys.listZoom] = normalized.listZoom
                 prefs[keys.gridMinCellSize] = normalized.gridMinCellSize
+            }
+        }
+    }
+
+    override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
+        dataStore.edit { prefs ->
+            prefs[LAST_OPENED_PATH_KEY] = path
+            if (volumeId != null) {
+                prefs[LAST_OPENED_VOLUME_ID_KEY] = volumeId
+            } else {
+                prefs.remove(LAST_OPENED_VOLUME_ID_KEY)
             }
         }
     }

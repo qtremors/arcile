@@ -51,6 +51,28 @@ interface FileRepository {
     fun queueFolderStats(paths: List<String>)
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
     suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
+    suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
+        Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
+        listArchiveEntries(archivePath)
+    suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
+        Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
+        getArchiveMetadata(archivePath)
+    suspend fun extractArchive(
+        archivePath: String,
+        destinationPath: String,
+        entryPrefix: String? = null,
+        password: String? = null,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun createArchive(
+        sourcePaths: List<String>,
+        destinationArchivePath: String,
+        format: ArchiveFormat = ArchiveFormat.ZIP,
+        password: String? = null,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 
     // ─── File mutations ──────────────────────────────────────────────────────
 
@@ -69,6 +91,21 @@ interface FileRepository {
      *   if creation fails.
      */
     suspend fun createFile(parentPath: String, name: String): Result<FileModel>
+
+    /**
+     * Creates a new file named [name] inside [parentPath] with the specified [size].
+     * The file content will be filled with pseudo-random data.
+     *
+     * @return [Result.success] with a [FileModel] for the new file, or [Result.failure]
+     *   if creation fails.
+     */
+    suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<FileModel>
+
 
     /**
      * Soft-deletes the file or directory at [path] by moving it to the app Trash.

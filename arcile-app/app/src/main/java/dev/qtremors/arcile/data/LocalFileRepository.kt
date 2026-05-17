@@ -8,6 +8,10 @@ import dev.qtremors.arcile.data.util.indexedVolumes
 import dev.qtremors.arcile.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.data.util.scopedVolumes
 import dev.qtremors.arcile.domain.CategoryStorage
+import dev.qtremors.arcile.domain.ArchiveEntryModel
+import dev.qtremors.arcile.domain.ArchiveFormat
+import dev.qtremors.arcile.domain.ArchiveManager
+import dev.qtremors.arcile.domain.ArchiveSummary
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -34,7 +38,30 @@ class LocalFileRepository(
     private val mediaStoreClient: MediaStoreClient,
     private val trashManager: TrashManager,
     private val fileSystemDataSource: FileSystemDataSource,
-    private val folderStatsStore: FolderStatsStore
+    private val folderStatsStore: FolderStatsStore,
+    private val archiveManager: ArchiveManager = object : ArchiveManager {
+        override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
+            Result.failure(NotImplementedError("Archive support is not available"))
+
+        override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
+            Result.failure(NotImplementedError("Archive support is not available"))
+
+        override suspend fun extractArchive(
+            archivePath: String,
+            destinationPath: String,
+            entryPrefix: String?,
+            password: String?,
+            onProgress: ((BulkFileOperationProgress) -> Unit)?
+        ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
+
+        override suspend fun createArchive(
+            sourcePaths: List<String>,
+            destinationArchivePath: String,
+            format: ArchiveFormat,
+            password: String?,
+            onProgress: ((BulkFileOperationProgress) -> Unit)?
+        ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
+    }
 ) : FileRepository {
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> =
@@ -171,13 +198,52 @@ class LocalFileRepository(
         }
     }
 
+    override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
+        archiveManager.listArchiveEntries(archivePath)
+
+    override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
+        archiveManager.getArchiveMetadata(archivePath)
+
+    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
+        archiveManager.listArchiveEntries(archivePath, password)
+
+    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
+        archiveManager.getArchiveMetadata(archivePath, password)
+
+    override suspend fun extractArchive(
+        archivePath: String,
+        destinationPath: String,
+        entryPrefix: String?,
+        password: String?,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> =
+        archiveManager.extractArchive(archivePath, destinationPath, entryPrefix, password, onProgress)
+
+    override suspend fun createArchive(
+        sourcePaths: List<String>,
+        destinationArchivePath: String,
+        format: ArchiveFormat,
+        password: String?,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> =
+        archiveManager.createArchive(sourcePaths, destinationArchivePath, format, password, onProgress)
+
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createDirectory(parentPath, name)
 
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createFile(parentPath, name)
 
+    override suspend fun createFakeFile(
+        parentPath: String,
+        name: String,
+        size: Long,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<FileModel> =
+        fileSystemDataSource.createFakeFile(parentPath, name, size, onProgress)
+
     override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+
         val volume = getVolumeForPath(path).getOrNull()
             ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
         if (!volume.kind.supportsTrash) {

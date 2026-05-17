@@ -16,6 +16,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
+import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
@@ -23,6 +30,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -164,9 +172,16 @@ fun TrashScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            ArcileSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = snackbarPadding)
+            )
+        },
         topBar = {
             if (showSearchBar) {
                 SearchTopBar(
@@ -200,20 +215,20 @@ fun TrashScreen(
                         }
                     },
                     actions = {
-                        if (isSelectionMode) {
-                            IconButton(onClick = onSelectAll) {
-                                Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
-                            }
-                            IconButton(onClick = onRestoreSelected) {
-                                Icon(Icons.Default.Restore, contentDescription = stringResource(R.string.restore))
-                            }
-                            IconButton(onClick = onPermanentlyDeleteSelected) {
-                                Icon(Icons.Default.DeleteForever, contentDescription = stringResource(R.string.delete_permanently))
-                            }
-                        } else {
-                            IconButton(onClick = { showSearchBar = true }) {
-                                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
-                            }
+                        if (!isSelectionMode) {
+                            val topActions = listOf(
+                                dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                                    icon = Icons.Default.Search,
+                                    contentDescription = stringResource(R.string.action_search),
+                                    onClick = { showSearchBar = true }
+                                ),
+                                dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                                    icon = Icons.AutoMirrored.Filled.Sort,
+                                    contentDescription = stringResource(R.string.action_sort),
+                                    onClick = { /* show sort dialog */ }
+                                )
+                            )
+                            dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup(actions = topActions)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -224,6 +239,7 @@ fun TrashScreen(
                 )
             }
         },
+        bottomBar = {},
         floatingActionButton = {
             if (!isSelectionMode && state.trashFiles.isNotEmpty() && !showSearchBar) {
                 ExtendedFloatingActionButton(
@@ -237,11 +253,12 @@ fun TrashScreen(
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = padding.calculateTopPadding())
+            ) {
             if (!isSelectionMode && !showSearchBar && state.trashFiles.isNotEmpty()) {
                 TrashInfoCard()
             }
@@ -279,9 +296,84 @@ fun TrashScreen(
                     TrashList(
                         files = if (showSearchBar) state.searchResults else state.trashFiles,
                         selectedFiles = state.selectedFiles,
-                        onToggleSelection = onToggleSelection
+                        onToggleSelection = onToggleSelection,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                            bottom = padding.calculateBottomPadding() + 100.dp
+                        )
                     )
                 }
+            }
+            }
+
+            // Floating Selection Toolbar Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                val mainActions = mutableListOf<dev.qtremors.arcile.presentation.ui.components.ToolbarAction>()
+                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                    icon = Icons.Default.SelectAll,
+                    contentDescription = stringResource(R.string.select_all),
+                    onClick = onSelectAll
+                ))
+                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                    icon = Icons.Default.Restore,
+                    contentDescription = stringResource(R.string.restore),
+                    onClick = onRestoreSelected
+                ))
+                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                    icon = Icons.Default.DeleteForever,
+                    contentDescription = stringResource(R.string.delete_permanently),
+                    tint = MaterialTheme.colorScheme.error,
+                    onClick = onPermanentlyDeleteSelected
+                ))
+                
+                dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                    isVisible = isSelectionMode,
+                    actions = mainActions,
+                    moreContent = {
+                        var showMoreMenu by remember { mutableStateOf(false) }
+                        Box {
+                            Surface(
+                                onClick = { showMoreMenu = true },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.MoreVert,
+                                        contentDescription = stringResource(R.string.action_more_options),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = showMoreMenu,
+                                onDismissRequest = { showMoreMenu = false }
+                            ) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.properties_title)) },
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                    onClick = {
+                                        showMoreMenu = false
+                                        // onOpenProperties()
+                                    }
+                                )
+                            }
+                            }
+                        }
+                    }
+                )
             }
         }
 

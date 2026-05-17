@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.browser
 import androidx.compose.runtime.Immutable
 import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SelectionProperties
+import dev.qtremors.arcile.domain.ArchiveSummary
 
 @Immutable
 data class PropertiesUiModel(
@@ -20,11 +21,12 @@ data class PropertiesUiModel(
     val accessStatus: PropertiesAccessStatus,
     val folderFileCount: Long?,
     val folderTotalBytes: Long?,
+    val archiveSummary: ArchiveSummary? = null,
     val isSingleItem: Boolean,
     val isDirectory: Boolean?
 )
 
-internal fun SelectionProperties.toUiModel(): PropertiesUiModel = PropertiesUiModel(
+fun SelectionProperties.toUiModel(): PropertiesUiModel = PropertiesUiModel(
     title = displayName,
     pathSummary = pathSummary,
     itemCount = itemCount,
@@ -39,6 +41,7 @@ internal fun SelectionProperties.toUiModel(): PropertiesUiModel = PropertiesUiMo
     accessStatus = accessStatus,
     folderFileCount = folderStats?.fileCount,
     folderTotalBytes = folderStats?.totalBytes,
+    archiveSummary = null,
     isSingleItem = isSingleItem,
     isDirectory = isDirectory
 )

@@ -11,10 +11,15 @@ import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.LocalFileRepository
+import dev.qtremors.arcile.data.MutationFinalizer
+import dev.qtremors.arcile.data.OnboardingPreferencesRepository
+import dev.qtremors.arcile.data.OnboardingPreferencesStore
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.data.manager.DefaultTrashManager
+import dev.qtremors.arcile.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.data.manager.TrashManager
+import dev.qtremors.arcile.domain.ArchiveManager
 import dev.qtremors.arcile.data.provider.DefaultVolumeProvider
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.DefaultFileSystemDataSource
@@ -25,11 +30,21 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
 import dev.qtremors.arcile.ui.theme.ThemePreferences
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
+
+    @Provides
+    @Singleton
+    @ApplicationScope
+    fun provideApplicationScope(): CoroutineScope {
+        return CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    }
 
     @Provides
     @Singleton
@@ -59,9 +74,10 @@ object RepositoryModule {
     @Singleton
     fun provideVolumeProvider(
         @ApplicationContext context: Context,
-        classificationRepository: StorageClassificationRepository
+        classificationRepository: StorageClassificationRepository,
+        @ApplicationScope applicationScope: CoroutineScope
     ): VolumeProvider {
-        return DefaultVolumeProvider(context, classificationRepository)
+        return DefaultVolumeProvider(context, classificationRepository, applicationScope)
     }
 
     @Provides
@@ -78,10 +94,18 @@ object RepositoryModule {
     fun provideTrashManager(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient,
-        folderStatsStore: FolderStatsStore
+        mutationFinalizer: MutationFinalizer
     ): TrashManager {
-        return DefaultTrashManager(context, volumeProvider, mediaStoreClient, folderStatsStore)
+        return DefaultTrashManager(context, volumeProvider, mutationFinalizer)
+    }
+
+    @Provides
+    @Singleton
+    fun provideArchiveManager(
+        volumeProvider: VolumeProvider,
+        mutationFinalizer: MutationFinalizer
+    ): ArchiveManager {
+        return DefaultArchiveManager(volumeProvider, mutationFinalizer)
     }
 
     @Provides
@@ -89,10 +113,20 @@ object RepositoryModule {
     fun provideFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient,
-        folderStatsStore: FolderStatsStore
+        mutationFinalizer: MutationFinalizer
     ): FileSystemDataSource {
-        return DefaultFileSystemDataSource(context, volumeProvider, mediaStoreClient, folderStatsStore)
+        return DefaultFileSystemDataSource(context, volumeProvider, mutationFinalizer)
+    }
+
+    @Provides
+    @Singleton
+    fun provideMutationFinalizer(
+        @ApplicationContext context: Context,
+        mediaStoreClient: MediaStoreClient,
+        volumeProvider: VolumeProvider,
+        folderStatsStore: FolderStatsStore
+    ): MutationFinalizer {
+        return MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
     }
 
     @Provides
@@ -109,6 +143,7 @@ object RepositoryModule {
         volumeProvider: VolumeProvider,
         mediaStoreClient: MediaStoreClient,
         trashManager: TrashManager,
+        archiveManager: ArchiveManager,
         fileSystemDataSource: FileSystemDataSource,
         folderStatsStore: FolderStatsStore
     ): FileRepository {
@@ -117,7 +152,8 @@ object RepositoryModule {
             mediaStoreClient,
             trashManager,
             fileSystemDataSource,
-            folderStatsStore
+            folderStatsStore,
+            archiveManager
         )
     }
 
@@ -134,6 +170,22 @@ object RepositoryModule {
     fun provideBrowserPreferencesStore(
         repository: BrowserPreferencesRepository
     ): BrowserPreferencesStore {
+        return repository
+    }
+
+    @Provides
+    @Singleton
+    fun provideOnboardingPreferencesRepository(
+        @ApplicationContext context: Context
+    ): OnboardingPreferencesRepository {
+        return OnboardingPreferencesRepository(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideOnboardingPreferencesStore(
+        repository: OnboardingPreferencesRepository
+    ): OnboardingPreferencesStore {
         return repository
     }
 

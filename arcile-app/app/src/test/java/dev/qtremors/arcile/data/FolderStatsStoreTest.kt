@@ -5,12 +5,14 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.testutil.createTempStorageRoot
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -30,6 +32,7 @@ class FolderStatsStoreTest {
 
     private lateinit var context: Context
     private lateinit var root: File
+    private val stores = mutableListOf<DefaultFolderStatsStore>()
 
     @Before
     fun setup() {
@@ -39,6 +42,8 @@ class FolderStatsStoreTest {
 
     @After
     fun teardown() {
+        stores.forEach(DefaultFolderStatsStore::close)
+        stores.clear()
         root.deleteRecursively()
     }
 
@@ -49,7 +54,7 @@ class FolderStatsStoreTest {
 
         val started = CountDownLatch(1)
         val allowPublish = CountDownLatch(1)
-        val store = DefaultFolderStatsStore(
+        val store = trackedStore(
             context = context,
             onCalculationStarted = { path ->
                 if (path == folder.absolutePath) {
@@ -70,9 +75,11 @@ class FolderStatsStoreTest {
         store.invalidate(listOf(folder.absolutePath))
         store.queue(listOf(folder.absolutePath))
 
-        val updateDeferred = async { store.observeUpdates().first { it.path == folder.absolutePath } }
+        val updateDeferred = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().first { it.path == folder.absolutePath }
+        }
         allowPublish.countDown()
-        val update = updateDeferred.await()
+        val update = withTimeout(5_000) { updateDeferred.await() }
 
         assertEquals(2L, update.stats.fileCount)
         assertEquals(3L, update.stats.totalBytes)
@@ -93,11 +100,13 @@ class FolderStatsStoreTest {
         File(camera, "photo.jpg").writeText("12345")
         File(thumbnails, "thumb.db").writeText("1234567890")
 
-        val store = DefaultFolderStatsStore(context)
-        val updatesDeferred = async { store.observeUpdates().take(2).toList() }
+        val store = trackedStore(context = context)
+        val updatesDeferred = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().take(2).toList()
+        }
 
         store.queue(listOf(pictures.absolutePath, thumbnails.absolutePath))
-        val updates = updatesDeferred.await()
+        val updates = withTimeout(5_000) { updatesDeferred.await() }
 
         val updatesByPath = updates.associate { it.path to it.stats }
         val picturesStats = requireNotNull(updatesByPath[pictures.absolutePath])
@@ -115,7 +124,7 @@ class FolderStatsStoreTest {
     @Test
     fun `partial calculator result is persisted and published`() = runBlocking {
         val folder = File(root, "Android").apply { mkdirs() }
-        val store = DefaultFolderStatsStore(
+        val store = trackedStore(
             context = context,
             calculator = {
                 FolderStats(
@@ -127,9 +136,11 @@ class FolderStatsStoreTest {
             }
         )
 
-        val updateDeferred = async { store.observeUpdates().first { it.path == folder.absolutePath } }
+        val updateDeferred = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().first { it.path == folder.absolutePath }
+        }
         store.queue(listOf(folder.absolutePath))
-        val update = updateDeferred.await()
+        val update = withTimeout(5_000) { updateDeferred.await() }
 
         assertEquals(2L, update.stats.fileCount)
         assertEquals(512L, update.stats.totalBytes)
@@ -138,9 +149,22 @@ class FolderStatsStoreTest {
     }
 
     @Test
+    fun `folder stats calculator returns partial when node limit is exceeded`() = runBlocking {
+        val folder = File(root, "Huge").apply { mkdirs() }
+        repeat(5) { index ->
+            File(folder, "file-$index.txt").writeText("x")
+        }
+
+        val stats = FolderStatsCalculator.calculate(folder, nodeLimit = 3)
+
+        assertEquals(FolderStatsStatus.Partial, stats.status)
+        assertTrue(stats.fileCount <= 3L)
+    }
+
+    @Test
     fun `unavailable calculator result is persisted and published`() = runBlocking {
         val folder = File(root, "Restricted").apply { mkdirs() }
-        val store = DefaultFolderStatsStore(
+        val store = trackedStore(
             context = context,
             calculator = {
                 FolderStats(
@@ -152,11 +176,27 @@ class FolderStatsStoreTest {
             }
         )
 
-        val updateDeferred = async { store.observeUpdates().first { it.path == folder.absolutePath } }
+        val updateDeferred = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().first { it.path == folder.absolutePath }
+        }
         store.queue(listOf(folder.absolutePath))
-        val update = updateDeferred.await()
+        val update = withTimeout(5_000) { updateDeferred.await() }
 
         assertEquals(FolderStatsStatus.Unavailable, update.stats.status)
         assertEquals(FolderStatsStatus.Unavailable, store.getCached(listOf(folder.absolutePath))[folder.absolutePath]?.status)
+    }
+
+    private fun trackedStore(
+        context: Context,
+        calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
+        onCalculationStarted: ((String) -> Unit)? = null,
+        beforePublish: ((String) -> Unit)? = null
+    ): DefaultFolderStatsStore {
+        return DefaultFolderStatsStore(
+            context = context,
+            calculator = calculator,
+            onCalculationStarted = onCalculationStarted,
+            beforePublish = beforePublish
+        ).also(stores::add)
     }
 }

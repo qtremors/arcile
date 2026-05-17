@@ -2,9 +2,9 @@ package dev.qtremors.arcile.presentation.delegate
 
 import android.content.IntentSender
 import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.domain.evaluateDeletePolicy
 import dev.qtremors.arcile.domain.DeletePolicyResult
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -28,7 +28,7 @@ class DeleteFlowDelegate(
     private val coroutineScope: CoroutineScope,
     private val repository: FileRepository,
     private val callbacks: DeleteStateCallbacks,
-    private val executeMoveToTrash: suspend (List<String>) -> Result<Unit>,
+    private val startBulkDeleteOperation: (BulkFileOperationType, List<String>) -> Boolean,
     private val emitNativeRequest: suspend (IntentSender) -> Unit,
     private val onSuccess: () -> Unit,
     private val onFailure: () -> Unit = {}
@@ -83,20 +83,14 @@ class DeleteFlowDelegate(
         coroutineScope.launch {
             callbacks.setLoading(true)
             callbacks.dismissDeleteConfirmation()
-            
-            executeMoveToTrash(selected).onSuccess {
+
+            if (startBulkDeleteOperation(BulkFileOperationType.TRASH, selected)) {
+                callbacks.setLoading(false)
                 callbacks.clearSelection()
-                onSuccess()
-            }.onFailure { error ->
-                if (error is NativeConfirmationRequiredException) {
-                    callbacks.setLoading(false)
-                    callbacks.setPendingNativeAction()
-                    emitNativeRequest(error.intentSender)
-                } else {
-                    callbacks.setLoading(false)
-                    callbacks.setError(error.message ?: "Failed to move files to Trash")
-                    onFailure()
-                }
+            } else {
+                callbacks.setLoading(false)
+                callbacks.setError("Another file operation is already running")
+                onFailure()
             }
         }
     }
@@ -108,13 +102,13 @@ class DeleteFlowDelegate(
         coroutineScope.launch {
             callbacks.setLoading(true)
             callbacks.dismissDeleteConfirmation()
-            
-            repository.deletePermanently(selected).onSuccess {
-                callbacks.clearSelection()
-                onSuccess()
-            }.onFailure { error ->
+
+            if (startBulkDeleteOperation(BulkFileOperationType.DELETE, selected)) {
                 callbacks.setLoading(false)
-                callbacks.setError(error.message ?: "Failed to delete files")
+                callbacks.clearSelection()
+            } else {
+                callbacks.setLoading(false)
+                callbacks.setError("Another file operation is already running")
                 onFailure()
             }
         }

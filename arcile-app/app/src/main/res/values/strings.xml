@@ -86,6 +86,15 @@
     <string name="section_info">Info</string>
     <string name="about_headline">About</string>
     <string name="about_description">"App info, privacy policy, and changelogs"</string>
+    <string name="section_setup">Setup</string>
+    <string name="run_onboarding_again">Run onboarding again</string>
+    <string name="run_onboarding_again_description">Restart Arcile and show the setup flow again.</string>
+    <string name="restart_onboarding_title">Run onboarding again?</string>
+    <string name="restart_onboarding_description">Arcile will reset the setup flow. Restart the app to begin onboarding again.</string>
+    <string name="restart_now">Restart now</string>
+    <string name="later">Later</string>
+    <string name="settings_show_thumbnails">Show Thumbnails</string>
+    <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
     
     <!-- Theme Selection -->
     <string name="theme_mode">Theme Mode</string>
@@ -156,6 +165,10 @@
     <string name="thumbnail">Thumbnail</string>
 
     <string name="folders">Folders</string>
+    <string name="all_files">All</string>
+    <string name="folder_tabs_content_description">Folder filters</string>
+    <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
+    <string name="open_containing_folder">Open containing folder</string>
     <string name="utilities">Utilities</string>
     <string name="show_all">Show All</string>
     <string name="recent_files">Recent Files</string>
@@ -183,6 +196,8 @@
     <!-- Browser / File Manager -->
     <string name="browse_title">Browse</string>
     <string name="search_placeholder">Search all files…</string>
+    <string name="search_files_placeholder">Search files...</string>
+    <string name="search_category_placeholder">Search %1$s...</string>
     <string name="no_results_found">No results found</string>
     <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
     <string name="empty_directory">Empty Directory</string>
@@ -234,6 +249,23 @@
     <string name="properties_access_limited">Limited</string>
     <string name="properties_contains">Contains</string>
     <string name="properties_contains_value">%1$d files • %2$s</string>
+    <string name="archive_compress_zip">Create archive</string>
+    <string name="archive_extract_here">Extract here</string>
+    <string name="archive_extract_to_folder">Extract to folder</string>
+    <string name="archive_create_title">Create archive</string>
+    <string name="archive_create_summary">%1$d selected item(s)</string>
+    <string name="archive_name">Archive name</string>
+    <string name="archive_password_protect">Password protect</string>
+    <string name="archive_has_password">Archive has password</string>
+    <string name="archive_password">Password</string>
+    <string name="archive_confirm_password">Confirm password</string>
+    <string name="archive_password_mismatch">Passwords do not match</string>
+    <string name="archive_password_hint">Leave off for normal archives; enable only if this archive is encrypted.</string>
+    <string name="archive_destination">Destination: %1$s</string>
+    <string name="archive_create_action">Create</string>
+    <string name="archive_extract_title">Extract archive</string>
+    <string name="file_operation_creating_archive">Creating archive</string>
+    <string name="file_operation_extracting_archive">Extracting archive</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>
@@ -252,6 +284,8 @@
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>
+    <string name="recent_type_all">All types</string>
+    <string name="recent_sort_title">Sort recent files</string>
 
     <!-- Tools -->
     <string name="tools_title">Tools &amp; Utilities</string>
@@ -340,4 +374,59 @@
     <string name="file_operation_cancelling">Cancelling…</string>
     <string name="file_operation_progress">%1$s %2$d/%3$d</string>
     <string name="file_operation_progress_bytes">%1$s %2$s / %3$s</string>
+    <string name="invert_selection">Invert Selection</string>
+
+    <string name="new_fake_file">Random Fake File</string>
+    <string name="title_create_fake_file">Create Random Fake File</string>
+    <string name="label_fake_file_name">File Name</string>
+    <string name="label_fake_file_extension">Extension (e.g. bin, dat)</string>
+    <string name="label_fake_file_size">Size</string>
+    <string name="unit_kb">KB</string>
+    <string name="unit_mb">MB</string>
+    <string name="unit_gb">GB</string>
+    <string name="file_operation_creating_fake">Creating fake file</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_finish">Finish</string>
+    <string name="onboarding_not_now">Not now</string>
+    <string name="onboarding_progress_description">Onboarding progress</string>
+    <string name="onboarding_step_count">Step %1$d of %2$d</string>
+    <string name="onboarding_welcome_title">Welcome to Arcile</string>
+    <string name="onboarding_welcome_description">A focused file manager for browsing storage, reviewing recent files, and keeping everyday file work under control.</string>
+    <string name="onboarding_features_title">Built for real file work</string>
+    <string name="onboarding_features_description">Arcile keeps the common paths close while still respecting Android storage limits.</string>
+    <string name="onboarding_feature_browser">Browse everything important</string>
+    <string name="onboarding_feature_browser_description">Open internal storage, SD cards, OTG drives, folders, archives, and recent files from one place.</string>
+    <string name="onboarding_feature_categories">Scan by category</string>
+    <string name="onboarding_feature_categories_description">Jump into images, videos, audio, documents, archives, and APKs without hunting through folders.</string>
+    <string name="onboarding_feature_trash">Safer delete workflow</string>
+    <string name="onboarding_feature_trash_description">Supported permanent storage can use Arcile trash so accidental deletes are easier to recover.</string>
+    <string name="onboarding_feature_restricted">Clear restricted-folder handoff</string>
+    <string name="onboarding_feature_restricted_description">Android/data and Android/obb open through the system Files app when Android blocks direct access.</string>
+    <string name="onboarding_theme_title">Make it comfortable</string>
+    <string name="onboarding_theme_description">Pick a theme and accent now, or leave the defaults and change them later in Settings.</string>
+    <string name="onboarding_storage_title">Allow file access</string>
+    <string name="onboarding_storage_description">Arcile needs all-files access to list, copy, move, rename, archive, and delete files across shared storage.</string>
+    <string name="onboarding_storage_ready_title">Storage access is ready</string>
+    <string name="onboarding_storage_ready_description">Arcile can now open your shared storage and prepare the browser.</string>
+    <string name="onboarding_storage_can_read">Shared storage access</string>
+    <string name="onboarding_storage_can_read_description">Arcile can read and write user-visible files on internal storage, SD cards, and supported USB drives.</string>
+    <string name="onboarding_storage_private">Private app data remains protected</string>
+    <string name="onboarding_storage_private_description">Android still blocks other apps\' private Android/data folders and other restricted areas.</string>
+    <string name="onboarding_storage_restricted">Grant from settings</string>
+    <string name="onboarding_storage_restricted_description">Android will open Settings to grant this permission, then Arcile checks it when you return.</string>
+    <string name="onboarding_open_storage_settings">Grant Permission</string>
+    <string name="onboarding_notifications_title">Keep file operations visible</string>
+    <string name="onboarding_notifications_description">Notifications help show progress for long copy, move, delete, and archive work while Arcile keeps running.</string>
+    <string name="onboarding_notifications_ready_title">Notifications are ready</string>
+    <string name="onboarding_notifications_ready_description">Arcile can show progress for long-running file operations.</string>
+    <string name="onboarding_notifications_not_required_description">This Android version does not require a separate notification permission.</string>
+    <string name="onboarding_enable_notifications">Enable notifications</string>
+    <string name="onboarding_limited_android_title">Limited features on older Android</string>
+    <string name="onboarding_limited_android_description">Some file-management features may be limited on older Android versions. Arcile will show the best supported path for this device.</string>
+    <string name="onboarding_done_title">You\'re ready</string>
+    <string name="onboarding_done_description">Arcile is set up and ready to browse your files.</string>
+    <string name="permission_recovery_title">Storage access is off</string>
+    <string name="permission_recovery_description">Arcile needs all-files access before it can browse and manage files. Re-enable access in Android Settings to continue.</string>
+    <string name="permission_recovery_note">Your files stay on this device. Arcile uses this permission only for file manager actions you start.</string>
 </resources>

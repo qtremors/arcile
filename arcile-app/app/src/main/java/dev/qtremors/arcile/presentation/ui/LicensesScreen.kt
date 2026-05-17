@@ -63,7 +63,10 @@ private val libraries = listOf(
     LibraryInfo("Kotlin Serialization", "Apache 2.0", "https://github.com/Kotlin/kotlinx.serialization"),
     LibraryInfo("Coil (Image Loading)", "Apache 2.0", "https://github.com/coil-kt/coil"),
     LibraryInfo("Hilt (Dependency Injection)", "Apache 2.0", "https://dagger.dev/hilt/"),
-    LibraryInfo("MaterialKolor", "MIT", "https://github.com/jordond/MaterialKolor")
+    LibraryInfo("MaterialKolor", "MIT", "https://github.com/jordond/MaterialKolor"),
+    LibraryInfo("Apache Commons Compress 1.28.0", "Apache 2.0", "https://commons.apache.org/proper/commons-compress/"),
+    LibraryInfo("Zip4j 2.11.6", "Apache 2.0", "https://github.com/srikanth-lingala/zip4j"),
+    LibraryInfo("Tukaani XZ 1.10", "Public domain", "https://tukaani.org/xz/java.html")
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

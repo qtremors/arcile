@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.activity.compose.BackHandler
@@ -5,10 +7,8 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -29,16 +29,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.runtime.mutableFloatStateOf
-import kotlin.math.roundToInt
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -52,10 +48,20 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -74,6 +80,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -88,37 +95,50 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFakeFileDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
 
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.buildFolderTabs
+import dev.qtremors.arcile.presentation.filterFilesByFolderTab
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ClipboardOperation
+import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.Breadcrumbs
+import dev.qtremors.arcile.presentation.ui.components.FolderTabsRow
 import dev.qtremors.arcile.presentation.ui.components.PasteConflictDialog
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
 import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
@@ -152,38 +172,18 @@ import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
+import dev.qtremors.arcile.presentation.operations.rememberSmoothedProgress
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 
 /**
  * Full-featured file browser screen.
  *
  * Supports list and grid views, multi-select with range selection, inline search with filters,
  * file creation, rename, delete (via trash), copy/cut/paste clipboard, share, and pull-to-refresh.
- *
- * @param state Current [BrowserState] containing file list, selection, search, and clipboard state.
- * @param onNavigateBack Called when the user navigates back (hardware back or top bar back button).
- * @param onNavigateTo Called with the target directory path when the user opens a folder.
- * @param onOpenFile Called with the file path when the user opens a non-directory file.
- * @param onToggleSelection Toggles selection state for the given file path.
- * @param onSelectMultiple Selects all provided file paths (used for range selection).
- * @param onClearSelection Clears all current selections.
- * @param onCreateFolder Creates a new directory with the given name in the current directory.
- * @param onCreateFile Creates a new empty file with the given name in the current directory.
- * @param onDeleteSelected Moves all currently selected items to trash.
- * @param onRenameFile Renames the file at [path] to [newName].
- * @param onSearchQueryChange Updates the search query in the ViewModel.
- * @param onClearSearch Clears the active search query.
- * @param onSortOptionChange Updates the sort option for the current directory listing.
- * @param onGridViewChange Switches between list and grid view layouts.
- * @param onClearError Clears the current error message from state.
- * @param onCopySelected Stages selected files for a copy operation.
- * @param onCutSelected Stages selected files for a move operation.
- * @param onPasteFromClipboard Executes the pending clipboard operation in the current directory.
- * @param onCancelClipboard Cancels the current clipboard operation.
- * @param onShareSelected Launches the system share sheet for selected files.
- * @param isRefreshing `true` while a pull-to-refresh reload is in progress.
- * @param onRefresh Triggers a directory reload (invoked by pull-to-refresh).
- * @param onSearchFiltersChange Updates the active search filters.
- * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
  */
 private data class FileManagerContentKey(
     val isSearch: Boolean,
@@ -204,6 +204,7 @@ fun BrowserScreen(
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
+    onCreateFakeFile: (String, Long) -> Unit,
     onRequestDeleteSelected: () -> Unit,
     onConfirmDelete: () -> Unit,
     onTogglePermanentDelete: () -> Unit,
@@ -221,6 +222,7 @@ fun BrowserScreen(
     onClearFileOperationStatusMessage: () -> Unit = {},
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
+    onClearActiveFileOperation: () -> Unit = {},
     onDismissConflictDialog: () -> Unit = {},
     isRefreshing: Boolean = false,
     onRefresh: () -> Unit = {},
@@ -229,13 +231,24 @@ fun BrowserScreen(
     onResolvingConflicts: (Map<String, dev.qtremors.arcile.domain.ConflictResolution>) -> Unit = {},
     onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
     onNativeRequestResult: (Boolean) -> Unit = {},
+    onInvertSelection: (List<String>) -> Unit = {},
+    onSelectAll: (List<String>) -> Unit = {},
+    onRemoveFromClipboard: (String) -> Unit = {},
+    onSelectFolderTab: (String?) -> Unit = {},
+    onExtractSelectedArchive: (String?) -> Unit = {},
+    onExtractSelectedArchiveToFolder: (String?) -> Unit = {},
+    onCreateZipFromSelection: () -> Unit = {},
+    onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit = { _, _, _ -> },
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     var showCreateFolderDialog by remember { mutableStateOf(false) }
-    var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCreateFileDialog by remember { mutableStateOf(false) }
+    var showCreateFakeFileDialog by remember { mutableStateOf(false) }
+    var showCreateArchiveDialog by remember { mutableStateOf(false) }
+    var showExtractArchiveDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
+    var showClipboardContents by remember { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
     
     var isFabExpanded by remember { mutableStateOf(false) }
@@ -270,25 +283,51 @@ fun BrowserScreen(
         }
     }
 
-    // Always show full folder contents — search results only appear in the dropdown
-    val displayedFiles = remember(state.files, state.browserSortOption) {
+    val tabFilteredFiles = remember(state.files, state.selectedFolderTabPath) {
+        filterFilesByFolderTab(state.files, state.selectedFolderTabPath)
+    }
+    val displayedFiles = remember(tabFilteredFiles, state.browserSortOption) {
+        filterAndSortFiles(tabFilteredFiles, "", state.browserSortOption)
+    }
+    val sortedCategoryFiles = remember(state.files, state.browserSortOption) {
         filterAndSortFiles(state.files, "", state.browserSortOption)
     }
     val currentPresentation = remember(
         state.browserSortOption,
         state.browserViewMode,
         state.browserListZoom,
-        state.browserGridMinCellSize
+        state.browserGridMinCellSize,
+        state.browserShowThumbnails
     ) {
         BrowserPresentationPreferences(
             sortOption = state.browserSortOption,
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
-            gridMinCellSize = state.browserGridMinCellSize
+            gridMinCellSize = state.browserGridMinCellSize,
+            showThumbnails = state.browserShowThumbnails
         )
     }
     val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
         state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
+    }
+    val categoryFolderTabs = remember(state.isCategoryScreen, sortedCategoryFiles, context) {
+        if (state.isCategoryScreen) {
+            buildFolderTabs(sortedCategoryFiles, context.getString(R.string.all_files))
+        } else {
+            emptyList()
+        }
+    }
+    val selectedCategoryFolderTabIndex = remember(categoryFolderTabs, state.selectedFolderTabPath) {
+        categoryFolderTabs.indexOfFirst { it.path == state.selectedFolderTabPath }.takeIf { it >= 0 } ?: 0
+    }
+    val switchCategoryFolderTab: (Int) -> Unit = { direction ->
+        if (categoryFolderTabs.size > 1) {
+            val nextIndex = (selectedCategoryFolderTabIndex + direction)
+                .coerceIn(0, categoryFolderTabs.lastIndex)
+            if (nextIndex != selectedCategoryFolderTabIndex) {
+                onSelectFolderTab(categoryFolderTabs[nextIndex].path)
+            }
+        }
     }
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -307,27 +346,44 @@ fun BrowserScreen(
         }
     }
 
-    BackHandler {
-        if (showSearchBar) {
-            showSearchBar = false
-            onClearSearch()
-        } else {
-            onNavigateBack()
+    val handleBrowserBack: () -> Unit = {
+        when {
+            showCreateFolderDialog -> showCreateFolderDialog = false
+            showCreateFileDialog -> showCreateFileDialog = false
+            showCreateFakeFileDialog -> showCreateFakeFileDialog = false
+            showCreateArchiveDialog -> showCreateArchiveDialog = false
+            showExtractArchiveDialog -> showExtractArchiveDialog = false
+            showRenameDialog -> showRenameDialog = false
+            showSortDialog -> showSortDialog = false
+            showClipboardContents -> showClipboardContents = false
+            state.isSearchFilterMenuVisible -> onToggleSearchFilterMenu(false)
+            state.showConflictDialog -> onDismissConflictDialog()
+            state.isPropertiesVisible -> onDismissProperties()
+            state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation -> onDismissDeleteConfirmation()
+            isFabExpanded -> isFabExpanded = false
+            showSearchBar -> {
+                showSearchBar = false
+                onClearSearch()
+            }
+            state.selectedFiles.isNotEmpty() -> onClearSelection()
+            else -> onNavigateBack()
         }
     }
 
-    // Show clipboard feedback snackbar
+    BackHandler {
+        handleBrowserBack()
+    }
+
     LaunchedEffect(state.clipboardState) {
         state.clipboardState?.let { clipboard ->
             val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
-            val count = clipboard.sourcePaths.size
+            val count = clipboard.files.size
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(context.getString(R.string.clipboard_feedback, count, action))
             }
         }
     }
 
-    // Show error as Snackbar instead of blocking dialog
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
@@ -386,7 +442,6 @@ fun BrowserScreen(
         val secondaryLabel = operation.currentPath
             ?.substringAfterLast(File.separatorChar)
             ?.takeIf { it.isNotBlank() }
-        val percentageLabel = progress?.let { "${(it * 100).toInt()}%" }
         val operationIcon = if (operation.type == BulkFileOperationType.MOVE) {
             Icons.Default.ContentCut
         } else {
@@ -395,6 +450,7 @@ fun BrowserScreen(
 
         ExtendedFloatingActionButton(
             onClick = onCancel,
+            modifier = Modifier.testTag("active_file_operation_fab"),
             containerColor = containerColor,
             contentColor = contentColor,
             shape = MaterialTheme.shapes.extraLarge,
@@ -432,12 +488,14 @@ fun BrowserScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = listOfNotNull(percentageLabel, secondaryLabel).joinToString(" • "),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    secondaryLabel?.let { label ->
+                        Text(
+                            text = label,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
                 }
             }
         )
@@ -454,14 +512,24 @@ fun BrowserScreen(
 
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    val isSelectionMode = state.selectedFiles.isNotEmpty()
+    val isClipboardActive = state.clipboardState != null
+    val snackbarPadding = if (isSelectionMode || isClipboardActive) 80.dp else 0.dp
+    val layoutDirection = LocalLayoutDirection.current
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
+        snackbarHost = {
+            ArcileSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier.padding(bottom = snackbarPadding)
+            )
+        },
         topBar = {
             if (showSearchBar) {
                 Column {
                     val searchPlaceholder = if (state.isCategoryScreen) {
-                        "Search ${state.activeCategoryName.lowercase()}..."
+                        stringResource(R.string.search_category_placeholder, state.activeCategoryName.lowercase())
                     } else {
                         stringResource(R.string.search_placeholder)
                     }
@@ -482,22 +550,25 @@ fun BrowserScreen(
                     )
                 }
             } else {
+                val selectedSizeFormatted = if (state.selectedFiles.isNotEmpty()) {
+                    formatFileSize(state.selectedFilesTotalSize)
+                } else null
+
                 ArcileTopBar(
                     title = if (state.isCategoryScreen) state.activeCategoryName else stringResource(R.string.browse_title),
                     selectionCount = state.selectedFiles.size,
+                    selectedSize = selectedSizeFormatted,
                     showBackArrow = true,
+                    showSearchAction = true,
                     showSortAction = !state.isVolumeRootScreen,
                     showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
                     showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty(),
                     isGridView = state.browserViewMode == BrowserViewMode.GRID,
-                    hasClipboardItems = state.clipboardState != null,
                     scrollBehavior = scrollBehavior,
-                    onBackClick = onNavigateBack,
+                    onBackClick = handleBrowserBack,
                     onClearSelection = onClearSelection,
                     onSearchClick = { showSearchBar = true },
                     onSortClick = { showSortDialog = true },
-                    onPasteClick = onPasteFromClipboard,
-                    onCancelPaste = onCancelClipboard,
                     onActionSelected = { action ->
                         when (action) {
                             TopBarAction.NewFolder -> showCreateFolderDialog = true
@@ -515,7 +586,8 @@ fun BrowserScreen(
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
-                            TopBarAction.SelectAll -> onSelectMultiple(displayedFiles.map { it.absolutePath })
+                            TopBarAction.SelectAll -> onSelectAll(displayedFiles.map { it.absolutePath })
+                            TopBarAction.InvertSelection -> onInvertSelection(displayedFiles.map { it.absolutePath })
                             TopBarAction.Properties -> onOpenProperties()
                             else -> {}
                         }
@@ -523,13 +595,9 @@ fun BrowserScreen(
                 )
             }
         },
+        bottomBar = {},
         floatingActionButton = {
-            if (state.activeFileOperation != null) {
-                ActiveFileOperationFabInternal(
-                    operation = state.activeFileOperation,
-                    onCancel = onCancelClipboard
-                )
-            } else if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen) {
+            if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen && state.clipboardState == null && state.activeFileOperation == null) {
                 Box {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
@@ -552,6 +620,14 @@ fun BrowserScreen(
                                         isFabExpanded = false
                                         showCreateFileDialog = true
                                     }
+                                ),
+                                dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem(
+                                    label = stringResource(R.string.new_fake_file),
+                                    icon = androidx.compose.material.icons.Icons.Default.Extension,
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFakeFileDialog = true
+                                    }
                                 )
                             )
                         )
@@ -560,40 +636,10 @@ fun BrowserScreen(
             }
         }
     ) { padding ->
-        var offsetX by remember { mutableFloatStateOf(0f) }
-        val animatedOffsetX by animateFloatAsState(
-            targetValue = offsetX,
-            label = "swipeOffset",
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
-        )
-
         Box(
             modifier = Modifier
-                .padding(padding)
                 .fillMaxSize()
-                .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offsetX = 0f },
-                        onDragEnd = {
-                            if (offsetX > 150f) {
-                                onNavigateBack()
-                            }
-                            offsetX = 0f
-                        },
-                        onDragCancel = { offsetX = 0f },
-                        onHorizontalDrag = { _, dragAmount ->
-                            val newOffset = offsetX + dragAmount
-                            if (newOffset >= 0f) {
-                                offsetX = newOffset
-                            } else {
-                                offsetX = 0f
-                            }
-                        }
-                    )
-                }
         ) {
-            // When search has completed, show search results instead of browse content
             val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
 
             val targetKey = FileManagerContentKey(
@@ -603,147 +649,205 @@ fun BrowserScreen(
                 isRoot = state.isVolumeRootScreen
             )
 
-            Column(modifier = Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = padding.calculateTopPadding())
+            ) {
                 if (targetKey.isSearch) {
-                            // Search results in the content area
-                            if (state.searchResults.isEmpty()) {
-                                EmptyState(
-                                    icon = Icons.Default.SearchOff,
-                                    title = stringResource(R.string.no_results_found),
-                                    description = stringResource(R.string.no_results_description, state.browserSearchQuery),
-                                    modifier = Modifier.weight(1f)
+                    if (state.searchResults.isEmpty()) {
+                        EmptyState(
+                            icon = Icons.Default.SearchOff,
+                            title = stringResource(R.string.no_results_found),
+                            description = stringResource(R.string.no_results_description, state.browserSearchQuery),
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        val formatter = rememberDateFormatter("MMM dd, yyyy")
+                        LazyColumn(modifier = Modifier.weight(1f)) {
+                            items(
+                                items = state.searchResults,
+                                key = { it.absolutePath },
+                                contentType = { if (it.isDirectory) "directory" else "file" }
+                            ) { file ->
+                                FileItemRow(
+                                    file = file,
+                                    formattedDate = formatter.format(Date(file.lastModified)),
+                                    isSelected = false,
+                                    showThumbnails = currentPresentation.showThumbnails,
+                                    onClick = {
+                                        showSearchBar = false
+                                        onClearSearch()
+                                        if (file.isDirectory) {
+                                            onNavigateTo(file.absolutePath)
+                                        } else {
+                                            onOpenFile(file.absolutePath)
+                                        }
+                                    },
+                                    onLongClick = {}
                                 )
-                            } else {
-                                val formatter = rememberDateFormatter("MMM dd, yyyy")
-                                LazyColumn(modifier = Modifier.weight(1f)) {
-                                    items(state.searchResults, key = { "${it.absolutePath}_${it.hashCode()}" }) { file ->
-                                        FileItemRow(
-                                            file = file,
-                                            formattedDate = formatter.format(Date(file.lastModified)),
-                                            isSelected = false,
-                                            onClick = {
-                                                showSearchBar = false
-                                                onClearSearch()
-                                                if (file.isDirectory) {
-                                                    onNavigateTo(file.absolutePath)
-                                                } else {
-                                                    onOpenFile(file.absolutePath)
+                            }
+                        }
+                    }
+                } else if (showSearchBar && state.isSearching) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                } else {
+                    if (!state.isVolumeRootScreen && !state.isCategoryScreen) {
+                        Breadcrumbs(
+                            currentPath = state.currentPath,
+                            storageVolumes = state.storageVolumes,
+                            onPathSegmentClick = { path ->
+                                onNavigateTo(path)
+                            }
+                        )
+                    }
+
+                    if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ) {
+                            Text(
+                                text = if (currentVolume.kind == StorageKind.OTG) {
+                                    stringResource(R.string.browsing_temp_usb)
+                                } else {
+                                    stringResource(R.string.browsing_unclassified)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
+                    }
+
+                    if (state.isCategoryScreen) {
+                        FolderTabsRow(
+                            tabs = categoryFolderTabs,
+                            selectedPath = state.selectedFolderTabPath,
+                            onSelectTab = onSelectFolderTab
+                        )
+                    }
+
+                    val pullRefreshState = rememberPullToRefreshState()
+
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = onRefresh,
+                        state = pullRefreshState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .then(
+                                if (state.isCategoryScreen && categoryFolderTabs.size > 1) {
+                                    Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
+                                        var horizontalDrag = 0f
+                                        detectHorizontalDragGestures(
+                                            onDragStart = { horizontalDrag = 0f },
+                                            onHorizontalDrag = { change, dragAmount ->
+                                                horizontalDrag += dragAmount
+                                                if (kotlin.math.abs(horizontalDrag) > 96f) {
+                                                    change.consume()
+                                                    switchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
+                                                    horizontalDrag = 0f
                                                 }
                                             },
-                                            onLongClick = {}
+                                            onDragEnd = { horizontalDrag = 0f },
+                                            onDragCancel = { horizontalDrag = 0f }
                                         )
                                     }
+                                } else {
+                                    Modifier
                                 }
-                            }
-                        } else if (showSearchBar && state.isSearching) {
-                            // Loading indicator while search is running
+                            ),
+                        indicator = {
+                            ArcilePullRefreshIndicator(
+                                isRefreshing = isRefreshing,
+                                state = pullRefreshState
+                            )
+                        }
+                    ) {
+                        if (showLoading && state.files.isEmpty() && !isRefreshing) {
                             Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
+                                modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {
                                 LoadingIndicator()
                             }
-                        } else {
-                            // Normal browse content
-                            if (!state.isVolumeRootScreen) {
-                                Breadcrumbs(
-                                    currentPath = state.currentPath,
-                                    storageVolumes = state.storageVolumes,
-                                    onPathSegmentClick = { path ->
-                                        onNavigateTo(path)
-                                    }
+                        } else if (state.isVolumeRootScreen) {
+                            dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
+                                volumes = state.storageVolumes,
+                                onNavigateTo = onNavigateTo,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    top = 8.dp,
+                                    bottom = padding.calculateBottomPadding() + 100.dp,
+                                    start = padding.calculateLeftPadding(layoutDirection),
+                                    end = padding.calculateRightPadding(layoutDirection)
                                 )
-                            }
-
-                            if (currentVolume?.kind == StorageKind.OTG || currentVolume?.kind == StorageKind.EXTERNAL_UNCLASSIFIED) {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    shape = MaterialTheme.shapes.extraLarge,
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                                ) {
-                                    Text(
-                                        text = if (currentVolume.kind == StorageKind.OTG) {
-                                            stringResource(R.string.browsing_temp_usb)
-                                        } else {
-                                            stringResource(R.string.browsing_unclassified)
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(16.dp)
-                                    )
-                                }
-                            }
-
-                            val pullRefreshState = rememberPullToRefreshState()
-
-                            PullToRefreshBox(
-                                isRefreshing = isRefreshing,
-                                onRefresh = onRefresh,
-                                state = pullRefreshState,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                indicator = {
-                                    ArcilePullRefreshIndicator(
-                                        isRefreshing = isRefreshing,
-                                        state = pullRefreshState
-                                    )
-                                }
-                            ) {
-                                if (showLoading && state.files.isEmpty() && !isRefreshing) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        LoadingIndicator()
-                                    }
-                                } else if (state.isVolumeRootScreen) {
-                                    dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList(
-                                        volumes = state.storageVolumes,
-                                        onNavigateTo = onNavigateTo,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else if (displayedFiles.isEmpty() && !state.isLoading) {
-                                    EmptyState(
-                                        icon = Icons.Default.FolderOff,
-                                        title = stringResource(R.string.empty_directory),
-                                        description = stringResource(R.string.empty_directory_description),
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else if (state.browserViewMode == BrowserViewMode.GRID && !state.isVolumeRootScreen) {
-                                     FileGrid(
-                                         files = displayedFiles,
-                                         selectedFiles = state.selectedFiles,
-                                        onNavigateTo = onNavigateTo,
-                                        onOpenFile = onOpenFile,
-                                         onToggleSelection = onToggleSelection,
-                                         onSelectMultiple = onSelectMultiple,
-                                         modifier = Modifier.fillMaxSize(),
-                                         gridState = gridState,
-                                         minCellSize = state.browserGridMinCellSize.dp,
-                                         folderStatsByPath = state.folderStatsByPath,
-                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
-                                     )
-                                 } else {
-                                     FileList(
-                                        files = displayedFiles,
-                                        selectedFiles = state.selectedFiles,
-                                        onNavigateTo = onNavigateTo,
-                                        onOpenFile = onOpenFile,
-                                         onToggleSelection = onToggleSelection,
-                                         onSelectMultiple = onSelectMultiple,
-                                         modifier = Modifier.fillMaxSize(),
-                                         listState = listState,
-                                         zoom = state.browserListZoom,
-                                         folderStatsByPath = state.folderStatsByPath,
-                                         folderStatsLoadingPaths = state.folderStatsLoadingPaths
-                                     )
-                                 }
-                            }
+                            )
+                        } else if (displayedFiles.isEmpty() && !state.isLoading) {
+                            EmptyState(
+                                icon = Icons.Default.FolderOff,
+                                title = stringResource(R.string.empty_directory),
+                                description = if (state.isCategoryScreen && state.selectedFolderTabPath != null) {
+                                    stringResource(R.string.empty_folder_tab_description)
+                                } else {
+                                    stringResource(R.string.empty_directory_description)
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else if (state.browserViewMode == BrowserViewMode.GRID) {
+                             FileGrid(
+                                 files = displayedFiles,
+                                 selectedFiles = state.selectedFiles,
+                                onNavigateTo = onNavigateTo,
+                                onOpenFile = onOpenFile,
+                                 onToggleSelection = onToggleSelection,
+                                 onSelectMultiple = onSelectMultiple,
+                                 showThumbnails = currentPresentation.showThumbnails,
+                                 modifier = Modifier.fillMaxSize(),
+                                 gridState = gridState,
+                                 minCellSize = state.browserGridMinCellSize.dp,
+                                 folderStatsByPath = state.folderStatsByPath,
+                                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                                 contentPadding = PaddingValues(
+                                     top = 8.dp,
+                                     bottom = padding.calculateBottomPadding() + 100.dp,
+                                     start = 8.dp,
+                                     end = 8.dp
+                                 )
+                             )
+                         } else {
+                             FileList(
+                                files = displayedFiles,
+                                selectedFiles = state.selectedFiles,
+                                onNavigateTo = onNavigateTo,
+                                onOpenFile = onOpenFile,
+                                 onToggleSelection = onToggleSelection,
+                                 onSelectMultiple = onSelectMultiple,
+                                 showThumbnails = currentPresentation.showThumbnails,
+                                 modifier = Modifier.fillMaxSize(),
+                                 listState = listState,
+                                 zoom = state.browserListZoom,
+                                 folderStatsByPath = state.folderStatsByPath,
+                                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                                 contentPadding = PaddingValues(
+                                     top = 8.dp,
+                                     bottom = padding.calculateBottomPadding() + 100.dp
+                                 )
+                             )
+                         }
+                    }
                 }
             }
 
@@ -758,6 +862,344 @@ fun BrowserScreen(
                         )
                 )
             }
+
+            // Floating Selection Toolbar Overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                if (state.selectedFiles.isNotEmpty()) {
+                    val selectedArchive = state.selectedFiles.singleOrNull()?.let { ArchiveFormat.isSupported(it) } == true
+                    val mainActions = mutableListOf<ToolbarAction>()
+                    mainActions.add(ToolbarAction(
+                        icon = Icons.Default.ContentCopy,
+                        contentDescription = stringResource(R.string.action_copy),
+                        onClick = onCopySelected
+                    ))
+                    mainActions.add(ToolbarAction(
+                        icon = Icons.Default.ContentCut,
+                        contentDescription = stringResource(R.string.action_cut),
+                        onClick = onCutSelected
+                    ))
+                    mainActions.add(ToolbarAction(
+                        icon = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.action_delete_selected),
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = onRequestDeleteSelected
+                    ))
+                    if (state.selectedFiles.size == 1) {
+                        mainActions.add(ToolbarAction(
+                            icon = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.action_rename),
+                            onClick = { showRenameDialog = true }
+                        ))
+                    }
+                    
+                    dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                        isVisible = true,
+                        actions = mainActions,
+                        moreContent = {
+                            var showSelectionMenu by remember { mutableStateOf(false) }
+                            Box {
+                                Surface(
+                                    onClick = { showSelectionMenu = true },
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    shadowElevation = 4.dp,
+                                    tonalElevation = 4.dp,
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = stringResource(R.string.action_more_options),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                }
+                                androidx.compose.material3.DropdownMenu(
+                                    shape = MaterialTheme.shapes.extraLarge,
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    expanded = showSelectionMenu,
+                                    onDismissRequest = { showSelectionMenu = false }
+                                ) {
+                                    val menuActions = remember(onShareSelected, displayedFiles) {
+                                        mutableListOf<@Composable () -> Unit>().apply {
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.archive_compress_zip)) },
+                                                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        showCreateArchiveDialog = true
+                                                    }
+                                                )
+                                            }
+                                            if (selectedArchive) {
+                                                add {
+                                                    androidx.compose.material3.DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.archive_extract_here)) },
+                                                        leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
+                                                        onClick = {
+                                                            showSelectionMenu = false
+                                                            showExtractArchiveDialog = true
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.share)) },
+                                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onShareSelected()
+                                                    }
+                                                )
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.select_all)) },
+                                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onSelectMultiple(displayedFiles.map { it.absolutePath })
+                                                    }
+                                                )
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.properties_title)) },
+                                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onOpenProperties()
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    menuActions.forEachIndexed { index, action ->
+                                        val shape = when {
+                                            menuActions.size == 1 -> RoundedCornerShape(24.dp)
+                                            index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
+                                            index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                                            else -> RoundedCornerShape(4.dp)
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                .clip(shape)
+                                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                        ) {
+                                            action()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    )
+                } else if (state.clipboardState != null || state.activeFileOperation != null) {
+                    val clipboard = state.clipboardState
+                    val activeOp = state.activeFileOperation
+
+                    // ── Smoothed Progress Engine ──
+                    val smoothedState = rememberSmoothedProgress()
+
+                    // Feed raw progress into the smoothing engine
+                    LaunchedEffect(activeOp) {
+                        if (activeOp != null) {
+                            // Detect terminal status — snap to full fill instantly
+                            val terminal = activeOp.terminalStatus
+                            if (terminal != null) {
+                                smoothedState.markComplete(terminal)
+                            } else {
+                                // Initialize on first progress event
+                                if (smoothedState.operationStartTime == 0L) {
+                                    smoothedState.reset(activeOp.startTimeMillis)
+                                }
+                                val byteProgress = activeOp.totalBytes
+                                    ?.takeIf { it > 0L }
+                                    ?.let { total -> ((activeOp.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+                                val itemProgress = activeOp.totalItems
+                                    .takeIf { it > 0 }
+                                    ?.let { activeOp.completedItems.toFloat() / it.toFloat() }
+                                    ?.coerceIn(0f, 1f)
+                                val rawProgress = byteProgress ?: itemProgress
+                                if (rawProgress != null) {
+                                    smoothedState.updateTarget(rawProgress)
+                                }
+                            }
+                        } else {
+                            // Operation cleared from ViewModel — reset for next time
+                            smoothedState.reset()
+                        }
+                    }
+
+                    // Auto-dismiss: clear operation state after animation finishes
+                    LaunchedEffect(smoothedState.isAnimationFinished) {
+                        if (smoothedState.isAnimationFinished) {
+                            onClearActiveFileOperation()
+                            smoothedState.reset()
+                        }
+                    }
+
+                    val hasActiveProgress = activeOp != null
+                    val smoothedProgress = smoothedState.displayedProgress
+
+                    // Determine pill fill color based on terminal status
+                    val successColor = Color(0xFF4CAF50).copy(alpha = 0.25f)
+                    val failureColor = Color(0xFFF44336).copy(alpha = 0.25f)
+                    val inProgressColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    val progressFillColor = when (activeOp?.terminalStatus) {
+                        OperationCompletionStatus.SUCCESS -> successColor
+                        OperationCompletionStatus.FAILED,
+                        OperationCompletionStatus.CANCELLED -> failureColor
+                        null -> inProgressColor
+                    }
+
+                    val actions = if (activeOp != null && activeOp.terminalStatus == null) {
+                        listOf(
+                            ToolbarAction(
+                                icon = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.action_cancel_transfer),
+                                containerColor = Color(0xFFF44336),
+                                tint = Color.White,
+                                onClick = onCancelClipboard
+                            )
+                        )
+                    } else if (activeOp == null) {
+                        listOf(
+                            ToolbarAction(
+                                icon = Icons.Default.ContentPaste,
+                                contentDescription = stringResource(R.string.action_paste_here),
+                                onClick = onPasteFromClipboard
+                            ),
+                            ToolbarAction(
+                                icon = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.action_cancel_transfer),
+                                containerColor = Color(0xFFF44336),
+                                tint = Color.White,
+                                onClick = onCancelClipboard
+                            )
+                        )
+                    } else {
+                        // Terminal state — no actions while showing completion fill
+                        emptyList()
+                    }
+
+                    dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                        isVisible = true,
+                        actions = actions,
+                        startContent = {
+                            Surface(
+                                onClick = { if (activeOp == null) showClipboardContents = true },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                tonalElevation = 4.dp,
+                                shadowElevation = 2.dp,
+                                modifier = Modifier
+                                    .height(56.dp)
+                                    .padding(end = 8.dp)
+                                    .widthIn(min = 140.dp)
+                                    .animateContentSize()
+                            ) {
+                                // drawBehind paints the progress fill inside the
+                                // existing pill shape without adding a child Box
+                                // that could alter the pill's measured size.
+                                Box(
+                                    contentAlignment = Alignment.CenterStart,
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .then(
+                                            if (hasActiveProgress) {
+                                                Modifier.drawBehind {
+                                                    val fillWidth = size.width * smoothedProgress
+                                                    drawRect(
+                                                        color = progressFillColor,
+                                                        size = Size(fillWidth, size.height)
+                                                    )
+                                                }
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        val opIcon = when {
+                                            activeOp?.type == BulkFileOperationType.MOVE || clipboard?.operation == ClipboardOperation.CUT -> Icons.Default.ContentCut
+                                            activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
+                                            activeOp?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
+                                            activeOp?.type == BulkFileOperationType.EXTRACT_ARCHIVE -> Icons.Default.Unarchive
+                                            activeOp?.type == BulkFileOperationType.CREATE_FAKE -> Icons.Default.Extension
+                                            else -> Icons.Default.ContentCopy
+                                        }
+                                        val opTint = if (activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.primary
+                                        }
+                                        Icon(
+                                            imageVector = opIcon,
+                                            contentDescription = null,
+                                            tint = opTint,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Column(
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        ) {
+                                            val operationTitle = when (activeOp?.type) {
+                                                BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
+                                                BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
+                                                else -> {
+                                                    val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
+                                                    if (itemCount == 1) "1 item" else "$itemCount items"
+                                                }
+                                            }
+                                            Text(
+                                                text = operationTitle,
+                                                style = MaterialTheme.typography.labelLarge,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            
+                                            val subtitle = if (activeOp != null) {
+                                                if (activeOp.totalBytes != null && activeOp.totalBytes!! > 0L) {
+                                                    val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
+                                                    formatFileSize(remaining.coerceAtLeast(0L))
+                                                } else {
+                                                    "${activeOp.completedItems} / ${activeOp.totalItems}"
+                                                }
+                                            } else {
+                                                formatFileSize(clipboard?.totalSize ?: 0L)
+                                            }
+                                            
+                                            Text(
+                                                text = subtitle,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
         }
     }
 
@@ -768,88 +1210,304 @@ fun BrowserScreen(
             onDismiss = { onToggleSearchFilterMenu(false) },
             showCategoryFilter = !state.isCategoryScreen
         )
-
     }
 
     // Dialogs
     if (showCreateFolderDialog) {
-            CreateFolderDialog(
-                onDismiss = { showCreateFolderDialog = false },
-                onConfirm = { name ->
-                    onCreateFolder(name)
-                    showCreateFolderDialog = false
-                }
-            )
-        }
-
-        if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
-            DeleteConfirmationDialog(
-                selectedCount = state.selectedFiles.size,
-                isPermanentDeleteChecked = state.isPermanentDeleteChecked,
-                isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
-                onConfirm = onConfirmDelete,
-                onDismiss = onDismissDeleteConfirmation,
-                onTogglePermanentDelete = onTogglePermanentDelete
-            )
-        }
-
-        if (state.showMixedDeleteExplanation) {
-            MixedDeleteExplanationDialog(
-                onDismiss = onDismissDeleteConfirmation
-            )
-        }
-
-        if (showCreateFileDialog) {
-            CreateFileDialog(
-                onDismiss = { showCreateFileDialog = false },
-                onConfirm = { fileName ->
-                    showCreateFileDialog = false
-                    onCreateFile(fileName)
-                }
-            )
-        }
-
-        if (showRenameDialog && state.selectedFiles.size == 1) {
-            val selectedPath = state.selectedFiles.first()
-            val currentName = selectedPath.substringAfterLast('/')
-            RenameDialog(
-                currentName = currentName,
-                onDismiss = { showRenameDialog = false },
-                onConfirm = { newName ->
-                    onRenameFile(selectedPath, newName)
-                    showRenameDialog = false
-                }
-            )
-        }
-
-        if (showSortDialog) {
-            SortOptionDialog(
-                title = stringResource(R.string.sort_folder_title),
-                selectedPreferences = currentPresentation,
-                showApplyToSubfolders = !state.isCategoryScreen,
-                onDismiss = { showSortDialog = false },
-                onApply = { presentation, applyToSubfolders ->
-                    onPresentationChange(presentation, applyToSubfolders)
-                    showSortDialog = false
-                }
-            )
-        }
-
-        if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
-            PasteConflictDialog(
-                conflicts = state.pasteConflicts,
-                onResolve = onResolvingConflicts,
-                onDismiss = onDismissConflictDialog
-            )
-        }
-
-        if (state.isPropertiesVisible) {
-            PropertiesDialog(
-                properties = state.properties,
-                isLoading = state.isPropertiesLoading,
-                onDismiss = onDismissProperties
-            )
-        }
-
-
+        CreateFolderDialog(
+            onDismiss = { showCreateFolderDialog = false },
+            onConfirm = { name ->
+                onCreateFolder(name)
+                showCreateFolderDialog = false
+            }
+        )
     }
+
+    if (state.showTrashConfirmation || state.showPermanentDeleteConfirmation) {
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = state.isPermanentDeleteChecked,
+            isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
+            onConfirm = onConfirmDelete,
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = onTogglePermanentDelete
+        )
+    }
+
+    if (state.showMixedDeleteExplanation) {
+        MixedDeleteExplanationDialog(
+            onDismiss = onDismissDeleteConfirmation
+        )
+    }
+
+    if (showCreateFileDialog) {
+        CreateFileDialog(
+            onDismiss = { showCreateFileDialog = false },
+            onConfirm = { fileName ->
+                showCreateFileDialog = false
+                onCreateFile(fileName)
+            }
+        )
+    }
+
+    if (showCreateFakeFileDialog) {
+        CreateFakeFileDialog(
+            onDismiss = { showCreateFakeFileDialog = false },
+            onConfirm = { fileName, size ->
+                showCreateFakeFileDialog = false
+                onCreateFakeFile(fileName, size)
+            }
+        )
+    }
+
+    if (showCreateArchiveDialog && state.selectedFiles.isNotEmpty()) {
+        val defaultName = remember(state.selectedFiles) {
+            state.selectedFiles.singleOrNull()
+                ?.let { File(it).nameWithoutExtension }
+                ?.ifBlank { "Archive" }
+                ?: "Archive"
+        }
+        CreateArchiveDialog(
+            defaultName = defaultName,
+            selectedCount = state.selectedFiles.size,
+            destinationPath = state.currentPath,
+            onDismiss = { showCreateArchiveDialog = false },
+            onConfirm = { name, format, password ->
+                showCreateArchiveDialog = false
+                onCreateArchiveFromSelection(name, format, password)
+            }
+        )
+    }
+
+    if (showExtractArchiveDialog && state.selectedFiles.size == 1) {
+        ExtractArchiveDialog(
+            archiveName = File(state.selectedFiles.first()).name,
+            onDismiss = { showExtractArchiveDialog = false },
+            onExtractHere = { password ->
+                showExtractArchiveDialog = false
+                onExtractSelectedArchive(password)
+            },
+            onExtractToFolder = { password ->
+                showExtractArchiveDialog = false
+                onExtractSelectedArchiveToFolder(password)
+            }
+        )
+    }
+
+    if (showRenameDialog && state.selectedFiles.size == 1) {
+        val selectedPath = state.selectedFiles.first()
+        val currentName = selectedPath.substringAfterLast('/')
+        RenameDialog(
+            currentName = currentName,
+            onDismiss = { showRenameDialog = false },
+            onConfirm = { newName ->
+                onRenameFile(selectedPath, newName)
+                showRenameDialog = false
+            }
+        )
+    }
+
+    if (showSortDialog) {
+        SortOptionDialog(
+            title = stringResource(R.string.sort_folder_title),
+            selectedPreferences = currentPresentation,
+            showApplyToSubfolders = !state.isCategoryScreen,
+            onDismiss = { showSortDialog = false },
+            onApply = { presentation, applyToSubfolders ->
+                onPresentationChange(presentation, applyToSubfolders)
+                showSortDialog = false
+            }
+        )
+    }
+
+    if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
+        PasteConflictDialog(
+            conflicts = state.pasteConflicts,
+            onResolve = onResolvingConflicts,
+            onDismiss = onDismissConflictDialog
+        )
+    }
+
+    if (state.isPropertiesVisible) {
+        PropertiesDialog(
+            properties = state.properties,
+            isLoading = state.isPropertiesLoading,
+            onDismiss = onDismissProperties
+        )
+    }
+
+    if (showClipboardContents && state.clipboardState != null) {
+        dev.qtremors.arcile.presentation.ui.components.dialogs.ClipboardContentsDialog(
+            state = state.clipboardState,
+            onRemoveItem = onRemoveFromClipboard,
+            onDismiss = { showClipboardContents = false }
+        )
+    }
+}
+
+@Composable
+private fun CreateArchiveDialog(
+    defaultName: String,
+    selectedCount: Int,
+    destinationPath: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String, ArchiveFormat, String?) -> Unit
+) {
+    var archiveName by rememberSaveable(defaultName) { mutableStateOf(defaultName) }
+    var format by rememberSaveable { mutableStateOf(ArchiveFormat.ZIP) }
+    var usePassword by rememberSaveable { mutableStateOf(false) }
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirmPassword by rememberSaveable { mutableStateOf("") }
+    val trimmedName = archiveName.trim()
+    val passwordError = usePassword && password != confirmPassword
+    val canCreate = trimmedName.isNotEmpty() && (!usePassword || (password.isNotEmpty() && !passwordError))
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+        title = { Text(stringResource(R.string.archive_create_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.archive_create_summary, selectedCount),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                OutlinedTextField(
+                    value = archiveName,
+                    onValueChange = { archiveName = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.archive_name)) },
+                    suffix = { Text(".${format.extension}") },
+                    isError = trimmedName.isEmpty()
+                )
+                Column {
+                    ArchiveFormatChoice(ArchiveFormat.ZIP, format, onSelect = { format = it })
+                    ArchiveFormatChoice(ArchiveFormat.SEVEN_Z, format, onSelect = { format = it })
+                }
+                InputChip(
+                    selected = usePassword,
+                    onClick = { usePassword = !usePassword },
+                    label = { Text(stringResource(R.string.archive_password_protect)) }
+                )
+                if (usePassword) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.archive_password)) }
+                    )
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.archive_confirm_password)) },
+                        isError = passwordError,
+                        supportingText = if (passwordError) {
+                            { Text(stringResource(R.string.archive_password_mismatch)) }
+                        } else {
+                            null
+                        }
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.archive_destination, destinationPath),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = canCreate,
+                onClick = {
+                    onConfirm(trimmedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                }
+            ) {
+                Text(stringResource(R.string.archive_create_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ArchiveFormatChoice(
+    option: ArchiveFormat,
+    selected: ArchiveFormat,
+    onSelect: (ArchiveFormat) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .clickable { onSelect(option) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = option == selected, onClick = { onSelect(option) })
+        Text(option.displayName, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun ExtractArchiveDialog(
+    archiveName: String,
+    onDismiss: () -> Unit,
+    onExtractHere: (String?) -> Unit,
+    onExtractToFolder: (String?) -> Unit
+) {
+    var password by rememberSaveable { mutableStateOf("") }
+    var usePassword by rememberSaveable { mutableStateOf(false) }
+    val archivePassword = password.takeIf { usePassword && it.isNotEmpty() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
+        title = { Text(stringResource(R.string.archive_extract_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = archiveName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                InputChip(
+                    selected = usePassword,
+                    onClick = { usePassword = !usePassword },
+                    label = { Text(stringResource(R.string.archive_has_password)) }
+                )
+                if (usePassword) {
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = { password = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.archive_password)) },
+                        supportingText = { Text(stringResource(R.string.archive_password_hint)) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onExtractToFolder(archivePassword) }) {
+                Text(stringResource(R.string.archive_extract_to_folder))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+                TextButton(onClick = { onExtractHere(archivePassword) }) {
+                    Text(stringResource(R.string.archive_extract_here))
+                }
+            }
+        }
+    )
+}

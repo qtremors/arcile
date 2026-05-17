@@ -14,6 +14,7 @@ sealed class TopBarAction {
     data object Settings : TopBarAction()
     data object About : TopBarAction()
     data object SelectAll : TopBarAction()
+    data object InvertSelection : TopBarAction()
     data object PinToQuickAccess : TopBarAction()
     data object Properties : TopBarAction()
 }

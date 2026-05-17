@@ -1,10 +1,246 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.6.0
-> **Last Updated:** 2026-04-19
+> **Version:** 0.7.0
+> **Last Updated:** 2026-05-17
 
 ---
+
+## [0.7.0] - 2026-05-16
+
+### UI & UX
+- **Home Recent Files Carousel:** Replaced the static Home recent-files list with a Material 3 Expressive `HorizontalMultiBrowseCarousel`, including exact 4:5 item sizing, cover-flow width/shape motion, stable rounded clipping via `Modifier.maskClip`, media thumbnail gradient overlays, and inline overflow actions for opening files or their containing folders.
+- **Settings Thumbnail Toggle Polish:** Added dividers around the Appearance controls and upgraded the thumbnail switch with checked/unchecked thumb icons plus stable test tags for the row and switch.
+
+### Build
+- **Version Bump:** Updated the app version from `0.6.9` to `0.7.0` with `versionCode` 54.
+- **Release Build Hardening:** Fixed release minification by suppressing the optional Apache Commons Compress Zstandard reference that Arcile does not ship or use directly.
+
+### Testing
+- **Coverage Reporting:** Enabled debug unit-test coverage so `:app:createCoverageReport` now produces a measurable HTML coverage report instead of an empty/no-data result.
+- **Regression Coverage:** Added focused unit tests for path-boundary validation, copy-conflict detection, file use-case dispatch, and smoothed progress state transitions.
+- **Instrumented Test Maintenance:** Updated stale Home, Quick Access, and Empty State instrumented tests for the current Compose test APIs and Home screen contract; connected debug Android tests now compile and pass on device.
+
+## [0.6.9] - 2026-05-16
+
+### UI & UX
+- **Onboarding Relaunch & Polish:** Fixed the completed-user onboarding flash on app start, added a Settings action to rerun onboarding after restart, combined setup permissions into one page, simplified onboarding accent selection with a picker sheet trigger, and smoothed the onboarding controls and page transitions.
+- **Settings & Search Polish:** Moved thumbnail settings and search bar labels/placeholders to resources, merged the thumbnail toggle into the existing Appearance section, and fixed browser root padding to respect RTL layout direction.
+- **Recent Files Browser Controls:** Reused the Browser search filters and sort/view sheet on Recent Files, adding active filter chips plus list/grid, zoom, grid-size, thumbnail, and date/name/size ordering controls without changing storage queries.
+
+### Storage
+- **MediaStore Scoped-Storage Hardening:** Recent files, category browsing, and search now read modern MediaStore metadata such as display names, relative paths, MIME types, and volume names while preserving raw path fallback behavior for existing file workflows.
+- **Faster Storage Analytics:** Category storage totals now aggregate from a single MediaStore cursor pass instead of repeating one query per category, improving dashboard efficiency on large media libraries.
+
+### Testing
+- **Onboarding Regression Coverage:** Updated onboarding repository, ViewModel, and Compose tests for reset behavior, combined permission setup, storage gating, accent-picker entry, and the refined navigation controls.
+- **MediaStore Regression Coverage:** Added and updated MediaStore tests for modern rows without raw filesystem paths, scoped volume filtering, category aggregation, and cache invalidation.
+- **Recent Files Filter/View Coverage:** Added ViewModel and screen tests for Browser-style Recent Files filters, presentation sorting, search-mode filtering, select-all behavior, and load-more preservation.
+
+## [0.6.8] - 2026-05-14
+
+### UI & UX
+- **Complete First-Run Onboarding:** Added a polished new-user setup flow with a welcome screen, feature overview, theme/accent selection, required storage-access setup, notification-permission explanation, and a skip path that still preserves required permission setup.
+- **Permission UX Upgrade:** Replaced the abrupt startup notification prompt with an onboarding-time request for Android 13+ notifications, and upgraded the storage recovery screen shown when all-files access is revoked after setup.
+- **Containing Folder Navigation Fix:** Fixed secondary-screen folder handoffs so Recent Files and Quick Access reliably replace the saved Main browser entry instead of stacking stale browser state.
+
+### Architecture
+- **Onboarding Persistence:** Added DataStore-backed onboarding preferences for completion state, completed version, and notification-permission handling.
+- **Onboarding State Model:** Added a dedicated onboarding ViewModel to manage setup steps, skip behavior, permission state, and completion without embedding permission logic in Compose screens.
+
+### Testing
+- **Onboarding Coverage:** Added repository, ViewModel, and Compose regression tests for first-launch rendering, skip-to-permissions behavior, storage gating, notification denial/skip completion, and revoked-storage recovery.
+- **Regression Verification:** Added onboarding UI files to the production string guard and verified the debug unit test suite.
+
+### Dependencies
+- **Android 17 Build Readiness:** Updated the project to compile against Android SDK 37 while keeping `targetSdk` at 36 to avoid opting into new runtime behavior prematurely.
+- **Compose & Material Refresh:** Updated the Compose BOM to 2026.05.00 and Material 3 to 1.5.0-alpha19, preserving Arcile's existing Material 3 Expressive surfaces while aligning with the newer Compose stack.
+- **Adaptive UI Foundation:** Added Material 3 Adaptive libraries for future tablet, foldable, list-detail, and multi-pane file-manager layouts.
+- **AndroidX Platform Updates:** Updated Activity Compose, Lifecycle, Navigation Compose, DataStore, Core KTX, SplashScreen, and Hilt Compose integration to compatible newer releases.
+- **Runtime/Test Library Updates:** Updated coroutines, Kotlin serialization, Coil, Robolectric, MockK, Turbine, and Tukaani XZ.
+
+### Maintenance
+- **Hilt Compose Migration:** Moved `hiltViewModel` imports to the newer lifecycle ViewModel Compose artifact introduced by AndroidX Hilt 1.3.0.
+- **Upgrade Verification:** Verified the dependency set with debug Kotlin compilation and debug unit tests.
+
+## [0.6.7] - 2026-05-13
+
+### UI & UX
+- **Complete Archive UX:** Replaced the basic ZIP-only archive action with create/extract dialogs for ZIP and 7z, including archive naming, format selection, destination choices, and password entry.
+- **Archive Viewer Password Flow:** Archive browsing now supports password-protected ZIP and 7z files with an in-view password prompt and retry path for encrypted archives.
+- **Back Gesture Priority:** Fixed Browser back handling so system back gestures and toolbar back first close transient UI state such as dialogs, sheets, search, expanded FAB menus, and file selections before navigating away from the current folder.
+- **Selection Back Fix:** File selections now clear on back instead of unexpectedly popping folder history, matching the visible close-selection affordance in the top bar.
+- **Back Stack Memory:** Browser entries opened from Storage Dashboard, Recent Files, and Quick Access now preserve the originating screen, so the back gesture returns to the last visible view instead of collapsing to Home or detouring through a synthetic folder root.
+- **Operation Refresh:** Completed file operations now automatically refresh the visible folder or category so newly created, moved, copied, archived, extracted, or deleted items appear without a manual pull-to-refresh.
+- **Category Tab Swipes:** Category folder tabs can now be switched by swiping horizontally across the file area, in addition to tapping the tab row.
+- **Recent Files Simplification:** Removed folder tabs and file-type chips from Recent Files to avoid heavy client-side filtering, odd calculations, and refresh edge cases.
+- **Recent Files Stability:** Duplicate MediaStore rows now render safely in Recent Files, and sticky date headers stay below the top app bar while scrolling.
+
+### Testing
+- **Archive Password Coverage:** Added tests for password-protected ZIP and 7z create/list/extract flows, wrong-password errors, and archive progress completion.
+- **Navigation Regression Coverage:** Added regression tests confirming browser back clears selected files before consuming folder navigation history, category back delegates to app-level navigation, external browser entries can skip seeded root history, browser fallback chooses app-stack pop before Home-pager fallback, and completed file operations reload the current folder.
+
+### Dependencies
+- **Open Archive Libraries:** Added Zip4j 2.11.6 for encrypted ZIP support and documented Zip4j, Apache Commons Compress 1.28.0, and Tukaani XZ 1.10 in the Open Source Licenses screen.
+
+## [0.6.6] - 2026-05-13
+
+### UI & UX
+- **Archive Support:** Added first-class ZIP and 7z support, including archive creation, extraction, safe metadata viewing, and an in-app archive browser that lets users inspect archive contents without extracting them.
+- **Archive Browser Actions:** Added file-browser actions to compress selections to ZIP, extract archives in place, and extract archives into a dedicated folder.
+- **Category Gesture Lock:** Disabled Home/Browser pager swipes while viewing category screens so Images, Videos, Audio, Docs, Archives, and APKs remain isolated until the user explicitly navigates back.
+- **Stale Content Flash Fix:** Cleared previous folder/category file lists immediately when navigating to a new folder or category, preventing old contents from flashing during async debug builds and slower reloads.
+- **Folder Tabs for Categories:** Added horizontal folder tabs to category views, with an `All` tab first and per-folder tabs grouped by containing folder so large categories are easier to browse.
+- **Recent Files Folder Tabs:** Added the same folder-tab experience to Recent Files, preserving date grouping while letting users narrow recents by containing folder.
+- **Recents Type Filters:** Added file-type chips for Recent Files, including Images, Videos, Audio, Docs, Archives, and APKs.
+- **Richer Folder Context:** Folder tabs now show item counts and total size, and single-file Recent selections can jump directly to the containing folder.
+
+### Architecture
+- **Archive Engine:** Integrated Apache Commons Compress with an archive manager, repository APIs, foreground bulk-operation support, safe extraction checks, and ZIP/7z runtime dependencies.
+
+### Testing
+- **Archive Coverage:** Added unit coverage for archive format detection, ZIP/7z create-list-extract flows, safe extraction path rejection, and keep-both conflict handling.
+- **Navigation Regression Coverage:** Added tests confirming folder and category navigation clear stale file lists while the new destination is loading.
+- **Folder Tab Coverage:** Added regression tests for folder-tab grouping, duplicate folder names, tab-filtered selection, recents type filters, refresh/search resets, and load-more behavior.
+
+## [0.6.5] - 2026-05-12
+
+### Architecture
+- **File Operation Decomposition:** Extracted copy/move execution into `FileTransferEngine`, conflict detection into `FileConflictDetector`, and shared mutation cleanup into `MutationFinalizer`.
+- **Search Reuse:** Added a shared local search helper for Recent Files and Trash debounce/filter behavior.
+
+### Performance
+- **Category Storage Queries:** Reworked category-size calculation into exact per-category MediaStore scans and reduced volume-selection bind parameters.
+- **External File Staging:** Moved open/share staging copies onto `Dispatchers.IO` to avoid blocking callers during large-file access.
+- **Gesture Navigation Smoothness:** Removed the browser screen's duplicate full-screen horizontal drag detector so the shared Home/Browser pager exclusively owns swipe gestures, reducing touch competition with scrolling, pull-to-refresh, and file-list interactions.
+
+### UI & UX
+- **Swipe Quick Access Restoration:** Fixed Home-to-Browser swipes so they restore the last opened folder from persistent browser preferences, while storage summary bar taps continue to open the internal storage root without overwriting that saved quick-access location.
+- **Category Navigation Isolation:** Hardened pager restoration, saved-state restore, and category breadcrumbs so category views remain labeled as Images, Videos, Audio, Docs, Archives, or APKs instead of leaking or restoring the last opened folder path.
+
+### Media
+- **PDF Thumbnails:** Added a Coil-backed PDF thumbnail fetcher using Android `PdfRenderer`.
+
+### Maintenance
+- **Regression Gates:** Added coverage for the refactored file-operation, MediaStore, share, and thumbnail paths, and verified unit tests, lint, and release assembly locally.
+- **Task Tracker Cleanup:** Removed completed remediation items from `TASKS.md`.
+
+### Testing
+- **Test Coverage Expansion:** Added comprehensive unit tests for `ClipboardDelegate`, `NavigationDelegate`, and `DeleteFlowDelegate`, covering complex UI state and edge cases.
+- **Service Lifecycle Validation:** Implemented integration tests for `BulkFileOperationService` and `BulkFileOperationCoordinator` to ensure correct foreground service lifecycle and event handling.
+- **Crypto Reliability:** Added robust test cases to `TrashManagerTest` validating KeyStore/PBKDF2 round-trip interactions and graceful degradation on corrupted metadata.
+- **Suite Stability:** Addressed legacy compilation errors and resolved multiple flakiness issues enabling a stable, fully passing test suite.
+
+## [0.6.4] - 2026-05-10
+
+### UI & UX
+- **Premium Progress Engine:** Implemented a frame-clock-driven interpolation system for buttery-smooth progress visualization. Features exponential smoothing, velocity clamping, and a 300ms debounce to eliminate jitter and flickering.
+- **Visual Feedback:** Added instant-snap completion feedback and status-aware final fill colors (Success: Green, Failure/Cancel: Red) with graceful auto-dismissal.
+- **Selection Menu Refinement:** Replaced the generic selection "More" menu in Recent Files with a premium, pill-based design consistent with the core file browser.
+- **Thumbnail Performance:** Configured a persistent 50MB+ disk cache and integrated `ContentResolver.loadThumbnail` for video files. By leveraging the Android system's built-in MediaStore thumbnail cache, video previews are now nearly instant and persist across app restarts, eliminating expensive on-the-fly decoding.
+- **Grid Thumbnail Optimization:** Removed hardcoded size limits from `FileGrid` media previews. Coil now dynamically bounds memory to the exact layout constraints, drastically reducing memory consumption and stopping aggressive cache evictions. Added crossfade animations and a subtle loading placeholder to ensure buttery-smooth scrolling without jarring pop-ins.
+- **Unified Pager Architecture:** Transitioned the core app navigation to a `HorizontalPager` system. The Home and Browser screens now exist side-by-side, enabling a high-end, real-time "live" preview as you swipe between them.
+- **Swipe-to-Peek Performance:** Optimized the navigation viewport to keep both screens composed in memory, ensuring zero-latency transitions and eliminating blank flickers during gestures.
+- **Smart Session Restoration:** Refined the "last-opened" folder logic. Swipe gestures and app restarts now restore your previous browser session for continuity, while clicking the storage summary bar intelligently defaults to the main internal storage for quick access.
+- **Layout Stability:** Locked pill geometry using Canvas drawing to prevent shape distortion. Fixed text alignment and resolved overlapping toolbar button issues.
+- **Random Fake File Generator:** Implemented a new utility to generate files of any size and extension filled with pseudo-random data.
+  - Features a background operation pipeline using `BulkFileOperationService` for large file creation.
+  - Added a dedicated `CreateFakeFileDialog` with size unit selection (KB, MB, GB).
+  - Integrated into the file browser FAB menu.
+
+### Architecture
+- **State Hardening:** Updated `BrowserViewModel` to track terminal operation states and start times, enabling decoupled UI animation lifecycles.
+
+### Correctness & Reliability
+- **Properties Dialog:** Fixed a bug where the Properties action in Recent Files was non-functional. It now correctly computes and displays detailed file metadata.
+- **Recent Files Ranking:** Fixed a bug where recently copied files with old modification dates were buried in the "Recent Files" list. Queries now sort by the maximum of `date_added` and `date_modified` to ensure new copies and downloads always appear at the top.
+
+## [0.6.3] - 2026-05-10
+
+### UI & Rendering
+- **Appearance Settings Overhaul:** Reimagined theme and accent color selectors with a modern horizontal layout inspired by Material Design 3.
+  - Theme modes now use icon-in-container layouts with labels and distinct selection shapes.
+  - The accent picker is now a scrollable row of color circles with "squircle" selection markers and long-press support for the full color picker.
+- **Enhanced File Visuals:** 
+  - Replaced generic file icons with descriptive vector icons for audio, archives, documents, and code.
+  - Implemented robust thumbnail fallbacks using `SubcomposeAsyncImage` to gracefully handle missing media previews.
+  - Added a "Show Thumbnails" toggle in Settings to optionally disable all media previews for a minimal look.
+- **Streamlined File Operations:**
+  - Redesigned the clipboard status "pill" to double as a real-time progress indicator with a filling background and remaining size display.
+  - Polished the copy/move/paste flow with a persistent status pill and optimized action button placement.
+  - Introduced a Clipboard Management dialog for viewing and removing individual items.
+- **Polished Feedback:** Upgraded Snackbars to Material 3 Expressive standards with tonal colors and squircle shapes, managed by a new global host.
+
+### Security
+- **Platform Cleanup:** Removed unreachable SDK guards redundant on `minSdk 30`.
+
+### Architecture
+- **Foreground Service Hardening:** `BulkFileOperationService` now captures `startId` locally to prevent stuck notifications and features improved cancellation guards to reduce unnecessary IPC.
+- **State Management:**
+  - `ClipboardDelegate` now clears state immediately after paste to prevent duplicate operations.
+  - `HomeViewModel` now utilizes a single source of truth for time-anchored data, eliminating redundant object instations.
+
+### Correctness & Reliability
+- **Query Optimization:** `MediaStoreClient` now filters category queries by volume at the SQL level, significantly improving performance on multi-volume devices.
+- **State Fixes:** Resolved "stuck" loading indicators in the Browser and Recent Files by ensuring immediate state cleanup after bulk handoffs.
+
+### Build & CI
+- **ProGuard Hardening:** Unified serialization keep rules under a blanket `@Serializable` rule for all persisted data.
+- **Notification Aesthetics:** Swapped the launcher icon for a monochrome alpha-only drawable in foreground service notifications for better system integration.
+
+## [0.6.2] - 2026-05-03
+
+### UI
+- **Material 3 Expressive Selection:** Replaced the legacy top-bar selection action icons with a custom `FloatingSelectionToolbar` that emulates the Jetpack Compose Material 3 Expressive design, utilizing connected segmented shape morphing (`SplitButtonGroup`) for selection actions and a detached FAB for secondary actions.
+- **Selection Improvements:** Added **Invert Selection** functionality to the selection action bar. The app now also dynamically calculates and displays the **Total Size** of all currently selected items directly within the top bar during selection mode.
+- **Top Bar Cleanup & Restoration:** Restored Settings, Search, and Sort actions to the top-level app bar as split buttons for immediate accessibility, while preserving the clean Material 3 Expressive layout.
+- **Constrained Operation FAB:** Bounded the active file operation `ExtendedFloatingActionButton` to a maximum width to prevent overflow clipping during long file transfers.
+
+### Performance
+- **Shared Mutation Path Ancestors:** Trash and filesystem mutations now use the shared `PathSafety.pathWithAncestors` implementation, removing duplicate ancestor-list allocation logic from the hot mutation path.
+- **Browser Preferences IO Dispatch:** Browser presentation preferences now flow from the DataStore layer on `Dispatchers.IO`, avoiding first-read disk work on the main thread while keeping navigation state updates deterministic.
+- **Recent Files Provider Pagination:** Recent file paging now pushes `LIMIT`/`OFFSET` to MediaStore queries and scopes queries by storage root where possible, avoiding client-side scans through every previous page.
+- **MediaStore Stat Reduction:** Recent-file and MediaStore search rows no longer call `File.exists()`/`length()` for each result, reducing per-row filesystem stat overhead on large or external storage.
+- **Bounded Folder Stats:** Folder stats traversal now checks coroutine cancellation and returns `Partial` after a 100,000-node cap instead of monopolizing the worker pool on huge trees.
+- **Capped Transfer Estimation:** Copy/move byte estimation now uses a cancellable bounded traversal before transfer starts, avoiding unbounded duplicate walks for very large directory moves.
+
+### Testing
+- **Performance Regression Coverage:** Added coverage for folder-stat node-limit behavior and reran the JVM suite plus release assembly for the 0.6.2 performance pass.
+
+## [0.6.1] - 2026-04-26
+
+### Security
+- **Trash Metadata Crypto Markers:** New encrypted trash metadata now records whether it used the Android KeyStore or PBKDF2 fallback key, while legacy unmarked metadata remains readable.
+- **Trash Crypto Hardening:** PBKDF2 fallback derivation now uses 600,000 iterations, crypto keys are resolved per operation instead of cached across invalidation, and deterministic cipher failures fail fast instead of burning retries.
+- **Trash Copy Integrity:** Trash and restore fallback copies now verify source/destination integrity with recursive SHA-256 checks before deleting the original side.
+- **Destructive Path Safety:** Trash and permanent-delete paths now reject symlinked entries through shared path validation to reduce traversal and TOCTOU exposure.
+- **Device Migration Warning:** Trash metadata that depends on a missing hardware-bound KeyStore key is preserved and surfaced as a user-visible migration warning instead of being silently deleted.
+
+### Reliability
+- **Foreground Trash/Delete Operations:** Browser and Recent Files trash/permanent-delete flows now start foreground bulk operations, giving long-running destructive work the same lifecycle protection as copy/move.
+- **Bulk Operation Orchestration:** Coordinator startup now rolls back cleanly on service launch failure, cancellation carries operation IDs to avoid stale cancels, terminal events are replay-safe, and the service removes foreground notifications promptly on cancel.
+- **Browser Operation State:** Browser operation status now stays aligned with foreground operation state across completion and recreation races; `ClipboardDelegate` remains a single-purpose initiator with event consumption centralized in the ViewModel.
+- **Home Timeout Semantics:** Home analytics timeouts now keep prior complete per-volume category data instead of publishing a newly partial map as complete.
+- **Folder Stats Retry Guard:** Permanently unavailable folder-stat paths now stop requeueing after bounded retries while preserving injected/test-owned worker scope cleanup.
+- **Release Error Visibility:** `AppLogger.e` now logs in release builds so production failures in trash, storage, and file-operation code paths no longer disappear silently.
+- **Recent Files Trash Consistency:** Recent Files deletions now follow the shared foreground trash/delete pipeline, matching Browser behavior for long-running destructive operations.
+- **Scoped Volume Preload:** `DefaultVolumeProvider` now uses an injected application coroutine scope instead of `GlobalScope`, keeping storage-root preloading lifecycle-aware and test-friendlier.
+- **Folder Stats Test Hang Fix:** Eliminated a late-suite JVM test stall caused by `FolderStatsStoreTest` racing a hot `SharedFlow` subscription against background folder-stat emissions.
+- **Folder Stats Worker Cleanup:** `DefaultFolderStatsStore` now exposes explicit scope shutdown for tests, preventing its private worker coroutines from lingering past test teardown.
+- **Isolated DataStore Tests:** Browser preferences and storage-classification repository tests now use per-test `DataStore` instances, removing shared on-disk state that could overlap across the suite.
+
+### Performance & UI
+- **Stable Lazy Item Identity:** Browser, Home, Recent Files, and Trash lists now use stable model-backed keys, reducing list churn and preserving scroll and animation identity during refreshes and resorting.
+- **Composable Slot Reuse Hints:** Added `contentType` discriminators to the main lazy file and trash collections so Compose can recycle item content more predictably.
+- **Compose State Stability Audit:** Confirmed `BrowserState` is explicitly marked `@Immutable`, keeping the remediation tracker aligned with the current implementation.
+
+### Concurrency
+- **Thread-Safe Volume Prompt Suppression:** Home screen prompt suppression now uses a concurrent key set, avoiding races during rapid volume refresh and classification changes.
+
+### Maintenance
+- **Task Tracker Sync:** Marked the completed remediation items in `TASKS.md` and advanced the project metadata to `0.6.1`.
+- **Regression Coverage Hardening:** Tightened the affected coroutine and persistence tests with eager collectors, explicit teardown, and timeout-bounded assertions so future concurrency regressions fail fast instead of hanging the run.
+- **Security/Correctness Tracker Sync:** Marked the 0.6.1 Security & Privacy and Correctness & Reliability remediation items complete after unit and release-build verification. The clipboard duplicate-consumption item was confirmed already resolved by single-owner ViewModel event handling and covered by foreground-operation regression tests.
 
 ## [0.6.0] - 2026-04-19
 

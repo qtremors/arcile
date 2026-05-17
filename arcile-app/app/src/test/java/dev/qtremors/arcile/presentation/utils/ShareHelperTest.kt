@@ -4,9 +4,10 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
-import io.mockk.every
+import io.mockk.coEvery
 import io.mockk.mockkObject
 import io.mockk.unmockkObject
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,17 +22,17 @@ import org.robolectric.annotation.Config
 class ShareHelperTest {
 
     @Test
-    fun `shareFiles rejects empty input`() {
+    fun `shareFiles rejects empty input`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
 
         assertFalse(ShareHelper.shareFiles(context, emptyList()))
     }
 
     @Test
-    fun `shareFiles returns false when no share uris can be created`() {
+    fun `shareFiles returns false when no share uris can be created`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         mockkObject(ExternalFileAccessHelper)
-        every { ExternalFileAccessHelper.createShareUris(context, any()) } returns emptyList()
+        coEvery { ExternalFileAccessHelper.createShareUris(context, any()) } returns emptyList()
 
         try {
             assertFalse(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))
@@ -41,10 +42,10 @@ class ShareHelperTest {
     }
 
     @Test
-    fun `shareFiles launches chooser intent when uris are available`() {
+    fun `shareFiles launches chooser intent when uris are available`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         mockkObject(ExternalFileAccessHelper)
-        every { ExternalFileAccessHelper.createShareUris(context, any()) } returns listOf(Uri.parse("content://dev.qtremors.arcile/test"))
+        coEvery { ExternalFileAccessHelper.createShareUris(context, any()) } returns listOf(Uri.parse("content://dev.qtremors.arcile/test"))
 
         try {
             assertTrue(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))

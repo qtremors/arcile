@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -45,12 +47,20 @@ import java.util.Date
 fun TrashList(
     files: List<TrashMetadata>,
     selectedFiles: Set<String>,
-    onToggleSelection: (String) -> Unit
+    onToggleSelection: (String) -> Unit,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy \u2022 HH:mm")
 
-    LazyColumn(modifier = Modifier.fillMaxWidth()) {
-        items(files, key = { it.id }) { trashItem ->
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = contentPadding
+    ) {
+        items(
+            items = files,
+            key = { it.id },
+            contentType = { if (it.fileModel.isDirectory) "trash_directory" else "trash_file" }
+        ) { trashItem ->
             val isSelected = selectedFiles.contains(trashItem.id)
             
             ElevatedCard(
@@ -77,17 +87,27 @@ fun TrashList(
                                     dev.qtremors.arcile.domain.FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
                                     dev.qtremors.arcile.domain.FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
                         ) {
-                            AsyncImage(
+                            SubcomposeAsyncImage(
                                 model = java.io.File(file.absolutePath),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(MaterialTheme.shapes.small),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                error = {
+                                    androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                            contentDescription = null,
+                                            tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
                             )
                         } else {
                             androidx.compose.material3.Icon(
-                                imageVector = if (file.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
                                 contentDescription = null,
                                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(40.dp)

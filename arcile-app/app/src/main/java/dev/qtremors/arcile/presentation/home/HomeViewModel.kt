@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 data class HomeState(
@@ -71,17 +72,10 @@ class HomeViewModel @Inject constructor(
     private val recentsPreviewLimit = 50
     private var searchJob: Job? = null
     private var refreshJob: Job? = null
-    private val suppressedVolumeKeys = mutableSetOf<String>()
+    private val suppressedVolumeKeys = ConcurrentHashMap.newKeySet<String>()
     private var lastAnalyticsRefreshTime = 0L
 
     init {
-        val cal = java.util.Calendar.getInstance()
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        _state.update { it.copy(todayStart = cal.timeInMillis) }
-
         viewModelScope.launch {
             quickAccessRepo.quickAccessItems.collectLatest { items ->
                 _state.update { it.copy(quickAccessItems = items) }
@@ -170,14 +164,15 @@ class HomeViewModel @Inject constructor(
                     }
                 } != null
 
-                val storageInfo = if (shouldRefreshAnalytics) storageResult?.getOrNull() else _state.value.storageInfo
+                val timedOut = !completedWithinTimeout
+                val storageInfo = if (shouldRefreshAnalytics && !timedOut) storageResult?.getOrNull() else _state.value.storageInfo
                 val allStorageVolumes = allVolumesResult?.getOrNull().orEmpty()
                 val unclassified = allStorageVolumes.filter {
                     it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
                 }
 
                 val errorMsg = listOfNotNull(
-                    if (!completedWithinTimeout) "Home data loading timed out. Showing partial data." else null,
+                    if (timedOut) "Home data loading timed out. Showing previous complete analytics where available." else null,
                     storageResult?.exceptionOrNull()?.message,
                     allVolumesResult?.exceptionOrNull()?.message,
                     recentResult?.exceptionOrNull()?.message,
@@ -193,8 +188,8 @@ class HomeViewModel @Inject constructor(
                         allStorageVolumes = allStorageVolumes,
                         recentFiles = recentResult?.getOrNull() ?: currentState.recentFiles,
                         storageInfo = storageInfo,
-                        categoryStorages = if (shouldRefreshAnalytics) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages,
-                        categoryStoragesByVolume = categoryByVolume,
+                        categoryStorages = if (shouldRefreshAnalytics && !timedOut) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages,
+                        categoryStoragesByVolume = if (shouldRefreshAnalytics && !timedOut) categoryByVolume else currentState.categoryStoragesByVolume,
                         unclassifiedVolumes = unclassified,
                         showClassificationPrompt = unclassified.isNotEmpty()
                     )

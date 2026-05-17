@@ -1,12 +1,18 @@
 package dev.qtremors.arcile.presentation.operations
 
 import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.ArchiveFormat
 import kotlinx.serialization.Serializable
 
 @Serializable
 enum class BulkFileOperationType {
     COPY,
-    MOVE
+    MOVE,
+    TRASH,
+    DELETE,
+    CREATE_FAKE,
+    EXTRACT_ARCHIVE,
+    CREATE_ARCHIVE
 }
 
 @Serializable
@@ -14,8 +20,12 @@ data class BulkFileOperationRequest(
     val operationId: String,
     val type: BulkFileOperationType,
     val sourcePaths: List<String>,
-    val destinationPath: String,
-    val resolutions: Map<String, ConflictResolution> = emptyMap()
+    val destinationPath: String? = null,
+    val resolutions: Map<String, ConflictResolution> = emptyMap(),
+    val fakeFileSize: Long? = null,
+    val archiveFormat: ArchiveFormat? = null,
+    val archiveEntryPrefix: String? = null,
+    val archivePassword: String? = null
 )
 
 @Serializable

@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.presentation.ui.components.dialogs
 
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.testutil.ArcileTestTheme
@@ -60,6 +60,6 @@ class DeleteConfirmationDialogTest {
 
         composeRule.onNodeWithText("Permanently delete 1 item(s)?").assertExists()
         composeRule.onNodeWithText("Selected items will be permanently deleted. This action cannot be undone.").assertExists()
-        composeRule.onNodeWithText("Permanently delete").assertIsNotEnabled()
+        composeRule.onNodeWithTag("permanent_delete_switch", useUnmergedTree = true).assertExists()
     }
 }

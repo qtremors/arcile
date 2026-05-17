@@ -5,12 +5,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.data.BrowserPreferencesStore
+import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -23,12 +30,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import dev.qtremors.arcile.presentation.browser.toUiModel
 
 enum class RecentNativeAction { TRASH }
 
 data class RecentFilesState(
     val currentVolumeId: String? = null,
     val recentFiles: List<FileModel> = emptyList(),
+    val displayedRecentFiles: List<FileModel> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
@@ -45,13 +54,22 @@ data class RecentFilesState(
     val searchQuery: String = "",
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
+    val activeSearchFilters: SearchFilters = SearchFilters(),
+    val presentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+        sortOption = FileSortOption.DATE_NEWEST
+    ),
     val todayStart: Long = 0L,
-    val yesterdayStart: Long = 0L
+    val yesterdayStart: Long = 0L,
+    val isPropertiesVisible: Boolean = false,
+    val isPropertiesLoading: Boolean = false,
+    val properties: dev.qtremors.arcile.presentation.browser.PropertiesUiModel? = null
 )
 
 @HiltViewModel
 class RecentFilesViewModel @Inject constructor(
     private val repository: FileRepository,
+    private val browserPreferencesRepository: BrowserPreferencesStore,
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -60,6 +78,8 @@ class RecentFilesViewModel @Inject constructor(
 
     private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>()
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
+
+    private var searchJob: Job? = null
 
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
@@ -114,7 +134,14 @@ class RecentFilesViewModel @Inject constructor(
                 _state.update { it.copy(selectedFiles = emptySet()) }
             }
         },
-        executeMoveToTrash = { selected -> repository.moveToTrash(selected) },
+        startBulkDeleteOperation = { type, selected ->
+            bulkFileOperationCoordinator.startOperation(
+                type = type,
+                sourcePaths = selected,
+                destinationPath = null,
+                resolutions = emptyMap()
+            )
+        },
         emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
         onSuccess = { loadRecentFiles(false) },
         onFailure = { loadRecentFiles(false) }
@@ -138,6 +165,18 @@ class RecentFilesViewModel @Inject constructor(
             savedStateHandle.get<String>("volumeId")
         }
         _state.update { it.copy(currentVolumeId = volumeId?.takeIf { value -> value.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
+        viewModelScope.launch {
+            browserPreferencesRepository.preferencesFlow.collectLatest { prefs ->
+                _state.update {
+                    val presentation = prefs.recentPresentation
+                    it.copy(
+                        presentation = presentation,
+                        displayedRecentFiles = it.copy(presentation = presentation).displayRecentFiles(),
+                        searchResults = it.copy(presentation = presentation).displaySearchResults()
+                    )
+                }
+            }
+        }
         viewModelScope.launch {
             @OptIn(kotlinx.coroutines.FlowPreview::class)
             repository.observeStorageVolumes()
@@ -168,7 +207,15 @@ class RecentFilesViewModel @Inject constructor(
             if (loadMore) {
                 it.copy(isLoadingMore = true, error = null, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
             } else {
-                it.copy(isLoading = !pullToRefresh, isPullToRefreshing = pullToRefresh, error = null, currentOffset = 0, hasMore = true, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
+                it.copy(
+                    isLoading = !pullToRefresh,
+                    isPullToRefreshing = pullToRefresh,
+                    error = null,
+                    currentOffset = 0,
+                    hasMore = true,
+                    todayStart = newTodayStart,
+                    yesterdayStart = newYesterdayStart
+                )
             }
         }
         viewModelScope.launch {
@@ -183,10 +230,11 @@ class RecentFilesViewModel @Inject constructor(
                         isPullToRefreshing = false,
                         isLoadingMore = false,
                         recentFiles = newFiles,
+                        displayedRecentFiles = it.displayRecentFiles(newFiles),
                         currentOffset = offset,
                         hasMore = files.size == 50,
                         searchResults = if (it.searchQuery.isNotBlank()) {
-                            newFiles.filter { file -> file.name.contains(it.searchQuery, ignoreCase = true) }
+                            it.displaySearchResults(newFiles)
                         } else emptyList()
                     )
                 }
@@ -210,12 +258,24 @@ class RecentFilesViewModel @Inject constructor(
             } else {
                 currentState.selectedFiles + path
             }
-            currentState.copy(selectedFiles = updatedSelection)
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     fun clearSelection() {
-        _state.update { it.copy(selectedFiles = emptySet()) }
+        _state.update {
+            it.copy(
+                selectedFiles = emptySet(),
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
+        }
     }
 
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
@@ -225,30 +285,160 @@ class RecentFilesViewModel @Inject constructor(
     fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
     fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
 
+    fun selectAll() {
+        _state.update { currentState ->
+            val allPaths = if (currentState.searchQuery.isNotBlank()) {
+                currentState.searchResults.map { it.absolutePath }
+            } else {
+                currentState.displayedRecentFiles.map { it.absolutePath }
+            }
+            currentState.copy(selectedFiles = allPaths.toSet())
+        }
+    }
+
+    fun selectMultiple(paths: List<String>) {
+        _state.update { currentState ->
+            currentState.copy(selectedFiles = currentState.selectedFiles + paths)
+        }
+    }
+
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
 
-    private var searchJob: kotlinx.coroutines.Job? = null
-
     fun updateSearchQuery(query: String) {
         _state.update { it.copy(searchQuery = query) }
-        if (query.isBlank()) {
-            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
-            searchJob?.cancel()
-        } else {
-            debouncedSearch(query)
+        debouncedSearch(query)
+    }
+
+    fun updateSearchFilters(filters: SearchFilters) {
+        _state.update {
+            it.copy(
+                activeSearchFilters = filters,
+                searchResults = it.copy(activeSearchFilters = filters).displaySearchResults()
+            )
+        }
+        val currentQuery = _state.value.searchQuery
+        if (currentQuery.isNotBlank()) {
+            debouncedSearch(currentQuery)
+        }
+    }
+
+    fun updatePresentation(preferences: BrowserPresentationPreferences) {
+        val normalized = preferences.normalized()
+        _state.update {
+            it.copy(
+                presentation = normalized,
+                displayedRecentFiles = it.copy(presentation = normalized).displayRecentFiles(),
+                searchResults = it.copy(presentation = normalized).displaySearchResults()
+            )
+        }
+        viewModelScope.launch {
+            browserPreferencesRepository.updateRecentPresentation(normalized)
+        }
+    }
+
+    fun openPropertiesForSelection() {
+        val selectedPaths = _state.value.selectedFiles.toList()
+        if (selectedPaths.isEmpty()) return
+
+        _state.update {
+            it.copy(
+                isPropertiesVisible = true,
+                isPropertiesLoading = true,
+                properties = null
+            )
+        }
+
+        viewModelScope.launch {
+            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = true,
+                        isPropertiesLoading = false,
+                        properties = properties.toUiModel()
+                    )
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isPropertiesVisible = false,
+                        isPropertiesLoading = false,
+                        properties = null,
+                        error = error.message ?: "Failed to load properties"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissProperties() {
+        _state.update {
+            it.copy(
+                isPropertiesVisible = false,
+                isPropertiesLoading = false,
+                properties = null
+            )
         }
     }
 
     private fun debouncedSearch(query: String) {
         searchJob?.cancel()
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            return
+        }
         searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(300)
-            _state.update { it.copy(isSearching = true) }
-            val filtered = _state.value.recentFiles.filter { it.name.contains(query, ignoreCase = true) }
-            _state.update { it.copy(isSearching = false, searchResults = filtered) }
+            delay(400)
+            _state.update { it.copy(isSearching = true, error = null) }
+            val stateValue = _state.value
+            repository.searchFiles(query, stateValue.searchScope(), stateValue.activeSearchFilters)
+                .onSuccess { files ->
+                    _state.update {
+                        it.copy(
+                            isSearching = false,
+                            searchResults = buildRecentFilesDisplay(
+                                files = files,
+                                query = "",
+                                filters = SearchFilters(),
+                                presentation = it.presentation
+                            )
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            isSearching = false,
+                            error = error.message ?: "Search failed"
+                        )
+                    }
+                }
         }
     }
 }
 
+private fun RecentFilesState.displayRecentFiles(
+    source: List<FileModel> = recentFiles
+): List<FileModel> = buildRecentFilesDisplay(
+    files = source,
+    query = "",
+    filters = SearchFilters(),
+    presentation = presentation
+)
+
+private fun RecentFilesState.displaySearchResults(
+    source: List<FileModel> = recentFiles
+): List<FileModel> = if (searchQuery.isBlank() || searchResults.isNotEmpty()) {
+    if (searchQuery.isBlank()) emptyList() else buildRecentFilesDisplay(
+        files = searchResults,
+        query = "",
+        filters = SearchFilters(),
+        presentation = presentation
+    )
+} else {
+    emptyList()
+}
+
+private fun RecentFilesState.searchScope(): StorageScope =
+    currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage

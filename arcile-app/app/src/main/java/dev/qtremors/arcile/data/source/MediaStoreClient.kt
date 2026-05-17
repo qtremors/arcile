@@ -13,6 +13,7 @@ import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -52,11 +53,61 @@ class DefaultMediaStoreClient(
         const val MAX_PATH_SEARCH_RESULTS = 1000
         const val MAX_PATH_SEARCH_NODES = 10_000
         const val PATH_SEARCH_CANCELLATION_GRANULARITY = 32
+        const val RECENT_FILES_QUERY_MULTIPLIER = 4
     }
 
     private val appContext = context.applicationContext
     private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
     private val cacheDir = File(appContext.cacheDir, "analytics")
+
+    private data class MediaStoreFileRow(
+        val rawPath: String?,
+        val displayName: String,
+        val relativePath: String?,
+        val volumeName: String?,
+        val size: Long,
+        val lastModified: Long,
+        val mimeType: String?
+    ) {
+        val extension: String
+            get() = rawPath?.substringAfterLast('.', "")
+                ?: displayName.substringAfterLast('.', "")
+
+        fun displayPath(
+            volumes: List<StorageVolume>,
+            mediaStoreVolumeNames: (StorageVolume) -> Set<String>
+        ): String {
+            rawPath?.let { return it }
+            val volume = volumeName?.let { name ->
+                volumes.firstOrNull { mediaStoreVolumeNames(it).contains(name) }
+            } ?: volumes.firstOrNull { it.isPrimary } ?: volumes.firstOrNull()
+
+            val root = volume?.path?.trimEnd('/')
+            val relative = relativePath.orEmpty().trim('/').trimEnd('/')
+            return when {
+                root == null -> listOf(relative, displayName).filter { it.isNotBlank() }.joinToString("/")
+                relative.isBlank() -> File(root, displayName).path
+                else -> File(File(root, relative), displayName).path
+            }
+        }
+
+        fun toFileModel(
+            volumes: List<StorageVolume>,
+            mediaStoreVolumeNames: (StorageVolume) -> Set<String>
+        ): FileModel {
+            val path = displayPath(volumes, mediaStoreVolumeNames)
+            return FileModel(
+                name = displayName,
+                absolutePath = path,
+                size = size,
+                lastModified = lastModified,
+                isDirectory = false,
+                extension = extension,
+                isHidden = displayName.startsWith(".") || path.contains("/."),
+                mimeType = mimeType
+            )
+        }
+    }
 
     private fun File.toFileModel(mime: String? = null): FileModel {
         val ext = extension
@@ -138,6 +189,124 @@ class DefaultMediaStoreClient(
         }
     }
 
+    private fun StorageVolume.mediaStoreVolumeNames(): Set<String> {
+        val names = mutableSetOf<String>()
+        if (isPrimary) names += MediaStore.VOLUME_EXTERNAL_PRIMARY
+        storageKey.removePrefix("uuid:")
+            .takeIf { it != storageKey && it.isNotBlank() }
+            ?.let {
+                names += it
+                names += it.lowercase()
+                names += it.uppercase()
+            }
+        path.substringAfterLast('/', "")
+            .takeIf { it.isNotBlank() }
+            ?.let {
+                names += it
+                names += it.lowercase()
+                names += it.uppercase()
+            }
+        return names
+    }
+
+    private fun mediaProjection(): Array<String> = arrayOf(
+        MediaStore.Files.FileColumns._ID,
+        MediaStore.Files.FileColumns.DATA,
+        MediaStore.Files.FileColumns.DISPLAY_NAME,
+        MediaStore.Files.FileColumns.SIZE,
+        MediaStore.Files.FileColumns.DATE_MODIFIED,
+        MediaStore.Files.FileColumns.DATE_ADDED,
+        MediaStore.Files.FileColumns.MIME_TYPE,
+        MediaStore.MediaColumns.RELATIVE_PATH,
+        MediaStore.MediaColumns.VOLUME_NAME
+    )
+
+    private fun android.database.Cursor.optionalColumn(name: String): Int =
+        getColumnIndex(name).takeIf { it >= 0 } ?: -1
+
+    private fun android.database.Cursor.getOptionalString(index: Int): String? =
+        if (index >= 0 && !isNull(index)) getString(index) else null
+
+    private fun android.database.Cursor.getOptionalLong(index: Int, default: Long = 0L): Long =
+        if (index >= 0 && !isNull(index)) getLong(index) else default
+
+    private fun android.database.Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
+        val dataCol = optionalColumn(MediaStore.Files.FileColumns.DATA)
+        val nameCol = optionalColumn(MediaStore.Files.FileColumns.DISPLAY_NAME)
+        val sizeCol = optionalColumn(MediaStore.Files.FileColumns.SIZE)
+        val dateAddedCol = optionalColumn(MediaStore.Files.FileColumns.DATE_ADDED)
+        val dateModifiedCol = optionalColumn(MediaStore.Files.FileColumns.DATE_MODIFIED)
+        val mimeTypeCol = optionalColumn(MediaStore.Files.FileColumns.MIME_TYPE)
+        val relativePathCol = optionalColumn(MediaStore.MediaColumns.RELATIVE_PATH)
+        val volumeNameCol = optionalColumn(MediaStore.MediaColumns.VOLUME_NAME)
+
+        val path = getOptionalString(dataCol)
+        val name = getOptionalString(nameCol)
+            ?: path?.let { File(it).name }
+            ?: ""
+        val dateAdded = getOptionalLong(dateAddedCol) * 1000L
+        val dateModified = getOptionalLong(dateModifiedCol) * 1000L
+
+        return MediaStoreFileRow(
+            rawPath = path,
+            displayName = name,
+            relativePath = getOptionalString(relativePathCol),
+            volumeName = getOptionalString(volumeNameCol),
+            size = getOptionalLong(sizeCol),
+            lastModified = maxOf(dateAdded, dateModified),
+            mimeType = getOptionalString(mimeTypeCol)
+        )
+    }
+
+    private fun rowMatchesScope(row: MediaStoreFileRow, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
+        if (row.displayName.startsWith(".")) return false
+        row.rawPath?.let { path ->
+            return !path.contains("/.") && matchesScope(path, scope, volumes)
+        }
+
+        val volumeName = row.volumeName
+        return when (scope) {
+            StorageScope.AllStorage -> volumeName == null || volumes.any { it.mediaStoreVolumeNames().contains(volumeName) }
+            is StorageScope.Volume -> {
+                val volume = volumes.find { it.id == scope.volumeId } ?: return false
+                volumeName == null || volume.mediaStoreVolumeNames().contains(volumeName)
+            }
+            is StorageScope.Category -> {
+                if (!scope.volumeId.isNullOrEmpty()) {
+                    val volume = volumes.find { it.id == scope.volumeId } ?: return false
+                    volumeName == null || volume.mediaStoreVolumeNames().contains(volumeName)
+                } else {
+                    volumeName == null || volumes.any { it.mediaStoreVolumeNames().contains(volumeName) }
+                }
+            }
+            is StorageScope.Path -> matchesScope(row.displayPath(volumes) { it.mediaStoreVolumeNames() }, scope, volumes)
+        }
+    }
+
+    private fun appendVolumeSelection(
+        selectionParts: MutableList<String>,
+        selectionArgs: MutableList<String>,
+        volumes: List<StorageVolume>
+    ) {
+        if (volumes.isEmpty()) return
+        val clauses = mutableListOf<String>()
+        volumes.forEach { volume ->
+            volume.mediaStoreVolumeNames().forEach { volumeName ->
+                clauses += "${MediaStore.MediaColumns.VOLUME_NAME} = ?"
+                selectionArgs += volumeName
+            }
+            clauses += "${MediaStore.Files.FileColumns.DATA} LIKE ?"
+            selectionArgs += volume.path.trimEnd('/') + "/%"
+        }
+        if (clauses.isNotEmpty()) {
+            selectionParts += clauses.joinToString(
+                separator = " OR ",
+                prefix = "(",
+                postfix = ")"
+            )
+        }
+    }
+
     override suspend fun invalidateCache(vararg paths: String) {
         try {
             if (paths.isEmpty()) {
@@ -183,63 +352,38 @@ class DefaultMediaStoreClient(
             }
             val filesList = mutableListOf<FileModel>()
             val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(
-                MediaStore.Files.FileColumns.DATA,
-                MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.SIZE,
-                MediaStore.Files.FileColumns.DATE_MODIFIED,
-                MediaStore.Files.FileColumns.DATE_ADDED,
-                MediaStore.Files.FileColumns.MIME_TYPE
-            )
+            val projection = mediaProjection()
 
-            val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
-            val baseSelection = "(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)"
-            val selection = if (minTimestamp > 0) "$baseSelection AND (${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)" else baseSelection
-            val selectionArgs = if (minTimestamp > 0) arrayOf((minTimestamp / 1000).toString(), (minTimestamp / 1000).toString()) else null
-            context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
-                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val dateAddedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_ADDED)
-                val dateModifiedCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                val mimeTypeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-
-                var validFilesSkipped = 0
-
+            val sortOrder = "MAX(${MediaStore.Files.FileColumns.DATE_MODIFIED}, ${MediaStore.Files.FileColumns.DATE_ADDED}) DESC"
+            val selectionParts = mutableListOf("(${MediaStore.Files.FileColumns.MIME_TYPE} IS NOT NULL)")
+            val selectionArgs = mutableListOf<String>()
+            if (minTimestamp > 0) {
+                selectionParts += "(${MediaStore.Files.FileColumns.DATE_ADDED} >= ? OR ${MediaStore.Files.FileColumns.DATE_MODIFIED} >= ?)"
+                selectionArgs += (minTimestamp / 1000).toString()
+                selectionArgs += (minTimestamp / 1000).toString()
+            }
+            appendVolumeSelection(selectionParts, selectionArgs, volumes)
+            val selection = selectionParts.joinToString(" AND ")
+            val args = selectionArgs.toTypedArray()
+            val queryLimit = (limit * RECENT_FILES_QUERY_MULTIPLIER).coerceAtLeast(limit)
+            val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val bundle = android.os.Bundle().apply {
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
+                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, queryLimit)
+                    putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
+                }
+                context.contentResolver.query(uri, projection, bundle, null)
+            } else {
+                @Suppress("DEPRECATION")
+                context.contentResolver.query(uri, projection, selection, args, "$sortOrder LIMIT $queryLimit OFFSET $offset")
+            }
+            cursor?.use { cursor ->
                 while (cursor.moveToNext() && filesList.size < limit) {
-                    val path = cursor.getString(dataCol)
-                    val name = cursor.getString(nameCol) ?: path?.let { File(it).name } ?: ""
-
-                    if (path != null && !name.startsWith(".") && !path.contains("/.") && matchesScope(path, scope, volumes)) {
-                        val actualFile = File(path)
-                        if (!actualFile.exists()) continue
-                        
-                        if (validFilesSkipped < offset) {
-                            validFilesSkipped++
-                            continue
-                        }
-
-                        var size = cursor.getLong(sizeCol)
-                        val dateAdded = cursor.getLong(dateAddedCol) * 1000L
-                        val dateModified = cursor.getLong(dateModifiedCol) * 1000L
-                        val mimeType = cursor.getString(mimeTypeCol)
-
-                        if (size == 0L) {
-                            size = actualFile.length()
-                        }
-
-                        val extension = path.substringAfterLast('.', "")
-
-                        filesList.add(FileModel(
-                            name = name,
-                            absolutePath = path,
-                            size = size,
-                            lastModified = maxOf(dateAdded, dateModified), // Prioritize whichever is newer
-                            isDirectory = false,
-                            extension = extension,
-                            isHidden = false,
-                            mimeType = mimeType
-                        ))
+                    val row = cursor.readMediaStoreFileRow()
+                    if (rowMatchesScope(row, scope, volumes)) {
+                        filesList.add(row.toFileModel(volumes) { it.mediaStoreVolumeNames() })
                     }
                 }
             }
@@ -301,73 +445,33 @@ class DefaultMediaStoreClient(
                             }
                         }
                     } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         AppLogger.e("MediaStoreClient", "StorageStatsManager query failed", e)
                     }
                 }
             }
 
             val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(
-                MediaStore.Files.FileColumns.DATA,
-                MediaStore.Files.FileColumns.SIZE,
-                MediaStore.Files.FileColumns.MIME_TYPE
-            )
-            
-            val selectionBuilder = StringBuilder()
+            val projection = mediaProjection()
+            val selectionParts = mutableListOf<String>()
             val selectionArgs = mutableListOf<String>()
-
-            val clauses = mutableListOf<String>()
-
-            FileCategories.all.forEachIndexed { index, cat ->
-                if (needsCalculation[index]) {
-                    if (cat.mimePrefix != null) {
-                        val prefix = cat.mimePrefix
-                        if (prefix.endsWith("/")) {
-                            clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?")
-                            selectionArgs.add("$prefix%")
-                        } else {
-                            clauses.add("${MediaStore.Files.FileColumns.MIME_TYPE} = ?")
-                            selectionArgs.add(prefix)
-                        }
-                    }
-
-                    cat.extensions.forEach { ext ->
-                        clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
-                        selectionArgs.add("%.${ext}")
-                    }
-                }
-            }
-
-            if (clauses.isNotEmpty()) {
-                selectionBuilder.append(clauses.joinToString(" OR "))
-            }
-
-            val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }
+            appendVolumeSelection(selectionParts, selectionArgs, volumes)
+            val selection = selectionParts.joinToString(" AND ").takeIf { it.isNotEmpty() }
             val args = selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
 
-            if (selection != null) {
-                context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->                    val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                    val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                    val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-                    
-                    while (cursor.moveToNext()) {
-                        val path = cursor.getString(dataCol)
-                        val size = cursor.getLong(sizeCol)
-                        val mime = cursor.getString(mimeCol)
-                        
-                        if (path != null && matchesScope(path, scope, volumes)) {
-                            val file = File(path)
-                            val cat = FileCategories.getCategoryForFile(file.extension, mime)
-                            val catIndex = FileCategories.all.indexOf(cat)
-                            
-                            if (catIndex != -1 && needsCalculation[catIndex]) {
-                                sizes[catIndex] += size
-                            }
-                        }
+            context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    currentCoroutineContext().ensureActive()
+                    val row = cursor.readMediaStoreFileRow()
+                    if (!rowMatchesScope(row, scope, volumes)) continue
+                    val matchedCategory = FileCategories.getCategoryForFile(row.extension, row.mimeType) ?: continue
+                    val index = FileCategories.all.indexOf(matchedCategory)
+                    if (index >= 0 && needsCalculation[index]) {
+                        sizes[index] += row.size
                     }
                 }
             }
+
 
             val result = FileCategories.all.mapIndexed { index, cat ->
                 CategoryStorage(
@@ -402,13 +506,7 @@ class DefaultMediaStoreClient(
             val filesList = mutableListOf<FileModel>()
 
             val uri = MediaStore.Files.getContentUri("external")
-            val projection = arrayOf(
-                MediaStore.Files.FileColumns.DATA,
-                MediaStore.Files.FileColumns.MIME_TYPE,
-                MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.SIZE,
-                MediaStore.Files.FileColumns.DATE_MODIFIED
-            )
+            val projection = mediaProjection()
             
             val selectionBuilder = StringBuilder()
             val selectionArgs = mutableListOf<String>()
@@ -425,7 +523,8 @@ class DefaultMediaStoreClient(
             }
 
             category.extensions.forEach { ext ->
-                clauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
+                clauses.add("(${MediaStore.Files.FileColumns.DATA} LIKE ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?)")
+                selectionArgs.add("%.${ext}")
                 selectionArgs.add("%.${ext}")
             }
 
@@ -433,36 +532,27 @@ class DefaultMediaStoreClient(
                 selectionBuilder.append(clauses.joinToString(" OR "))
             }
 
+            if (volumes.isNotEmpty()) {
+                val volumeParts = mutableListOf<String>()
+                val volumeArgs = mutableListOf<String>()
+                appendVolumeSelection(volumeParts, volumeArgs, volumes)
+                if (selectionBuilder.isNotEmpty()) {
+                    selectionBuilder.insert(0, "(")
+                    selectionBuilder.append(") AND ")
+                }
+                selectionBuilder.append(volumeParts.joinToString(" AND "))
+                selectionArgs += volumeArgs
+            }
+
             val selection = selectionBuilder.toString().takeIf { it.isNotEmpty() }
             val args = selectionArgs.toTypedArray().takeIf { it.isNotEmpty() }
             context.contentResolver.query(uri, projection, selection, args, null)?.use { cursor ->
-                val dataCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
-                val mimeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val dateCol = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-                
                 while (cursor.moveToNext()) {
-                    val path = cursor.getString(dataCol)
-                    val mime = cursor.getString(mimeCol)
-                    
-                    if (path != null && matchesScope(path, scope, volumes)) {
-                        val extension = path.substringAfterLast('.', "")
-                        val cat = FileCategories.getCategoryForFile(extension, mime)
-                        
-                        if (cat == category) {
-                            val name = cursor.getString(nameCol) ?: path.substringAfterLast('/', "")
-                            filesList.add(FileModel(
-                                name = name,
-                                absolutePath = path,
-                                size = cursor.getLong(sizeCol),
-                                lastModified = cursor.getLong(dateCol) * 1000L,
-                                isDirectory = false,
-                                extension = extension,
-                                isHidden = name.startsWith("."),
-                                mimeType = mime
-                            ))
-                        }
+                    val row = cursor.readMediaStoreFileRow()
+                    if (rowMatchesScope(row, scope, volumes) &&
+                        FileCategories.getCategoryForFile(row.extension, row.mimeType) == category
+                    ) {
+                        filesList.add(row.toFileModel(volumes) { it.mediaStoreVolumeNames() })
                     }
                 }
             }
@@ -538,7 +628,7 @@ class DefaultMediaStoreClient(
                 }
             } else {
                 val uri = MediaStore.Files.getContentUri("external")
-                val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+                val projection = mediaProjection()
                 val selectionBuilder = StringBuilder("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
                 val selectionArgs = mutableListOf("%$query%")
                 
@@ -558,7 +648,8 @@ class DefaultMediaStoreClient(
                         }
 
                         category.extensions.forEach { ext ->
-                            categoryClauses.add("${MediaStore.Files.FileColumns.DATA} LIKE ?")
+                            categoryClauses.add("(${MediaStore.Files.FileColumns.DATA} LIKE ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?)")
+                            selectionArgs.add("%.${ext}")
                             selectionArgs.add("%.${ext}")
                         }
 
@@ -568,7 +659,7 @@ class DefaultMediaStoreClient(
                     }
                 }
                 
-                val sortOrder = "${MediaStore.Files.FileColumns.DATE_MODIFIED} DESC"
+                val sortOrder = "MAX(${MediaStore.Files.FileColumns.DATE_MODIFIED}, ${MediaStore.Files.FileColumns.DATE_ADDED}) DESC"
                 val bundle = android.os.Bundle().apply {
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selectionBuilder.toString())
                     putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
@@ -584,14 +675,10 @@ class DefaultMediaStoreClient(
                 }
 
                 cursor?.use { c ->
-                    val dataCol = c.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     while (c.moveToNext()) {
-                        val path = c.getString(dataCol)
-                        if (path != null && !path.contains("/.") && matchesScope(path, scope, volumes)) {
-                            val f = File(path)
-                            if (f.exists() && !f.name.startsWith(".")) {
-                                filesList.add(f.toFileModel())
-                            }
+                        val row = c.readMediaStoreFileRow()
+                        if (rowMatchesScope(row, scope, volumes)) {
+                            filesList.add(row.toFileModel(volumes) { it.mediaStoreVolumeNames() })
                         }
                     }
                 }

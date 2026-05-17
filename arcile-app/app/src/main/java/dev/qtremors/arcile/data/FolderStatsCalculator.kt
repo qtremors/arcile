@@ -2,14 +2,22 @@ package dev.qtremors.arcile.data
 
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.FolderStatsStatus
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.io.IOException
 
 internal object FolderStatsCalculator {
 
+    const val DEFAULT_NODE_LIMIT = 100_000
+    private const val CANCELLATION_CHECK_GRANULARITY = 128
     private val excludedDescendantFolders = setOf(".thumbnails")
 
-    fun calculate(root: File, now: Long = System.currentTimeMillis()): FolderStats {
+    suspend fun calculate(
+        root: File,
+        now: Long = System.currentTimeMillis(),
+        nodeLimit: Int = DEFAULT_NODE_LIMIT
+    ): FolderStats {
         if (!root.exists() || !root.isDirectory) {
             return FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
         }
@@ -29,9 +37,17 @@ internal object FolderStatsCalculator {
         var fileCount = 0L
         var totalBytes = 0L
         var encounteredLimitedAccess = false
+        var visitedNodes = 0
 
         while (pending.isNotEmpty()) {
+            if (visitedNodes % CANCELLATION_CHECK_GRANULARITY == 0) {
+                currentCoroutineContext().ensureActive()
+            }
             val current = pending.removeFirst()
+            visitedNodes += 1
+            if (visitedNodes > nodeLimit) {
+                return FolderStats(fileCount, totalBytes, now, FolderStatsStatus.Partial)
+            }
             if (!current.isDirectory) {
                 fileCount += 1L
                 totalBytes += current.length()

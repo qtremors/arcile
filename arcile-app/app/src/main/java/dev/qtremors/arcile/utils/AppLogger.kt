@@ -5,7 +5,6 @@ import dev.qtremors.arcile.BuildConfig
 
 object AppLogger {
     fun e(tag: String, message: String, throwable: Throwable? = null) {
-        if (!BuildConfig.DEBUG) return
         if (throwable != null) {
             Log.e(tag, message, throwable)
         } else {

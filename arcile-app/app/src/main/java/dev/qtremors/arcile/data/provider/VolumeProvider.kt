@@ -10,7 +10,9 @@ import android.os.storage.StorageManager
 import androidx.core.content.ContextCompat
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.util.mergeStorageClassifications
+import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.domain.StorageVolume
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -34,7 +36,8 @@ interface VolumeProvider {
 
 class DefaultVolumeProvider(
     private val context: Context,
-    private val classificationRepo: StorageClassificationRepository
+    private val classificationRepo: StorageClassificationRepository,
+    @param:ApplicationScope private val applicationScope: CoroutineScope
 ) : VolumeProvider {
     private val appContext = context.applicationContext
     private val storageManager = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
@@ -45,8 +48,7 @@ class DefaultVolumeProvider(
     private val cachedVolumes = AtomicReference<List<StorageVolume>?>(null)
 
     init {
-        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+        applicationScope.launch(Dispatchers.IO) {
             _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
         }
     }
