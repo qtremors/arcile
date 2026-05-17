@@ -147,7 +147,7 @@ class ArchiveManagerTest {
     }
 
     @Test
-    fun `zip extraction rejects traversal entries`() = runTest {
+    fun `zip extraction skips traversal entries without aborting`() = runTest {
         val archive = File(root, "unsafe.zip")
         ZipArchiveOutputStream(archive).use { zip ->
             zip.putArchiveEntry(ZipArchiveEntry("../evil.txt"))
@@ -158,8 +158,36 @@ class ArchiveManagerTest {
 
         val result = manager.extractArchive(archive.absolutePath, destination.absolutePath)
 
-        assertTrue(result.isFailure)
+        assertTrue(result.isSuccess)
         assertFalse(File(root, "evil.txt").exists())
+    }
+
+    @Test
+    fun `zip extraction continues past unsafe entry in the middle`() = runTest {
+        val archive = File(root, "mixed.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("before_good.txt"))
+            zip.write("before".toByteArray())
+            zip.closeArchiveEntry()
+
+            zip.putArchiveEntry(ZipArchiveEntry("../escape.txt"))
+            zip.write("escape".toByteArray())
+            zip.closeArchiveEntry()
+
+            zip.putArchiveEntry(ZipArchiveEntry("after_good.txt"))
+            zip.write("after".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val destination = File(root, "mixed-dest").apply { mkdirs() }
+
+        val result = manager.extractArchive(archive.absolutePath, destination.absolutePath)
+
+        assertTrue(result.isSuccess)
+        assertTrue(File(destination, "before_good.txt").exists())
+        assertTrue(File(destination, "after_good.txt").exists())
+        assertEquals("before", File(destination, "before_good.txt").readText())
+        assertEquals("after", File(destination, "after_good.txt").readText())
+        assertFalse(File(destination.parentFile, "escape.txt").exists())
     }
 
     @Test

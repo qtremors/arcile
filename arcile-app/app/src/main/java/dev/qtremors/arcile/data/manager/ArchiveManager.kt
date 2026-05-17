@@ -228,7 +228,11 @@ class DefaultArchiveManager(
             for (entry in entries) {
                 currentCoroutineContext().ensureActive()
                 if (!zip.canReadEntryData(entry)) throw IOException("Archive contains unsupported entries")
-                val target = resolveExtractionTarget(destination, entry.name, entry.isDirectory)
+                val target = try {
+                    resolveExtractionTarget(destination, entry.name, entry.isDirectory)
+                } catch (_: IllegalArgumentException) {
+                    continue
+                }
                 if (entry.isDirectory) {
                     target.mkdirs()
                 } else {
@@ -267,7 +271,11 @@ class DefaultArchiveManager(
                 val entry = sevenZ.nextEntry ?: break
                 val name = (entry.name ?: "unnamed").normalizeEntryName()
                 if (!name.matchesPrefix(entryPrefix)) continue
-                val target = resolveExtractionTarget(destination, name, entry.isDirectory)
+                val target = try {
+                    resolveExtractionTarget(destination, name, entry.isDirectory)
+                } catch (_: IllegalArgumentException) {
+                    continue
+                }
                 if (entry.isDirectory) {
                     target.mkdirs()
                 } else {
@@ -402,7 +410,11 @@ class DefaultArchiveManager(
         var completed = 0
         for (entry in entries) {
             currentCoroutineContext().ensureActive()
-            val target = resolveExtractionTarget(destination, entry.fileName, entry.isDirectory)
+            val target = try {
+                resolveExtractionTarget(destination, entry.fileName, entry.isDirectory)
+            } catch (_: IllegalArgumentException) {
+                continue
+            }
             if (entry.isDirectory) {
                 target.mkdirs()
             } else {
