@@ -352,6 +352,11 @@ fun AppNavigationGraph(
                         onSelectAll = { viewModel.selectAll() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
+                        onSortChange = { viewModel.updateSortOption(it) },
+                        onFilterChange = { viewModel.updateFilter(it) },
+                        onOpenProperties = { viewModel.openPropertiesForSelection() },
+                        onDismissProperties = { viewModel.dismissProperties() },
+                        onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
 

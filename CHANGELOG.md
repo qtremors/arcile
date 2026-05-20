@@ -1,10 +1,29 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.0
-> **Last Updated:** 2026-05-17
+> **Version:** 0.7.1
+> **Last Updated:** 2026-05-20
 
 ---
+
+## [0.7.1] - 2026-05-20
+
+### Trash & Recovery
+- **Recoverable Trash Metadata:** Replaced encrypted trash sidecars with plaintext, schema-versioned JSON stored under each volume's `.arcile/.metadata` folder, so trashed items can be rediscovered after reinstall without app-private keys or preferences.
+- **Recovered Item Handling:** Unreadable metadata no longer causes payload loss; if the trash payload still exists, Arcile lists it as a recovered item and requires the user to choose a restore destination.
+- **Safer Restore Flow:** Trash restore now reports whether items can return to their original path, need a destination, or will be restored with a conflict-safe renamed filename.
+
+### UI & UX
+- **Practical Trash Manager:** Added Trash filters for all items, directly restorable items, destination-required items, and recovered payloads.
+- **Trash Sorting & Grouping:** Completed the Trash sort action with deletion date, name, size, type, and original-folder sorting, plus list grouping by Today, Yesterday, and Older.
+- **Trash Properties:** Finished the Trash properties action with selected-item details including original path, trash payload path, restore status, size, and source volume.
+- **Restore Feedback:** Restore actions now show a summary snackbar, including when selected files were restored with conflict names.
+
+### Build
+- **Version Bump:** Updated the app version from `0.7.0` to `0.7.1` with `versionCode` 55.
+
+### Testing
+- **Trash Regression Coverage:** Added tests for plaintext metadata, reinstall recovery, conflict restore, recovered payload restore, orphan metadata cleanup, unsupported storage, Trash filters, sorting, destination routing, and properties.
 
 ## [0.7.0] - 2026-05-16
 

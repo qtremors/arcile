@@ -281,6 +281,21 @@
     <string name="select_restore_destination_description">The original storage volume is unavailable. Where would you like to restore the file(s)?</string>
     <string name="deleted_at">Deleted: %1$s</string>
     <string name="from_volume">From %1$s: %2$s</string>
+    <string name="trash_filter_all">All</string>
+    <string name="trash_filter_can_restore">Can restore</string>
+    <string name="trash_filter_needs_destination">Needs destination</string>
+    <string name="trash_filter_recovered">Recovered</string>
+    <string name="trash_sort_title">Sort Trash</string>
+    <string name="trash_sort_deleted_newest">Deletion date (newest)</string>
+    <string name="trash_sort_deleted_oldest">Deletion date (oldest)</string>
+    <string name="trash_sort_type">Type</string>
+    <string name="trash_sort_original_folder">Original folder</string>
+    <string name="trash_original_location">%1$s • %2$s</string>
+    <string name="trash_original_unavailable">Original location unavailable</string>
+    <string name="trash_status_can_restore">Restore</string>
+    <string name="trash_status_conflict">Rename</string>
+    <string name="trash_status_needs_destination">Choose folder</string>
+    <string name="trash_status_recovered">Recovered</string>
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>

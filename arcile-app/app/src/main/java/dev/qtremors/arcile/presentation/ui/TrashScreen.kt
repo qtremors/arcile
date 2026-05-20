@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.rememberScrollState
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
@@ -68,6 +70,7 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.Alignment
@@ -84,7 +87,10 @@ import androidx.compose.foundation.clickable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.presentation.trash.TrashFilter
+import dev.qtremors.arcile.presentation.trash.TrashPropertiesUiModel
 import dev.qtremors.arcile.presentation.trash.TrashState
+import dev.qtremors.arcile.presentation.trash.TrashSortOption
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import dev.qtremors.arcile.presentation.ui.components.trash.EmptyTrashDialog
 import dev.qtremors.arcile.presentation.ui.components.trash.TrashList
@@ -114,6 +120,11 @@ fun TrashScreen(
     onSelectAll: () -> Unit,
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
+    onSortChange: (TrashSortOption) -> Unit = {},
+    onFilterChange: (TrashFilter) -> Unit = {},
+    onOpenProperties: () -> Unit = {},
+    onDismissProperties: () -> Unit = {},
+    onClearSnackbarMessage: () -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val isSelectionMode = state.selectedFiles.isNotEmpty()
@@ -160,6 +171,12 @@ fun TrashScreen(
             onClearError()
         }
     }
+    LaunchedEffect(state.snackbarMessage) {
+        state.snackbarMessage?.let { message ->
+            snackbarHostState.showSnackbar(message)
+            onClearSnackbarMessage()
+        }
+    }
 
     BackHandler(enabled = isSelectionMode || showSearchBar) {
         if (isSelectionMode) {
@@ -173,6 +190,7 @@ fun TrashScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
+    var showSortDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -225,7 +243,7 @@ fun TrashScreen(
                                 dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
                                     icon = Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = stringResource(R.string.action_sort),
-                                    onClick = { /* show sort dialog */ }
+                                    onClick = { showSortDialog = true }
                                 )
                             )
                             dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup(actions = topActions)
@@ -259,6 +277,12 @@ fun TrashScreen(
                     .fillMaxSize()
                     .padding(top = padding.calculateTopPadding())
             ) {
+            if (!showSearchBar && state.trashFiles.isNotEmpty()) {
+                TrashFilterRow(
+                    selected = state.filter,
+                    onFilterChange = onFilterChange
+                )
+            }
             if (!isSelectionMode && !showSearchBar && state.trashFiles.isNotEmpty()) {
                 TrashInfoCard()
             }
@@ -294,7 +318,7 @@ fun TrashScreen(
                     )
                 } else {
                     TrashList(
-                        files = if (showSearchBar) state.searchResults else state.trashFiles,
+                        files = if (showSearchBar) state.searchResults else state.visibleTrashFiles,
                         selectedFiles = state.selectedFiles,
                         onToggleSelection = onToggleSelection,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -366,7 +390,7 @@ fun TrashScreen(
                                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                     onClick = {
                                         showMoreMenu = false
-                                        // onOpenProperties()
+                                        onOpenProperties()
                                     }
                                 )
                             }
@@ -442,7 +466,143 @@ fun TrashScreen(
                 )
             }
         }
+
+        if (showSortDialog) {
+            TrashSortDialog(
+                selected = state.sortOption,
+                onDismiss = { showSortDialog = false },
+                onSelect = {
+                    onSortChange(it)
+                    showSortDialog = false
+                }
+            )
+        }
+
+        if (state.isPropertiesVisible) {
+            TrashPropertiesDialog(
+                properties = state.properties,
+                onDismiss = onDismissProperties
+            )
+        }
     }
+}
+
+@Composable
+private fun TrashFilterRow(
+    selected: TrashFilter,
+    onFilterChange: (TrashFilter) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TrashFilter.entries.forEach { filter ->
+            FilterChip(
+                selected = selected == filter,
+                onClick = { onFilterChange(filter) },
+                label = {
+                    Text(
+                        when (filter) {
+                            TrashFilter.ALL -> stringResource(R.string.trash_filter_all)
+                            TrashFilter.CAN_RESTORE -> stringResource(R.string.trash_filter_can_restore)
+                            TrashFilter.NEEDS_DESTINATION -> stringResource(R.string.trash_filter_needs_destination)
+                            TrashFilter.RECOVERED -> stringResource(R.string.trash_filter_recovered)
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TrashSortDialog(
+    selected: TrashSortOption,
+    onDismiss: () -> Unit,
+    onSelect: (TrashSortOption) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.trash_sort_title)) },
+        text = {
+            Column {
+                TrashSortOption.entries.forEach { option ->
+                    ListItem(
+                        headlineContent = { Text(trashSortLabel(option)) },
+                        modifier = Modifier.clickable { onSelect(option) },
+                        colors = ListItemDefaults.colors(
+                            containerColor = if (selected == option) {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            } else {
+                                Color.Transparent
+                            }
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun trashSortLabel(option: TrashSortOption): String {
+    return when (option) {
+        TrashSortOption.DELETED_NEWEST -> stringResource(R.string.trash_sort_deleted_newest)
+        TrashSortOption.DELETED_OLDEST -> stringResource(R.string.trash_sort_deleted_oldest)
+        TrashSortOption.NAME_ASC -> stringResource(R.string.sort_name_asc)
+        TrashSortOption.NAME_DESC -> stringResource(R.string.sort_name_desc)
+        TrashSortOption.SIZE_LARGEST -> stringResource(R.string.sort_size_largest)
+        TrashSortOption.SIZE_SMALLEST -> stringResource(R.string.sort_size_smallest)
+        TrashSortOption.TYPE -> stringResource(R.string.trash_sort_type)
+        TrashSortOption.ORIGINAL_FOLDER -> stringResource(R.string.trash_sort_original_folder)
+    }
+}
+
+@Composable
+private fun TrashPropertiesDialog(
+    properties: TrashPropertiesUiModel?,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.properties_title)) },
+        text = {
+            val model = properties ?: return@AlertDialog
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(model.title, style = MaterialTheme.typography.titleMedium)
+                model.rows.forEach { (label, value) ->
+                    Column {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.ok))
+            }
+        }
+    )
 }
 
 @Composable
