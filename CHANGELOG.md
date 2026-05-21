@@ -1,10 +1,28 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.1
-> **Last Updated:** 2026-05-20
+> **Version:** 0.7.2
+> **Last Updated:** 2026-05-21
 
 ---
+
+## [0.7.2] - 2026-05-21
+
+### Backend Reliability & Safety
+- **Transfer Verification Policy:** Added explicit metadata and full-checksum verification modes. Normal copies now use metadata verification to avoid full SHA-256 re-reads, while move fallback still performs checksum verification before deleting sources.
+- **Streaming Directory Verification:** Replaced directory verification that materialized full file lists with streaming traversal, reducing memory pressure for large folders and emitting progress during longer verification work.
+- **Path Safety Policies:** Centralized path validation by operation policy and tightened mutation/recursive traversal paths to reject symlink traversal and revalidate staging, promotion, delete, rename, and extraction targets.
+- **Operation Work Coordination:** Added a lightweight storage work coordinator so low-priority folder stats defer while foreground file mutations are active.
+- **Folder Stats Backpressure:** Folder stats now cancel stale per-path jobs, prioritize the newest request, and avoid publishing superseded scan results after navigation or invalidation.
+- **Foreground Operation Progress:** File-operation notifications now show throttled determinate progress when bytes or item counts are known, keep a cancel action available, and better reflect the active operation phase.
+
+### Archives & Privacy
+- **Archive Safety Policy:** Added archive entry count, uncompressed size, path length, nesting depth, and compression-ratio guards for ZIP and 7z listing, creation, metadata, and extraction paths.
+- **Extraction Cleanup:** Failed or cancelled extraction now removes files and directories created by that extraction attempt when they can be identified safely.
+- **Backup Privacy Rules:** Tightened backup and data-extraction rules to exclude local storage preferences, quick access paths, classification data, operation/staging metadata, analytics, and Arcile storage metadata.
+
+### Testing
+- **Backend Regression Coverage:** Added tests for transfer verification policy behavior, symlink mutation rejection, archive safety limits, extraction cleanup, backup/data extraction exclusions, storage work coordination, folder stats cancellation/defer behavior, and foreground operation notification progress.
 
 ## [0.7.1] - 2026-05-20
 

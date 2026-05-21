@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.operations
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 
@@ -10,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.data.StorageWorkCoordinator
 import dev.qtremors.arcile.domain.FileRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -31,10 +33,14 @@ class BulkFileOperationService : Service() {
     @Inject
     lateinit var coordinator: BulkFileOperationCoordinator
 
+    @Inject
+    lateinit var storageWorkCoordinator: StorageWorkCoordinator
+
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
+    private var lastNotificationUpdateAt = 0L
 
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -57,6 +63,7 @@ class BulkFileOperationService : Service() {
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
                 startForeground(NOTIFICATION_ID, buildNotification(request))
+                storageWorkCoordinator.beginMutation()
                 val capturedStartId = startId
                 currentOperationJob = serviceScope.launch {
                     try {
@@ -67,6 +74,7 @@ class BulkFileOperationService : Service() {
                                 request.resolutions
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
                             }
                             BulkFileOperationType.MOVE -> repository.moveFiles(
                                 request.sourcePaths,
@@ -74,6 +82,7 @@ class BulkFileOperationService : Service() {
                                 request.resolutions
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
                             }
                             BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths)
                             BulkFileOperationType.DELETE -> repository.deletePermanently(request.sourcePaths)
@@ -83,6 +92,7 @@ class BulkFileOperationService : Service() {
                                 requireNotNull(request.fakeFileSize)
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
                             }
                             BulkFileOperationType.EXTRACT_ARCHIVE -> repository.extractArchive(
                                 archivePath = request.sourcePaths.first(),
@@ -91,6 +101,7 @@ class BulkFileOperationService : Service() {
                                 password = request.archivePassword
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
                             }
                             BulkFileOperationType.CREATE_ARCHIVE -> repository.createArchive(
                                 sourcePaths = request.sourcePaths,
@@ -99,6 +110,7 @@ class BulkFileOperationService : Service() {
                                 password = request.archivePassword
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
                             }
                         }
 
@@ -111,6 +123,7 @@ class BulkFileOperationService : Service() {
                     } catch (_: CancellationException) {
                         coordinator.onOperationCancelled(request)
                     } finally {
+                        storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
                         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -127,9 +140,40 @@ class BulkFileOperationService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(request: BulkFileOperationRequest): Notification {
+    private fun updateNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+        val now = System.currentTimeMillis()
+        val finished = progress.completedItems >= progress.totalItems
+        if (!finished && now - lastNotificationUpdateAt < NOTIFICATION_UPDATE_THROTTLE_MS) return
+        lastNotificationUpdateAt = now
+        getSystemService(NotificationManager::class.java).notify(
+            NOTIFICATION_ID,
+            buildNotification(request, progress)
+        )
+    }
+
+    private fun buildNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress? = null): Notification {
         ensureChannel()
-        val title = when (request.type) {
+        val title = operationTitle(request.type)
+        val content = progress?.let(::progressContent)
+            ?: "Processing ${request.sourcePaths.size} item(s) in the background"
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(content)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .addAction(
+                R.drawable.ic_notification,
+                "Cancel",
+                cancelPendingIntent(request)
+            )
+
+        applyProgress(builder, progress)
+        return builder.build()
+    }
+
+    private fun operationTitle(type: BulkFileOperationType): String =
+        when (type) {
             BulkFileOperationType.COPY -> "Copying files"
             BulkFileOperationType.MOVE -> "Moving files"
             BulkFileOperationType.TRASH -> "Moving files to Trash"
@@ -138,16 +182,52 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.EXTRACT_ARCHIVE -> "Extracting archive"
             BulkFileOperationType.CREATE_ARCHIVE -> "Creating archive"
         }
-        val content = "Processing ${request.sourcePaths.size} item(s) in the background"
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(title)
-            .setContentText(content)
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setProgress(0, 0, true)
-            .build()
+    private fun progressContent(progress: BulkFileOperationProgress): String {
+        val currentName = progress.currentPath
+            ?.substringAfterLast('/')
+            ?.takeIf { it.isNotBlank() }
+        val primary = if ((progress.totalBytes ?: 0L) > 0L) {
+            "${progressPercent(progress)}% • ${progress.completedItems}/${progress.totalItems} items"
+        } else {
+            "${progress.completedItems}/${progress.totalItems} items"
+        }
+        return listOfNotNull(primary, currentName).joinToString(" • ")
+    }
+
+    private fun applyProgress(
+        builder: NotificationCompat.Builder,
+        progress: BulkFileOperationProgress?
+    ) {
+        when {
+            progress?.totalBytes != null && progress.totalBytes > 0L -> {
+                builder.setProgress(100, progressPercent(progress), false)
+            }
+            progress != null && progress.totalItems > 0 -> {
+                builder.setProgress(progress.totalItems, progress.completedItems.coerceAtMost(progress.totalItems), false)
+            }
+            else -> builder.setProgress(0, 0, true)
+        }
+    }
+
+    private fun progressPercent(progress: BulkFileOperationProgress): Int {
+        val totalBytes = progress.totalBytes ?: return 0
+        if (totalBytes <= 0L) return 0
+        val copied = progress.bytesCopied ?: 0L
+        return ((copied.toDouble() / totalBytes.toDouble()) * 100.0).toInt().coerceIn(0, 100)
+    }
+
+    private fun cancelPendingIntent(request: BulkFileOperationRequest): PendingIntent {
+        val intent = Intent(this, BulkFileOperationService::class.java).apply {
+            action = ACTION_CANCEL
+            putExtra(EXTRA_OPERATION_ID, request.operationId)
+        }
+        return PendingIntent.getService(
+            this,
+            request.operationId.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     private fun ensureChannel() {
@@ -170,5 +250,6 @@ class BulkFileOperationService : Service() {
 
         private const val CHANNEL_ID = "bulk_file_operations"
         private const val NOTIFICATION_ID = 1001
+        private const val NOTIFICATION_UPDATE_THROTTLE_MS = 500L
     }
 }

@@ -2,7 +2,10 @@ package dev.qtremors.arcile.presentation.operations
 
 import android.content.Context
 import android.content.Intent
+import android.app.Notification
+import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import io.mockk.every
@@ -14,15 +17,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.android.controller.ServiceController
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -32,6 +38,7 @@ class BulkFileOperationServiceTest {
     private lateinit var context: Context
     private lateinit var coordinator: BulkFileOperationCoordinator
     private lateinit var repository: FakeFileRepository
+    private lateinit var storageWorkCoordinator: DefaultStorageWorkCoordinator
     private lateinit var serviceController: ServiceController<BulkFileOperationService>
     private lateinit var service: BulkFileOperationService
 
@@ -40,11 +47,13 @@ class BulkFileOperationServiceTest {
         context = ApplicationProvider.getApplicationContext()
         coordinator = mockk(relaxed = true)
         repository = FakeFileRepository()
+        storageWorkCoordinator = DefaultStorageWorkCoordinator()
 
         serviceController = Robolectric.buildService(BulkFileOperationService::class.java)
         service = serviceController.get()
         service.coordinator = coordinator
         service.repository = repository
+        service.storageWorkCoordinator = storageWorkCoordinator
     }
 
     @Test
@@ -69,6 +78,7 @@ class BulkFileOperationServiceTest {
 
         verify { coordinator.onOperationCompleted(request) }
         assertEquals(listOf(listOf("/test.txt")), repository.moveToTrashRequests)
+        assertFalse(storageWorkCoordinator.isMutationActive.value)
     }
 
     @Test
@@ -100,4 +110,81 @@ class BulkFileOperationServiceTest {
         // But we can verify coordinator receives the cancel request.
         verify { coordinator.onOperationCancelling(request) }
     }
+
+    @Test
+    fun `service updates notification with determinate progress and cancel action`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-progress",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val progressSent = CountDownLatch(1)
+        val finishOperation = CountDownLatch(1)
+        repository.copyFilesResultProvider = { _, _, _, onProgress ->
+            onProgress?.invoke(
+                BulkFileOperationProgress(
+                    completedItems = 1,
+                    totalItems = 2,
+                    currentPath = "/source/a.txt",
+                    bytesCopied = 50L,
+                    totalBytes = 100L
+                )
+            )
+            progressSent.countDown()
+            finishOperation.await(2, TimeUnit.SECONDS)
+            Result.success(Unit)
+        }
+
+        try {
+            serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+            assertTrue(progressSent.await(2, TimeUnit.SECONDS))
+
+            verify(timeout = 2_000) {
+                coordinator.onOperationProgress(
+                    request,
+                    BulkFileOperationProgress(1, 2, "/source/a.txt", 50L, 100L)
+                )
+            }
+            val notificationManager = context.getSystemService(NotificationManager::class.java)
+            val notifications = shadowOf(notificationManager).allNotifications
+
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TITLE) == "Copying files" })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("50%") })
+            assertTrue(notifications.any { notification -> notification.actions.any { it.title == "Cancel" } })
+        } finally {
+            finishOperation.countDown()
+        }
+    }
+
+    @Test
+    fun `service marks storage work active only while operation runs`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-active",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        repository.copyFilesResultProvider = { _, _, _, _ ->
+            assertTrue(storageWorkCoordinator.isMutationActive.value)
+            Result.success(Unit)
+        }
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        assertFalse(storageWorkCoordinator.isMutationActive.value)
+    }
+
+    private fun startIntent(request: BulkFileOperationRequest): Intent =
+        Intent(context, BulkFileOperationService::class.java).apply {
+            action = BulkFileOperationService.ACTION_START
+            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, Json.encodeToString(request))
+        }
 }

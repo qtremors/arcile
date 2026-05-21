@@ -9,6 +9,7 @@ import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.data.DefaultFolderStatsStore
+import dev.qtremors.arcile.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.data.MutationFinalizer
@@ -16,6 +17,7 @@ import dev.qtremors.arcile.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.data.OnboardingPreferencesStore
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
+import dev.qtremors.arcile.data.StorageWorkCoordinator
 import dev.qtremors.arcile.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.data.manager.TrashManager
@@ -132,9 +134,18 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideFolderStatsStore(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        storageWorkCoordinator: StorageWorkCoordinator
     ): FolderStatsStore {
-        return DefaultFolderStatsStore(context)
+        return DefaultFolderStatsStore(context, storageWorkCoordinator = storageWorkCoordinator)
+    }
+
+    @Provides
+    @Singleton
+    fun provideStorageWorkCoordinator(
+        coordinator: DefaultStorageWorkCoordinator
+    ): StorageWorkCoordinator {
+        return coordinator
     }
 
     @Provides

@@ -4,9 +4,11 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
+import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.nio.file.Files
 import kotlin.io.path.createTempDirectory
 
 class PathSafetyTest {
@@ -83,5 +85,26 @@ class PathSafetyTest {
             ),
             paths
         )
+    }
+
+    @Test
+    fun `mutation policies reject symbolic link traversal`() {
+        val realTarget = File(root, "real").apply { mkdirs() }
+        val link = File(root, "link")
+        val created = runCatching {
+            Files.createSymbolicLink(link.toPath(), realTarget.toPath())
+        }.isSuccess
+        assumeTrue("Symbolic links are not available in this test environment", created)
+
+        assertTrue(PathSafety.validatePath(link, listOf(root.absolutePath)).isSuccess)
+
+        val result = PathSafety.validatePath(
+            link,
+            listOf(root.absolutePath),
+            PathSafety.OperationPolicy.RECURSIVE_MUTATE
+        )
+
+        assertFalse(result.isSuccess)
+        assertTrue(result.exceptionOrNull() is SecurityException)
     }
 }

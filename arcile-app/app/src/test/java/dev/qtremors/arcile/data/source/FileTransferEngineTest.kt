@@ -83,10 +83,15 @@ class FileTransferEngineTest {
     fun `move fallback verifies copy before deleting source`() = runTest {
         val source = File(root, "source.txt").apply { writeText("move me") }
         val destination = File(root, "dest").apply { mkdirs() }
+        var checksumCalls = 0
         val engine = FileTransferEngine(
             validatePath = { Result.success(Unit) },
             rename = { from, to ->
                 if (from == source) false else from.renameTo(to)
+            },
+            checksumFile = { file ->
+                checksumCalls += 1
+                java.security.MessageDigest.getInstance("SHA-256").digest(file.readBytes())
             }
         )
 
@@ -99,5 +104,72 @@ class FileTransferEngineTest {
         assertTrue(result.isSuccess)
         assertFalse(source.exists())
         assertEquals("move me", File(destination, "source.txt").readText())
+        assertTrue(checksumCalls >= 2)
+    }
+
+    @Test
+    fun `copy uses metadata verification without checksum`() = runTest {
+        val source = File(root, "source.txt").apply { writeText("metadata only") }
+        val destination = File(root, "copy-dest").apply { mkdirs() }
+        var checksumCalls = 0
+        val engine = FileTransferEngine(
+            validatePath = { Result.success(Unit) },
+            checksumFile = { file ->
+                checksumCalls += 1
+                java.security.MessageDigest.getInstance("SHA-256").digest(file.readBytes())
+            }
+        )
+
+        val result = engine.copyFiles(
+            sourcePaths = listOf(source.absolutePath),
+            destination = destination,
+            resolutions = emptyMap()
+        )
+
+        assertTrue(result.isSuccess)
+        assertEquals("metadata only", File(destination, "source.txt").readText())
+        assertEquals(0, checksumCalls)
+    }
+
+    @Test
+    fun `metadata verification detects size mismatches`() = runTest {
+        val source = File(root, "source.txt").apply { writeText("original") }
+        val destination = File(root, "bad-dest").apply { mkdirs() }
+        val engine = FileTransferEngine(
+            validatePath = { Result.success(Unit) },
+            afterCopy = { _, target ->
+                target.appendText("corruption")
+            }
+        )
+
+        val result = engine.copyFiles(
+            sourcePaths = listOf(source.absolutePath),
+            destination = destination,
+            resolutions = emptyMap()
+        )
+
+        assertTrue(result.isFailure)
+        assertFalse(File(destination, "source.txt").exists())
+    }
+
+    @Test
+    fun `directory metadata verification streams nested folders`() = runTest {
+        val source = File(root, "source-dir").apply { mkdirs() }
+        File(source, "a/b/c").mkdirs()
+        File(source, "a/b/c/nested.txt").writeText("nested")
+        val destination = File(root, "dir-dest").apply { mkdirs() }
+        val progress = mutableListOf<String?>()
+        val engine = FileTransferEngine(validatePath = { Result.success(Unit) })
+
+        val result = engine.copyFiles(
+            sourcePaths = listOf(source.absolutePath),
+            destination = destination,
+            resolutions = emptyMap(),
+            onProgress = { progress += it.currentPath }
+        )
+
+        assertTrue(result.isSuccess)
+        assertEquals("nested", File(destination, "source-dir/a/b/c/nested.txt").readText())
+        assertTrue(progress.isNotEmpty())
     }
 }

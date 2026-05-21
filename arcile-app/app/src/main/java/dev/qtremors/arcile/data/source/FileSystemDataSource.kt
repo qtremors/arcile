@@ -35,6 +35,8 @@ class DefaultFileSystemDataSource(
     private val conflictDetector: FileConflictDetector = FileConflictDetector(),
     private val transferEngine: FileTransferEngine = FileTransferEngine(validatePath = { file ->
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
+    }, validateMutationPath = { file ->
+        PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     })
 ) : FileSystemDataSource {
     private fun validatePath(file: File): Result<Unit> {
@@ -42,7 +44,7 @@ class DefaultFileSystemDataSource(
     }
 
     private fun validateDestructivePath(file: File): Result<Unit> {
-        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, rejectSymlinks = true)
+        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }
 
     private fun validateFileName(name: String): Result<Unit> {
@@ -116,7 +118,7 @@ class DefaultFileSystemDataSource(
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newDir = File(parentPath, name)
-            validatePath(newDir).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(newDir).onFailure { return@withContext Result.failure(it) }
 
             if (newDir.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
@@ -141,7 +143,7 @@ class DefaultFileSystemDataSource(
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newFile = File(parentPath, name)
-            validatePath(newFile).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(newFile).onFailure { return@withContext Result.failure(it) }
 
             if (newFile.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
@@ -198,10 +200,10 @@ class DefaultFileSystemDataSource(
              validateFileName(newName).onFailure { return@withContext Result.failure(it) }
 
              val file = File(path)
-             validatePath(file).onFailure { return@withContext Result.failure(it) }
+             validateDestructivePath(file).onFailure { return@withContext Result.failure(it) }
 
              val newFile = File(file.parent, newName)
-             validatePath(newFile).onFailure { return@withContext Result.failure(it) }
+             validateDestructivePath(newFile).onFailure { return@withContext Result.failure(it) }
 
              if (!file.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File does not exist"))
@@ -232,7 +234,7 @@ class DefaultFileSystemDataSource(
     ): Result<List<FileConflict>> = withContext(Dispatchers.IO) {
         try {
             val destDir = File(destinationPath)
-            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -257,7 +259,7 @@ class DefaultFileSystemDataSource(
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val destDir = File(destinationPath)
-            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -314,9 +316,10 @@ class DefaultFileSystemDataSource(
         try {
             validateFileName(name).getOrThrow()
             val parentFile = File(parentPath)
-            validatePath(parentFile).getOrThrow()
+            validateDestructivePath(parentFile).getOrThrow()
 
             val targetFile = File(parentFile, name)
+            validateDestructivePath(targetFile).getOrThrow()
             if (targetFile.exists()) {
                 return@withContext Result.failure(Exception("File already exists"))
             }

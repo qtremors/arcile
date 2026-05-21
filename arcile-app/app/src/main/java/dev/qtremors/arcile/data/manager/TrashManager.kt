@@ -126,7 +126,7 @@ class DefaultTrashManager(
     }
 
     private fun validateDestructivePath(file: File): Result<Unit> {
-        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, rejectSymlinks = true)
+        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }
 
     private fun verifyRestoreCopy(source: File, target: File): Boolean {

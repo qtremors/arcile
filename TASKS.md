@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.6.8
-> **Last Updated:** 2026-05-20
+> **Version:** 0.7.2
+> **Last Updated:** 2026-05-21
 
 ---
 
@@ -140,7 +140,7 @@
   - **Fix:** Move all archive viewer strings to resources, including plural resources for entries. Use existing reusable file row/icon components where possible. Add archive-specific string tests to `checkProductionStrings`.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **ARCHIVE-0019 - Archive Safety / Scalability** `[High]`
+- [x] **ARCHIVE-0019 - Archive Safety / Scalability** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/manager/ArchiveManager.kt`
   - **Problem:** Archive creation and extraction materialize entry/file lists and do not enforce archive-bomb limits, output byte caps, entry count caps, or compression ratio guards.
   - **Impact:** Malicious or huge archives can fill storage, run for excessive time, or exhaust memory.
@@ -200,7 +200,7 @@
   - **Fix:** Define sealed domain errors: access denied, storage unavailable, conflict, insufficient space, unsupported provider, partial success, cancelled, corrupted metadata, unsafe path. Include user-safe message id and recovery action. Stop surfacing arbitrary exception messages directly. Recommended Refactor: Add `ArcileError` and map platform exceptions at data boundaries. Safer Alternative: Wrap existing exceptions in typed errors incrementally for destructive operations first.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UX-0020 - Operation UX / Notifications** `[High]`
+- [x] **UX-0020 - Operation UX / Notifications** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`
   - **Problem:** Foreground operation notification supports cancellation but is still indeterminate and static. It does not expose bytes, current file, verification phase, or completion/failure summary.
   - **Impact:** Users cannot judge duration, verify progress in background, or cancel from notification shade.
@@ -364,7 +364,7 @@
 
 ### Filesystem Performance / Memory Tasks
 
-- [ ] **PERF-0004 - Filesystem performance** `[Critical]`
+- [x] **PERF-0004 - Filesystem performance** `[Critical]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileTransferEngine.kt`
   - **Problem:** Every file copy/move verifies integrity by hashing the complete source and target with SHA-256. Directories are materialized into full file lists with `walkTopDown().toList()` before verification.
   - **Impact:** Large media copies can take roughly 2x or more I/O time, drain battery, and appear stalled.
@@ -387,14 +387,14 @@
   - **Fix:** Add `CoroutineDispatchers(io, default, main, computation)` and inject it. Use limited parallelism intentionally for transfer, stats, thumbnails, and archive work. Update tests to inject `TestDispatcher`. Recommended Refactor: Define dispatchers in DI and pass them into data/manager/service classes. Safer Alternative: Start with data layer and operation service.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **CONC-0014 - Coroutine Cancellation / Backpressure** `[High]`
+- [x] **CONC-0014 - Coroutine Cancellation / Backpressure** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/FolderStatsStore.kt`
   - **Problem:** Folder stats workers are application-scoped and can continue scanning after the original screen no longer needs them. Update flow drops old updates under pressure.
   - **Impact:** Battery and I/O may be spent on folders no longer visible.
   - **Fix:** Add cancellable request tokens per screen/listing. Prioritize visible rows and cancel old path queues on navigation. Expose stats as keyed StateFlow/cache with explicit loading state. Recommended Refactor: Make folder stats a demand-driven service with `observeStats(paths)` rather than fire-and-forget queueing. Safer Alternative: Clear queue/rerun state on directory navigation and increase visible-update reliability.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **BAT-0021 - Battery Efficiency** `[High]`
+- [x] **BAT-0021 - Battery Efficiency** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileTransferEngine.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/FolderStatsStore.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/MediaStoreClient.kt`
   - **Problem:** The app can run simultaneous expensive I/O: transfer hashing, folder stats traversal, analytics scans, and thumbnail loading.
   - **Impact:** Battery drain and device heat during heavy browsing or transfers.
@@ -403,14 +403,14 @@
 
 ### Security / Privacy Tasks
 
-- [ ] **SEC-0016 - Security / Path Safety** `[High]`
+- [x] **SEC-0016 - Security / Path Safety** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/util/PathSafety.kt`
   - **Problem:** Non-destructive reads allow symlinks by default, and destructive path validation only rejects symlinks along the target path before operation start.
   - **Impact:** Rare but dangerous edge cases can expose or modify files outside intended storage roots on devices/filesystems that allow symlinks.
   - **Fix:** Centralize path policies by operation type. Reject symlink traversal for all mutation and recursive traversal unless explicitly allowed. Revalidate parent and target immediately before delete/rename/promote. Recommended Refactor: Return a validated `SafePath` value from `PathSafety` and require it for destructive APIs. Safer Alternative: Set `rejectSymlinks = true` for recursive read/stat operations and all mutation paths.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **SEC-0017 - Privacy / Backup** `[High]`
+- [x] **SEC-0017 - Privacy / Backup** `[High]`
   - **Location:** `arcile-app/app/src/main/AndroidManifest.xml` `arcile-app/app/src/main/res/xml/backup_rules.xml` `arcile-app/app/src/main/res/xml/data_extraction_rules.xml`
   - **Problem:** The manifest has `android:allowBackup="true"` while the app stores storage classifications, quick access entries, preferences, and encrypted trash metadata references.
   - **Impact:** Private filesystem paths or app usage metadata may be backed up or restored unexpectedly.
