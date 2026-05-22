@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.data.StorageWorkCoordinator
 import dev.qtremors.arcile.domain.FileRepository
 import kotlinx.coroutines.CancellationException
@@ -36,7 +37,23 @@ class BulkFileOperationService : Service() {
     @Inject
     lateinit var storageWorkCoordinator: StorageWorkCoordinator
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @Inject
+    lateinit var dispatchers: ArcileDispatchers
+
+    private val serviceScope: CoroutineScope by lazy {
+        CoroutineScope(SupervisorJob() + serviceDispatchers.io)
+    }
+    private val serviceDispatchers: ArcileDispatchers
+        get() = if (::dispatchers.isInitialized) {
+            dispatchers
+        } else {
+            ArcileDispatchers(
+                io = Dispatchers.IO,
+                default = Dispatchers.Default,
+                main = Dispatchers.Main,
+                storage = Dispatchers.IO
+            )
+        }
     private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
@@ -84,7 +101,10 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths)
+                            BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
+                            }
                             BulkFileOperationType.DELETE -> repository.deletePermanently(request.sourcePaths)
                             BulkFileOperationType.CREATE_FAKE -> repository.createFakeFile(
                                 requireNotNull(request.destinationPath),

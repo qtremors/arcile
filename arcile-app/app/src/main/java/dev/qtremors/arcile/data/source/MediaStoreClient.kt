@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.util.indexedVolumesForScope
 import dev.qtremors.arcile.data.util.matchesScope
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
@@ -47,7 +48,13 @@ interface MediaStoreClient {
 
 class DefaultMediaStoreClient(
     private val context: Context,
-    private val volumeProvider: VolumeProvider
+    private val volumeProvider: VolumeProvider,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : MediaStoreClient {
     private companion object {
         const val MAX_PATH_SEARCH_RESULTS = 1000
@@ -343,7 +350,7 @@ class DefaultMediaStoreClient(
         limit: Int,
         offset: Int,
         minTimestamp: Long
-    ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    ): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {
             val allVolumes = volumeProvider.currentVolumes()
             val volumes = indexedVolumesForScope(scope, allVolumes)
@@ -401,7 +408,7 @@ class DefaultMediaStoreClient(
         }
     }
 
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
+    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(dispatchers.io) {
         val cached = getCategorySizesFromCache(scope)
         if (cached != null) {
             return@withContext Result.success(cached)
@@ -493,7 +500,7 @@ class DefaultMediaStoreClient(
         }
     }
 
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {
             val allVolumes = volumeProvider.currentVolumes()
             val volumes = indexedVolumesForScope(scope, allVolumes)
@@ -573,7 +580,7 @@ class DefaultMediaStoreClient(
         query: String,
         scope: StorageScope,
         filters: SearchFilters?
-    ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    ): Result<List<FileModel>> = withContext(dispatchers.io) {
         if (query.isBlank()) return@withContext Result.success(emptyList())
         val searchFilters = filters
 

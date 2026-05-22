@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AudioFile
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
@@ -99,6 +100,11 @@ fun StorageDashboardScreen(
     }
     val totalBytes = volumes.sumOf { it.totalBytes }
     val freeBytes = volumes.sumOf { it.freeBytes }
+    val trashBytes = if (selectedVolumeId != null) {
+        state.trashStorageUsage.byVolumeId[selectedVolumeId].orZero()
+    } else {
+        state.trashStorageUsage.totalBytes
+    }
     val hasTemporaryMountedVolumes = state.allStorageVolumes.any { !it.kind.isIndexed }
     
     val categoryColors = LocalCategoryColors.current
@@ -211,7 +217,8 @@ fun StorageDashboardScreen(
                                 MultiColorStorageBar(
                                     totalBytes = volume.totalBytes,
                                     freeBytes = volume.freeBytes,
-                                    categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList()
+                                    categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
+                                    trashBytes = state.trashStorageUsage.byVolumeId[volume.id] ?: 0L
                                 )
                             }
                         }
@@ -220,6 +227,30 @@ fun StorageDashboardScreen(
                             thickness = 1.dp,
                             color = MaterialTheme.colorScheme.outlineVariant
                         )
+                    }
+
+                    if (trashBytes > 0) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.storage_usage_title),
+                                style = MaterialTheme.typography.titleMediumBold,
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                            )
+                        }
+                        item {
+                            val percentage = if (totalBytes > 0) {
+                                (trashBytes.toFloat() / totalBytes.toFloat() * 100).toInt()
+                            } else {
+                                0
+                            }
+                            StorageUsageTile(
+                                name = stringResource(R.string.trash_bin),
+                                sizeBytes = trashBytes,
+                                percentage = percentage,
+                                icon = Icons.Default.Delete,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
 
                     if (displayCategories.isNotEmpty()) {
@@ -254,7 +285,7 @@ fun StorageDashboardScreen(
 
                     val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
                     val actualUsedBytes = totalBytes - freeBytes
-                    val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
+                    val otherUsedBytes = (actualUsedBytes - categorizedBytes - trashBytes).coerceAtLeast(0)
 
                     if (otherUsedBytes > 0) {
                         item {
@@ -308,6 +339,69 @@ private fun TemporaryDashboardUnavailableCard(volume: StorageVolume) {
                 text = stringResource(R.string.temp_storage_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun Long?.orZero(): Long = this ?: 0L
+
+@Composable
+fun StorageUsageTile(
+    name: String,
+    sizeBytes: Long,
+    percentage: Int,
+    icon: ImageVector,
+    color: Color
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(MaterialTheme.shapes.extraLarge),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = name,
+                    tint = color,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.size(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = name,
+                    style = MaterialTheme.typography.bodyLargeMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "$percentage%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Text(
+                text = formatFileSize(sizeBytes),
+                style = MaterialTheme.typography.bodyMediumBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }

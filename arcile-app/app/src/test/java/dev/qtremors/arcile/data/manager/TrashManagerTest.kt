@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.MutationFinalizer
+import dev.qtremors.arcile.data.MutationJournal
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FolderStatUpdate
@@ -271,5 +272,81 @@ class TrashManagerTest {
         assertTrue(payload.isDirectory)
         assertEquals("copied safely", File(payload, "child.txt").readText())
         assertNotEquals(directory.absolutePath, payload.absolutePath)
+    }
+
+    @Test
+    fun `copy fallback uses transfer engine progress and clears trash journal`() = runTest {
+        val directory = File(root, "fallback-folder").apply { mkdirs() }
+        File(directory, "child.txt").writeText("copied with progress")
+        val journal = RecordingMutationJournal()
+        val fallbackManager = DefaultTrashManager(
+            context,
+            volumeProvider,
+            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore),
+            mutationJournal = journal,
+            rename = { source, target ->
+                if (source == directory) false else source.renameTo(target)
+            }
+        )
+        val progressPaths = mutableListOf<String?>()
+
+        val result = fallbackManager.moveToTrash(listOf(directory.absolutePath)) {
+            progressPaths += it.currentPath
+        }
+
+        assertTrue(result.isSuccess)
+        assertFalse(directory.exists())
+        assertTrue(progressPaths.isNotEmpty())
+        assertEquals(1, journal.recordedTrashFallbacks)
+        assertEquals(1, journal.forgottenTrashFallbacks)
+        assertTrue(journal.temporaryPaths.isEmpty())
+        val trashItem = fallbackManager.getTrashFiles().getOrThrow().single()
+        assertEquals("copied with progress", File(trashItem.fileModel.absolutePath, "child.txt").readText())
+    }
+
+    @Test
+    fun `getTrashStorageUsage sums files and nested folder payloads`() = runTest {
+        val file = File(root, "one.txt").apply { writeText("1234") }
+        val directory = File(root, "folder").apply { mkdirs() }
+        File(directory, "nested.txt").writeText("123456")
+
+        assertTrue(trashManager.moveToTrash(listOf(file.absolutePath, directory.absolutePath)).isSuccess)
+
+        val usage = trashManager.getTrashStorageUsage().getOrThrow()
+
+        assertEquals(10L, usage.totalBytes)
+        assertEquals(10L, usage.byVolumeId["primary"])
+    }
+
+    @Test
+    fun `getTrashStorageUsage ignores nomedia and missing trash payloads`() = runTest {
+        val usage = trashManager.getTrashStorageUsage().getOrThrow()
+
+        assertEquals(0L, usage.totalBytes)
+        assertTrue(usage.byVolumeId.isEmpty())
+    }
+
+    private class RecordingMutationJournal : MutationJournal {
+        val temporaryPaths = mutableSetOf<String>()
+        var recordedTrashFallbacks = 0
+        var forgottenTrashFallbacks = 0
+
+        override fun recordTemporaryPath(path: String) {
+            temporaryPaths += path
+        }
+
+        override fun forgetTemporaryPath(path: String) {
+            temporaryPaths -= path
+        }
+
+        override fun recordTrashFallback(sourcePath: String, payloadPath: String, metadataPath: String) {
+            recordedTrashFallbacks += 1
+        }
+
+        override fun forgetTrashFallback(payloadPath: String, metadataPath: String) {
+            forgottenTrashFallbacks += 1
+        }
+
+        override suspend fun cleanupAbandonedMutations() = Unit
     }
 }

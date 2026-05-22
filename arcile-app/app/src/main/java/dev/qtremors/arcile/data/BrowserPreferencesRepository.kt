@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.domain.BrowserPreferences
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.presentation.FileSortOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +41,13 @@ interface BrowserPreferencesStore {
 
 class BrowserPreferencesRepository(
     context: Context,
-    private val dataStore: DataStore<Preferences> = context.browserDataStore
+    private val dataStore: DataStore<Preferences> = context.browserDataStore,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : BrowserPreferencesStore {
     private val GLOBAL_SORT_KEY = stringPreferencesKey("global_sort_option")
     private val GLOBAL_VIEW_MODE_KEY = stringPreferencesKey("global_view_mode")
@@ -169,7 +176,7 @@ class BrowserPreferencesRepository(
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
         }
-        .flowOn(Dispatchers.IO)
+        .flowOn(dispatchers.io)
 
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         val normalized = presentation.normalized()

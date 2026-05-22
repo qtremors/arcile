@@ -23,6 +23,7 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.TrashStorageUsage
 import io.mockk.mockk
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
@@ -898,6 +899,7 @@ private class BrowserFakeFileRepository(
         delegate.getRecentFiles(scope, limit, offset, minTimestamp)
     override suspend fun getStorageInfo(scope: StorageScope) = delegate.getStorageInfo(scope)
     override suspend fun getCategoryStorageSizes(scope: StorageScope) = delegate.getCategoryStorageSizes(scope)
+    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String) =
         delegate.getFilesByCategory(scope, categoryName)
     override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?) =
@@ -916,7 +918,8 @@ private class BrowserFakeFileRepository(
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) = delegate.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
-    override suspend fun moveToTrash(paths: List<String>) = delegate.moveToTrash(paths)
+    override suspend fun moveToTrash(paths: List<String>, onProgress: ((BulkFileOperationProgress) -> Unit)?) =
+        delegate.moveToTrash(paths, onProgress)
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?) =
         delegate.restoreFromTrash(trashIds, destinationPath)
     override suspend fun emptyTrash() = delegate.emptyTrash()

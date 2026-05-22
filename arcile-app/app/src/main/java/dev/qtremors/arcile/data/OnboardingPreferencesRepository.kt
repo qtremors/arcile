@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.OnboardingPreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -30,7 +31,13 @@ interface OnboardingPreferencesStore {
 
 class OnboardingPreferencesRepository(
     context: Context,
-    private val dataStore: DataStore<Preferences> = context.onboardingDataStore
+    private val dataStore: DataStore<Preferences> = context.onboardingDataStore,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : OnboardingPreferencesStore {
     private val IS_COMPLETED_KEY = booleanPreferencesKey("is_completed")
     private val COMPLETED_VERSION_KEY = intPreferencesKey("completed_version")
@@ -53,7 +60,7 @@ class OnboardingPreferencesRepository(
                 wasManuallyReset = preferences[WAS_MANUALLY_RESET_KEY] ?: false
             )
         }
-        .flowOn(Dispatchers.IO)
+        .flowOn(dispatchers.io)
 
     override suspend fun markCompleted(completedVersion: Int, notificationPermissionHandled: Boolean) {
         dataStore.edit { preferences ->

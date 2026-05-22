@@ -13,13 +13,15 @@ import coil.fetch.Fetcher
 import coil.request.Options
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
 import java.io.File
 
 class PdfThumbnailFetcher(
     private val file: File,
-    private val options: Options
+    private val options: Options,
+    private val ioContext: CoroutineContext = Dispatchers.IO
 ) : Fetcher {
-    override suspend fun fetch(): FetchResult? = withContext(Dispatchers.IO) {
+    override suspend fun fetch(): FetchResult? = withContext(ioContext) {
         if (!file.exists() || !file.isFile) return@withContext null
 
         try {

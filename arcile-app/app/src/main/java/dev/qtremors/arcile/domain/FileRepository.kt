@@ -192,6 +192,7 @@ interface FileRepository {
      * > **Performance:** This queries the full MediaStore on each call. See TASKS.md C2.
      */
     suspend fun getCategoryStorageSizes(scope: StorageScope = StorageScope.AllStorage): Result<List<CategoryStorage>>
+    suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>
 
     /**
      * Returns all files belonging to [categoryName] from the MediaStore.
@@ -278,7 +279,10 @@ interface FileRepository {
      *
      * @param paths Absolute paths of the files or directories to trash.
      */
-    suspend fun moveToTrash(paths: List<String>): Result<Unit>
+    suspend fun moveToTrash(
+        paths: List<String>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<Unit>
 
     /**
      * Restores trashed items identified by [trashIds] to their original paths, or to

@@ -14,6 +14,7 @@ import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.presentation.FileSortOption
 import kotlinx.coroutines.FlowPreview
@@ -37,6 +38,7 @@ data class HomeState(
     val storageInfo: StorageInfo? = null,
     val categoryStorages: List<CategoryStorage> = emptyList(),
     val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
+    val trashStorageUsage: TrashStorageUsage = TrashStorageUsage(0L, emptyMap()),
     val recentFiles: List<FileModel> = emptyList(),
     val searchResults: List<FileModel> = emptyList(),
     val homeSearchQuery: String = "",
@@ -136,11 +138,13 @@ class HomeViewModel @Inject constructor(
                 val allVolumesResultDef = async { repository.getStorageVolumes() }
                 val storageResultDef = if (shouldRefreshAnalytics) async { repository.getStorageInfo(StorageScope.AllStorage) } else null
                 val categoryResultDef = if (shouldRefreshAnalytics) async { repository.getCategoryStorageSizes(StorageScope.AllStorage) } else null
+                val trashUsageResultDef = if (shouldRefreshAnalytics) async { repository.getTrashStorageUsage() } else null
 
                 var recentResult: Result<List<FileModel>>? = null
                 var allVolumesResult: Result<List<StorageVolume>>? = null
                 var storageResult: Result<StorageInfo>? = null
                 var categoryResult: Result<List<CategoryStorage>>? = null
+                var trashUsageResult: Result<TrashStorageUsage>? = null
                 var categoryByVolume: Map<String, List<CategoryStorage>> = _state.value.categoryStoragesByVolume
 
                 val completedWithinTimeout = withTimeoutOrNull(15_000) {
@@ -148,6 +152,7 @@ class HomeViewModel @Inject constructor(
                     allVolumesResult = allVolumesResultDef.await()
                     storageResult = storageResultDef?.await()
                     categoryResult = categoryResultDef?.await()
+                    trashUsageResult = trashUsageResultDef?.await()
 
                     if (shouldRefreshAnalytics) {
                         val storageInfo = storageResult?.getOrNull()
@@ -176,7 +181,8 @@ class HomeViewModel @Inject constructor(
                     storageResult?.exceptionOrNull()?.message,
                     allVolumesResult?.exceptionOrNull()?.message,
                     recentResult?.exceptionOrNull()?.message,
-                    categoryResult?.exceptionOrNull()?.message
+                    categoryResult?.exceptionOrNull()?.message,
+                    trashUsageResult?.exceptionOrNull()?.message
                 ).firstOrNull()
 
                 _state.update { currentState ->
@@ -190,6 +196,7 @@ class HomeViewModel @Inject constructor(
                         storageInfo = storageInfo,
                         categoryStorages = if (shouldRefreshAnalytics && !timedOut) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages,
                         categoryStoragesByVolume = if (shouldRefreshAnalytics && !timedOut) categoryByVolume else currentState.categoryStoragesByVolume,
+                        trashStorageUsage = if (shouldRefreshAnalytics && !timedOut) trashUsageResult?.getOrNull() ?: currentState.trashStorageUsage else currentState.trashStorageUsage,
                         unclassifiedVolumes = unclassified,
                         showClassificationPrompt = unclassified.isNotEmpty()
                     )

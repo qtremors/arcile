@@ -3,15 +3,21 @@ package dev.qtremors.arcile.data.manager
 import android.content.Context
 import android.provider.MediaStore
 import dev.qtremors.arcile.data.MutationFinalizer
+import dev.qtremors.arcile.data.MutationJournal
+import dev.qtremors.arcile.data.NoOpMutationJournal
 import dev.qtremors.arcile.data.provider.VolumeProvider
+import dev.qtremors.arcile.data.source.FileTransferEngine
 import dev.qtremors.arcile.data.util.PathSafety
 import dev.qtremors.arcile.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.data.util.trashEnabledVolumes
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.TrashRestoreStatus
+import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.domain.supportsTrash
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,7 +26,6 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
 
 @Serializable
 data class TrashMetadataEntity(
@@ -33,17 +38,36 @@ data class TrashMetadataEntity(
 )
 
 interface TrashManager {
-    suspend fun moveToTrash(paths: List<String>): Result<Unit>
+    suspend fun moveToTrash(paths: List<String>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
     suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit>
     suspend fun emptyTrash(): Result<Unit>
     suspend fun getTrashFiles(): Result<List<TrashMetadata>>
+    suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>
     suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit>
 }
 
 class DefaultTrashManager(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
-    private val mutationFinalizer: MutationFinalizer
+    private val mutationFinalizer: MutationFinalizer,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    ),
+    private val mutationJournal: MutationJournal = NoOpMutationJournal(),
+    private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
+    private val transferEngine: FileTransferEngine = FileTransferEngine(
+        validatePath = { file ->
+            PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
+        },
+        validateMutationPath = { file ->
+            PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
+        },
+        rename = rename,
+        mutationJournal = mutationJournal
+    )
 ) : TrashManager {
     private val jsonFormat = Json {
         ignoreUnknownKeys = true
@@ -129,46 +153,10 @@ class DefaultTrashManager(
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }
 
-    private fun verifyRestoreCopy(source: File, target: File): Boolean {
-        return verifyCopyIntegrity(source, target)
-    }
-
-    private fun verifyCopyIntegrity(source: File, target: File): Boolean {
-        if (!source.exists() || !target.exists()) return false
-        if (source.isFile) {
-            return target.isFile &&
-                source.length() == target.length() &&
-                sha256(source).contentEquals(sha256(target))
-        }
-        if (!source.isDirectory || !target.isDirectory) return false
-
-        val sourceFiles = source.walkTopDown().filter { it.isFile }.toList()
-        val targetFiles = target.walkTopDown().filter { it.isFile }.toList()
-        if (sourceFiles.size != targetFiles.size) return false
-
-        return sourceFiles.all { sourceChild ->
-            val relativePath = sourceChild.relativeTo(source).path
-            val targetChild = File(target, relativePath)
-            targetChild.isFile &&
-                sourceChild.length() == targetChild.length() &&
-                sha256(sourceChild).contentEquals(sha256(targetChild))
-        }
-    }
-
-    private fun sha256(file: File): ByteArray {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest()
-    }
-
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun moveToTrash(
+        paths: List<String>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val scannedPaths = mutableListOf<String>()
@@ -219,25 +207,22 @@ class DefaultTrashManager(
                     return@withContext Result.failure(Exception("Failed to write trash metadata: ${e.message}", e))
                 }
 
-                val success = file.renameTo(targetTrashFile)
+                val success = rename(file, targetTrashFile)
                 var fallbackSuccess = false
                 if (!success) {
                     try {
-                        if (file.isDirectory) {
-                            if (!file.copyRecursively(targetTrashFile, overwrite = true)) {
-                                throw IOException("Failed to copy source directory to trash")
-                            }
-                            if (!verifyCopyIntegrity(file, targetTrashFile)) {
-                                throw IOException("Failed to verify trashed directory copy")
-                            }
-                            if (!file.deleteRecursively()) throw IOException("Failed to delete source directory after copy")
-                        } else {
-                            file.copyTo(targetTrashFile, overwrite = true)
-                            if (!verifyCopyIntegrity(file, targetTrashFile)) {
-                                throw IOException("Failed to verify trashed file copy")
-                            }
-                            if (!file.delete()) throw IOException("Failed to delete source file after copy")
-                        }
+                        mutationJournal.recordTrashFallback(
+                            sourcePath = file.absolutePath,
+                            payloadPath = targetTrashFile.absolutePath,
+                            metadataPath = destFile.absolutePath
+                        )
+                        transferEngine.moveToTarget(
+                            source = file,
+                            target = targetTrashFile,
+                            attemptRename = false,
+                            onProgress = onProgress
+                        ).getOrThrow()
+                        mutationJournal.forgetTrashFallback(targetTrashFile.absolutePath, destFile.absolutePath)
                         fallbackSuccess = true
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
@@ -245,6 +230,7 @@ class DefaultTrashManager(
                         if (targetTrashFile.exists()) {
                             if (targetTrashFile.isDirectory) targetTrashFile.deleteRecursively() else targetTrashFile.delete()
                         }
+                        mutationJournal.forgetTrashFallback(targetTrashFile.absolutePath, destFile.absolutePath)
                         if (scannedPaths.isNotEmpty()) {
                             finalizeMutation(*scannedPaths.toTypedArray())
                         }
@@ -281,7 +267,7 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
 
@@ -346,32 +332,18 @@ class DefaultTrashManager(
 
                 targetFile.parentFile?.mkdirs()
 
-                val success = trashedFile.renameTo(targetFile)
+                val success = rename(trashedFile, targetFile)
                 if (!success) {
                     validateDestructivePath(trashedFile).onFailure { return@withContext Result.failure(it) }
-                    if (trashedFile.isDirectory) {
-                        if (!trashedFile.copyRecursively(targetFile, overwrite = true)) {
-                            if (targetFile.exists()) targetFile.deleteRecursively()
-                            return@withContext Result.failure(IOException("Failed to copy trashed directory for restore"))
+                    transferEngine.moveToTarget(
+                        source = trashedFile,
+                        target = targetFile,
+                        attemptRename = false
+                    ).getOrElse {
+                        if (targetFile.exists()) {
+                            if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
                         }
-                        if (!verifyRestoreCopy(trashedFile, targetFile)) {
-                            if (targetFile.exists()) targetFile.deleteRecursively()
-                            return@withContext Result.failure(IOException("Failed to verify restored directory copy for ${targetFile.name}"))
-                        }
-                        if (!trashedFile.deleteRecursively()) {
-                            if (targetFile.exists()) targetFile.deleteRecursively()
-                            return@withContext Result.failure(IOException("Failed to delete trashed directory after restore copy"))
-                        }
-                    } else {
-                        trashedFile.copyTo(targetFile, overwrite = true)
-                        if (!verifyRestoreCopy(trashedFile, targetFile)) {
-                            if (targetFile.exists()) targetFile.delete()
-                            return@withContext Result.failure(IOException("Failed to verify restored file copy for ${targetFile.name}"))
-                        }
-                        if (!trashedFile.delete()) {
-                            if (targetFile.exists()) targetFile.delete()
-                            return@withContext Result.failure(IOException("Failed to delete trashed file after restore copy"))
-                        }
+                        return@withContext Result.failure(IOException("Failed to restore ${targetFile.name}: ${it.message}", it))
                     }
                 }
 
@@ -393,7 +365,7 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun emptyTrash(): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
 
@@ -421,7 +393,7 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(Dispatchers.IO) {
+    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(dispatchers.io) {
         try {
             val list = mutableListOf<TrashMetadata>()
             val volumes = volumeProvider.currentVolumes()
@@ -486,7 +458,32 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = withContext(dispatchers.io) {
+        try {
+            val volumes = volumeProvider.currentVolumes()
+            val byVolume = trashEnabledVolumes(volumes).associate { volume ->
+                val trashDir = File(File(volume.path, ".arcile"), ".trash")
+                volume.id to trashDir.listFiles()
+                    .orEmpty()
+                    .filter { it.name != ".nomedia" }
+                    .sumOf(::trashPayloadSize)
+            }.filterValues { it > 0L }
+            Result.success(TrashStorageUsage(totalBytes = byVolume.values.sum(), byVolumeId = byVolume))
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    private fun trashPayloadSize(file: File): Long {
+        if (!file.exists() || file.name == ".nomedia") return 0L
+        if (file.isFile) return file.length()
+        return file.walkTopDown()
+            .filter { it.isFile && it.name != ".nomedia" }
+            .sumOf { it.length() }
+    }
+
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             for (trashId in trashIds) {

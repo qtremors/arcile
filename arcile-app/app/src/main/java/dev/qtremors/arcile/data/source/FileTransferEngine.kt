@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.data.source
 
+import dev.qtremors.arcile.data.MutationJournal
+import dev.qtremors.arcile.data.NoOpMutationJournal
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.currentCoroutineContext
@@ -16,7 +18,8 @@ class FileTransferEngine(
     private val validateMutationPath: (File) -> Result<Unit> = validatePath,
     private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
     private val checksumFile: (File) -> ByteArray = ::calculateSha256,
-    private val afterCopy: (File, File) -> Unit = { _, _ -> }
+    private val afterCopy: (File, File) -> Unit = { _, _ -> },
+    private val mutationJournal: MutationJournal = NoOpMutationJournal()
 ) {
     private companion object {
         const val TRANSFER_ESTIMATE_NODE_LIMIT = 10_000
@@ -158,6 +161,51 @@ class FileTransferEngine(
         return Result.success(scannedPaths)
     }
 
+    suspend fun moveToTarget(
+        source: File,
+        target: File,
+        attemptRename: Boolean = true,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<List<String>> {
+        ensureOperationActive()
+        validatePath(source).onFailure { return Result.failure(it) }
+        validatePath(target).onFailure { return Result.failure(it) }
+        if (!source.exists()) return Result.success(emptyList())
+        if (source.absolutePath == target.absolutePath) return Result.success(emptyList())
+
+        val tracker = ProgressTracker(listOf(source.absolutePath), estimateTotalBytes(listOf(source.absolutePath)), onProgress)
+        val renameSuccess = attemptRename && !target.exists() && rename(source, target)
+        if (!renameSuccess) {
+            try {
+                tracker.currentPath = source.absolutePath
+                copyAtomically(
+                    source = source,
+                    target = target,
+                    replaceExisting = false,
+                    verificationPolicy = VerificationPolicy.FULL_CHECKSUM,
+                    onBytesCopied = tracker::onBytesCopied
+                )
+                if (!verifyCopyIntegrity(source, target, VerificationPolicy.FULL_CHECKSUM, tracker::onVerificationProgress)) {
+                    deleteTarget(target)
+                    return Result.failure(IOException("Failed to verify moved ${if (source.isDirectory) "directory" else "file"} before deleting source"))
+                }
+                ensureOperationActive()
+                val deleted = if (source.isDirectory) source.deleteRecursively() else source.delete()
+                if (!deleted) {
+                    deleteTarget(target)
+                    return Result.failure(IOException("Failed to delete source ${if (source.isDirectory) "directory" else "file"} after copy"))
+                }
+            } catch (e: Exception) {
+                deleteTarget(target)
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                return Result.failure(e)
+            }
+        }
+
+        tracker.completeItem(target.absolutePath)
+        return Result.success(listOf(source.absolutePath, target.absolutePath))
+    }
+
     private suspend fun copyAtomically(
         source: File,
         target: File,
@@ -174,6 +222,7 @@ class FileTransferEngine(
         }
 
         val stagingTarget = createStagingTarget(target)
+        mutationJournal.recordTemporaryPath(stagingTarget.absolutePath)
         try {
             validateMutationPath(stagingTarget).getOrThrow()
             if (source.isDirectory) {
@@ -186,8 +235,10 @@ class FileTransferEngine(
                 throw IOException("Failed to verify copied ${if (source.isDirectory) "directory" else "file"}")
             }
             promoteStagedTarget(stagingTarget, target, replaceExisting)
+            mutationJournal.forgetTemporaryPath(stagingTarget.absolutePath)
         } catch (e: Exception) {
             deleteTarget(stagingTarget)
+            mutationJournal.forgetTemporaryPath(stagingTarget.absolutePath)
             throw e
         }
     }
@@ -298,19 +349,24 @@ class FileTransferEngine(
             if (!replaceExisting) throw IllegalStateException("Target already exists: ${target.name}")
             val backupTarget = File(target.parentFile, ".${target.name}.arcile-replace-${UUID.randomUUID()}.bak")
             validateMutationPath(backupTarget).getOrThrow()
+            mutationJournal.recordTemporaryPath(backupTarget.absolutePath)
             if (!rename(target, backupTarget)) {
+                mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
                 throw IOException("Failed to stage existing target for replacement: ${target.name}")
             }
             try {
                 if (!rename(stagingTarget, target)) {
                     rename(backupTarget, target)
+                    mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
                     throw IOException("Failed to promote replacement: ${target.name}")
                 }
                 deleteTarget(backupTarget)
+                mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
             } catch (e: Exception) {
                 if (!target.exists() && backupTarget.exists()) {
                     rename(backupTarget, target)
                 }
+                mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
                 throw e
             }
         } else if (!rename(stagingTarget, target)) {

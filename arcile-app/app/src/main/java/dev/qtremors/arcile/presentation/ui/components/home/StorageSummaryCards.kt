@@ -89,6 +89,7 @@ fun StorageSummaryCard(
                 StorageVolumeCard(
                     volume = volume,
                     categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
+                    trashBytes = state.trashStorageUsage.byVolumeId[volume.id] ?: 0L,
                     onClick = { onNavigateToPath(volume.path) },
                     onLongClick = {
                         if (volume.kind.isIndexed) {
@@ -141,6 +142,7 @@ fun StorageSummaryCard(
                         totalBytes = total,
                         freeBytes = free,
                         categoryStorages = state.categoryStorages,
+                        trashBytes = state.trashStorageUsage.totalBytes,
                         isCalculating = state.isCalculatingStorage
                     )
 
@@ -160,9 +162,12 @@ fun StorageSummaryCard(
                         )
                     }
 
-                    if (state.categoryStorages.isNotEmpty()) {
+                    if (state.categoryStorages.isNotEmpty() || state.trashStorageUsage.totalBytes > 0L) {
                         Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
-                        CategoryLegend(state.categoryStorages)
+                        CategoryLegend(
+                            categoryStorages = state.categoryStorages,
+                            trashBytes = state.trashStorageUsage.totalBytes
+                        )
                     }
                 } else {
                     Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
@@ -182,6 +187,7 @@ fun StorageSummaryCard(
 fun StorageVolumeCard(
     volume: dev.qtremors.arcile.domain.StorageVolume,
     categoryStorages: List<CategoryStorage>,
+    trashBytes: Long,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -257,6 +263,7 @@ fun StorageVolumeCard(
                 totalBytes = volume.totalBytes,
                 freeBytes = volume.freeBytes,
                 categoryStorages = categoryStorages,
+                trashBytes = trashBytes,
                 isCalculating = false // Individual volume status can be secondary or tied to global
             )
 
@@ -284,6 +291,7 @@ fun MultiColorStorageBar(
     totalBytes: Long,
     freeBytes: Long,
     categoryStorages: List<CategoryStorage>,
+    trashBytes: Long = 0L,
     isCalculating: Boolean = false
 ) {
     val barHeight = 10.dp
@@ -361,8 +369,9 @@ fun MultiColorStorageBar(
                 if (hasData && animationTrigger) {
                     Row(modifier = Modifier.fillMaxSize()) {
                         val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
+                        val boundedTrashBytes = trashBytes.coerceIn(0L, totalBytes)
                         val actualUsedBytes = totalBytes - freeBytes
-                        val otherUsedBytes = (actualUsedBytes - categorizedBytes).coerceAtLeast(0)
+                        val otherUsedBytes = (actualUsedBytes - categorizedBytes - boundedTrashBytes).coerceAtLeast(0)
 
                         val categoryColors = LocalCategoryColors.current
                         val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
@@ -385,6 +394,23 @@ fun MultiColorStorageBar(
                                         .background(catColor)
                                 )
                             }
+                        }
+
+                        if (boundedTrashBytes > 0) {
+                            val trashFraction = boundedTrashBytes.toFloat() / totalBytes.toFloat()
+                            val animatedTrashFraction by animateFloatAsState(
+                                targetValue = trashFraction * revealProgress,
+                                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+                                label = "trash_bytes_animation"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .weight(animatedTrashFraction.coerceAtLeast(0.005f))
+                                    .padding(horizontal = 0.1.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error)
+                            )
                         }
 
                         if (otherUsedBytes > 0) {
@@ -423,7 +449,7 @@ fun MultiColorStorageBar(
                             // but since it's a Row, if Used parts grow, Free part will naturally shrink.
                             // We need used + free to always = 1.0 weight in the Row.
                             // So we explicitly animate the free fraction to maintain the 1.0 sum.
-                            val currentUsedFractions = (categoryStorages.sumOf { it.sizeBytes }.toFloat() + otherUsedBytes.toFloat()) / totalBytes.toFloat()
+                            val currentUsedFractions = ((categoryStorages.sumOf { it.sizeBytes }.toFloat() + boundedTrashBytes.toFloat() + otherUsedBytes.toFloat()) / totalBytes.toFloat()).coerceIn(0f, 1f)
                             val animatedUsedFractions = currentUsedFractions * revealProgress
                             val animatedFreeFraction = 1f - animatedUsedFractions
                             
@@ -442,7 +468,10 @@ fun MultiColorStorageBar(
 }
 
 @Composable
-fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
+fun CategoryLegend(
+    categoryStorages: List<CategoryStorage>,
+    trashBytes: Long = 0L
+) {
     val scrollState = rememberScrollState()
     Row(
         modifier = Modifier
@@ -452,8 +481,16 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
     ) {
         val categoryColors = LocalCategoryColors.current
         val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
-        sortedCategories.filter { it.sizeBytes > 0 }.forEach { cat ->
-            val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+        val legendItems = sortedCategories
+            .filter { it.sizeBytes > 0 }
+            .map { cat ->
+                val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                Triple(cat.name, cat.sizeBytes, catColor)
+            } + listOfNotNull(
+            if (trashBytes > 0L) Triple(stringResource(R.string.trash_bin), trashBytes, MaterialTheme.colorScheme.error) else null
+        )
+
+        legendItems.forEach { (name, sizeBytes, color) ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall)
@@ -462,10 +499,10 @@ fun CategoryLegend(categoryStorages: List<CategoryStorage>) {
                     modifier = Modifier
                         .size(8.dp)
                         .clip(CircleShape)
-                        .background(catColor)
+                        .background(color)
                 )
                 Text(
-                    text = "${cat.name} ${formatFileSize(cat.sizeBytes)}",
+                    text = "$name ${formatFileSize(sizeBytes)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )

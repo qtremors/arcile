@@ -1,10 +1,31 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.2
-> **Last Updated:** 2026-05-21
+> **Version:** 0.7.3
+> **Last Updated:** 2026-05-22
 
 ---
+
+## [0.7.3] - 2026-05-22
+
+### Home UI & Storage Insights
+- **Quick Access Toggles:** Replaced pin controls on the Quick Access management page with direct Home shortcut toggles while preserving the existing persisted shortcut state.
+- **Recent Files Preview Polish:** Kept image and video recents thumbnail-first, added file-type badges, and upgraded APK, archive, document, audio, folder, and unknown-file carousel cards with cleaner icon-led previews.
+- **Trash Storage Visibility:** Added Trash usage to storage dashboard summaries, storage bars, and the storage legend without adding Trash to browsable file categories.
+
+### Backend Reliability & Compatibility
+- **Coroutine Dispatcher Injection:** Added an injectable dispatcher holder and routed backend repositories, data sources, managers, stores, image fetchers, and foreground operations through explicit dispatchers for deterministic tests and future I/O tuning.
+- **Volume Root Readiness:** Initialized storage roots synchronously in the volume provider so path validation has canonical roots available before the first file operation, while mount changes still refresh cached volumes.
+- **External Handoff Controls:** Added staged open/share cache stats, explicit cleanup APIs, Settings cleanup access, shorter stale cache retention, per-file and batch share guards, and MIME-aware share grouping.
+- **Startup Debug Safety:** Added debug-only StrictMode plus startup trace sections around splash setup, permission checks, preference preload, and Compose setup.
+- **Trash Transfer Reuse:** Routed Trash copy-then-delete fallbacks through the shared transfer engine, preserving the existing `.arcile/.trash` layout while using streaming verification, staged promotion, and progress callbacks for large restore/trash operations.
+- **Mutation Recovery Cleanup:** Added a persistent mutation journal and startup cleanup for abandoned Arcile transfer, replacement, and incomplete Trash fallback artifacts without deleting completed Trash entries.
+
+
+### Testing
+- **Backend Regression Coverage:** Added tests for staged handoff cache cleanup and oversized share rejection, and updated share helper tests for MIME-aware share targets.
+- **Trash & Mutation Regression Coverage:** Added tests for Trash fallback progress, journal cleanup, completed Trash preservation, and transfer temp cleanup.
+- **Home Polish Regression Coverage:** Added coverage for Trash storage usage loading and Quick Access Home shortcut toggles.
 
 ## [0.7.2] - 2026-05-21
 

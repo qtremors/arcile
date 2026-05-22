@@ -83,6 +83,8 @@
     <string name="section_storage">Storage</string>
     <string name="manage_classification">Manage Storage Classification</string>
     <string name="manage_classification_description">"Classify external volumes as SD card, OTG, or reset them."</string>
+    <string name="clear_external_access_cache">Clear shared-file cache</string>
+    <string name="clear_external_access_cache_description">%1$d staged file(s) from open/share handoff</string>
     <string name="section_info">Info</string>
     <string name="about_headline">About</string>
     <string name="about_description">"App info, privacy policy, and changelogs"</string>
@@ -135,6 +137,7 @@
 
     <!-- Storage Dashboard -->
     <string name="storage_dashboard_title">Storage Dashboard</string>
+    <string name="storage_usage_title">Storage usage</string>
     <string name="temp_storage_notice">"Temporary external storage is mounted but excluded from indexed dashboard insights."</string>
     <string name="insights_unavailable">Insights unavailable</string>
     <string name="no_indexed_volumes">"We couldn't find any indexed storage volumes to analyze."</string>
@@ -169,6 +172,10 @@
     <string name="folder_tabs_content_description">Folder filters</string>
     <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
     <string name="open_containing_folder">Open containing folder</string>
+    <string name="open">Open</string>
+    <string name="file_type_folder">FOLDER</string>
+    <string name="file_type_generic">FILE</string>
+    <string name="unknown_folder">Unknown</string>
     <string name="utilities">Utilities</string>
     <string name="show_all">Show All</string>
     <string name="recent_files">Recent Files</string>
@@ -364,8 +371,9 @@
     <string name="quick_access_handoff_description">Opens in the Android Files app due to platform restrictions.</string>
     <string name="quick_access_remove_title">Remove Folder</string>
     <string name="quick_access_remove_message">Are you sure you want to remove %1$s from Quick Access?</string>
+    <string name="quick_access_show_on_home">Show on Home</string>
     <string name="remove">Remove</string>
-    <string name="toggle_pin">Toggle pin</string>
+    <string name="toggle_pin">Toggle Home shortcut</string>
     <string name="search_filters_title">Search Filters</string>
     <string name="clear_all">Clear All</string>
     <string name="item_type">Item Type</string>

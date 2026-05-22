@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.ui
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
@@ -76,5 +77,28 @@ class QuickAccessScreenTest {
 
         // Verify navigation callback was triggered
         assert(navigatedPath == "/downloads")
+    }
+
+    @Test
+    fun quickAccessScreen_toggleShowOnHome_triggersToggleCallback() {
+        var toggledItem: QuickAccessItem? = null
+        val item = QuickAccessItem("1", "Downloads", "/downloads", QuickAccessType.STANDARD, isPinned = true)
+
+        composeTestRule.setContent {
+            QuickAccessScreen(
+                state = QuickAccessState(items = listOf(item), isLoading = false),
+                onNavigateBack = {},
+                onNavigateToPath = {},
+                onNavigateToSaf = {},
+                onTogglePin = { toggledItem = it },
+                onRemoveItem = {},
+                onAddCustomFolder = { _, _ -> },
+                onAddSafFolder = { _, _ -> }
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Downloads Show on Home").performClick()
+
+        assert(toggledItem == item)
     }
 }

@@ -10,6 +10,7 @@ import android.os.storage.StorageManager
 import androidx.core.content.ContextCompat
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.util.mergeStorageClassifications
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.domain.StorageVolume
 import kotlinx.coroutines.CoroutineScope
@@ -37,7 +38,13 @@ interface VolumeProvider {
 class DefaultVolumeProvider(
     private val context: Context,
     private val classificationRepo: StorageClassificationRepository,
-    @param:ApplicationScope private val applicationScope: CoroutineScope
+    @param:ApplicationScope private val applicationScope: CoroutineScope,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : VolumeProvider {
     private val appContext = context.applicationContext
     private val storageManager = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
@@ -48,8 +55,13 @@ class DefaultVolumeProvider(
     private val cachedVolumes = AtomicReference<List<StorageVolume>?>(null)
 
     init {
-        applicationScope.launch(Dispatchers.IO) {
+        runCatching {
             _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+        }.onFailure { error ->
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            applicationScope.launch(dispatchers.io) {
+                _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+            }
         }
     }
 
@@ -142,7 +154,7 @@ class DefaultVolumeProvider(
         val platformVolumesFlow = callbackFlow {
             val scope = this
             fun emitVolumes() {
-                scope.launch(Dispatchers.IO) {
+                scope.launch(dispatchers.io) {
                     send(discoverPlatformVolumes())
                 }
             }
@@ -176,7 +188,7 @@ class DefaultVolumeProvider(
         }.distinctUntilChanged()
     }
 
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = withContext(Dispatchers.IO) {
+    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = withContext(dispatchers.io) {
         try {
             val volumes = discoverPlatformVolumes()
             val classifications = classificationRepo.observeClassifications().first()

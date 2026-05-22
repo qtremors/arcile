@@ -2,6 +2,8 @@ package dev.qtremors.arcile
 
 import android.os.Build
 import android.os.Bundle
+import android.os.StrictMode
+import android.os.Trace
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,18 +56,27 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
-        super.onCreate(savedInstanceState)
+        installDebugStrictMode()
+        val splashScreen = traceStartupSection("Arcile.installSplashScreen") {
+            installSplashScreen()
+        }
+        traceStartupSection("Arcile.activityOnCreate") {
+            super.onCreate(savedInstanceState)
+        }
         
         enableEdgeToEdge()
-        viewModel.checkPermission()
+        traceStartupSection("Arcile.permissionCheck") {
+            viewModel.checkPermission()
+        }
 
         var keepSplashScreen = true
         lifecycleScope.launch {
             try {
-                withTimeoutOrNull(2000L) {
-                    themePreferences.themeState.first()
-                    onboardingPreferencesStore.preferencesFlow.first()
+                traceStartupSection("Arcile.splashPreferencePreload") {
+                    withTimeoutOrNull(2000L) {
+                        themePreferences.themeState.first()
+                        onboardingPreferencesStore.preferencesFlow.first()
+                    }
                 }
             } finally {
                 keepSplashScreen = false
@@ -73,7 +84,8 @@ class MainActivity : ComponentActivity() {
         }
         splashScreen.setKeepOnScreenCondition { keepSplashScreen }
         
-        setContent {
+        traceStartupSection("Arcile.setContent") {
+            setContent {
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val onboardingPreferences by produceState<OnboardingPreferences?>(initialValue = null) {
                 onboardingPreferencesStore.preferencesFlow.collect { value = it }
@@ -182,6 +194,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        }
     }
 
     override fun onResume() {
@@ -229,6 +242,35 @@ class MainActivity : ComponentActivity() {
             finishAffinity()
         } else {
             recreate()
+        }
+    }
+
+    private fun installDebugStrictMode() {
+        if (!BuildConfig.DEBUG) return
+
+        StrictMode.setThreadPolicy(
+            StrictMode.ThreadPolicy.Builder()
+                .detectDiskReads()
+                .detectDiskWrites()
+                .detectNetwork()
+                .penaltyLog()
+                .build()
+        )
+        StrictMode.setVmPolicy(
+            StrictMode.VmPolicy.Builder()
+                .detectLeakedClosableObjects()
+                .detectActivityLeaks()
+                .penaltyLog()
+                .build()
+        )
+    }
+
+    private inline fun <T> traceStartupSection(name: String, block: () -> T): T {
+        Trace.beginSection(name)
+        return try {
+            block()
+        } finally {
+            Trace.endSection()
         }
     }
 }

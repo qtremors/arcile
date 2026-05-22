@@ -4,6 +4,7 @@ import dev.qtremors.arcile.data.MutationFinalizer
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.FileConflictNameGenerator
 import dev.qtremors.arcile.data.util.PathSafety
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.ArchiveEntryModel
 import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ArchiveManager
@@ -41,17 +42,23 @@ data class ArchiveSafetyPolicy(
 class DefaultArchiveManager(
     private val volumeProvider: VolumeProvider,
     private val mutationFinalizer: MutationFinalizer,
-    private val safetyPolicy: ArchiveSafetyPolicy = ArchiveSafetyPolicy()
+    private val safetyPolicy: ArchiveSafetyPolicy = ArchiveSafetyPolicy(),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : ArchiveManager {
     private companion object {
         const val BUFFER_SIZE = 128 * 1024
     }
 
-    override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> = withContext(Dispatchers.IO) {
+    override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
         listArchiveEntries(archivePath, null)
     }
 
-    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> = withContext(Dispatchers.IO) {
+    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
         runArchiveCatching {
             val archive = File(archivePath)
             validatePath(archive).getOrThrow()
@@ -63,11 +70,11 @@ class DefaultArchiveManager(
         }
     }
 
-    override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> = withContext(Dispatchers.IO) {
+    override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> = withContext(dispatchers.io) {
         getArchiveMetadata(archivePath, null)
     }
 
-    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> = withContext(Dispatchers.IO) {
+    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> = withContext(dispatchers.io) {
         runArchiveCatching {
             val archive = File(archivePath)
             validatePath(archive).getOrThrow()
@@ -82,7 +89,7 @@ class DefaultArchiveManager(
         entryPrefix: String?,
         password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<Unit> = withContext(dispatchers.io) {
         runArchiveCatching {
             val archive = File(archivePath)
             val destination = File(destinationPath)
@@ -111,7 +118,7 @@ class DefaultArchiveManager(
         format: ArchiveFormat,
         password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<Unit> = withContext(dispatchers.io) {
         runArchiveCatching {
             require(sourcePaths.isNotEmpty()) { "Select at least one item to archive" }
             val sources = sourcePaths.distinct().map(::File)

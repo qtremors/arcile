@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Storage
@@ -18,8 +19,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.SettingsSection
@@ -54,8 +59,18 @@ fun SettingsScreen(
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var externalAccessCacheStats by remember {
+        mutableStateOf(ExternalFileAccessHelper.StagingCacheStats(fileCount = 0, sizeBytes = 0L))
+    }
     var showResetOnboardingDialog by remember { mutableStateOf(false) }
     var showRestartDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(context) {
+        externalAccessCacheStats = withContext(Dispatchers.IO) {
+            ExternalFileAccessHelper.getStagingCacheStats(context)
+        }
+    }
 
     if (showResetOnboardingDialog) {
         AlertDialog(
@@ -179,6 +194,26 @@ fun SettingsScreen(
                         leadingContent = { Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onOpenStorageManagement)
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.clear_external_access_cache)) },
+                        supportingContent = {
+                            Text(
+                                stringResource(
+                                    R.string.clear_external_access_cache_description,
+                                    externalAccessCacheStats.fileCount
+                                )
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable {
+                            coroutineScope.launch {
+                                externalAccessCacheStats = withContext(Dispatchers.IO) {
+                                    ExternalFileAccessHelper.clearStagingArea(context)
+                                }
+                            }
+                        }
                     )
                 }
             }

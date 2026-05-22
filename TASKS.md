@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.7.2
-> **Last Updated:** 2026-05-21
+> **Version:** 0.7.3
+> **Last Updated:** 2026-05-22
 
 ---
 
@@ -36,13 +36,6 @@
   - **Problem:** Grid item semantics mirror list issues: merged row content plus child icon/thumbnail descriptions and no clear action hints for open/select.
   - **Impact:** Grid browsing with TalkBack is less efficient, and long-press selection is not discoverable.
   - **Fix:** Introduce `Modifier.fileItemSemantics(file, selected, formattedDate, folderStats)`. Add `onClick` and `onLongClick` labels through semantics. Remove child descriptions from decorative images.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0015 - Large Font / Responsive Layout** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt
-  - **Problem:** File metadata and date are forced into one horizontal row with a weighted spacer; grid card text uses fixed one-line labels. Extremely long filenames, large font scales, RTL, and narrow split-screen will truncate important data aggressively.
-  - **Impact:** Users browsing serious file collections lose context and may misidentify files.
-  - **Fix:** At compact/large-font thresholds, move date under size/count instead of right-aligning in the same row. Allow two filename lines in grid when cell width permits. Add `LocalConfiguration.fontScale` aware row variants or use `TextMeasurer`/constraints. Add screenshot tests at fontScale 1.5 and 2.0.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 - [ ] **UI-0018 - Compose Performance / Lazy Lists** `[High]`
@@ -80,13 +73,6 @@
   - **Fix:** Add explicit check badges and selected count feedback. Add overflow menu "Select range..." or drag/range mode for advanced users. Add semantic selected state and custom select/unselect actions.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0030 - Hidden Files UX** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt
-  - **Problem:** Hidden files are only represented by `.alpha(0.5f)` when the filename starts with `"."`.
-  - **Impact:** Hidden state is easy to miss, color/contrast suffers, and users lack a clear toggle or explanation.
-  - **Fix:** Add a hidden-files visibility setting and per-folder preference. Use a small hidden/visibility-off badge plus metadata label. Include hidden state in semantics. Avoid reducing text contrast below accessibility thresholds.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **UI-0036 - File List Performance** `[Medium]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt
   - **Problem:** Formatted dates are computed during item composition, and list/grid item models are raw domain models rather than preformatted stable UI rows.
@@ -94,34 +80,11 @@
   - **Fix:** Introduce `FileRowUiModel` with formatted date/size/subtitle/icon type. Precompute visible row metadata when file list or locale/time config changes. Keep expensive formatting out of hot lazy item scopes.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0037 - Desktop / Keyboard / Mouse** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
-  - **Problem:** There is no visible support for keyboard shortcuts, hover states, right-click/context menus, mouse drag/drop, focus rings, or desktop window resizing patterns.
-  - **Impact:** On tablets, ChromeOS, desktop mode, and external keyboards, Arcile falls behind premium file managers.
-  - **Fix:** Add keyboard shortcut map: search, back/up, select all, copy/cut/paste, rename, delete, new folder, properties, toggle view. Add hover/focus styling for rows, cards, and toolbar actions. Add right-click/context menu using platform pointer handling. Add drag/drop with keyboard alternatives.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **UI-0041 - State Restoration** `[Medium]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessScreen.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt
   - **Problem:** Several transient UI states use `remember` instead of `rememberSaveable`, including FAB expansion and multiple dialogs/sheets. Process death or rotation can reset in-progress UI tasks.
   - **Impact:** Users can lose typed dialog input or mode context during rotation, fold/unfold, memory pressure, or process recreation.
   - **Fix:** Audit all `remember { mutableStateOf(...) }` UI state. Use `rememberSaveable` for typed inputs, open sheets/dialogs where safe. Hoist workflow-critical state to ViewModels. Add rotation/process-death tests for create/rename/archive/search/selection.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-### Trash Tasks
-
-- [ ] **UI-0021 - Trash UX** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt
-  - **Problem:** Trash now has sorting, filters, visual grouping, original path, deletion date, and properties, but still lacks retention policy, recovery warnings, restore destination confidence, and undo/snackbar for safe restore.
-  - **Impact:** Users may hesitate before restore/delete because the remaining policy and recovery context is thin.
-  - **Fix:** Add retention policy messaging, recovery warnings, restore destination confidence, and undo/snackbar for safe restore where possible. Keep grouping, sorting, filtering, and properties as the baseline behavior.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **PERF-0005 - Filesystem Performance / Memory** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/manager/TrashManager.kt`
-  - **Problem:** Trash move/restore duplicates the same full SHA-256 verification and directory `walkTopDown().toList()` behavior as transfer operations.
-  - **Impact:** Moving large folders to trash or restoring them can be slow, battery-heavy, and fragile.
-  - **Fix:** Reuse `FileTransferEngine` or extract a shared `StorageTransferEngine`. Stream verification. Add operation progress for trash/restore/delete. Recommended Refactor: Make trash a specialized move destination implemented over the same transfer primitives. Safer Alternative: For same-volume trash, require atomic rename; for cross-volume fallback, use configurable verification and journaled cleanup.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ### Archive Tasks
@@ -140,13 +103,6 @@
   - **Fix:** Move all archive viewer strings to resources, including plural resources for entries. Use existing reusable file row/icon components where possible. Add archive-specific string tests to `checkProductionStrings`.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [x] **ARCHIVE-0019 - Archive Safety / Scalability** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/manager/ArchiveManager.kt`
-  - **Problem:** Archive creation and extraction materialize entry/file lists and do not enforce archive-bomb limits, output byte caps, entry count caps, or compression ratio guards.
-  - **Impact:** Malicious or huge archives can fill storage, run for excessive time, or exhaust memory.
-  - **Fix:** Add maximum entries, maximum uncompressed bytes, maximum path length, maximum nested depth, and compression ratio thresholds. Stream creation/extraction where possible. Journal extraction outputs for cleanup on failure/cancel. Recommended Refactor: Create `ArchiveSafetyPolicy` and `ArchiveOperationEngine`. Safer Alternative: Warn and require confirmation when archive metadata exceeds conservative thresholds.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 ### Storage / Access Tasks
 
 - [ ] **UI-0033 - Permission UX** `[Medium]`
@@ -161,13 +117,6 @@
   - **Problem:** Storage insight is mainly a segmented bar and category list. It lacks a premium analyzer visualization, drill-down, cleanup candidates, and explanatory hierarchy.
   - **Impact:** Arcile misses a major differentiator against Files by Google and Samsung My Files.
   - **Fix:** Add folder/category treemap or sunburst/radial view for storage. Add large files, old downloads, duplicate candidates, APKs, videos, and cache-like cleanup groups. Allow tapping category to browse scoped files with sort preserved.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **COMPAT-0026 - Future Android Compatibility** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/provider/VolumeProvider.kt`
-  - **Problem:** Volume discovery mixes `StorageManager.storageVolumes`, `Environment.getExternalStorageDirectory()`, and `getExternalFilesDirs()` heuristics.
-  - **Impact:** Some OEMs, work profiles, removable volumes, and USB devices may show duplicate, missing, or misclassified volumes.
-  - **Fix:** Make volume discovery synchronous during provider initialization or block path validation until roots are loaded. Add volume identity normalization and profile awareness. Add SAF roots as first-class `StorageVolume` alternatives. Recommended Refactor: Separate physical volumes from logical storage locations. Safer Alternative: Ensure `activeStorageRoots` is populated from `currentVolumes()` before any path validation.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ### Operations / Reliability Tasks
@@ -186,25 +135,11 @@
   - **Fix:** Introduce an operation database/journal. Record source, destination, staging paths, phase, bytes, result, and rollback plan. On app/service startup, recover or clean incomplete operations. Update notifications with real progress and cancel action. Recommended Refactor: Build an `OperationEngine` independent of ViewModels and expose operation state via repository/Flow. Safer Alternative: For now, persist only active operation metadata and staged paths, then cleanup on next launch.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **REL-0015 - Mutation Atomicity / Recovery** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileTransferEngine.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/manager/TrashManager.kt`
-  - **Problem:** Operations use temp and backup files but do not persist a recovery journal for cleanup or rollback across process death.
-  - **Impact:** Crashes or device shutdowns can leave `.arcile-transfer-*`, `.arcile-replace-*`, archive temp files, or inconsistent trash metadata.
-  - **Fix:** Persist operation stages before creating temp/backup files. Add startup recovery cleaner. Record whether source deletion has occurred. Recommended Refactor: Build a transaction-like `MutationJournal` used by transfer, trash, archive extraction, archive creation, and fake-file creation. Safer Alternative: At minimum, scan known Arcile temp filename patterns on launch and offer cleanup.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **REL-0024 - Error Handling / Reliability** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/**` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/**`
   - **Problem:** Error handling relies on generic `Exception` messages in many code paths, while some use typed exceptions. UI often shows raw messages.
   - **Impact:** Users get inconsistent, sometimes technical, sometimes vague errors.
   - **Fix:** Define sealed domain errors: access denied, storage unavailable, conflict, insufficient space, unsupported provider, partial success, cancelled, corrupted metadata, unsafe path. Include user-safe message id and recovery action. Stop surfacing arbitrary exception messages directly. Recommended Refactor: Add `ArcileError` and map platform exceptions at data boundaries. Safer Alternative: Wrap existing exceptions in typed errors incrementally for destructive operations first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [x] **UX-0020 - Operation UX / Notifications** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`
-  - **Problem:** Foreground operation notification supports cancellation but is still indeterminate and static. It does not expose bytes, current file, verification phase, or completion/failure summary.
-  - **Impact:** Users cannot judge duration, verify progress in background, or cancel from notification shade.
-  - **Fix:** Update notification on throttled progress. Add cancel action. Use privacy-safe current filename, bytes, and phase. Show terminal notifications only when useful. Recommended Refactor: Add `OperationNotificationController`. Safer Alternative: At least add cancel action and percent when total bytes are known.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ### Visual System / Interaction Tasks
@@ -364,13 +299,6 @@
 
 ### Filesystem Performance / Memory Tasks
 
-- [x] **PERF-0004 - Filesystem performance** `[Critical]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileTransferEngine.kt`
-  - **Problem:** Every file copy/move verifies integrity by hashing the complete source and target with SHA-256. Directories are materialized into full file lists with `walkTopDown().toList()` before verification.
-  - **Impact:** Large media copies can take roughly 2x or more I/O time, drain battery, and appear stalled.
-  - **Fix:** Make verification policy explicit: metadata-only default, optional checksum verification. Stream directory verification without `toList()`. Emit progress during verification. Persist operation phases so UI does not look frozen. Recommended Refactor: Move verification into `TransferVerifier` with strategies: size+mtime, sampled hash, full hash, no verification. Safer Alternative: Use full SHA-256 only for cross-volume move before deleting source, and only when user enables safe transfer mode.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **MEM-0010 - Memory / Large Directory Handling** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileSystemDataSource.kt`
   - **Problem:** Directory listing loads all children into memory, maps all to `FileModel`, then sorts the full list before returning.
@@ -378,60 +306,7 @@
   - **Fix:** Introduce paged/incremental directory listing. Emit loading batches through Flow. Add configurable sorting that can operate on chunks or defer expensive metadata. Recommended Refactor: Create `DirectoryListingDataSource.list(path): Flow<ListingPage>`. Safer Alternative: Add a max initial batch and "load more" fallback for huge folders.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-### Concurrency / Battery Tasks
-
-- [ ] **CONC-0008 - Coroutine Dispatcher Injection** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/**` `arcile-app/app/src/main/java/dev/qtremors/arcile/image/**` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`
-  - **Problem:** Dispatchers are hardcoded across repositories, managers, data sources, image fetchers, the service, and stores.
-  - **Impact:** No direct user-facing bug, but performance tuning and deterministic tests are harder.
-  - **Fix:** Add `CoroutineDispatchers(io, default, main, computation)` and inject it. Use limited parallelism intentionally for transfer, stats, thumbnails, and archive work. Update tests to inject `TestDispatcher`. Recommended Refactor: Define dispatchers in DI and pass them into data/manager/service classes. Safer Alternative: Start with data layer and operation service.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [x] **CONC-0014 - Coroutine Cancellation / Backpressure** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/FolderStatsStore.kt`
-  - **Problem:** Folder stats workers are application-scoped and can continue scanning after the original screen no longer needs them. Update flow drops old updates under pressure.
-  - **Impact:** Battery and I/O may be spent on folders no longer visible.
-  - **Fix:** Add cancellable request tokens per screen/listing. Prioritize visible rows and cancel old path queues on navigation. Expose stats as keyed StateFlow/cache with explicit loading state. Recommended Refactor: Make folder stats a demand-driven service with `observeStats(paths)` rather than fire-and-forget queueing. Safer Alternative: Clear queue/rerun state on directory navigation and increase visible-update reliability.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [x] **BAT-0021 - Battery Efficiency** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileTransferEngine.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/FolderStatsStore.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/MediaStoreClient.kt`
-  - **Problem:** The app can run simultaneous expensive I/O: transfer hashing, folder stats traversal, analytics scans, and thumbnail loading.
-  - **Impact:** Battery drain and device heat during heavy browsing or transfers.
-  - **Fix:** Add centralized I/O scheduler with priorities: active transfer > visible listing > visible thumbnails > stats > analytics. Pause nonessential scans during foreground mutations. Add battery/thermal-aware throttling. Recommended Refactor: Inject `StorageWorkScheduler` into managers/data sources. Safer Alternative: Suspend folder stats and analytics while `BulkFileOperationCoordinator.activeRequest != null`.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-### Security / Privacy Tasks
-
-- [x] **SEC-0016 - Security / Path Safety** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/util/PathSafety.kt`
-  - **Problem:** Non-destructive reads allow symlinks by default, and destructive path validation only rejects symlinks along the target path before operation start.
-  - **Impact:** Rare but dangerous edge cases can expose or modify files outside intended storage roots on devices/filesystems that allow symlinks.
-  - **Fix:** Centralize path policies by operation type. Reject symlink traversal for all mutation and recursive traversal unless explicitly allowed. Revalidate parent and target immediately before delete/rename/promote. Recommended Refactor: Return a validated `SafePath` value from `PathSafety` and require it for destructive APIs. Safer Alternative: Set `rejectSymlinks = true` for recursive read/stat operations and all mutation paths.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [x] **SEC-0017 - Privacy / Backup** `[High]`
-  - **Location:** `arcile-app/app/src/main/AndroidManifest.xml` `arcile-app/app/src/main/res/xml/backup_rules.xml` `arcile-app/app/src/main/res/xml/data_extraction_rules.xml`
-  - **Problem:** The manifest has `android:allowBackup="true"` while the app stores storage classifications, quick access entries, preferences, and encrypted trash metadata references.
-  - **Impact:** Private filesystem paths or app usage metadata may be backed up or restored unexpectedly.
-  - **Fix:** Audit and restrict backup rules. Exclude trash metadata, operation journals, staging caches, quick-access private paths unless explicitly intended. Add restore validation/migration. Recommended Refactor: Classify persisted data as portable settings vs local-device metadata. Safer Alternative: Disable backup until rules are verified.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **SEC-0018 - Security / File Sharing** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ExternalFileAccessHelper.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ShareHelper.kt`
-  - **Problem:** Opening and sharing copies files into cache staging with a 500 MB cleanup cap, but there is no explicit user-facing cleanup control, metadata stripping, MIME grouping, or per-share size guard.
-  - **Impact:** Large shares can consume cache and sensitive files can remain staged for up to 24 hours.
-  - **Fix:** Add explicit cleanup action and post-share cleanup scheduling. Warn or stream for large files when possible. Preserve MIME grouping and consider metadata warnings for media/docs. Recommended Refactor: Create `ExternalHandoffManager` with size limits, cleanup policy, and audit logging. Safer Alternative: Reduce cache age and expose "clear shared-file cache" in settings.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 ### Build / Startup Tasks
-
-- [ ] **ANR-0022 - ANR Risk** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/MainActivity.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt`
-  - **Problem:** The app has no explicit debug StrictMode profile, startup benchmark, or trace markers around first storage/permission/navigation setup.
-  - **Impact:** Cold start regressions may ship unnoticed.
-  - **Fix:** Add StrictMode in debug builds. Add baseline profile and macrobenchmark startup test. Add trace sections for permission check, app shell composition, initial home load, and operation recovery. Recommended Refactor: Move startup storage work behind lazy flows and measured warmup. Safer Alternative: Add debug-only StrictMode first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 - [ ] **BUILD-0023 - Build System / Dependency Freshness** `[Medium]`
   - **Location:** `arcile-app/gradle/libs.versions.toml` `arcile-app/app/build.gradle.kts`

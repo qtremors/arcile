@@ -17,6 +17,7 @@ import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,6 +65,7 @@ class FakeFileRepository(
     var restoreFromTrashResultProvider: (suspend (List<String>, String?) -> Result<Unit>)? = null
     var emptyTrashResult: Result<Unit> = Result.failure(NotImplementedError())
     var trashFilesResult: Result<List<TrashMetadata>> = Result.failure(NotImplementedError())
+    var trashStorageUsageResult: Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
     var deletePermanentlyFromTrashResult: Result<Unit> = Result.failure(NotImplementedError())
 
     val requestedRecentScopes = mutableListOf<StorageScope>()
@@ -253,6 +255,8 @@ class FakeFileRepository(
             ?: Result.success(categorySizesByScope[scope].orEmpty())
     }
 
+    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = trashStorageUsageResult
+
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> {
         requestedFilesByCategory += scope to categoryName
         return filesByCategoryResultProvider?.invoke(scope, categoryName)
@@ -295,7 +299,10 @@ class FakeFileRepository(
             ?: Result.success(Unit)
     }
 
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> {
+    override suspend fun moveToTrash(
+        paths: List<String>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> {
         moveToTrashRequests += paths
         return moveToTrashResultProvider?.invoke(paths) ?: Result.success(Unit)
     }

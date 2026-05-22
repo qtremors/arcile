@@ -2,6 +2,7 @@ package dev.qtremors.arcile.data
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.FolderStatsStatus
@@ -50,7 +51,13 @@ class DefaultFolderStatsStore @Inject constructor(
     private val calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null,
-    private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2)),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO.limitedParallelism(2)
+    ),
+    private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + dispatchers.storage),
     private val storageWorkCoordinator: StorageWorkCoordinator = NoOpStorageWorkCoordinator
 ) : FolderStatsStore, AutoCloseable {
 
