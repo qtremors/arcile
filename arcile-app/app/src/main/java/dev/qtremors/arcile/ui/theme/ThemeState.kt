@@ -49,5 +49,6 @@ enum class AccentColor(val color: Color?) {
 
 data class ThemeState(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val accentColor: AccentColor = AccentColor.DYNAMIC
+    val accentColor: AccentColor = AccentColor.DYNAMIC,
+    val harmonizeColors: Boolean = true
 )

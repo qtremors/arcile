@@ -1,4 +1,8 @@
 <resources>
+    <plurals name="archive_entry_count">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
     <plurals name="folder_stats_files">
         <item quantity="one">%d file</item>
         <item quantity="other">%d files</item>

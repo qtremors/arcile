@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
@@ -77,8 +77,9 @@ fun PasteConflictDialog(
     onResolve: (Map<String, ConflictResolution>) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val haptics = dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics()
     val resolutions = remember { mutableMapOf<String, ConflictResolution>() }
-    val formatter = rememberDateFormatter("MMM dd, yyyy Â· HH:mm")
+    val formatter = rememberDateFormatter("MMM dd, yyyy · HH:mm")
     
     var currentIndex by remember { mutableStateOf(0) }
     var applyToAll by remember { mutableStateOf(false) }
@@ -152,6 +153,7 @@ fun PasteConflictDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val handleAction = { resolution: ConflictResolution ->
+                        haptics.selectionChanged()
                         if (applyToAll) {
                             for (i in currentIndex until conflicts.size) {
                                 resolutions[conflicts[i].sourcePath] = resolution
@@ -193,4 +195,3 @@ fun PasteConflictDialog(
         }
     }
 }
-

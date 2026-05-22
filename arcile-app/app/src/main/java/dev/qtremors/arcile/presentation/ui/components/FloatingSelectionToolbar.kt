@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.ui.theme.spacing
 
 data class ToolbarAction(
     val icon: ImageVector,
@@ -35,7 +36,8 @@ fun FloatingSelectionToolbar(
         enter = slideInVertically(initialOffsetY = { it * 2 }),
         exit = slideOutVertically(targetOffsetY = { it * 2 }),
         modifier = modifier
-            .padding(horizontal = 16.dp, vertical = 16.dp)
+            .navigationBarsPadding()
+            .padding(horizontal = MaterialTheme.spacing.screenGutter, vertical = MaterialTheme.spacing.screenGutter)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

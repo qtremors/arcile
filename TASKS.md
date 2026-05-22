@@ -24,14 +24,14 @@
   - **Fix:** Define a back priority stack: modal, sheet, search, selection, folder up, route pop, app exit. Use Navigation Compose predictive back support where route transitions apply. Use `PredictiveBackHandler` for browser folder-up progress and shared element/bounds opportunities. Add tests for back priority ordering.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0009 - File list semantics** `[High]`
+- [x] **UI-0009 - File list semantics** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt
   - **Problem:** The row sets a merged `contentDescription`, but child icons and thumbnails also supply content descriptions like `"Folder"`, `"File"`, or thumbnail descriptions.
   - **Impact:** TalkBack can become verbose or duplicate information, especially for file rows with thumbnails.
   - **Fix:** Keep a single row-level semantic label. Set decorative child icons/thumbnails to `contentDescription = null`. Add role/state details: selected, folder/file, hidden, action hint. Add custom accessibility actions for Open, Select, Rename, Delete where useful.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0010 - File grid semantics** `[High]`
+- [x] **UI-0010 - File grid semantics** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt
   - **Problem:** Grid item semantics mirror list issues: merged row content plus child icon/thumbnail descriptions and no clear action hints for open/select.
   - **Impact:** Grid browsing with TalkBack is less efficient, and long-press selection is not discoverable.
@@ -52,7 +52,7 @@
   - **Fix:** Add advanced filter mode while keeping default mode simple. Include extension/type chips, hidden toggle, storage volume, date range, size range, folder scope, and saved search presets. Show active filter chips with clear labels and counts.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0023 - Bottom Toolbar / Safe Areas** `[High]`
+- [x] **UI-0023 - Bottom Toolbar / Safe Areas** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/FloatingSelectionToolbar.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt
   - **Problem:** Floating selection and operation toolbars use fixed 56dp height, fixed 16dp padding, snackbar offsets of 80dp, and list bottom padding of 100dp rather than measuring/insetting the actual overlay.
   - **Impact:** On large font, landscape, gesture nav, 3-button nav, and foldables, content and snackbars can sit awkwardly or leave excessive dead space.
@@ -89,14 +89,14 @@
 
 ### Archive Tasks
 
-- [ ] **UI-0028 - Archive UX** `[High]`
+- [x] **UI-0028 - Archive UX** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/ArchiveViewerScreen.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt
   - **Problem:** Archive workflows exist and show summary metadata, but password fields are plain text, extraction progress is not deeply contextual, archive navigation lacks breadcrumbs, and the viewer remains visually bare compared with Browser.
   - **Impact:** Archive handling will not yet feel competitive with MiXplorer/Solid Explorer.
   - **Fix:** Use `PasswordVisualTransformation` and reveal toggle for archive passwords. Add archive breadcrumb/header, entry count, compression summary, and extract destination preview. Show extraction progress with current entry and cancel state. Support encrypted archive failure messaging.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0008 - Archive viewer strings** `[High]`
+- [x] **UI-0008 - Archive viewer strings** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/ArchiveViewerScreen.kt
   - **Problem:** Archive viewer strings and content descriptions are hardcoded: `"Back"`, `"Extract folder"`, `"Extract archive"`, `"Folder"`, `"Archive password"`, `"Password"`, `"Open"`, `"Cancel"`, and summary strings.
   - **Impact:** Archive handling feels less polished than the browser, and localization/accessibility are inconsistent.
@@ -144,21 +144,21 @@
 
 ### Visual System / Interaction Tasks
 
-- [ ] **UI-0002 - Edge-to-Edge / Insets** `[Critical]`
+- [x] **UI-0002 - Edge-to-Edge / Insets** `[Critical]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt
   - **Problem:** The root `Scaffold` sets `contentWindowInsets = WindowInsets(0, 0, 0, 0)` and downstream screens mostly rely on top padding while bottom gesture/nav/IME/cutout handling is inconsistent.
   - **Impact:** Bottom toolbars, snackbars, FABs, dialogs, and list content can crowd gesture navigation, 3-button nav, landscape cutouts, and desktop window caption areas. This lowers platform quality immediately on Android 15+ and targetSdk 36.
   - **Fix:** Define root inset policy: draw backgrounds edge-to-edge but inset interactive controls. Let Material 3 bars handle their default insets where appropriate. Replace magic bottom padding with `WindowInsets.safeDrawing`, `navigationBarsPadding()`, `imePadding()`, and `windowInsetsPadding()`. Audit all `Scaffold` instances for explicit `contentWindowInsets`.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0011 - Haptics / Tactility** `[High]`
+- [x] **UI-0011 - Haptics / Tactility** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/menus/ExpandableFabMenu.kt
   - **Problem:** Long-press selection, range selection, FAB expansion, destructive confirmation, transfer completion, and errors have no haptic feedback.
   - **Impact:** The app is visually modern but physically quiet. File managers benefit heavily from tactile confirmation because actions are high-stakes.
   - **Fix:** Add a small `ArcileHaptics` helper for selection start, selection changed, success, warning, destructive confirm, and error. Trigger haptics on long press, select all, destructive confirm, transfer completion, conflict resolution, and invalid operations. Respect system haptic settings.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0012 - Visual System / Spacing** `[High]`
+- [x] **UI-0012 - Visual System / Spacing** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
   - **Problem:** Spacing uses a mix of `MaterialTheme.spacing` tokens and raw hardcoded values such as 2dp, 4dp, 6dp, 8dp, 12dp, 16dp, 20dp, 24dp, 32dp, 80dp, and 100dp.
   - **Impact:** The UI rhythm subtly changes between Browser, Home, Quick Access, Settings, Storage, Trash, and Archive surfaces.
@@ -200,7 +200,7 @@
   - **Fix:** Add reduce-motion composition local or system animator scale check. Create context-specific empty states: empty folder, no search results, empty trash, no storage access, archive empty. Keep animation subtle and purposeful.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0031 - Color System** `[Medium]`
+- [x] **UI-0031 - Color System** `[Medium]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt arcile-app/app/src/main/java/dev/qtremors/arcile/ui/theme/Color.kt
   - **Problem:** Raw success/failure colors (`0xFF4CAF50`, `0xFFF44336`) are used in operation progress, while category/accent palettes use fixed values that may not harmonize with dynamic color or OLED modes.
   - **Impact:** Success/error states can look off-brand or too bright in custom/dynamic/OLED schemes.

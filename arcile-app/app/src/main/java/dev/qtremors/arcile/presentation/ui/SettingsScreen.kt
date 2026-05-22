@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
@@ -57,6 +59,7 @@ fun SettingsScreen(
     onRunOnboardingAgain: suspend () -> Unit = {},
     onRestartApp: () -> Unit = {}
 ) {
+    val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -118,6 +121,7 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
@@ -133,9 +137,12 @@ fun SettingsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = padding.calculateTopPadding())
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(
+                top = 16.dp,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+            ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
@@ -182,6 +189,39 @@ fun SettingsScreen(
                             .clip(MaterialTheme.shapes.medium)
                             .clickable { onShowThumbnailsChange(!showThumbnails) }
                             .testTag("thumbnail_setting_row")
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_harmonize_colors)) },
+                        supportingContent = { Text(stringResource(R.string.settings_harmonize_colors_description)) },
+                        trailingContent = {
+                            Switch(
+                                checked = currentThemeState.harmonizeColors,
+                                onCheckedChange = { isChecked ->
+                                    haptics.toggleMenu()
+                                    onThemeChange(currentThemeState.copy(harmonizeColors = isChecked))
+                                },
+                                thumbContent = {
+                                    Icon(
+                                        imageVector = if (currentThemeState.harmonizeColors) Icons.Default.Check else Icons.Default.Close,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                                    )
+                                },
+                                modifier = Modifier.testTag("harmonize_colors_switch")
+                            )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable {
+                                haptics.toggleMenu()
+                                onThemeChange(currentThemeState.copy(harmonizeColors = !currentThemeState.harmonizeColors))
+                            }
+                            .testTag("harmonize_colors_setting_row")
                     )
                 }
             }

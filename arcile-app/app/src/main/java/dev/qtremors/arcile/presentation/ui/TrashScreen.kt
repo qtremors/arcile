@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
 import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
@@ -127,6 +133,7 @@ fun TrashScreen(
     onClearSnackbarMessage: () -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val haptics = rememberArcileHaptics()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -167,6 +174,7 @@ fun TrashScreen(
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
+            haptics.error()
             snackbarHostState.showSnackbar(errorMsg)
             onClearError()
         }
@@ -190,14 +198,19 @@ fun TrashScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
+    val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+        (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             ArcileSnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = snackbarPadding)
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = snackbarPadding)
             )
         },
         topBar = {
@@ -261,6 +274,7 @@ fun TrashScreen(
         floatingActionButton = {
             if (!isSelectionMode && state.trashFiles.isNotEmpty() && !showSearchBar) {
                 ExtendedFloatingActionButton(
+                    modifier = Modifier.navigationBarsPadding(),
                     text = { Text(stringResource(R.string.empty_trash)) },
                     icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) },
                     onClick = { showEmptyTrashConfirmation = true },
@@ -322,7 +336,7 @@ fun TrashScreen(
                         selectedFiles = state.selectedFiles,
                         onToggleSelection = onToggleSelection,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            bottom = padding.calculateBottomPadding() + 100.dp
+                            bottom = bottomContentPadding
                         )
                     )
                 }

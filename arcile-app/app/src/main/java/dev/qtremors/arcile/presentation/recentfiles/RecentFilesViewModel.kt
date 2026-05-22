@@ -224,7 +224,11 @@ class RecentFilesViewModel @Inject constructor(
             result.onSuccess { files ->
                 _state.update {
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
-                    val newFiles = if (loadMore) it.recentFiles + files else files
+                    val newFiles = if (loadMore) {
+                        (it.recentFiles + files).distinctBy { file -> file.absolutePath }
+                    } else {
+                        files.distinctBy { file -> file.absolutePath }
+                    }
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,

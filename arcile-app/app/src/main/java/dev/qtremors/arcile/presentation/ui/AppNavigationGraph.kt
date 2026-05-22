@@ -361,8 +361,8 @@ fun AppNavigationGraph(
                     )
 
                 }
-                composable<AppRoutes.RecentFiles> {
-                    val parentEntry = remember {
+                composable<AppRoutes.RecentFiles> { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
                     val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
@@ -449,8 +449,8 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable<AppRoutes.QuickAccess> {
-                    val parentEntry = remember {
+                composable<AppRoutes.QuickAccess> { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
                     val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
@@ -490,7 +490,10 @@ fun AppNavigationGraph(
                         onExtractAll = { password -> viewModel.extractAll(password) },
                         onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
                         onSubmitPassword = { viewModel.submitPassword(it) },
-                        onClearError = { viewModel.clearError() }
+                        onClearError = { viewModel.clearError() },
+                        onCancelExtraction = { viewModel.cancelExtraction() },
+                        onClearOperationStatusMessage = { viewModel.clearOperationStatusMessage() },
+                        onClearActiveOperation = { viewModel.clearActiveOperation() }
                     )
                 }
             }

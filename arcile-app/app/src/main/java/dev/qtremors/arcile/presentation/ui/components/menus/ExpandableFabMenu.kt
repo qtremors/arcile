@@ -68,8 +68,12 @@ fun ExpandableFabMenu(
                 }
             }
         }
+        val haptics = dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics()
         FloatingActionButton(
-            onClick = onToggleExpand,
+            onClick = {
+                haptics.toggleMenu()
+                onToggleExpand()
+            },
             containerColor = MaterialTheme.colorScheme.primaryContainer,
             shape = fabShape
         ) {

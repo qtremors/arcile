@@ -1,10 +1,27 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.3
+> **Version:** 0.7.4
 > **Last Updated:** 2026-05-22
 
 ---
+
+## [0.7.4] - 2026-05-22
+
+### Recent Files Pagination
+- **Pagination Deduplication:** Resolved an issue where scrolling the recent files screen could load and render duplicate files due to database-to-filter offset mismatch.
+
+### UI Semantics & Tactility
+- **Accessible File Views:** Merged TalkBack semantics for file row/grid items into single-node announcements, hiding decorative elements, formatting hidden files with a "Hidden" suffix, and providing custom action labels for selecting/opening.
+- **Haptic Tactility Wrapper:** Created `ArcileHaptics` utilizing system vibration events, integrated across selections, multi-select ranges, FAB transitions, deletion checkbox/confirms, copy conflicts, operations completion (success/failure/cancel), and error notifications.
+- **Color Harmonization Setting:** Added a setting toggle "Harmonize Colors" in Appearance Settings. When enabled, it dynamically blends folder categories and system/semantic status colors with the user's active primary color theme using MaterialKolor. When disabled, categories revert to their precise custom design colors.
+- **Semantic Status Colors:** Introduced `SemanticColors` with dedicated light/dark variants for success, warning, operations progress, and badges, eliminating hardcoded raw green/red hex values in file operation toolbars and progress indicators.
+- **Archive Viewer Polish:** Upgraded the archive viewer with a contextual archive header, breadcrumb-style folder location, extraction destination preview, localized archive labels/plurals, masked password entry with reveal controls, and in-view extraction progress with current-entry context and cancellation.
+
+### Edge-to-Edge & Visual System Spacing
+- **Edge-to-Edge Insets:** Configured root Scaffold instances with zero-insets (`contentWindowInsets = WindowInsets(0, 0, 0, 0)`) across all application screens to let backgrounds bleed behind system bars. Added proper top app bar and status bar padding offsets to keep key UI elements interactive.
+- **Visual System Spacing:** Expanded spacing theme class with semantic tokens (`screenGutter`, `listItemHorizontal`, `listItemVertical`, `sheetHorizontal`, `toolbarBottomGap`, `sectionGap`, `compactGap`) and refactored screens to replace raw layout metrics for consistent rhythm.
+- **Bottom Toolbar Safe Areas:** Integrated navigation bar insets and custom dynamic content paddings to floating bottom toolbars (selection overlays), lists, and grids to ensure they correctly clear system gesture pills and 3-button navigation bars.
 
 ## [0.7.3] - 2026-05-22
 

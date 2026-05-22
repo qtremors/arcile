@@ -77,7 +77,20 @@ fun ArcileTheme(
         else -> LightColorScheme
     }
 
-    val categoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
+    val baseCategoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
+    val baseSemanticColors = if (effectivelyDark) DarkSemanticColors else LightSemanticColors
+
+    val categoryColors = if (themeState.harmonizeColors) {
+        baseCategoryColors.harmonizeWith(colorScheme.primary)
+    } else {
+        baseCategoryColors
+    }
+
+    val semanticColors = if (themeState.harmonizeColors) {
+        baseSemanticColors.harmonizeWith(colorScheme.primary)
+    } else {
+        baseSemanticColors
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -90,6 +103,7 @@ fun ArcileTheme(
 
     CompositionLocalProvider(
         LocalCategoryColors provides categoryColors,
+        LocalSemanticColors provides semanticColors,
         LocalSpacing provides Spacing()
     ) {
         MaterialTheme(

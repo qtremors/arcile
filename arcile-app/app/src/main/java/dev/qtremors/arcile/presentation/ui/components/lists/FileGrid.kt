@@ -58,6 +58,8 @@ import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.util.Date
 
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileGrid(
@@ -76,6 +78,7 @@ fun FileGrid(
     contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
+    val haptics = rememberArcileHaptics()
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
@@ -93,11 +96,13 @@ fun FileGrid(
             key = { _, file -> file.absolutePath },
             contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
         ) { index, file ->
+            val isSelected = selectedFiles.contains(file.absolutePath)
             FileGridItem(
                 modifier = Modifier.animateItem(),
                 file = file,
                 formattedDate = formatter.format(Date(file.lastModified)),
-                isSelected = selectedFiles.contains(file.absolutePath),
+                isSelected = isSelected,
+                isInSelectionMode = selectedFiles.isNotEmpty(),
                 folderStats = folderStatsByPath[file.absolutePath],
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 showThumbnails = showThumbnails,
@@ -105,6 +110,7 @@ fun FileGrid(
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
                         onToggleSelection(file.absolutePath)
+                        haptics.selectionChanged()
                     } else if (file.isDirectory) {
                         onNavigateTo(file.absolutePath)
                     } else {
@@ -117,10 +123,33 @@ fun FileGrid(
                         val end = maxOf(lastInteractedIndex!!, index)
                         val rangePaths = files.subList(start, end + 1).map { it.absolutePath }
                         onSelectMultiple(rangePaths)
+                        haptics.selectionChanged()
                         lastInteractedIndex = index
                     } else {
-                        lastInteractedIndex = index
+                        val wasEmpty = selectedFiles.isEmpty()
                         onToggleSelection(file.absolutePath)
+                        if (wasEmpty) {
+                            haptics.selectionStart()
+                        } else {
+                            haptics.selectionChanged()
+                        }
+                        lastInteractedIndex = index
+                    }
+                },
+                onOpenDirectly = {
+                    if (file.isDirectory) {
+                        onNavigateTo(file.absolutePath)
+                    } else {
+                        onOpenFile(file.absolutePath)
+                    }
+                },
+                onToggleSelectionDirectly = {
+                    val wasEmpty = selectedFiles.isEmpty()
+                    onToggleSelection(file.absolutePath)
+                    if (wasEmpty) {
+                        haptics.selectionStart()
+                    } else {
+                        haptics.selectionChanged()
                     }
                 }
             )
@@ -131,15 +160,18 @@ fun FileGrid(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileGridItem(
-    modifier: Modifier = Modifier,
     file: FileModel,
     formattedDate: String,
     isSelected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isInSelectionMode: Boolean = false,
     showThumbnails: Boolean = true,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onOpenDirectly: () -> Unit = {},
+    onToggleSelectionDirectly: () -> Unit = {}
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
@@ -158,21 +190,6 @@ fun FileGridItem(
     } else {
         null
     }
-    val contentDesc = buildString {
-        append(file.name)
-        append(", ")
-        if (file.isDirectory) {
-            append("Folder")
-            folderSubtitle?.let {
-                append(", ")
-                append(it)
-            }
-        } else {
-            append(formatFileSize(file.size))
-        }
-        append(", Modified ")
-        append(formattedDate)
-    }
 
     Card(
         modifier = modifier
@@ -182,10 +199,17 @@ fun FileGridItem(
                 scaleY = scale
             }
             .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
-            .semantics(mergeDescendants = true) {
-                contentDescription = contentDesc
-                selected = isSelected
-            }
+            .fileItemSemantics(
+                file = file,
+                isSelected = isSelected,
+                formattedDate = formattedDate,
+                folderStatsText = folderSubtitle,
+                isInSelectionMode = isInSelectionMode,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onOpenDirectly = onOpenDirectly,
+                onToggleSelectionDirectly = onToggleSelectionDirectly
+            )
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
@@ -215,14 +239,10 @@ fun FileGridItem(
                         .data(File(file.absolutePath))
                         .crossfade(true)
                         .crossfade(300)
-                        // By removing the hardcoded .size(512), Coil will automatically measure 
-                        // the exact layout bounds. If you have 4 small columns, it loads tiny images 
-                        // (saving massive amounts of RAM and keeping more thumbs cached). 
-                        // If you zoom in to 2 massive columns, it loads them large.
                         .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                         .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                         .build(),
-                    contentDescription = stringResource(R.string.desc_thumbnail),
+                    contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(1f),
@@ -237,7 +257,6 @@ fun FileGridItem(
                             Icon(
                                 imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
                                 contentDescription = null,
-                                // Faint icon while loading so it doesn't look empty
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
                                 modifier = Modifier.size(48.dp)
                             )
@@ -252,7 +271,7 @@ fun FileGridItem(
                         ) {
                             Icon(
                                 imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
-                                contentDescription = if (file.isDirectory) "Folder" else "File",
+                                contentDescription = null,
                                 tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(48.dp)
                             )
@@ -269,7 +288,7 @@ fun FileGridItem(
                 ) {
                     Icon(
                         imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
-                        contentDescription = if (file.isDirectory) "Folder" else "File",
+                        contentDescription = null,
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(48.dp)
                     )

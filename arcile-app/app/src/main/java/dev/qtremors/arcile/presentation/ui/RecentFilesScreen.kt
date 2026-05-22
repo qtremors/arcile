@@ -9,6 +9,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -71,6 +76,7 @@ import dev.qtremors.arcile.presentation.containingFolderPath
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
@@ -114,6 +120,7 @@ fun RecentFilesScreen(
     onOpenContainingFolder: (String) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
@@ -134,6 +141,7 @@ fun RecentFilesScreen(
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
+            haptics.error()
             snackbarHostState.showSnackbar(errorMsg)
             onClearError()
         }
@@ -162,10 +170,13 @@ fun RecentFilesScreen(
     val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             ArcileSnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = snackbarPadding)
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = snackbarPadding)
             )
         },
         topBar = {
@@ -381,7 +392,7 @@ private fun RecentFilesContent(
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val topPadding = contentPadding.calculateTopPadding()
-    val bottomPadding = contentPadding.calculateBottomPadding() + 100.dp
+    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
 
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = state.isPullToRefreshing,

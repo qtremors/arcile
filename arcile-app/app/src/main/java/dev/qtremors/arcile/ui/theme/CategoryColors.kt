@@ -33,3 +33,14 @@ val DarkCategoryColors = CategoryColors(
 
 
 val LocalCategoryColors = staticCompositionLocalOf { LightCategoryColors }
+
+fun CategoryColors.harmonizeWith(keyColor: Color): CategoryColors {
+    return CategoryColors(
+        images = this.images.harmonizeWith(keyColor),
+        videos = this.videos.harmonizeWith(keyColor),
+        audio = this.audio.harmonizeWith(keyColor),
+        docs = this.docs.harmonizeWith(keyColor),
+        archives = this.archives.harmonizeWith(keyColor),
+        apks = this.apks.harmonizeWith(keyColor)
+    )
+}

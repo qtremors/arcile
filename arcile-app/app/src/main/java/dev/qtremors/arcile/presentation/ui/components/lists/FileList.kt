@@ -61,6 +61,8 @@ import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.util.Date
 
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileList(
@@ -79,6 +81,7 @@ fun FileList(
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
+    val haptics = rememberArcileHaptics()
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
@@ -93,11 +96,13 @@ fun FileList(
             key = { _, file -> file.absolutePath },
             contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
         ) { index, file ->
+            val isSelected = selectedFiles.contains(file.absolutePath)
             FileItemRow(
                 modifier = Modifier.animateItem(),
                 file = file,
                 formattedDate = formatter.format(Date(file.lastModified)),
-                isSelected = selectedFiles.contains(file.absolutePath),
+                isSelected = isSelected,
+                isInSelectionMode = selectedFiles.isNotEmpty(),
                 zoom = zoom,
                 showThumbnails = showThumbnails,
                 folderStats = folderStatsByPath[file.absolutePath],
@@ -106,6 +111,7 @@ fun FileList(
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
                         onToggleSelection(file.absolutePath)
+                        haptics.selectionChanged()
                     } else if (file.isDirectory) {
                         onNavigateTo(file.absolutePath)
                     } else {
@@ -118,10 +124,33 @@ fun FileList(
                         val end = maxOf(lastInteractedIndex!!, index)
                         val rangePaths = files.subList(start, end + 1).map { it.absolutePath }
                         onSelectMultiple(rangePaths)
+                        haptics.selectionChanged()
                         lastInteractedIndex = index
                     } else {
-                        lastInteractedIndex = index
+                        val wasEmpty = selectedFiles.isEmpty()
                         onToggleSelection(file.absolutePath)
+                        if (wasEmpty) {
+                            haptics.selectionStart()
+                        } else {
+                            haptics.selectionChanged()
+                        }
+                        lastInteractedIndex = index
+                    }
+                },
+                onOpenDirectly = {
+                    if (file.isDirectory) {
+                        onNavigateTo(file.absolutePath)
+                    } else {
+                        onOpenFile(file.absolutePath)
+                    }
+                },
+                onToggleSelectionDirectly = {
+                    val wasEmpty = selectedFiles.isEmpty()
+                    onToggleSelection(file.absolutePath)
+                    if (wasEmpty) {
+                        haptics.selectionStart()
+                    } else {
+                        haptics.selectionChanged()
                     }
                 }
             )
@@ -137,6 +166,9 @@ fun FileItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    isInSelectionMode: Boolean = false,
+    onOpenDirectly: () -> Unit = {},
+    onToggleSelectionDirectly: () -> Unit = {},
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
@@ -153,7 +185,6 @@ fun FileItemRow(
     )
     val animatedScale by animateFloatAsState(targetValue = zoom, label = "listZoom")
 
-    // Increased icon size and layout padding to match the reference image
     val iconSize = (48.dp * animatedScale).coerceIn(40.dp, 64.dp)
     val contentPadding = (16.dp * animatedScale).coerceIn(12.dp, 20.dp)
     
@@ -169,21 +200,6 @@ fun FileItemRow(
     } else {
         null
     }
-    val contentDesc = buildString {
-        append(file.name)
-        append(", ")
-        if (file.isDirectory) {
-            append("Folder")
-            folderSubtitle?.let {
-                append(", ")
-                append(it)
-            }
-        } else {
-            append(formatFileSize(file.size))
-        }
-        append(", Modified ")
-        append(formattedDate)
-    }
 
     Surface(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
@@ -191,10 +207,17 @@ fun FileItemRow(
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
             .alpha(if (file.name.startsWith(".")) 0.5f else 1f)
-            .semantics(mergeDescendants = true) {
-                contentDescription = contentDesc
-                selected = isSelected
-            }
+            .fileItemSemantics(
+                file = file,
+                isSelected = isSelected,
+                formattedDate = formattedDate,
+                folderStatsText = folderSubtitle,
+                isInSelectionMode = isInSelectionMode,
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onOpenDirectly = onOpenDirectly,
+                onToggleSelectionDirectly = onToggleSelectionDirectly
+            )
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
@@ -206,7 +229,6 @@ fun FileItemRow(
                 .padding(horizontal = contentPadding, vertical = contentPadding * 0.75f),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon container with background (matches reference image style)
             Box(
                 modifier = Modifier
                     .size(iconSize)
@@ -231,7 +253,7 @@ fun FileItemRow(
                             .diskCachePolicy(coil.request.CachePolicy.ENABLED)
                             .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
                             .build(),
-                        contentDescription = stringResource(R.string.desc_thumbnail),
+                        contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
@@ -240,8 +262,8 @@ fun FileItemRow(
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
-                                    contentDescription = if (file.isDirectory) "Folder" else "File",
-                                    tint = if (file.isDirectory) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(iconSize * 0.5f)
                                 )
                             }
@@ -250,8 +272,8 @@ fun FileItemRow(
                 } else {
                     Icon(
                         imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
-                        contentDescription = if (file.isDirectory) "Folder" else "File",
-                        tint = if (file.isDirectory) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(iconSize * 0.5f)
                     )
                 }
@@ -259,7 +281,6 @@ fun FileItemRow(
 
             Spacer(modifier = Modifier.width(contentPadding))
 
-            // Text Content (Title and Subtitle)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.Center
@@ -278,7 +299,6 @@ fun FileItemRow(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // File count/size section
                     Text(
                         text = if (file.isDirectory) {
                             folderSubtitle ?: stringResource(R.string.folder_label)
@@ -292,7 +312,6 @@ fun FileItemRow(
                     
                     Spacer(modifier = Modifier.weight(1f))
                     
-                    // Date section aligned to the right
                     Text(
                         text = formattedDate,
                         style = supportStyle,

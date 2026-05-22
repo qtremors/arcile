@@ -29,6 +29,7 @@ fun DeleteConfirmationDialog(
     onDismiss: () -> Unit,
     onTogglePermanentDelete: () -> Unit
 ) {
+    val haptics = dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics()
     val permanentlyDeleteLabel = stringResource(R.string.permanently_delete_checkbox)
 
     AlertDialog(
@@ -78,7 +79,10 @@ fun DeleteConfirmationDialog(
                         .semantics(mergeDescendants = true) {
                             if (!isPermanentDeleteToggleEnabled) disabled()
                         }
-                        .clickable(enabled = isPermanentDeleteToggleEnabled) { onTogglePermanentDelete() }
+                        .clickable(enabled = isPermanentDeleteToggleEnabled) {
+                            haptics.selectionChanged()
+                            onTogglePermanentDelete()
+                        }
                 ) {
                     ListItem(
                         headlineContent = {
@@ -123,7 +127,10 @@ fun DeleteConfirmationDialog(
         },
         confirmButton = {
             Button(
-                onClick = onConfirm,
+                onClick = {
+                    haptics.destructiveConfirm()
+                    onConfirm()
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError

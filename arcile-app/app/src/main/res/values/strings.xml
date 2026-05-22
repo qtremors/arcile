@@ -97,6 +97,8 @@
     <string name="later">Later</string>
     <string name="settings_show_thumbnails">Show Thumbnails</string>
     <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
+    <string name="settings_harmonize_colors">Harmonize Colors</string>
+    <string name="settings_harmonize_colors_description">Blend category and status colors with the active theme accent color.</string>
     
     <!-- Theme Selection -->
     <string name="theme_mode">Theme Mode</string>
@@ -259,18 +261,33 @@
     <string name="archive_compress_zip">Create archive</string>
     <string name="archive_extract_here">Extract here</string>
     <string name="archive_extract_to_folder">Extract to folder</string>
+    <string name="archive_extract_folder">Extract folder</string>
+    <string name="archive_extract_archive">Extract archive</string>
+    <string name="archive_root">Archive root</string>
+    <string name="archive_breadcrumb">%1$s / %2$s</string>
+    <string name="archive_destination_preview">Extracts to %1$s</string>
     <string name="archive_create_title">Create archive</string>
     <string name="archive_create_summary">%1$d selected item(s)</string>
     <string name="archive_name">Archive name</string>
+    <string name="archive_password_title">Archive password</string>
     <string name="archive_password_protect">Password protect</string>
     <string name="archive_has_password">Archive has password</string>
     <string name="archive_password">Password</string>
+    <string name="archive_password_description">Enter the password to open this archive.</string>
+    <string name="archive_password_show">Show password</string>
+    <string name="archive_password_hide">Hide password</string>
     <string name="archive_confirm_password">Confirm password</string>
     <string name="archive_password_mismatch">Passwords do not match</string>
     <string name="archive_password_hint">Leave off for normal archives; enable only if this archive is encrypted.</string>
     <string name="archive_destination">Destination: %1$s</string>
     <string name="archive_create_action">Create</string>
     <string name="archive_extract_title">Extract archive</string>
+    <string name="archive_ratio_unavailable">n/a</string>
+    <string name="archive_summary_size_ratio">Archive %1$s • Ratio %2$s</string>
+    <string name="archive_newest_modified">Newest %1$s</string>
+    <string name="archive_operation_current_entry">Current: %1$s</string>
+    <string name="archive_extraction_complete">Archive extraction complete</string>
+    <string name="archive_extraction_cancelled">Archive extraction cancelled</string>
     <string name="file_operation_creating_archive">Creating archive</string>
     <string name="file_operation_extracting_archive">Extracting archive</string>
 

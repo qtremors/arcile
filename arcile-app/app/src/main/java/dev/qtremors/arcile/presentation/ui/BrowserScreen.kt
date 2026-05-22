@@ -98,6 +98,8 @@ import androidx.compose.runtime.setValue
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFakeFileDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.ui.theme.LocalSemanticColors
 
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
@@ -112,6 +114,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -241,6 +249,7 @@ fun BrowserScreen(
     onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit = { _, _, _ -> },
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val haptics = rememberArcileHaptics()
     var showCreateFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showCreateFileDialog by remember { mutableStateOf(false) }
@@ -387,6 +396,7 @@ fun BrowserScreen(
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
+            haptics.error()
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(errorMsg)
             }
@@ -514,15 +524,20 @@ fun BrowserScreen(
 
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val isClipboardActive = state.clipboardState != null
+    val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 
+        (if (isSelectionMode || isClipboardActive) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     val snackbarPadding = if (isSelectionMode || isClipboardActive) 80.dp else 0.dp
     val layoutDirection = LocalLayoutDirection.current
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             ArcileSnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = snackbarPadding)
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = snackbarPadding)
             )
         },
         topBar = {
@@ -586,8 +601,14 @@ fun BrowserScreen(
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
-                            TopBarAction.SelectAll -> onSelectAll(displayedFiles.map { it.absolutePath })
-                            TopBarAction.InvertSelection -> onInvertSelection(displayedFiles.map { it.absolutePath })
+                            TopBarAction.SelectAll -> {
+                                haptics.selectionChanged()
+                                onSelectAll(displayedFiles.map { it.absolutePath })
+                            }
+                            TopBarAction.InvertSelection -> {
+                                haptics.selectionChanged()
+                                onInvertSelection(displayedFiles.map { it.absolutePath })
+                            }
                             TopBarAction.Properties -> onOpenProperties()
                             else -> {}
                         }
@@ -598,7 +619,7 @@ fun BrowserScreen(
         bottomBar = {},
         floatingActionButton = {
             if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen && state.clipboardState == null && state.activeFileOperation == null) {
-                Box {
+                Box(modifier = Modifier.navigationBarsPadding()) {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
                             isExpanded = isFabExpanded,
@@ -664,7 +685,12 @@ fun BrowserScreen(
                         )
                     } else {
                         val formatter = rememberDateFormatter("MMM dd, yyyy")
-                        LazyColumn(modifier = Modifier.weight(1f)) {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(
+                                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+                            )
+                        ) {
                             items(
                                 items = state.searchResults,
                                 key = { it.absolutePath },
@@ -790,7 +816,7 @@ fun BrowserScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(
                                     top = 8.dp,
-                                    bottom = padding.calculateBottomPadding() + 100.dp,
+                                    bottom = bottomContentPadding,
                                     start = padding.calculateLeftPadding(layoutDirection),
                                     end = padding.calculateRightPadding(layoutDirection)
                                 )
@@ -822,7 +848,7 @@ fun BrowserScreen(
                                  folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                                  contentPadding = PaddingValues(
                                      top = 8.dp,
-                                     bottom = padding.calculateBottomPadding() + 100.dp,
+                                     bottom = bottomContentPadding,
                                      start = 8.dp,
                                      end = 8.dp
                                  )
@@ -843,7 +869,7 @@ fun BrowserScreen(
                                  folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                                  contentPadding = PaddingValues(
                                      top = 8.dp,
-                                     bottom = padding.calculateBottomPadding() + 100.dp
+                                     bottom = bottomContentPadding
                                  )
                              )
                          }
@@ -1017,6 +1043,11 @@ fun BrowserScreen(
                             val terminal = activeOp.terminalStatus
                             if (terminal != null) {
                                 smoothedState.markComplete(terminal)
+                                when (terminal) {
+                                    OperationCompletionStatus.SUCCESS -> haptics.success()
+                                    OperationCompletionStatus.FAILED,
+                                    OperationCompletionStatus.CANCELLED -> haptics.error()
+                                }
                             } else {
                                 // Initialize on first progress event
                                 if (smoothedState.operationStartTime == 0L) {
@@ -1052,8 +1083,8 @@ fun BrowserScreen(
                     val smoothedProgress = smoothedState.displayedProgress
 
                     // Determine pill fill color based on terminal status
-                    val successColor = Color(0xFF4CAF50).copy(alpha = 0.25f)
-                    val failureColor = Color(0xFFF44336).copy(alpha = 0.25f)
+                    val successColor = LocalSemanticColors.current.success.copy(alpha = 0.25f)
+                    val failureColor = MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
                     val inProgressColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                     val progressFillColor = when (activeOp?.terminalStatus) {
                         OperationCompletionStatus.SUCCESS -> successColor
@@ -1067,7 +1098,7 @@ fun BrowserScreen(
                             ToolbarAction(
                                 icon = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.action_cancel_transfer),
-                                containerColor = Color(0xFFF44336),
+                                containerColor = MaterialTheme.colorScheme.error,
                                 tint = Color.White,
                                 onClick = onCancelClipboard
                             )
@@ -1082,7 +1113,7 @@ fun BrowserScreen(
                             ToolbarAction(
                                 icon = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.action_cancel_transfer),
-                                containerColor = Color(0xFFF44336),
+                                containerColor = MaterialTheme.colorScheme.error,
                                 tint = Color.White,
                                 onClick = onCancelClipboard
                             )
