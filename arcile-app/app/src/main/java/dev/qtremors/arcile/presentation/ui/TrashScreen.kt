@@ -168,7 +168,7 @@ fun TrashScreen(
         }
     }
 
-    var showEmptyTrashConfirmation by remember { mutableStateOf(false) }
+    var showEmptyTrashConfirmation by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -372,7 +372,7 @@ fun TrashScreen(
                     isVisible = isSelectionMode,
                     actions = mainActions,
                     moreContent = {
-                        var showMoreMenu by remember { mutableStateOf(false) }
+                        var showMoreMenu by rememberSaveable { mutableStateOf(false) }
                         Box {
                             Surface(
                                 onClick = { showMoreMenu = true },

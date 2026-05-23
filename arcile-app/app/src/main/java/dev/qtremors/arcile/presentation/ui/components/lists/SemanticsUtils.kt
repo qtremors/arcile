@@ -69,6 +69,13 @@ fun Modifier.fileItemSemantics(
     customActions = if (isInSelectionMode) {
         listOf(
             CustomAccessibilityAction(
+                label = if (isSelected) "Unselect item" else "Select item",
+                action = {
+                    onToggleSelectionDirectly()
+                    true
+                }
+            ),
+            CustomAccessibilityAction(
                 label = if (file.isDirectory) "Open folder" else "Open file",
                 action = {
                     onOpenDirectly()

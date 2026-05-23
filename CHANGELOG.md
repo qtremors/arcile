@@ -1,10 +1,28 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.4
-> **Last Updated:** 2026-05-22
+> **Version:** 0.7.5
+> **Last Updated:** 2026-05-23
 
 ---
+
+## [0.7.5] - 2026-05-23
+
+### UI Consistency & Back Navigation
+- **Predictive Back Priority:** Added a shared Browser back-priority resolver for modals, sheets, search, selection, folder-up navigation, route pop, and app exit, with predictive back handling wired into the Browser flow.
+- **State Restoration:** Converted workflow UI state across Browser, Quick Access, and Trash screens to `rememberSaveable` where safe, preserving dialog, sheet, search, and FAB context across recreation.
+
+### Search & Selection
+- **Advanced Search Filters:** Expanded search filtering with extension, hidden-file visibility, storage volume, folder scope, exact size/date range, MIME, and saved-preset metadata while keeping the default filter mode simple.
+- **Active Filter Chips:** Added clearer active filter chips for advanced filters so users can remove precise constraints individually.
+- **Selection Affordances:** Added explicit selected check badges in file list/grid items, select/unselect accessibility actions, and a discoverable "Select range..." selection menu action.
+
+### Performance
+- **Lazy List/Grid Row Models:** Introduced preformatted file row UI models so date, size, subtitle, icon type, and thumbnail request metadata are prepared outside hot lazy item composition.
+- **Thumbnail Rendering:** Removed grid-cell `animateContentSize()` and replaced lazy-cell `SubcomposeAsyncImage` usage with lighter `AsyncImage` thumbnail requests sized to the list/grid presentation.
+
+### Testing
+- **Regression Coverage:** Added unit tests for Browser back priority ordering, advanced filter matching, and file row UI model formatting.
 
 ## [0.7.4] - 2026-05-22
 

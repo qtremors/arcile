@@ -148,7 +148,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.platform.LocalContext
+import coil.imageLoader
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+
+private const val HomeRecentFilesPreviewLimit = 12
+private const val HomeRecentFilesPreloadLimit = 6
+private const val HomeRecentFilesPreloadSizePx = 512
 /**
  * Dashboard screen shown when the app first launches.
  *
@@ -281,6 +289,8 @@ fun HomeScreen(
     onSetVolumeClassification: (String, dev.qtremors.arcile.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+
     LifecycleResumeEffect(Unit) {
         onResumeRefresh()
         onPauseOrDispose { }
@@ -289,6 +299,30 @@ fun HomeScreen(
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption, state.todayStart) {
         val todayFiles = state.recentFiles.filter { it.lastModified >= state.todayStart }
         filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
+            .take(HomeRecentFilesPreviewLimit)
+    }
+    LaunchedEffect(displayedRecentFiles) {
+        displayedRecentFiles
+            .asSequence()
+            .filter { file ->
+                val extension = file.extension.lowercase()
+                !file.isDirectory && (
+                    FileCategories.Images.extensions.contains(extension) ||
+                        FileCategories.Videos.extensions.contains(extension)
+                    )
+            }
+            .take(HomeRecentFilesPreloadLimit)
+            .forEach { file ->
+                context.imageLoader.enqueue(
+                    ImageRequest.Builder(context)
+                        .data(File(file.absolutePath))
+                        .size(HomeRecentFilesPreloadSizePx)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .crossfade(false)
+                        .build()
+                )
+            }
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()

@@ -445,19 +445,8 @@ private fun RecentFilesContent(
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
                 ) {
                     groupedFiles.forEach { (dateHeader, files) ->
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
-                                    .padding(vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = dateHeader,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                        stickyHeader {
+                            RecentDateHeaderPill(dateHeader = dateHeader)
                         }
                         gridItemsIndexed(
                             items = files,
@@ -540,18 +529,7 @@ private fun RecentFilesContent(
             ) {
                 groupedFiles.forEach { (dateHeader, files) ->
                     stickyHeader {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = dateHeader,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        RecentDateHeaderPill(dateHeader = dateHeader)
                     }
                     itemsIndexed(
                         items = files,
@@ -612,6 +590,30 @@ private fun RecentFilesContent(
                     .fillMaxSize()
                     .padding(top = topPadding),
                 contentPadding = PaddingValues(bottom = bottomPadding)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentDateHeaderPill(dateHeader: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.primary,
+            tonalElevation = 3.dp,
+            shadowElevation = 2.dp
+        ) {
+            Text(
+                text = dateHeader,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
             )
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Rule
@@ -140,6 +141,36 @@ class RecentFilesScreenTest {
             }
         }
 
+        composeRule.onNodeWithText("photo.jpg").assertExists()
+    }
+
+    @Test
+    fun `grid presentation renders grouped date header`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                RecentFilesScreen(
+                    state = recentScreenState().copy(
+                        presentation = BrowserPresentationPreferences(
+                            sortOption = FileSortOption.DATE_NEWEST,
+                            viewMode = BrowserViewMode.GRID
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onClearSelection = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onShareSelected = {},
+                    onSelectAll = {},
+                    onRefresh = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Today").assertExists()
         composeRule.onNodeWithText("photo.jpg").assertExists()
     }
 }

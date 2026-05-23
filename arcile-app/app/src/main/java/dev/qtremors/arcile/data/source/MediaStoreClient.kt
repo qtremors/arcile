@@ -15,6 +15,7 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.matchesSearchFilters
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -611,11 +612,16 @@ class DefaultMediaStoreClient(
                             currentCoroutineContext().ensureActive()
                         }
 
-                        if (!matchesScope(current.absolutePath, scope, volumes) || (current != rootDir && current.name.startsWith("."))) {
+                        if (!matchesScope(current.absolutePath, scope, volumes) ||
+                            (!searchFilters?.includeHidden.orFalse() && current != rootDir && current.name.startsWith("."))
+                        ) {
                             continue
                         }
 
-                        if (current != rootDir && current.name.contains(query, ignoreCase = true) && !current.name.startsWith(".")) {
+                        if (current != rootDir &&
+                            current.name.contains(query, ignoreCase = true) &&
+                            (searchFilters?.includeHidden == true || !current.name.startsWith("."))
+                        ) {
                             filesList.add(current.toFileModel())
                             if (filesList.size >= MAX_PATH_SEARCH_RESULTS) {
                                 break
@@ -625,7 +631,7 @@ class DefaultMediaStoreClient(
                         if (current.isDirectory) {
                             current.listFiles()
                                 ?.asSequence()
-                                ?.filterNot { it.name.startsWith(".") }
+                                ?.filter { searchFilters?.includeHidden == true || !it.name.startsWith(".") }
                                 ?.sortedBy { !it.isDirectory }
                                 ?.forEach { child ->
                                     pending.addLast(child)
@@ -694,35 +700,7 @@ class DefaultMediaStoreClient(
             var resultList = filesList.toList()
             
             searchFilters?.let { sf ->
-                if (sf.itemType == "Files") {
-                    resultList = resultList.filter { !it.isDirectory }
-                } else if (sf.itemType == "Folders") {
-                    resultList = resultList.filter { it.isDirectory }
-                }
-                
-                if (sf.fileType != null && sf.fileType != "All") {
-                    val category = FileCategories.all.find { it.name == sf.fileType }
-                    if (category != null) {
-                        val exts = category.extensions.map { it.lowercase() }.toSet()
-                        resultList = resultList.filter { !it.isDirectory && exts.contains(it.name.substringAfterLast('.').lowercase()) }
-                    }
-                }
-                
-                if (sf.minSize != null) {
-                    resultList = resultList.filter { !it.isDirectory && it.size >= sf.minSize }
-                }
-                
-                if (sf.maxSize != null) {
-                    resultList = resultList.filter { !it.isDirectory && it.size <= sf.maxSize }
-                }
-                
-                if (sf.minDateMillis != null) {
-                    resultList = resultList.filter { it.lastModified >= sf.minDateMillis }
-                }
-                
-                if (sf.maxDateMillis != null) {
-                    resultList = resultList.filter { it.lastModified <= sf.maxDateMillis }
-                }
+                resultList = resultList.filter { it.matchesSearchFilters(sf, allVolumes) }
             }
             
             Result.success(resultList)
@@ -736,4 +714,6 @@ class DefaultMediaStoreClient(
         }
     }
 }
+
+private fun Boolean?.orFalse(): Boolean = this == true
 

@@ -44,6 +44,24 @@ fun ActiveFiltersRow(
     if (filters.minDateMillis != null || filters.maxDateMillis != null) {
         activeChips.add(Pair("Date Filter", filters.copy(minDateMillis = null, maxDateMillis = null)))
     }
+    if (filters.extensions.isNotEmpty()) {
+        activeChips.add(Pair("Ext: ${filters.extensions.joinToString(", ")}", filters.copy(extensions = emptySet())))
+    }
+    if (filters.includeHidden) {
+        activeChips.add(Pair("Hidden", filters.copy(includeHidden = false)))
+    }
+    if (filters.storageVolumeId != null) {
+        activeChips.add(Pair("Volume: ${filters.storageVolumeId}", filters.copy(storageVolumeId = null)))
+    }
+    if (filters.folderScopePath != null) {
+        activeChips.add(Pair("Scope: ${filters.folderScopePath}", filters.copy(folderScopePath = null)))
+    }
+    if (filters.mimeType != null) {
+        activeChips.add(Pair("MIME: ${filters.mimeType}", filters.copy(mimeType = null)))
+    }
+    if (filters.savedPresetName != null) {
+        activeChips.add(Pair("Preset: ${filters.savedPresetName}", filters.copy(savedPresetName = null)))
+    }
 
     if (activeChips.isNotEmpty()) {
         LazyRow(

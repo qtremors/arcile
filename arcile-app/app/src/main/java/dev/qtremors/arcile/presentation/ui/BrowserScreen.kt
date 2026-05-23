@@ -2,7 +2,7 @@
 
 package dev.qtremors.arcile.presentation.ui
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -161,6 +161,7 @@ import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 
 import dev.qtremors.arcile.domain.FileCategories
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -250,17 +251,17 @@ fun BrowserScreen(
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val haptics = rememberArcileHaptics()
-    var showCreateFolderDialog by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var showCreateFileDialog by remember { mutableStateOf(false) }
-    var showCreateFakeFileDialog by remember { mutableStateOf(false) }
-    var showCreateArchiveDialog by remember { mutableStateOf(false) }
-    var showExtractArchiveDialog by remember { mutableStateOf(false) }
-    var showSortDialog by remember { mutableStateOf(false) }
-    var showClipboardContents by remember { mutableStateOf(false) }
+    var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
+    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var showCreateFileDialog by rememberSaveable { mutableStateOf(false) }
+    var showCreateFakeFileDialog by rememberSaveable { mutableStateOf(false) }
+    var showCreateArchiveDialog by rememberSaveable { mutableStateOf(false) }
+    var showExtractArchiveDialog by rememberSaveable { mutableStateOf(false) }
+    var showSortDialog by rememberSaveable { mutableStateOf(false) }
+    var showClipboardContents by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
     
-    var isFabExpanded by remember { mutableStateOf(false) }
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
         targetValue = if (isFabExpanded) 45f else 0f,
         label = "fabRotation"
@@ -355,31 +356,58 @@ fun BrowserScreen(
         }
     }
 
+    val hasModal = showCreateFolderDialog ||
+        showCreateFileDialog ||
+        showCreateFakeFileDialog ||
+        showCreateArchiveDialog ||
+        showExtractArchiveDialog ||
+        showRenameDialog ||
+        showSortDialog ||
+        showClipboardContents ||
+        state.showConflictDialog ||
+        state.isPropertiesVisible ||
+        state.showTrashConfirmation ||
+        state.showPermanentDeleteConfirmation ||
+        state.showMixedDeleteExplanation ||
+        isFabExpanded
+    val backState = BrowserBackState(
+        hasModal = hasModal,
+        hasSheet = state.isSearchFilterMenuVisible,
+        hasSearch = showSearchBar,
+        hasSelection = state.selectedFiles.isNotEmpty(),
+        canNavigateFolderUp = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotBlank(),
+        canPopRoute = true
+    )
     val handleBrowserBack: () -> Unit = {
-        when {
-            showCreateFolderDialog -> showCreateFolderDialog = false
-            showCreateFileDialog -> showCreateFileDialog = false
-            showCreateFakeFileDialog -> showCreateFakeFileDialog = false
-            showCreateArchiveDialog -> showCreateArchiveDialog = false
-            showExtractArchiveDialog -> showExtractArchiveDialog = false
-            showRenameDialog -> showRenameDialog = false
-            showSortDialog -> showSortDialog = false
-            showClipboardContents -> showClipboardContents = false
-            state.isSearchFilterMenuVisible -> onToggleSearchFilterMenu(false)
-            state.showConflictDialog -> onDismissConflictDialog()
-            state.isPropertiesVisible -> onDismissProperties()
-            state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation -> onDismissDeleteConfirmation()
-            isFabExpanded -> isFabExpanded = false
-            showSearchBar -> {
+        when (resolveBrowserBackAction(backState)) {
+            BrowserBackAction.CloseModal -> when {
+                showCreateFolderDialog -> showCreateFolderDialog = false
+                showCreateFileDialog -> showCreateFileDialog = false
+                showCreateFakeFileDialog -> showCreateFakeFileDialog = false
+                showCreateArchiveDialog -> showCreateArchiveDialog = false
+                showExtractArchiveDialog -> showExtractArchiveDialog = false
+                showRenameDialog -> showRenameDialog = false
+                showSortDialog -> showSortDialog = false
+                showClipboardContents -> showClipboardContents = false
+                state.showConflictDialog -> onDismissConflictDialog()
+                state.isPropertiesVisible -> onDismissProperties()
+                state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation -> onDismissDeleteConfirmation()
+                isFabExpanded -> isFabExpanded = false
+            }
+            BrowserBackAction.CloseSheet -> onToggleSearchFilterMenu(false)
+            BrowserBackAction.CloseSearch -> {
                 showSearchBar = false
                 onClearSearch()
             }
-            state.selectedFiles.isNotEmpty() -> onClearSelection()
-            else -> onNavigateBack()
+            BrowserBackAction.ClearSelection -> onClearSelection()
+            BrowserBackAction.NavigateFolderUp,
+            BrowserBackAction.PopRoute,
+            BrowserBackAction.ExitApp -> onNavigateBack()
         }
     }
 
-    BackHandler {
+    PredictiveBackHandler {
+        it.collect { }
         handleBrowserBack()
     }
 
@@ -927,7 +955,7 @@ fun BrowserScreen(
                         isVisible = true,
                         actions = mainActions,
                         moreContent = {
-                            var showSelectionMenu by remember { mutableStateOf(false) }
+                            var showSelectionMenu by rememberSaveable { mutableStateOf(false) }
                             Box {
                                 Surface(
                                     onClick = { showSelectionMenu = true },
@@ -952,7 +980,7 @@ fun BrowserScreen(
                                     expanded = showSelectionMenu,
                                     onDismissRequest = { showSelectionMenu = false }
                                 ) {
-                                    val menuActions = remember(onShareSelected, displayedFiles) {
+                                    val menuActions = remember(onShareSelected, displayedFiles, state.selectedFiles) {
                                         mutableListOf<@Composable () -> Unit>().apply {
                                             add {
                                                 androidx.compose.material3.DropdownMenuItem(
@@ -993,6 +1021,23 @@ fun BrowserScreen(
                                                     onClick = {
                                                         showSelectionMenu = false
                                                         onSelectMultiple(displayedFiles.map { it.absolutePath })
+                                                    }
+                                                )
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.select_range)) },
+                                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        val selectedIndexes = displayedFiles.mapIndexedNotNull { index, file ->
+                                                            index.takeIf { state.selectedFiles.contains(file.absolutePath) }
+                                                        }
+                                                        if (selectedIndexes.isNotEmpty()) {
+                                                            val start = selectedIndexes.minOrNull() ?: 0
+                                                            val end = selectedIndexes.maxOrNull() ?: start
+                                                            onSelectMultiple(displayedFiles.subList(start, end + 1).map { it.absolutePath })
+                                                        }
                                                     }
                                                 )
                                             }

@@ -56,6 +56,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,10 +83,10 @@ fun QuickAccessScreen(
     onAddCustomFolder: (String, String) -> Unit,
     onAddSafFolder: (String, String) -> Unit
 ) {
-    var showCustomDialog by remember { mutableStateOf(false) }
+    var showCustomDialog by rememberSaveable { mutableStateOf(false) }
     
-    var tempPath by remember { mutableStateOf("") }
-    var tempLabel by remember { mutableStateOf("") }
+    var tempPath by rememberSaveable { mutableStateOf("") }
+    var tempLabel by rememberSaveable { mutableStateOf("") }
 
     fun buildRestrictedFolderUri(relativeDocPath: String): String {
         val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(
@@ -104,7 +105,7 @@ fun QuickAccessScreen(
         }
     }
 
-    var isFabExpanded by remember { mutableStateOf(false) }
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
         targetValue = if (isFabExpanded) 45f else 0f,
         label = "fabRotation"
