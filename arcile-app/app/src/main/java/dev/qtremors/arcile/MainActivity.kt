@@ -207,14 +207,15 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 if (!ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))) {
-                    Toast.makeText(this@MainActivity, "Cannot open sensitive files", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.cannot_open_sensitive_files), Toast.LENGTH_SHORT).show()
                     return@launch
                 }
                 startActivity(ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path))
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.e("Arcile", "Failed to open file", e)
-                Toast.makeText(this@MainActivity, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
+                val reason = e.localizedMessage ?: getString(R.string.no_app_found)
+                Toast.makeText(this@MainActivity, getString(R.string.cannot_open_file, reason), Toast.LENGTH_SHORT).show()
             }
         }
     }

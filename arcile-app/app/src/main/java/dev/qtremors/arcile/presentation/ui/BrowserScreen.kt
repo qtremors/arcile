@@ -183,6 +183,7 @@ import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import dev.qtremors.arcile.presentation.operations.rememberSmoothedProgress
+import dev.qtremors.arcile.presentation.asString
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
@@ -426,7 +427,7 @@ fun BrowserScreen(
             onClearError()
             haptics.error()
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(errorMsg)
+                snackbarHostState.showSnackbar(errorMsg.asString(context))
             }
         }
     }
@@ -541,9 +542,10 @@ fun BrowserScreen(
 
     LaunchedEffect(state.fileOperationStatusMessage) {
         state.fileOperationStatusMessage?.let { message ->
+            val snackbarMessage = message.asString(context)
             onClearFileOperationStatusMessage()
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(message)
+                snackbarHostState.showSnackbar(snackbarMessage)
             }
         }
     }
@@ -620,7 +622,7 @@ fun BrowserScreen(
                                     val label = java.io.File(path).name
                                     onPinToQuickAccess(path, label)
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("Pinned '$label' to Quick Access")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.quick_access_pinned, label))
                                     }
                                 }
                             }
@@ -869,6 +871,7 @@ fun BrowserScreen(
                                  onToggleSelection = onToggleSelection,
                                  onSelectMultiple = onSelectMultiple,
                                  showThumbnails = currentPresentation.showThumbnails,
+                                 thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
                                  modifier = Modifier.fillMaxSize(),
                                  gridState = gridState,
                                  minCellSize = state.browserGridMinCellSize.dp,
@@ -890,6 +893,7 @@ fun BrowserScreen(
                                  onToggleSelection = onToggleSelection,
                                  onSelectMultiple = onSelectMultiple,
                                  showThumbnails = currentPresentation.showThumbnails,
+                                 thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
                                  modifier = Modifier.fillMaxSize(),
                                  listState = listState,
                                  zoom = state.browserListZoom,

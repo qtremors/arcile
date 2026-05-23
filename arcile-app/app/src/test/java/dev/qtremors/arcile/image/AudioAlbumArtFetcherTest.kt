@@ -36,6 +36,7 @@ class AudioAlbumArtFetcherTest {
         assertNotNull(factory.create(File("track.mp3"), options, mockk(relaxed = true)))
         assertNotNull(factory.create(File("voice.m4a"), options, mockk(relaxed = true)))
         assertNull(factory.create(File("image.jpg"), options, mockk(relaxed = true)))
+        assertNotNull(AudioAlbumArtFetcher.KeyFactory().create(ThumbnailKey.from(File("track.mp3")), options, mockk(relaxed = true)))
     }
 
     @Test

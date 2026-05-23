@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.7.3
-> **Last Updated:** 2026-05-22
+> **Version:** 0.7.6
+> **Last Updated:** 2026-05-23
 
 ---
 
@@ -215,31 +215,6 @@
   - **Problem:** The project has useful unit/UI tests, but lacks stress, benchmark, mutation recovery, SAF compatibility, process-death, and real large-directory tests.
   - **Impact:** Critical regressions may only appear on real devices with large storage.
   - **Fix:** Add contract tests for storage backends. Add large directory synthetic tests. Add transfer cancellation/recovery tests. Add archive safety tests. Add macrobenchmarks for startup, listing, scrolling, search, thumbnail grid. Recommended Refactor: Create test fixtures for in-memory, temp filesystem, SAF-like fake, and failure-injecting storage backends. Safer Alternative: Add stress tests for `FileTransferEngine`, `TrashManager`, and `FolderStatsCalculator` first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-### Thumbnail Tasks
-
-- [ ] **THUMB-0027 - Thumbnail / Image Loading Performance** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileList.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/lists/FileGrid.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/image/**`
-  - **Problem:** Thumbnails are loaded directly from files while browsing, with custom fetchers but no global thumbnail budget, cancellation tuning, or memory policy tied to list/grid density.
-  - **Impact:** Fast scrolling huge media folders can jank or trigger I/O pressure.
-  - **Fix:** Add thumbnail request policy based on visible rows, density, and active operation state. Disable/pause expensive thumbnails during bulk operations. Add failure cache for corrupt files. Recommended Refactor: Introduce `ThumbnailPolicy` and `ThumbnailKey` independent from raw File path. Safer Alternative: Limit custom thumbnails to small files and known-safe types until richer policy exists.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-### Localization Tasks
-
-- [ ] **UI-0032 - Localization / Production Polish** `[Medium]`
-  - **Location:** arcile-app/app/build.gradle.kts arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
-  - **Problem:** The project has a useful hardcoded-string guard, but current hardcoded strings remain across Settings, ArchiveViewer, SearchTopBar, ClipboardContentsDialog, PropertiesDialog, Browser snackbars, MainActivity toasts, and ActiveFiltersRow.
-  - **Impact:** The app feels partially localized and partially prototype-like.
-  - **Fix:** Expand the hardcoded string task to all production composables. Move all user-visible strings and content descriptions to resources. Add plural resources for counts and file/entry labels.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **I18N-0028 - Localization / UI Quality** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/**` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`
-  - **Problem:** Several user-facing strings remain hardcoded in composables, helpers, and notifications.
-  - **Impact:** Localization, accessibility, and consistency suffer.
-  - **Fix:** Move all visible strings/content descriptions/notification text to resources. Expand `checkProductionStrings` or use lint/custom Detekt rules. Recommended Refactor: Add a UI text wrapper for domain errors and operation messages. Safer Alternative: Start with operation notifications, ArchiveViewer, Settings, dialogs, and ShareHelper chooser title.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ---

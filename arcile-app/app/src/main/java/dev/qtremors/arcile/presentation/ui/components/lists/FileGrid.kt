@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,8 +50,11 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.image.ThumbnailPolicy
+import dev.qtremors.arcile.image.ThumbnailPolicyInput
 import dev.qtremors.arcile.presentation.ui.components.getFileIconVector
 import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
@@ -71,6 +75,7 @@ fun FileGrid(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
     showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(16.dp)
@@ -87,6 +92,13 @@ fun FileGrid(
         }
     }
     val haptics = rememberArcileHaptics()
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val visibleRange by remember {
+        derivedStateOf {
+            val visible = gridState.layoutInfo.visibleItemsInfo
+            if (visible.isEmpty()) null else visible.first().index..visible.last().index
+        }
+    }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
@@ -113,6 +125,10 @@ fun FileGrid(
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 showThumbnails = showThumbnails,
+                thumbnailLoadingPaused = thumbnailLoadingPaused,
+                itemIndex = index,
+                visibleRange = visibleRange,
+                thumbnailPolicy = thumbnailPolicy,
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -161,6 +177,7 @@ fun FileGridItem(
     modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false,
     onOpenDirectly: () -> Unit = {},
@@ -181,6 +198,7 @@ fun FileGridItem(
         modifier = modifier,
         isInSelectionMode = isInSelectionMode,
         showThumbnails = showThumbnails,
+        thumbnailLoadingPaused = thumbnailLoadingPaused,
         isFolderStatsLoading = isFolderStatsLoading,
         onOpenDirectly = onOpenDirectly,
         onToggleSelectionDirectly = onToggleSelectionDirectly
@@ -197,6 +215,10 @@ fun FileGridItem(
     modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
+    itemIndex: Int = 0,
+    visibleRange: IntRange? = null,
+    thumbnailPolicy: ThumbnailPolicy = remember { ThumbnailPolicy() },
     isFolderStatsLoading: Boolean = false,
     onOpenDirectly: () -> Unit = {},
     onToggleSelectionDirectly: () -> Unit = {}
@@ -210,6 +232,7 @@ fun FileGridItem(
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "gridItemScale"
     )
+    val subtitleText = row.displaySubtitle(isFolderStatsLoading)
 
     Card(
         modifier = modifier
@@ -223,7 +246,7 @@ fun FileGridItem(
                 file = file,
                 isSelected = isSelected,
                 formattedDate = row.formattedDate,
-                folderStatsText = row.subtitle.takeIf { file.isDirectory },
+                folderStatsText = subtitleText.takeIf { file.isDirectory },
                 isInSelectionMode = isInSelectionMode,
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -243,14 +266,29 @@ fun FileGridItem(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box {
-                if (showThumbnails && row.canShowThumbnail) {
+                val shouldLoadThumbnail = row.canShowThumbnail && thumbnailPolicy.shouldLoad(
+                    ThumbnailPolicyInput(
+                        userEnabled = showThumbnails,
+                        viewMode = BrowserViewMode.GRID,
+                        thumbnailSizePx = row.thumbnailSizePx,
+                        itemIndex = itemIndex,
+                        visibleRange = visibleRange,
+                        isOperationActive = thumbnailLoadingPaused,
+                        key = row.thumbnailKey
+                    )
+                )
+                if (shouldLoadThumbnail) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(File(file.absolutePath))
                             .size(row.thumbnailSizePx)
+                            .memoryCacheKey(row.thumbnailKey.cacheKey)
+                            .diskCacheKey(row.thumbnailKey.cacheKey)
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .build(),
+                        onSuccess = { thumbnailPolicy.clearFailure(row.thumbnailKey) },
+                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey) },
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -307,7 +345,7 @@ fun FileGridItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (isFolderStatsLoading && file.isDirectory) stringResource(R.string.folder_label) else row.subtitle,
+                    text = subtitleText,
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

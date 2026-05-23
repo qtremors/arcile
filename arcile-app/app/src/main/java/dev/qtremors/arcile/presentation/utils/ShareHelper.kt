@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.utils
 
 import android.content.Context
 import android.content.Intent
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.utils.AppLogger
 import java.util.ArrayList
 
@@ -20,7 +21,7 @@ object ShareHelper {
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
 
-            val chooser = Intent.createChooser(intent, "Share files via")
+            val chooser = Intent.createChooser(intent, context.getString(R.string.share_files_via))
             chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
             context.startActivity(chooser)
             return true

@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
@@ -19,6 +20,7 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.browser.delegate.ClipboardDelegate
 import dev.qtremors.arcile.presentation.browser.delegate.NavigationDelegate
 import dev.qtremors.arcile.presentation.browser.delegate.SearchDelegate
@@ -83,7 +85,7 @@ data class BrowserState(
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),
     val showConflictDialog: Boolean = false,
     val storageVolumes: List<StorageVolume> = emptyList(),
@@ -97,7 +99,7 @@ data class BrowserState(
     val isPropertiesLoading: Boolean = false,
     val properties: PropertiesUiModel? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
-    val fileOperationStatusMessage: String? = null,
+    val fileOperationStatusMessage: UiText? = null,
     val selectedFilesTotalSize: Long = 0L
 )
 
@@ -180,7 +182,7 @@ class BrowserViewModel @Inject constructor(
                 }
             }
             override fun setError(error: String) {
-                _state.update { it.copy(error = error) }
+                _state.update { it.copy(error = UiText.Dynamic(error)) }
             }
             override fun setPendingNativeAction() {
                 _state.update { it.copy(pendingNativeAction = BrowserNativeAction.TRASH) }
@@ -253,7 +255,7 @@ class BrowserViewModel @Inject constructor(
                 } else {
                     val currentVolumeId = _state.value.currentVolumeId
                     if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
-                        navigationDelegate.openVolumeRoots("Selected storage was removed")
+                        navigationDelegate.openVolumeRoots(UiText.StringResource(R.string.error_selected_storage_removed))
                     } else if (_state.value.isVolumeRootScreen) {
                         _state.update { it.copy(files = navigationDelegate.volumeFiles()) }
                     }
@@ -378,7 +380,7 @@ class BrowserViewModel @Inject constructor(
                                     terminalStatus = OperationCompletionStatus.FAILED
                                 ),
                                 clipboardState = null,
-                                fileOperationStatusMessage = event.message
+                                fileOperationStatusMessage = UiText.Dynamic(event.message)
                             )
                         }
                     }
@@ -390,7 +392,7 @@ class BrowserViewModel @Inject constructor(
                                     terminalStatus = OperationCompletionStatus.CANCELLED
                                 ),
                                 clipboardState = null,
-                                fileOperationStatusMessage = "File operation cancelled"
+                                fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_cancelled)
                             )
                         }
                     }
@@ -399,7 +401,8 @@ class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) = navigationDelegate.openFileBrowser(restorePersistentLocation, errorMessage)
+    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
+        navigationDelegate.openFileBrowser(restorePersistentLocation, errorMessage?.let(UiText::Dynamic))
     fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
         navigationDelegate.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationDelegate.navigateToCategory(categoryName, volumeId)
@@ -554,7 +557,7 @@ class BrowserViewModel @Inject constructor(
             repository.createDirectory(currentPath, name).onSuccess {
                 refresh()
             }.onFailure { error ->
-                _state.update { it.copy(error = error.message ?: "Failed to create folder") }
+                _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_create_folder_failed)) }
             }
         }
     }
@@ -567,7 +570,7 @@ class BrowserViewModel @Inject constructor(
             repository.createFile(currentPath, name).onSuccess {
                 refresh()
             }.onFailure { error ->
-                _state.update { it.copy(error = error.message ?: "Failed to create file") }
+                _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_create_file_failed)) }
             }
         }
     }
@@ -588,7 +591,7 @@ class BrowserViewModel @Inject constructor(
     fun extractSelectedArchiveHere(password: String? = null) {
         val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
         if (!ArchiveFormat.isSupported(archivePath)) {
-            _state.update { it.copy(error = "Selected file is not a supported archive") }
+            _state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
             return
         }
         bulkFileCoordinator.startOperation(
@@ -605,7 +608,7 @@ class BrowserViewModel @Inject constructor(
         val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
         val currentPath = _state.value.currentPath
         if (!ArchiveFormat.isSupported(archivePath) || currentPath.isEmpty()) {
-            _state.update { it.copy(error = "Selected file is not a supported archive") }
+            _state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
             return
         }
         val archive = java.io.File(archivePath)
@@ -670,7 +673,7 @@ class BrowserViewModel @Inject constructor(
     fun renameFile(path: String, newName: String) {
         val invalidChars = listOf('/', '\\', '\u0000')
         if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
-            _state.update { it.copy(error = "Invalid name: must not be blank or contain /, \\, or ..") }
+            _state.update { it.copy(error = UiText.StringResource(R.string.error_invalid_name)) }
             return
         }
 
@@ -679,7 +682,7 @@ class BrowserViewModel @Inject constructor(
                 clearSelection()
                 refresh()
             }.onFailure { error ->
-                _state.update { it.copy(error = error.message ?: "Failed to rename file") }
+                _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_rename_file_failed)) }
             }
         }
     }
@@ -726,7 +729,7 @@ class BrowserViewModel @Inject constructor(
                         isPropertiesVisible = false,
                         isPropertiesLoading = false,
                         properties = null,
-                        error = error.message ?: "Failed to load properties"
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_properties_failed)
                     )
                 }
             }
@@ -754,17 +757,17 @@ class BrowserViewModel @Inject constructor(
     private fun formatOperationCompletedMessage(
         type: BulkFileOperationType,
         itemCount: Int
-    ): String {
-        val verb = when (type) {
-            BulkFileOperationType.COPY -> "Copied"
-            BulkFileOperationType.MOVE -> "Moved"
-            BulkFileOperationType.TRASH -> "Moved to Trash"
-            BulkFileOperationType.DELETE -> "Deleted"
-            BulkFileOperationType.CREATE_FAKE -> "Created"
-            BulkFileOperationType.EXTRACT_ARCHIVE -> "Extracted"
-            BulkFileOperationType.CREATE_ARCHIVE -> "Archived"
+    ): UiText {
+        val pluralRes = when (type) {
+            BulkFileOperationType.COPY -> R.plurals.file_operation_copied_items
+            BulkFileOperationType.MOVE -> R.plurals.file_operation_moved_items
+            BulkFileOperationType.TRASH -> R.plurals.file_operation_trashed_items
+            BulkFileOperationType.DELETE -> R.plurals.file_operation_deleted_items
+            BulkFileOperationType.CREATE_FAKE -> R.plurals.file_operation_created_items
+            BulkFileOperationType.EXTRACT_ARCHIVE -> R.plurals.file_operation_extracted_items
+            BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items
         }
-        return "$verb $itemCount item(s)"
+        return UiText.PluralResource(pluralRes, itemCount, listOf(itemCount))
     }
 
     private fun nextArchivePath(

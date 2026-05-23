@@ -22,6 +22,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
@@ -223,7 +224,7 @@ fun AppNavigationGraph(
                                     },
                                     onNavigateToSaf = { uriString ->
                                         if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
-                                            android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
+                                            android.widget.Toast.makeText(context, context.getString(R.string.could_not_open_folder_files_app), android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     },
                                     onNavigateToQuickAccess = {

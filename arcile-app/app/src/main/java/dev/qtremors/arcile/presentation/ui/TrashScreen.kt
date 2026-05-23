@@ -108,6 +108,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.presentation.asString
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -171,17 +172,18 @@ fun TrashScreen(
     var showEmptyTrashConfirmation by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             haptics.error()
-            snackbarHostState.showSnackbar(errorMsg)
+            snackbarHostState.showSnackbar(errorMsg.asString(context))
             onClearError()
         }
     }
     LaunchedEffect(state.snackbarMessage) {
         state.snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message)
+            snackbarHostState.showSnackbar(message.asString(context))
             onClearSnackbarMessage()
         }
     }

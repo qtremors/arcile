@@ -1,11 +1,13 @@
 package dev.qtremors.arcile.presentation.browser.delegate
 
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
@@ -221,6 +223,6 @@ class ClipboardDelegateTest {
         delegate.pasteFromClipboard()
 
         assertFalse(state.value.isLoading)
-        assertEquals("Another file operation is already running", state.value.error)
+        assertEquals(UiText.StringResource(R.string.error_operation_already_running), state.value.error)
     }
 }

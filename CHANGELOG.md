@@ -1,10 +1,24 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.5
+> **Version:** 0.7.6
 > **Last Updated:** 2026-05-23
 
 ---
+
+## [0.7.6] - 2026-05-23
+
+### Thumbnail Performance & Image Loading
+- **Custom Thumbnail Policy:** Implemented a dedicated `ThumbnailPolicy` and `ThumbnailKey` to evaluate loading conditions dynamically based on file size bounds, mime-type support, and screen layout configurations.
+- **Scroll & Operation Awareness:** Wired visible-item boundaries to defer thumbnail loading outside the active viewport list/grid budget during scrolling, and automatically paused thumbnail loading during bulk operations to conserve IO bandwidth.
+- **Thumbnail Failure Cache:** Added a persistent `ThumbnailFailureCache` to identify and block repeatedly trying to load corrupt or unrenderable media files.
+
+### Localization & Production Polish
+- **UI Text Resource Wrapper:** Integrated a shared `UiText` wrapper to unify static, parameterized, and plural string resource resolving across ViewModels and Compose screens.
+- **Resource Migrations:** Fully replaced raw/hardcoded user-facing strings across settings, archive utilities, browser snackbars, toasts, active search filter chips, and dialogs with parameterized XML string and plural resources.
+
+### Testing
+- **Thumbnail Policy Verification:** Added regression tests covering the thumbnail policy constraints, size limits, failure caching, and layout budgets.
 
 ## [0.7.5] - 2026-05-23
 

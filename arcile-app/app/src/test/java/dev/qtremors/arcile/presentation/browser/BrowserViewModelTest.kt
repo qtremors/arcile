@@ -27,6 +27,7 @@ import dev.qtremors.arcile.domain.TrashStorageUsage
 import io.mockk.mockk
 import dev.qtremors.arcile.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
@@ -111,7 +112,7 @@ class BrowserViewModelTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isVolumeRootScreen)
-        assertEquals("Storage for this path is not available", viewModel.state.value.error)
+        assertEquals(UiText.StringResource(dev.qtremors.arcile.R.string.error_storage_for_path_unavailable), viewModel.state.value.error)
         assertEquals("", viewModel.state.value.currentPath)
     }
 
@@ -284,7 +285,7 @@ class BrowserViewModelTest {
 
         viewModel.clearActiveFileOperation()
         assertNull(viewModel.state.value.activeFileOperation)
-        assertEquals("Moved 1 item(s)", viewModel.state.value.fileOperationStatusMessage)
+        assertEquals(UiText.PluralResource(dev.qtremors.arcile.R.plurals.file_operation_moved_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
 
         viewModel.clearFileOperationStatusMessage()
         assertNull(viewModel.state.value.fileOperationStatusMessage)
@@ -323,7 +324,7 @@ class BrowserViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf("after.txt"), viewModel.state.value.files.map { it.name })
-        assertEquals("Created 1 item(s)", viewModel.state.value.fileOperationStatusMessage)
+        assertEquals(UiText.PluralResource(dev.qtremors.arcile.R.plurals.file_operation_created_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
     }
 
     @Test

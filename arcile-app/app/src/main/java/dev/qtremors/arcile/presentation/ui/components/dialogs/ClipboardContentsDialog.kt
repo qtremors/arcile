@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,13 +64,17 @@ fun ClipboardContentsDialog(
                         modifier = Modifier.size(24.dp)
                     )
                     Text(
-                        text = if (state.operation == ClipboardOperation.COPY) "Copied Files" else "Cut Files",
+                        text = if (state.operation == ClipboardOperation.COPY) {
+                            stringResource(R.string.clipboard_copied_files)
+                        } else {
+                            stringResource(R.string.clipboard_cut_files)
+                        },
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
+                        Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
                     }
                 }
 
@@ -98,7 +103,7 @@ fun ClipboardContentsDialog(
                 ) {
                     Column {
                         Text(
-                            text = "${state.files.size} item(s)",
+                            text = pluralStringResource(R.plurals.clipboard_item_count, state.files.size, state.files.size),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -110,7 +115,7 @@ fun ClipboardContentsDialog(
                     }
                     
                     TextButton(onClick = onDismiss) {
-                        Text("Done")
+                        Text(stringResource(R.string.done))
                     }
                 }
             }
@@ -151,7 +156,7 @@ private fun ClipboardFileItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (file.isDirectory) "Directory" else formatFileSize(file.size),
+                    text = if (file.isDirectory) stringResource(R.string.directory_label) else formatFileSize(file.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -163,7 +168,7 @@ private fun ClipboardFileItem(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Remove from clipboard",
+                    contentDescription = stringResource(R.string.clipboard_remove_item),
                     modifier = Modifier.size(18.dp),
                     tint = MaterialTheme.colorScheme.error
                 )

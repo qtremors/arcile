@@ -81,4 +81,14 @@ class VideoThumbnailFetcher(
             }
         }
     }
+
+    class KeyFactory : Fetcher.Factory<ThumbnailKey> {
+        override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
+            return if (data.type == ThumbnailType.Video) {
+                VideoThumbnailFetcher(data.file, options)
+            } else {
+                null
+            }
+        }
+    }
 }

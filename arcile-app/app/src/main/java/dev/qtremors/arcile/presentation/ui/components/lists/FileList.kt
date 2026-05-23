@@ -28,6 +28,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,8 +51,11 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.image.ThumbnailPolicy
+import dev.qtremors.arcile.image.ThumbnailPolicyInput
 import dev.qtremors.arcile.presentation.ui.components.getFileIconVector
 import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
@@ -72,6 +76,7 @@ fun FileList(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(0.dp)
@@ -88,6 +93,13 @@ fun FileList(
         }
     }
     val haptics = rememberArcileHaptics()
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val visibleRange by remember {
+        derivedStateOf {
+            val visible = listState.layoutInfo.visibleItemsInfo
+            if (visible.isEmpty()) null else visible.first().index..visible.last().index
+        }
+    }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(files) { lastInteractedIndex = null }
@@ -111,6 +123,10 @@ fun FileList(
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 zoom = zoom,
                 showThumbnails = showThumbnails,
+                thumbnailLoadingPaused = thumbnailLoadingPaused,
+                itemIndex = index,
+                visibleRange = visibleRange,
+                thumbnailPolicy = thumbnailPolicy,
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
@@ -163,6 +179,7 @@ fun FileItemRow(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false
 ) {
@@ -184,6 +201,7 @@ fun FileItemRow(
         modifier = modifier,
         zoom = zoom,
         showThumbnails = showThumbnails,
+        thumbnailLoadingPaused = thumbnailLoadingPaused,
         isFolderStatsLoading = isFolderStatsLoading
     )
 }
@@ -201,6 +219,10 @@ fun FileItemRow(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
+    itemIndex: Int = 0,
+    visibleRange: IntRange? = null,
+    thumbnailPolicy: ThumbnailPolicy = remember { ThumbnailPolicy() },
     isFolderStatsLoading: Boolean = false
 ) {
     val file = row.file
@@ -219,6 +241,7 @@ fun FileItemRow(
     val contentPadding = (16.dp * animatedScale).coerceIn(12.dp, 20.dp)
     val titleStyle = MaterialTheme.typography.titleMedium.scaled(animatedScale).copy(fontWeight = FontWeight.Medium)
     val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale).copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val subtitleText = row.displaySubtitle(isFolderStatsLoading)
 
     Surface(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
@@ -230,7 +253,7 @@ fun FileItemRow(
                 file = file,
                 isSelected = isSelected,
                 formattedDate = row.formattedDate,
-                folderStatsText = row.subtitle.takeIf { file.isDirectory },
+                folderStatsText = subtitleText.takeIf { file.isDirectory },
                 isInSelectionMode = isInSelectionMode,
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -251,14 +274,29 @@ fun FileItemRow(
                     .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                if (showThumbnails && row.canShowThumbnail) {
+                val shouldLoadThumbnail = row.canShowThumbnail && thumbnailPolicy.shouldLoad(
+                    ThumbnailPolicyInput(
+                        userEnabled = showThumbnails,
+                        viewMode = BrowserViewMode.LIST,
+                        thumbnailSizePx = row.thumbnailSizePx,
+                        itemIndex = itemIndex,
+                        visibleRange = visibleRange,
+                        isOperationActive = thumbnailLoadingPaused,
+                        key = row.thumbnailKey
+                    )
+                )
+                if (shouldLoadThumbnail) {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(File(file.absolutePath))
                             .size(row.thumbnailSizePx)
+                            .memoryCacheKey(row.thumbnailKey.cacheKey)
+                            .diskCacheKey(row.thumbnailKey.cacheKey)
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .build(),
+                        onSuccess = { thumbnailPolicy.clearFailure(row.thumbnailKey) },
+                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey) },
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
@@ -312,7 +350,7 @@ fun FileItemRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isFolderStatsLoading && file.isDirectory) stringResource(R.string.folder_label) else row.subtitle,
+                        text = subtitleText,
                         style = supportStyle,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

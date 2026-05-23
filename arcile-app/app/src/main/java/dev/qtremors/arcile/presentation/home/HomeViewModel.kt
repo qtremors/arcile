@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.data.QuickAccessPreferencesRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.domain.CategoryStorage
@@ -17,6 +18,7 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.UiText
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -49,7 +51,7 @@ data class HomeState(
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
     val unclassifiedVolumes: List<StorageVolume> = emptyList(),
     val showClassificationPrompt: Boolean = false,
     val todayStart: Long = 0L
@@ -177,20 +179,24 @@ class HomeViewModel @Inject constructor(
                 }
 
                 val errorMsg = listOfNotNull(
-                    if (timedOut) "Home data loading timed out. Showing previous complete analytics where available." else null,
                     storageResult?.exceptionOrNull()?.message,
                     allVolumesResult?.exceptionOrNull()?.message,
                     recentResult?.exceptionOrNull()?.message,
                     categoryResult?.exceptionOrNull()?.message,
                     trashUsageResult?.exceptionOrNull()?.message
                 ).firstOrNull()
+                val errorText = if (timedOut) {
+                    UiText.StringResource(R.string.error_home_data_timeout)
+                } else {
+                    errorMsg?.let(UiText::Dynamic)
+                }
 
                 _state.update { currentState ->
                     currentState.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
                         isCalculatingStorage = false,
-                        error = errorMsg,
+                        error = errorText,
                         allStorageVolumes = allStorageVolumes,
                         recentFiles = recentResult?.getOrNull() ?: currentState.recentFiles,
                         storageInfo = storageInfo,
@@ -235,7 +241,10 @@ class HomeViewModel @Inject constructor(
                     currentState.copy(
                         unclassifiedVolumes = restoredVolumes,
                         showClassificationPrompt = restoredVolumes.isNotEmpty(),
-                        error = "Failed to save classification: ${e.message}"
+                        error = UiText.StringResource(
+                            R.string.error_save_classification_failed,
+                            listOf(e.message.orEmpty())
+                        )
                     )
                 }
             }
@@ -281,7 +290,12 @@ class HomeViewModel @Inject constructor(
             result.onSuccess { files ->
                 _state.update { it.copy(isSearching = false, searchResults = files) }
             }.onFailure { error ->
-                _state.update { it.copy(isSearching = false, error = error.message ?: "Search failed") }
+                _state.update {
+                    it.copy(
+                        isSearching = false,
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_search_failed)
+                    )
+                }
             }
         }
     }

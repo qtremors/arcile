@@ -48,10 +48,14 @@ class ArcileApp : Application(), ImageLoaderFactory {
             }
             .components {
                 add(PdfThumbnailFetcher.Factory())
+                add(PdfThumbnailFetcher.KeyFactory())
                 add(VideoThumbnailFetcher.Factory())
+                add(VideoThumbnailFetcher.KeyFactory())
                 add(VideoFrameDecoder.Factory())
                 add(ApkIconFetcher.Factory())
+                add(ApkIconFetcher.KeyFactory())
                 add(AudioAlbumArtFetcher.Factory())
+                add(AudioAlbumArtFetcher.KeyFactory())
             }
             .crossfade(true)
             .build()

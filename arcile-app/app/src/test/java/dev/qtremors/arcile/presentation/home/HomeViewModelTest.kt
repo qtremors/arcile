@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.home
 
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.data.StorageClassification
 import dev.qtremors.arcile.data.StorageClassificationStore
 import dev.qtremors.arcile.domain.FileModel
@@ -13,6 +14,7 @@ import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
+import dev.qtremors.arcile.presentation.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,7 +44,7 @@ class HomeViewModelTest {
         viewModel.loadHomeData()
         advanceUntilIdle()
 
-        assertEquals("storage failed", viewModel.state.value.error)
+        assertEquals(UiText.Dynamic("storage failed"), viewModel.state.value.error)
         assertFalse(viewModel.state.value.isLoading)
         assertFalse(viewModel.state.value.isCalculatingStorage)
         assertFalse(viewModel.state.value.isPullToRefreshing)
@@ -121,7 +123,7 @@ class HomeViewModelTest {
 
         assertTrue(viewModel.state.value.showClassificationPrompt)
         assertEquals(listOf(volume), viewModel.state.value.unclassifiedVolumes)
-        assertEquals("Failed to save classification: disk full", viewModel.state.value.error)
+        assertEquals(UiText.StringResource(R.string.error_save_classification_failed, listOf("disk full")), viewModel.state.value.error)
     }
 
     @Test
@@ -209,7 +211,7 @@ class HomeViewModelTest {
         advanceTimeBy(15_000)
         advanceUntilIdle()
 
-        assertEquals("Home data loading timed out. Showing previous complete analytics where available.", viewModel.state.value.error)
+        assertEquals(UiText.StringResource(R.string.error_home_data_timeout), viewModel.state.value.error)
         assertEquals(listOf("recent.txt"), viewModel.state.value.recentFiles.map { it.name })
         assertFalse(viewModel.state.value.isLoading)
         assertFalse(viewModel.state.value.isCalculatingStorage)
@@ -247,7 +249,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(24L, viewModel.state.value.trashStorageUsage.totalBytes)
-        assertEquals("trash failed", viewModel.state.value.error)
+        assertEquals(UiText.Dynamic("trash failed"), viewModel.state.value.error)
     }
 }
 

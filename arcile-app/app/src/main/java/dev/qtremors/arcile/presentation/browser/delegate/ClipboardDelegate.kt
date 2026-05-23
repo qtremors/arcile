@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.browser.delegate
 
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.presentation.ClipboardOperation
@@ -7,6 +8,7 @@ import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.presentation.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -96,7 +98,12 @@ class ClipboardDelegate(
                     executePaste(clipboard, currentPath, emptyMap())
                 }
             }.onFailure { error ->
-                state.update { it.copy(isLoading = false, error = error.message ?: "Failed to check for conflicts") }
+                state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_check_conflicts_failed)
+                    )
+                }
             }
         }
     }
@@ -136,7 +143,7 @@ class ClipboardDelegate(
         if (started) {
             state.update { it.copy(isLoading = false) }
         } else {
-            state.update { it.copy(isLoading = false, error = "Another file operation is already running") }
+            state.update { it.copy(isLoading = false, error = UiText.StringResource(R.string.error_operation_already_running)) }
         }
     }
 }

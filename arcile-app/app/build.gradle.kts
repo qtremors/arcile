@@ -16,8 +16,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 59
-        versionName = "0.7.5"
+        versionCode = 60
+        versionName = "0.7.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -106,29 +106,42 @@ kotlin {
 
 tasks.register("checkProductionStrings") {
     group = "verification"
-    description = "Flags obvious hardcoded production UI strings in key composables."
+    description = "Flags obvious hardcoded production UI strings in production sources."
 
     doLast {
-        val targetFiles = listOf(
-            "src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessScreen.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/StorageManagementScreen.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/TrashScreen.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/OnboardingScreen.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/components/ArcileTopBar.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/components/SearchFiltersBottomSheet.kt",
-            "src/main/java/dev/qtremors/arcile/presentation/ui/components/SortOptionDialog.kt"
+        val sourceRoot = file("src/main/java")
+        val suspiciousPattern = Regex(
+            """(Text\(\s*"[^"]*[A-Za-z][^"]*"|contentDescription\s*=\s*"[^"]*[A-Za-z][^"]*"|placeholder\s*=\s*"[^"]*[A-Za-z][^"]*"|title\s*=\s*"[^"]*[A-Za-z][^"]*"|Toast\.makeText\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|createChooser\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|error\.message\s*\?:\s*"[^"]*[A-Za-z][^"]*"|fileOperationStatusMessage\s*=\s*"[^"]*[A-Za-z][^"]*"|setContentTitle\("([^"]*[A-Za-z][^"]*)"|setContentText\("([^"]*[A-Za-z][^"]*)"|addAction\([^"]*"[^"]*[A-Za-z][^"]*")"""
         )
-        val suspiciousPattern = Regex("""(Text\(".*[A-Za-z].*"\)|placeholder\s*=\s*".*[A-Za-z].*"|title\s*=\s*\{\s*Text\(".*[A-Za-z].*"\))""")
-        val offenders = targetFiles.flatMap { relativePath ->
-            val file = file(relativePath)
-            if (!file.exists()) return@flatMap emptyList<String>()
-            file.readLines().mapIndexedNotNull { index, line ->
+        val allowedFragments = listOf(
+            "android.os.Build.",
+            "Text(\".\${",
+            "AppLogger.",
+            "Regex(",
+            "SimpleDateFormat(",
+            "DateTimeFormatter",
+            "ImageRequest.Builder",
+            "mutableStateOf(\"\")",
+            "SavedStateHandle",
+            "MIME",
+            "mimeType",
+            "contentType =",
+            "label ="
+        )
+        val offenders = fileTree(sourceRoot) {
+            include("dev/qtremors/arcile/**/*.kt")
+            exclude("**/ui/theme/**")
+        }.files.flatMap { sourceFile ->
+            val relativePath = sourceFile.relativeTo(projectDir).invariantSeparatorsPath
+            sourceFile.readLines().mapIndexedNotNull { index, line ->
                 val trimmed = line.trim()
                 if (suspiciousPattern.containsMatchIn(trimmed) &&
-                    !trimmed.contains("rememberDateFormatter") &&
-                    !trimmed.contains("label = \"sort_bg\"")
+                    allowedFragments.none { trimmed.contains(it) } &&
+                    !trimmed.contains("R.string.") &&
+                    !trimmed.contains("R.plurals.") &&
+                    !trimmed.contains("stringResource(") &&
+                    !trimmed.contains("pluralStringResource(") &&
+                    !trimmed.contains("getString(")
                 ) {
                     "$relativePath:${index + 1}: $trimmed"
                 } else {

@@ -23,6 +23,7 @@ class PdfThumbnailFetcher(
 ) : Fetcher {
     override suspend fun fetch(): FetchResult? = withContext(ioContext) {
         if (!file.exists() || !file.isFile) return@withContext null
+        if (file.length() > ThumbnailPolicy.MAX_PDF_BYTES) return@withContext null
 
         try {
             ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
@@ -60,6 +61,16 @@ class PdfThumbnailFetcher(
         override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.extension.equals("pdf", ignoreCase = true)) {
                 PdfThumbnailFetcher(data, options)
+            } else {
+                null
+            }
+        }
+    }
+
+    class KeyFactory : Fetcher.Factory<ThumbnailKey> {
+        override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
+            return if (data.type == ThumbnailType.Pdf) {
+                PdfThumbnailFetcher(data.file, options)
             } else {
                 null
             }

@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
@@ -72,6 +73,7 @@ import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.asString
 import dev.qtremors.arcile.presentation.containingFolderPath
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
@@ -127,6 +129,7 @@ fun RecentFilesScreen(
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -142,7 +145,7 @@ fun RecentFilesScreen(
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             haptics.error()
-            snackbarHostState.showSnackbar(errorMsg)
+            snackbarHostState.showSnackbar(errorMsg.asString(context))
             onClearError()
         }
     }

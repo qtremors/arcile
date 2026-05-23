@@ -411,11 +411,16 @@ fun QuickAccessListItem(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 val showOnHomeLabel = stringResource(R.string.quick_access_show_on_home)
+                val showOnHomeContentDescription = stringResource(
+                    R.string.quick_access_home_toggle_description,
+                    item.label,
+                    showOnHomeLabel
+                )
                 Switch(
                     checked = item.isPinned,
                     onCheckedChange = { onTogglePin() },
                     modifier = Modifier.semantics {
-                        contentDescription = "${item.label} $showOnHomeLabel"
+                        contentDescription = showOnHomeContentDescription
                     }
                 )
 

@@ -71,7 +71,7 @@ fun CreateFakeFileDialog(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                            label = { Text("Unit") }
+                            label = { Text(stringResource(R.string.label_fake_file_unit)) }
                         )
                         ExposedDropdownMenu(
                             expanded = expanded,

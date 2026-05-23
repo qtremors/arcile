@@ -1,9 +1,11 @@
 package dev.qtremors.arcile.presentation.browser.delegate
 
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.presentation.browser.BrowserState
+import dev.qtremors.arcile.presentation.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -50,7 +52,12 @@ class SearchDelegate(
             repository.searchFiles(query, scope, stateVal.activeSearchFilters).onSuccess { files ->
                 state.update { it.copy(isSearching = false, searchResults = files) }
             }.onFailure { error ->
-                state.update { it.copy(isSearching = false, error = error.message ?: "Search failed") }
+                state.update {
+                    it.copy(
+                        isSearching = false,
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_search_failed)
+                    )
+                }
             }
         }
     }

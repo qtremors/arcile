@@ -10,6 +10,7 @@
     <string name="clear_selection">Clear Selection</string>
     <string name="selected_count">%1$d selected</string>
     <string name="share">Share</string>
+    <string name="done">Done</string>
     <!-- Accessibility & Actions -->
     <string name="action_search">Search</string>
     <string name="action_create_new">Create new</string>
@@ -21,6 +22,7 @@
     <string name="action_close_search">Close search</string>
     <string name="action_filters">Filters</string>
     <string name="action_cancel_transfer">Cancel transfer</string>
+    <string name="action_close">Close</string>
     <string name="action_paste_here">Paste here</string>
     <string name="action_sort">Sort</string>
     <string name="action_settings">Settings</string>
@@ -236,7 +238,12 @@
     <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
     <string name="clipboard_copied">copied</string>
     <string name="clipboard_cut">cut</string>
+    <string name="clipboard_copied_files">Copied Files</string>
+    <string name="clipboard_cut_files">Cut Files</string>
+    <string name="clipboard_remove_item">Remove from clipboard</string>
     <string name="folder_label">Folder</string>
+    <string name="folder_stats_summary">%1$s • %2$s</string>
+    <string name="directory_label">Directory</string>
     <string name="folder_stats_limited_access">Limited access</string>
     <string name="folder_stats_unavailable">Folder • Limited access</string>
     <string name="properties_title">Properties</string>
@@ -290,6 +297,29 @@
     <string name="archive_extraction_cancelled">Archive extraction cancelled</string>
     <string name="file_operation_creating_archive">Creating archive</string>
     <string name="file_operation_extracting_archive">Extracting archive</string>
+    <string name="file_operation_cancelled">File operation cancelled</string>
+    <string name="error_search_failed">Search failed</string>
+    <string name="error_load_directory_failed">Failed to load directory</string>
+    <string name="error_load_category_failed">Failed to load category</string>
+    <string name="error_check_conflicts_failed">Failed to check for conflicts</string>
+    <string name="error_operation_already_running">Another file operation is already running</string>
+    <string name="error_create_folder_failed">Failed to create folder</string>
+    <string name="error_create_file_failed">Failed to create file</string>
+    <string name="error_unsupported_archive">Selected file is not a supported archive</string>
+    <string name="error_invalid_name">Invalid name: must not be blank or contain /, \\, or ..</string>
+    <string name="error_rename_file_failed">Failed to rename file</string>
+    <string name="error_load_properties_failed">Failed to load properties</string>
+    <string name="error_storage_for_path_unavailable">Storage for this path is not available</string>
+    <string name="error_selected_storage_removed">Selected storage was removed</string>
+    <string name="error_save_classification_failed">Failed to save classification: %1$s</string>
+    <string name="error_load_trash_failed">Failed to load Trash Bin</string>
+    <string name="error_restore_files_failed">Failed to restore files</string>
+    <string name="error_empty_trash_failed">Failed to empty Trash Bin</string>
+    <string name="error_delete_files_permanently_failed">Failed to delete files permanently</string>
+    <string name="error_load_recent_files_failed">Failed to load recent files</string>
+    <string name="error_home_data_timeout">Home data loading timed out. Showing previous complete analytics where available.</string>
+    <string name="error_file_operation_failed">File operation failed</string>
+    <string name="quick_access_home_toggle_description">%1$s %2$s</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>
@@ -371,6 +401,8 @@
     <string name="storage_kind_sd">SD card</string>
     <string name="storage_kind_otg">OTG / USB</string>
     <string name="storage_kind_unclassified">Unclassified</string>
+    <string name="storage_kind_temporary_usb">Temporary USB</string>
+    <string name="storage_kind_unclassified_external">Unclassified external</string>
     <string name="quick_access_manage_title">Manage Quick Access</string>
     <string name="quick_access_add_custom_title">Add Custom Folder</string>
     <string name="quick_access_label_hint">Label (e.g. Projects)</string>
@@ -389,6 +421,7 @@
     <string name="quick_access_remove_title">Remove Folder</string>
     <string name="quick_access_remove_message">Are you sure you want to remove %1$s from Quick Access?</string>
     <string name="quick_access_show_on_home">Show on Home</string>
+    <string name="quick_access_pinned">Pinned \'%1$s\' to Quick Access</string>
     <string name="remove">Remove</string>
     <string name="toggle_pin">Toggle Home shortcut</string>
     <string name="search_filters_title">Search Filters</string>
@@ -421,6 +454,16 @@
     <string name="filter_min_date">Min date millis</string>
     <string name="filter_max_date">Max date millis</string>
     <string name="filter_saved_preset">Saved search name</string>
+    <string name="filter_chip_size_range">Size: %1$dMB - %2$dMB</string>
+    <string name="filter_chip_size_min">Size: &gt;%1$dMB</string>
+    <string name="filter_chip_size_max">Size: &lt;%1$dMB</string>
+    <string name="filter_chip_date">Date Filter</string>
+    <string name="filter_chip_extensions">Ext: %1$s</string>
+    <string name="filter_chip_hidden">Hidden</string>
+    <string name="filter_chip_volume">Volume: %1$s</string>
+    <string name="filter_chip_scope">Scope: %1$s</string>
+    <string name="filter_chip_mime">MIME: %1$s</string>
+    <string name="filter_chip_preset">Preset: %1$s</string>
     <string name="select_range">Select range...</string>
     <string name="file_operation_copying">Copying</string>
     <string name="file_operation_moving">Moving</string>
@@ -434,6 +477,7 @@
     <string name="label_fake_file_name">File Name</string>
     <string name="label_fake_file_extension">Extension (e.g. bin, dat)</string>
     <string name="label_fake_file_size">Size</string>
+    <string name="label_fake_file_unit">Unit</string>
     <string name="unit_kb">KB</string>
     <string name="unit_mb">MB</string>
     <string name="unit_gb">GB</string>
@@ -446,6 +490,25 @@
     <string name="onboarding_step_count">Step %1$d of %2$d</string>
     <string name="onboarding_welcome_title">Welcome to Arcile</string>
     <string name="onboarding_welcome_description">A focused file manager for browsing storage, reviewing recent files, and keeping everyday file work under control.</string>
+    <string name="onboarding_intro_description">An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.</string>
+    <string name="onboarding_feature_multi_volume">Multi-Volume Support</string>
+    <string name="onboarding_feature_multi_volume_description">Seamlessly manage Internal Storage, SD Cards, and USB OTG devices</string>
+    <string name="onboarding_feature_batch_operations">Batch Operations</string>
+    <string name="onboarding_feature_batch_operations_description">Multi-select files for copy, cut, move, or permanent delete</string>
+    <string name="onboarding_feature_instant_categories">Instant Categories</string>
+    <string name="onboarding_feature_instant_categories_description">Jump into images, videos, audio, documents, archives, and APKs</string>
+    <string name="onboarding_feature_trash_subsystem">Trash Subsystem</string>
+    <string name="onboarding_feature_trash_subsystem_description">Safely remove files with metadata-aware restoration</string>
+    <string name="onboarding_privacy_title">Privacy Policy &amp; Terms</string>
+    <string name="onboarding_privacy_description">Arcile is a personal project built with a privacy-first mindset.</string>
+    <string name="onboarding_privacy_offline">Offline by Design</string>
+    <string name="onboarding_privacy_offline_description">Arcile does not declare the INTERNET permission, your files and activity data cannot leave your device.</string>
+    <string name="onboarding_privacy_trackers">No Trackers</string>
+    <string name="onboarding_privacy_trackers_description">The application contains zero advertisements and zero third-party tracking SDKs.</string>
+    <string name="onboarding_privacy_local_file_access">Local File Access</string>
+    <string name="onboarding_privacy_local_file_access_description">All file operations are executed locally on your device; no data is transmitted externally.</string>
+    <string name="onboarding_privacy_source">Source Availability</string>
+    <string name="onboarding_privacy_source_description">Arcile\'s source code is publicly available for inspection on GitHub.</string>
     <string name="onboarding_features_title">Built for real file work</string>
     <string name="onboarding_features_description">Arcile keeps the common paths close while still respecting Android storage limits.</string>
     <string name="onboarding_feature_browser">Browse everything important</string>
@@ -482,4 +545,19 @@
     <string name="permission_recovery_title">Storage access is off</string>
     <string name="permission_recovery_description">Arcile needs all-files access before it can browse and manage files. Re-enable access in Android Settings to continue.</string>
     <string name="permission_recovery_note">Your files stay on this device. Arcile uses this permission only for file manager actions you start.</string>
+    <string name="cannot_open_sensitive_files">Cannot open sensitive files</string>
+    <string name="cannot_open_file">Cannot open file: %1$s</string>
+    <string name="no_app_found">No app found</string>
+    <string name="could_not_open_folder_files_app">Could not open folder in Files app</string>
+    <string name="share_files_via">Share files via</string>
+    <string name="volume_usage">%1$s used of %2$s</string>
+    <string name="file_operation_processing_background">Processing %1$d item(s) in the background</string>
+    <string name="file_operation_copying_files">Copying files</string>
+    <string name="file_operation_moving_files">Moving files</string>
+    <string name="file_operation_moving_files_to_trash">Moving files to Trash</string>
+    <string name="file_operation_deleting_files">Deleting files</string>
+    <string name="file_operation_creating_fake_file">Creating fake file</string>
+    <string name="notification_action_cancel">Cancel</string>
+    <string name="notification_channel_file_operations">File operations</string>
+    <string name="notification_channel_file_operations_description">Background copy and move operations</string>
 </resources>

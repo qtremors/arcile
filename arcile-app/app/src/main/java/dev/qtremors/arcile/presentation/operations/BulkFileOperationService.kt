@@ -138,7 +138,7 @@ class BulkFileOperationService : Service() {
                             coordinator.onOperationCompleted(request)
                         }.onFailure { error ->
                             if (error is CancellationException) throw error
-                            coordinator.onOperationFailed(request, error.message ?: "File operation failed")
+                            coordinator.onOperationFailed(request, error.message ?: getString(R.string.error_file_operation_failed))
                         }
                     } catch (_: CancellationException) {
                         coordinator.onOperationCancelled(request)
@@ -175,7 +175,7 @@ class BulkFileOperationService : Service() {
         ensureChannel()
         val title = operationTitle(request.type)
         val content = progress?.let(::progressContent)
-            ?: "Processing ${request.sourcePaths.size} item(s) in the background"
+            ?: getString(R.string.file_operation_processing_background, request.sourcePaths.size)
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
@@ -184,7 +184,7 @@ class BulkFileOperationService : Service() {
             .setOnlyAlertOnce(true)
             .addAction(
                 R.drawable.ic_notification,
-                "Cancel",
+                getString(R.string.notification_action_cancel),
                 cancelPendingIntent(request)
             )
 
@@ -194,13 +194,13 @@ class BulkFileOperationService : Service() {
 
     private fun operationTitle(type: BulkFileOperationType): String =
         when (type) {
-            BulkFileOperationType.COPY -> "Copying files"
-            BulkFileOperationType.MOVE -> "Moving files"
-            BulkFileOperationType.TRASH -> "Moving files to Trash"
-            BulkFileOperationType.DELETE -> "Deleting files"
-            BulkFileOperationType.CREATE_FAKE -> "Creating fake file"
-            BulkFileOperationType.EXTRACT_ARCHIVE -> "Extracting archive"
-            BulkFileOperationType.CREATE_ARCHIVE -> "Creating archive"
+            BulkFileOperationType.COPY -> getString(R.string.file_operation_copying_files)
+            BulkFileOperationType.MOVE -> getString(R.string.file_operation_moving_files)
+            BulkFileOperationType.TRASH -> getString(R.string.file_operation_moving_files_to_trash)
+            BulkFileOperationType.DELETE -> getString(R.string.file_operation_deleting_files)
+            BulkFileOperationType.CREATE_FAKE -> getString(R.string.file_operation_creating_fake_file)
+            BulkFileOperationType.EXTRACT_ARCHIVE -> getString(R.string.file_operation_extracting_archive)
+            BulkFileOperationType.CREATE_ARCHIVE -> getString(R.string.file_operation_creating_archive)
         }
 
     private fun progressContent(progress: BulkFileOperationProgress): String {
@@ -254,10 +254,10 @@ class BulkFileOperationService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "File operations",
+            getString(R.string.notification_channel_file_operations),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Background copy and move operations"
+            description = getString(R.string.notification_channel_file_operations_description)
         }
         manager.createNotificationChannel(channel)
     }

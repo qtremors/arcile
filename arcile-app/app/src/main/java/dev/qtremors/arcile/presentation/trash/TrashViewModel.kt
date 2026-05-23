@@ -3,12 +3,14 @@ package dev.qtremors.arcile.presentation.trash
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.TrashRestoreStatus
 import android.content.IntentSender
 import dev.qtremors.arcile.domain.DestinationRequiredException
 import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.utils.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,8 +36,8 @@ data class TrashState(
     val visibleTrashFiles: List<TrashMetadata> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = true,
-    val error: String? = null,
-    val snackbarMessage: String? = null,
+    val error: UiText? = null,
+    val snackbarMessage: UiText? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
     val pendingNativeAction: NativeAction? = null,
@@ -108,7 +110,7 @@ class TrashViewModel @Inject constructor(
                     )
                 }
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load Trash Bin") }
+                _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_trash_failed)) }
             }
         }
     }
@@ -171,7 +173,7 @@ class TrashViewModel @Inject constructor(
                         viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                     }
                     else -> {
-                        _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                        _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                         loadTrashFiles()
                     }
                 }
@@ -212,7 +214,7 @@ class TrashViewModel @Inject constructor(
                     }
                     viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
-                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                    _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                     loadTrashFiles()
                 }
             }
@@ -230,7 +232,7 @@ class TrashViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.EMPTY) }
                     viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
-                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
+                    _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_empty_trash_failed)) }
                     loadTrashFiles()
                 }
             }
@@ -264,7 +266,7 @@ class TrashViewModel @Inject constructor(
                 clearSelection()
                 loadTrashFiles()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files permanently") }
+                _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_delete_files_permanently_failed)) }
                 loadTrashFiles()
             }
         }
@@ -316,11 +318,15 @@ class TrashViewModel @Inject constructor(
         _state.update { it.copy(isPropertiesVisible = false, properties = null) }
     }
 
-    private fun restoreSummaryMessage(restoredCount: Int, conflictCount: Int): String {
+    private fun restoreSummaryMessage(restoredCount: Int, conflictCount: Int): UiText {
         return if (conflictCount > 0) {
-            "Restored $restoredCount item(s). $conflictCount restored with conflict names."
+            UiText.PluralResource(
+                R.plurals.trash_restored_items_with_conflicts,
+                restoredCount,
+                listOf(restoredCount, conflictCount)
+            )
         } else {
-            "Restored $restoredCount item(s)."
+            UiText.PluralResource(R.plurals.trash_restored_items, restoredCount, listOf(restoredCount))
         }
     }
 }
