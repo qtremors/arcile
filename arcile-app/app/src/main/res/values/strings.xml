@@ -102,6 +102,12 @@
     <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
     <string name="settings_harmonize_colors">Harmonize Colors</string>
     <string name="settings_harmonize_colors_description">Blend category and status colors with the active theme accent color.</string>
+    <string name="settings_vibrations">Vibrations</string>
+    <string name="settings_vibrations_description">Enable haptic feedback on actions and gestures.</string>
+    <string name="settings_double_line_filenames">Double-line filenames</string>
+    <string name="settings_double_line_filenames_description">Display filenames on up to two lines.</string>
+    <string name="settings_marquee_filenames">Marquee filenames</string>
+    <string name="settings_marquee_filenames_description">Scroll long filenames horizontally.</string>
     
     <!-- Theme Selection -->
     <string name="theme_mode">Theme Mode</string>
@@ -184,6 +190,9 @@
     <string name="conflict_resolution_keep_both">Will rename incoming file</string>
     <string name="conflict_resolution_replace">Will overwrite existing file</string>
     <string name="conflict_resolution_skip">Will skip this file</string>
+    <string name="conflict_newer">Newer</string>
+    <string name="conflict_larger">Larger</string>
+    <string name="conflict_identical_files">Identical files</string>
     <string name="thumbnail">Thumbnail</string>
 
     <string name="folders">Folders</string>
@@ -334,6 +343,24 @@
     <string name="error_load_recent_files_failed">Failed to load recent files</string>
     <string name="error_home_data_timeout">Home data loading timed out. Showing previous complete analytics where available.</string>
     <string name="error_file_operation_failed">File operation failed</string>
+    <string name="error_access_denied">Arcile does not have permission to change those files.</string>
+    <string name="error_storage_unavailable">That storage location is not available.</string>
+    <string name="error_conflict">A file or folder with that name already exists.</string>
+    <string name="error_insufficient_space">There is not enough free space to finish this operation.</string>
+    <string name="error_unsupported_provider">This storage provider does not support that action.</string>
+    <string name="error_partial_success">Some files were changed before the operation stopped.</string>
+    <string name="error_operation_cancelled_safe">File operation cancelled.</string>
+    <string name="error_corrupted_metadata">Trash metadata is damaged or incomplete.</string>
+    <string name="error_unsafe_path">Arcile blocked this action because the path is unsafe.</string>
+    <string name="error_recovery_check_permissions">Check storage permissions and try again.</string>
+    <string name="error_recovery_reconnect_storage">Reconnect the storage device, then refresh.</string>
+    <string name="error_recovery_choose_different_name">Choose a different name or resolve the conflict.</string>
+    <string name="error_recovery_free_space">Free up space, then try again.</string>
+    <string name="error_recovery_use_permanent_delete">Use permanent delete for this storage.</string>
+    <string name="error_recovery_review_files">Review the affected files before trying again.</string>
+    <string name="error_recovery_choose_destination">Choose a destination folder to recover the files.</string>
+    <string name="error_recovery_choose_safe_path">Choose a folder inside an available storage volume.</string>
+    <string name="error_recovery_try_again">Try again. If it keeps failing, refresh the folder.</string>
     <string name="quick_access_home_toggle_description">%1$s %2$s</string>
 
     <!-- Trash Bin -->
@@ -408,6 +435,18 @@
     <!-- Additional Deletion & Trash Bin -->
     <string name="permanently_delete_checkbox">Permanently delete</string>
     <string name="permanently_delete_checkbox_description">Bypass Trash Bin</string>
+    <string name="delete_destination_trash">Destination: Trash Bin</string>
+    <string name="delete_destination_permanent">Destination: Permanent delete</string>
+    <string name="delete_destination_android">Destination: Android system confirmation</string>
+    <string name="delete_destination_mixed">Mixed delete blocked</string>
+    <string name="delete_decision_summary">%1$d items • %2$s • %3$d folders</string>
+    <string name="delete_decision_trash_description">Selected items will be moved to the Trash Bin. You can restore them later.</string>
+    <string name="delete_decision_permanent_description">Selected items will be permanently deleted. This action cannot be undone.</string>
+    <string name="delete_decision_android_description">Android will show the final system confirmation before deleting these items.</string>
+    <string name="delete_decision_mixed_description">This selection combines reversible trash and permanent delete destinations. Delete these groups separately to avoid accidental data loss.</string>
+    <string name="delete_irreversible_warning">Irreversible: files cannot be restored from Arcile Trash.</string>
+    <string name="move_to_trash">Move to Trash</string>
+    <string name="undo">Undo</string>
     <string name="trash_info_title">About Trash Bin</string>
     <string name="trash_info_description">Items deleted from internal storage or SD cards are moved here. They are stored locally on each volume in a hidden .arcile folder.</string>
     <string name="sort_by_date">Sort by Deletion Date</string>

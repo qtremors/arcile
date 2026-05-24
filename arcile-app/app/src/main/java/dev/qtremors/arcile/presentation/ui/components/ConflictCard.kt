@@ -21,6 +21,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -60,6 +63,19 @@ fun ConflictCard(
         label = "conflictCardColor"
     )
 
+    val isSourceDirectory = conflict.sourceFile.isDirectory
+    val isExistingDirectory = conflict.existingFile.isDirectory
+
+    val isIdentical = !isSourceDirectory && !isExistingDirectory &&
+            conflict.sourceFile.size == conflict.existingFile.size &&
+            conflict.sourceFile.lastModified == conflict.existingFile.lastModified
+
+    val isSourceNewer = !isIdentical && conflict.sourceFile.lastModified > conflict.existingFile.lastModified
+    val isExistingNewer = !isIdentical && conflict.existingFile.lastModified > conflict.sourceFile.lastModified
+
+    val isSourceLarger = !isSourceDirectory && !isExistingDirectory && conflict.sourceFile.size > conflict.existingFile.size
+    val isExistingLarger = !isSourceDirectory && !isExistingDirectory && conflict.existingFile.size > conflict.sourceFile.size
+
     Card(
         shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = containerColor),
@@ -85,6 +101,37 @@ fun ConflictCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Show identical files banner if matching
+            if (isIdentical) {
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.conflict_identical_files),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
             // Side-by-side comparison
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -95,6 +142,8 @@ fun ConflictCard(
                     label = stringResource(R.string.conflict_new),
                     file = conflict.sourceFile,
                     formatter = formatter,
+                    isNewer = isSourceNewer,
+                    isLarger = isSourceLarger,
                     modifier = Modifier.weight(1f)
                 )
 
@@ -112,6 +161,8 @@ fun ConflictCard(
                     label = stringResource(R.string.conflict_existing),
                     file = conflict.existingFile,
                     formatter = formatter,
+                    isNewer = isExistingNewer,
+                    isLarger = isExistingLarger,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -179,6 +230,8 @@ private fun FileInfoColumn(
     label: String,
     file: FileModel,
     formatter: SimpleDateFormat,
+    isNewer: Boolean,
+    isLarger: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -190,17 +243,57 @@ private fun FileInfoColumn(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+            if (isNewer) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = MaterialTheme.shapes.extraSmall
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.conflict_newer),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            if (isLarger) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            shape = MaterialTheme.shapes.extraSmall
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.conflict_larger),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
         if (!file.isDirectory) {
             Text(
                 formatFileSize(file.size),
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
+                fontWeight = if (isLarger) FontWeight.Bold else FontWeight.Medium,
+                color = if (isLarger) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface
             )
         } else {
             Text(
@@ -212,7 +305,8 @@ private fun FileInfoColumn(
         Text(
             formatter.format(Date(file.lastModified)),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = if (isNewer) FontWeight.Bold else FontWeight.Normal,
+            color = if (isNewer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

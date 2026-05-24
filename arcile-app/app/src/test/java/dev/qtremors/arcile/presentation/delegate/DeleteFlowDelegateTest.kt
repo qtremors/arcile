@@ -3,6 +3,9 @@ package dev.qtremors.arcile.presentation.delegate
 import android.content.IntentSender
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.domain.SelectionProperties
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -40,6 +43,10 @@ class DeleteFlowDelegateTest {
         startBulkFileOperationResult = true
         onSuccessCalled = false
         onFailureCalled = false
+        coEvery { repository.getSelectionProperties(any()) } answers {
+            val paths = firstArg<List<String>>()
+            Result.success(selectionProperties(paths.size))
+        }
 
         delegate = DeleteFlowDelegate(
             coroutineScope = testScope,
@@ -65,6 +72,7 @@ class DeleteFlowDelegateTest {
 
         verify { callbacks.setLoading(true) }
         verify { callbacks.setLoading(false) }
+        verify { callbacks.setDeleteDecision(match { !it.irreversible && it.selectedCount == 1 }) }
         verify { callbacks.showTrashConfirmation() }
     }
 
@@ -80,6 +88,7 @@ class DeleteFlowDelegateTest {
         delegate.requestDeleteSelected()
 
         verify { callbacks.showPermanentDeleteConfirmation() }
+        verify { callbacks.setDeleteDecision(match { it.irreversible && it.selectedCount == 1 }) }
     }
 
     @Test
@@ -98,6 +107,7 @@ class DeleteFlowDelegateTest {
         delegate.requestDeleteSelected()
         
         verify { callbacks.showMixedDeleteExplanation() }
+        verify { callbacks.setDeleteDecision(match { it.irreversible && it.selectedCount == 2 }) }
     }
 
     @Test
@@ -148,7 +158,7 @@ class DeleteFlowDelegateTest {
         verify { callbacks.setLoading(true) }
         verify { callbacks.dismissDeleteConfirmation() }
         verify { callbacks.setLoading(false) }
-        verify { callbacks.setError("Another file operation is already running") }
+        verify { callbacks.setError(UiText.StringResource(dev.qtremors.arcile.R.string.error_operation_already_running)) }
         assert(onFailureCalled)
     }
 
@@ -163,7 +173,23 @@ class DeleteFlowDelegateTest {
         verify { callbacks.setLoading(true) }
         verify { callbacks.dismissDeleteConfirmation() }
         verify { callbacks.setLoading(false) }
-        verify { callbacks.setError("Another file operation is already running") }
+        verify { callbacks.setError(UiText.StringResource(dev.qtremors.arcile.R.string.error_operation_already_running)) }
         assert(onFailureCalled)
     }
+
+    private fun selectionProperties(count: Int): SelectionProperties =
+        SelectionProperties(
+            displayName = "$count items",
+            pathSummary = "/path",
+            itemCount = count,
+            fileCount = count,
+            folderCount = 0,
+            totalBytes = count * 1024L,
+            newestModifiedAt = null,
+            oldestModifiedAt = null,
+            mimeTypeSummary = null,
+            extensionSummary = null,
+            hiddenCount = 0,
+            accessStatus = PropertiesAccessStatus.Full
+        )
 }

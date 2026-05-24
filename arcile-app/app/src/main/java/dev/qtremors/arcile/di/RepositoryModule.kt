@@ -32,7 +32,9 @@ import dev.qtremors.arcile.data.source.FileSystemDataSource
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.DefaultOperationJournal
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.OperationJournal
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -259,6 +261,14 @@ object RepositoryModule {
         coordinator: ForegroundBulkFileOperationCoordinator
     ): BulkFileOperationCoordinator {
         return coordinator
+    }
+
+    @Provides
+    @Singleton
+    fun provideOperationJournal(
+        @ApplicationContext context: Context
+    ): OperationJournal {
+        return DefaultOperationJournal(context)
     }
 
     @Provides

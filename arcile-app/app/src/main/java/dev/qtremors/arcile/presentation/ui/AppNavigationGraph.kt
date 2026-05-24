@@ -301,6 +301,8 @@ fun AppNavigationGraph(
                                     onCreateArchiveFromSelection = { name, format, password ->
                                         browserViewModel.createArchiveFromSelection(name, format, password)
                                     },
+                                    onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
+                                    onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )
                             }

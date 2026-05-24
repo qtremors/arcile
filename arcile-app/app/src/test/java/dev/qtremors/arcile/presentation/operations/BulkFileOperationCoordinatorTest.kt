@@ -33,7 +33,8 @@ class BulkFileOperationCoordinatorTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        coordinator = ForegroundBulkFileOperationCoordinator(context)
+        context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        coordinator = ForegroundBulkFileOperationCoordinator(context, DefaultOperationJournal(context))
         testScope = TestScope(UnconfinedTestDispatcher())
     }
 
@@ -52,6 +53,7 @@ class BulkFileOperationCoordinatorTest {
         assertNotNull(activeRequest)
         assertEquals(BulkFileOperationType.COPY, activeRequest?.type)
         assertEquals(listOf("/test.txt"), activeRequest?.sourcePaths)
+        assertEquals(OperationPhase.RUNNING, DefaultOperationJournal(context).activeRecord()?.phase)
     }
 
     @Test
@@ -90,6 +92,7 @@ class BulkFileOperationCoordinatorTest {
         coordinator.onOperationCompleted(request)
 
         assertNull(coordinator.activeRequest.value)
+        assertNull(DefaultOperationJournal(context).activeRecord())
     }
 
     @Test
@@ -100,5 +103,16 @@ class BulkFileOperationCoordinatorTest {
         coordinator.onOperationCompleted(staleRequest)
 
         assertNotNull(coordinator.activeRequest.value)
+    }
+
+    @Test
+    fun `progress is written to operation journal`() {
+        coordinator.startOperation(BulkFileOperationType.COPY, listOf("/test.txt"), "/dest", emptyMap(), null)
+        val request = coordinator.activeRequest.value!!
+        val progress = BulkFileOperationProgress(1, 2, "/test.txt", 50L, 100L)
+
+        coordinator.onOperationProgress(request, progress)
+
+        assertEquals(progress, DefaultOperationJournal(context).activeRecord()?.progress)
     }
 }

@@ -5,22 +5,24 @@ import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalView
+import dev.qtremors.arcile.ui.theme.LocalHapticsEnabled
 
 /**
  * Centered haptics helper for Arcile.
  * Wraps [View.performHapticFeedback] which respects system-wide haptics settings.
  */
-class ArcileHaptics(private val view: View) {
+class ArcileHaptics(private val view: View, private val enabled: Boolean) {
     
     fun selectionStart() {
-        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        if (enabled) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
 
     fun selectionChanged() {
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (enabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
     }
 
     fun success() {
+        if (!enabled) return
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
         } else {
@@ -29,10 +31,11 @@ class ArcileHaptics(private val view: View) {
     }
 
     fun warning() {
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (enabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
     }
 
     fun error() {
+        if (!enabled) return
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             view.performHapticFeedback(HapticFeedbackConstants.REJECT)
         } else {
@@ -42,16 +45,17 @@ class ArcileHaptics(private val view: View) {
     }
 
     fun destructiveConfirm() {
-        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+        if (enabled) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
     }
     
     fun toggleMenu() {
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (enabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
     }
 }
 
 @Composable
 fun rememberArcileHaptics(): ArcileHaptics {
     val view = LocalView.current
-    return remember(view) { ArcileHaptics(view) }
+    val enabled = LocalHapticsEnabled.current
+    return remember(view, enabled) { ArcileHaptics(view, enabled) }
 }

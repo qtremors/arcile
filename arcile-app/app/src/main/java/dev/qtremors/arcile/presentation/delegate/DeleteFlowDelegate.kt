@@ -1,9 +1,13 @@
 package dev.qtremors.arcile.presentation.delegate
 
 import android.content.IntentSender
+import dev.qtremors.arcile.R
+import dev.qtremors.arcile.domain.DeleteDecision
+import dev.qtremors.arcile.domain.DeleteDestination
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.evaluateDeletePolicy
 import dev.qtremors.arcile.domain.DeletePolicyResult
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -20,6 +24,13 @@ interface DeleteStateCallbacks {
     fun togglePermanentDeleteChecked()
     fun dismissDeleteConfirmation()
     fun setError(error: String)
+    fun setError(error: UiText) = setError(
+        when (error) {
+            is UiText.Dynamic -> error.value
+            else -> "File operation failed"
+        }
+    )
+    fun setDeleteDecision(decision: DeleteDecision) = Unit
     fun setPendingNativeAction()
     fun clearSelection()
 }
@@ -40,17 +51,48 @@ class DeleteFlowDelegate(
         coroutineScope.launch {
             callbacks.setLoading(true)
             val policyResult = evaluateDeletePolicy(selected, repository)
+            val properties = repository.getSelectionProperties(selected).getOrNull()
 
             when (policyResult) {
                 is DeletePolicyResult.MixedSelection -> {
+                    callbacks.setDeleteDecision(
+                        DeleteDecision(
+                            destination = DeleteDestination.MixedBlocked,
+                            selectedCount = selected.size,
+                            totalBytes = properties?.totalBytes ?: 0L,
+                            fileCount = properties?.fileCount ?: selected.size,
+                            folderCount = properties?.folderCount ?: 0,
+                            irreversible = true
+                        )
+                    )
                     callbacks.setLoading(false)
                     callbacks.showMixedDeleteExplanation()
                 }
                 is DeletePolicyResult.PermanentDelete -> {
+                    callbacks.setDeleteDecision(
+                        DeleteDecision(
+                            destination = DeleteDestination.Permanent,
+                            selectedCount = selected.size,
+                            totalBytes = properties?.totalBytes ?: 0L,
+                            fileCount = properties?.fileCount ?: selected.size,
+                            folderCount = properties?.folderCount ?: 0,
+                            irreversible = true
+                        )
+                    )
                     callbacks.setLoading(false)
                     callbacks.showPermanentDeleteConfirmation()
                 }
                 is DeletePolicyResult.Trash -> {
+                    callbacks.setDeleteDecision(
+                        DeleteDecision(
+                            destination = DeleteDestination.Trash,
+                            selectedCount = selected.size,
+                            totalBytes = properties?.totalBytes ?: 0L,
+                            fileCount = properties?.fileCount ?: selected.size,
+                            folderCount = properties?.folderCount ?: 0,
+                            irreversible = false
+                        )
+                    )
                     callbacks.setLoading(false)
                     callbacks.showTrashConfirmation()
                 }
@@ -89,7 +131,7 @@ class DeleteFlowDelegate(
                 callbacks.clearSelection()
             } else {
                 callbacks.setLoading(false)
-                callbacks.setError("Another file operation is already running")
+                callbacks.setError(UiText.StringResource(R.string.error_operation_already_running))
                 onFailure()
             }
         }
@@ -108,7 +150,7 @@ class DeleteFlowDelegate(
                 callbacks.clearSelection()
             } else {
                 callbacks.setLoading(false)
-                callbacks.setError("Another file operation is already running")
+                callbacks.setError(UiText.StringResource(R.string.error_operation_already_running))
                 onFailure()
             }
         }

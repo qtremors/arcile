@@ -45,6 +45,7 @@ class BulkFileOperationServiceTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
         coordinator = mockk(relaxed = true)
         repository = FakeFileRepository()
         storageWorkCoordinator = DefaultStorageWorkCoordinator()
@@ -54,6 +55,7 @@ class BulkFileOperationServiceTest {
         service.coordinator = coordinator
         service.repository = repository
         service.storageWorkCoordinator = storageWorkCoordinator
+        service.operationJournal = DefaultOperationJournal(context)
     }
 
     @Test
@@ -76,9 +78,10 @@ class BulkFileOperationServiceTest {
 
         serviceController.withIntent(intent).startCommand(0, 1)
 
-        verify { coordinator.onOperationCompleted(request) }
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
         assertEquals(listOf(listOf("/test.txt")), repository.moveToTrashRequests)
-        assertFalse(storageWorkCoordinator.isMutationActive.value)
+        awaitInactiveMutation()
+        assertEquals(null, DefaultOperationJournal(context).activeRecord())
     }
 
     @Test
@@ -179,6 +182,14 @@ class BulkFileOperationServiceTest {
         serviceController.withIntent(startIntent(request)).startCommand(0, 1)
 
         verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        awaitInactiveMutation()
+    }
+
+    private fun awaitInactiveMutation() {
+        val deadline = System.currentTimeMillis() + 2_000
+        while (storageWorkCoordinator.isMutationActive.value && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10)
+        }
         assertFalse(storageWorkCoordinator.isMutationActive.value)
     }
 

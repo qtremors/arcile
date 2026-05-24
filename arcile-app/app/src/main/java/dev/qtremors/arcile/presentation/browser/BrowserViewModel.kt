@@ -10,6 +10,7 @@ import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.domain.DeleteDecision
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
@@ -30,6 +31,7 @@ import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
+import dev.qtremors.arcile.domain.toArcileError
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -92,6 +94,7 @@ data class BrowserState(
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
+    val deleteDecision: DeleteDecision? = null,
     val isPermanentDeleteChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
     val pendingNativeAction: BrowserNativeAction? = null,
@@ -100,6 +103,7 @@ data class BrowserState(
     val properties: PropertiesUiModel? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
+    val pendingTrashUndoIds: List<String> = emptyList(),
     val selectedFilesTotalSize: Long = 0L
 )
 
@@ -177,12 +181,19 @@ class BrowserViewModel @Inject constructor(
                     it.copy(
                         showTrashConfirmation = false,
                         showPermanentDeleteConfirmation = false,
-                        showMixedDeleteExplanation = false
+                        showMixedDeleteExplanation = false,
+                        deleteDecision = null
                     )
                 }
             }
             override fun setError(error: String) {
                 _state.update { it.copy(error = UiText.Dynamic(error)) }
+            }
+            override fun setError(error: UiText) {
+                _state.update { it.copy(error = error) }
+            }
+            override fun setDeleteDecision(decision: DeleteDecision) {
+                _state.update { it.copy(deleteDecision = decision) }
             }
             override fun setPendingNativeAction() {
                 _state.update { it.copy(pendingNativeAction = BrowserNativeAction.TRASH) }
@@ -357,6 +368,11 @@ class BrowserViewModel @Inject constructor(
                         }
                     }
                     is BulkFileOperationEvent.Completed -> {
+                        val undoIds = if (event.request.type == BulkFileOperationType.TRASH) {
+                            trashUndoIdsFor(event.request.sourcePaths)
+                        } else {
+                            emptyList()
+                        }
                         _state.update {
                             it.copy(
                                 isLoading = false,
@@ -367,7 +383,8 @@ class BrowserViewModel @Inject constructor(
                                 fileOperationStatusMessage = formatOperationCompletedMessage(
                                     type = event.request.type,
                                     itemCount = event.request.sourcePaths.size
-                                )
+                                ),
+                                pendingTrashUndoIds = undoIds
                             )
                         }
                         navigationDelegate.refresh()
@@ -380,7 +397,7 @@ class BrowserViewModel @Inject constructor(
                                     terminalStatus = OperationCompletionStatus.FAILED
                                 ),
                                 clipboardState = null,
-                                fileOperationStatusMessage = UiText.Dynamic(event.message)
+                                fileOperationStatusMessage = event.error?.userMessage ?: UiText.StringResource(R.string.error_file_operation_failed)
                             )
                         }
                     }
@@ -695,6 +712,23 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(fileOperationStatusMessage = null) }
     }
 
+    fun undoLastTrashMove() {
+        val trashIds = _state.value.pendingTrashUndoIds
+        if (trashIds.isEmpty()) return
+        _state.update { it.copy(pendingTrashUndoIds = emptyList()) }
+        viewModelScope.launch {
+            repository.restoreFromTrash(trashIds).onSuccess {
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.toArcileError().userMessage) }
+            }
+        }
+    }
+
+    fun clearPendingTrashUndo() {
+        _state.update { it.copy(pendingTrashUndoIds = emptyList()) }
+    }
+
     fun clearActiveFileOperation() {
         _state.update { it.copy(activeFileOperation = null) }
     }
@@ -768,6 +802,16 @@ class BrowserViewModel @Inject constructor(
             BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items
         }
         return UiText.PluralResource(pluralRes, itemCount, listOf(itemCount))
+    }
+
+    private suspend fun trashUndoIdsFor(sourcePaths: List<String>): List<String> {
+        val sourceSet = sourcePaths.toSet()
+        return repository.getTrashFiles().getOrNull()
+            ?.filter { it.originalPath in sourceSet }
+            ?.sortedByDescending { it.deletionTime }
+            ?.map { it.id }
+            ?.take(sourcePaths.size)
+            .orEmpty()
     }
 
     private fun nextArchivePath(

@@ -310,20 +310,20 @@ fun RecentFilesScreen(
             isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
             onConfirm = onConfirmDelete,
             onDismiss = onDismissDeleteConfirmation,
-            onTogglePermanentDelete = onTogglePermanentDelete
+            onTogglePermanentDelete = onTogglePermanentDelete,
+            decision = state.deleteDecision
         )
     }
 
     if (state.showMixedDeleteExplanation) {
-        AlertDialog(
-            onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text(stringResource(R.string.mixed_selection_title)) },
-            text = { Text(stringResource(R.string.mixed_selection_description)) },
-            confirmButton = {
-                TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text(stringResource(R.string.ok))
-                }
-            }
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = true,
+            isPermanentDeleteToggleEnabled = false,
+            onConfirm = {},
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = {},
+            decision = state.deleteDecision
         )
     }
 

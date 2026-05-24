@@ -3,8 +3,10 @@ package dev.qtremors.arcile.presentation.ui.components.dialogs
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteForever
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +21,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.domain.DeleteDecision
+import dev.qtremors.arcile.domain.DeleteDestination
+import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable
 fun DeleteConfirmationDialog(
@@ -27,26 +32,56 @@ fun DeleteConfirmationDialog(
     isPermanentDeleteToggleEnabled: Boolean,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    onTogglePermanentDelete: () -> Unit
+    onTogglePermanentDelete: () -> Unit,
+    decision: DeleteDecision? = null
 ) {
     val haptics = dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics()
     val permanentlyDeleteLabel = stringResource(R.string.permanently_delete_checkbox)
+    val resolvedDecision = decision ?: DeleteDecision(
+        destination = if (isPermanentDeleteChecked) DeleteDestination.Permanent else DeleteDestination.Trash,
+        selectedCount = selectedCount,
+        totalBytes = 0L,
+        fileCount = selectedCount,
+        folderCount = 0,
+        irreversible = isPermanentDeleteChecked
+    )
+    val irreversible = resolvedDecision.irreversible || isPermanentDeleteChecked
+    val destinationLabel = when (resolvedDecision.destination) {
+        DeleteDestination.Trash -> stringResource(R.string.delete_destination_trash)
+        DeleteDestination.Permanent -> stringResource(R.string.delete_destination_permanent)
+        DeleteDestination.AndroidSystemConfirmation -> stringResource(R.string.delete_destination_android)
+        DeleteDestination.MixedBlocked -> stringResource(R.string.delete_destination_mixed)
+    }
+    val description = when (resolvedDecision.destination) {
+        DeleteDestination.Trash -> stringResource(R.string.delete_decision_trash_description)
+        DeleteDestination.Permanent -> stringResource(R.string.delete_decision_permanent_description)
+        DeleteDestination.AndroidSystemConfirmation -> stringResource(R.string.delete_decision_android_description)
+        DeleteDestination.MixedBlocked -> stringResource(R.string.delete_decision_mixed_description)
+    }
+    val summary = stringResource(
+        R.string.delete_decision_summary,
+        resolvedDecision.selectedCount,
+        formatFileSize(resolvedDecision.totalBytes),
+        resolvedDecision.folderCount
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(
-                imageVector = if (isPermanentDeleteChecked) Icons.Outlined.DeleteForever else Icons.Outlined.Delete,
+                imageVector = when (resolvedDecision.destination) {
+                    DeleteDestination.Trash -> Icons.Outlined.Delete
+                    DeleteDestination.Permanent -> Icons.Outlined.DeleteForever
+                    DeleteDestination.AndroidSystemConfirmation -> Icons.Outlined.Security
+                    DeleteDestination.MixedBlocked -> Icons.Outlined.DeleteSweep
+                },
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.error
+                tint = if (irreversible) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
             )
         },
         title = {
             Text(
-                text = if (isPermanentDeleteChecked)
-                    stringResource(R.string.delete_permanent_title, selectedCount)
-                else
-                    stringResource(R.string.delete_items_title, selectedCount),
+                text = destinationLabel,
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.headlineSmall
             )
@@ -58,18 +93,36 @@ fun DeleteConfirmationDialog(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = if (isPermanentDeleteChecked)
-                        stringResource(R.string.delete_permanent_description)
-                    else
-                        stringResource(R.string.delete_items_description),
+                    text = description,
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                AssistChip(
+                    onClick = {},
+                    enabled = false,
+                    label = { Text(summary) }
+                )
+
+                if (irreversible) {
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.delete_irreversible_warning),
+                            modifier = Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
                 
-                Surface(
+                if (resolvedDecision.destination != DeleteDestination.MixedBlocked) Surface(
                     shape = MaterialTheme.shapes.large,
-                    color = if (isPermanentDeleteChecked) 
+                    color = if (isPermanentDeleteChecked)
                         MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f) 
                     else 
                         MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -126,17 +179,28 @@ fun DeleteConfirmationDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = {
-                    haptics.destructiveConfirm()
-                    onConfirm()
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError
-                )
-            ) {
-                Text(stringResource(R.string.delete))
+            if (resolvedDecision.destination != DeleteDestination.MixedBlocked) {
+                Button(
+                    onClick = {
+                        if (irreversible) haptics.destructiveConfirm() else haptics.selectionChanged()
+                        onConfirm()
+                    },
+                    colors = if (irreversible) {
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    } else {
+                        ButtonDefaults.buttonColors()
+                    }
+                ) {
+                    Text(
+                        if (resolvedDecision.destination == DeleteDestination.Trash && !isPermanentDeleteChecked)
+                            stringResource(R.string.move_to_trash)
+                        else
+                            stringResource(R.string.delete)
+                    )
+                }
             }
         },
         dismissButton = {

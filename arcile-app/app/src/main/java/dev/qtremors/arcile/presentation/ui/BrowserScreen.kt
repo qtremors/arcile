@@ -84,6 +84,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -147,7 +148,6 @@ import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
-import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
@@ -249,6 +249,8 @@ fun BrowserScreen(
     onExtractSelectedArchiveToFolder: (String?) -> Unit = {},
     onCreateZipFromSelection: () -> Unit = {},
     onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit = { _, _, _ -> },
+    onUndoLastTrashMove: () -> Unit = {},
+    onClearPendingTrashUndo: () -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val haptics = rememberArcileHaptics()
@@ -545,7 +547,16 @@ fun BrowserScreen(
             val snackbarMessage = message.asString(context)
             onClearFileOperationStatusMessage()
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(snackbarMessage)
+                val result = snackbarHostState.showSnackbar(
+                    message = snackbarMessage,
+                    actionLabel = if (state.pendingTrashUndoIds.isNotEmpty()) context.getString(R.string.undo) else null,
+                    withDismissAction = state.pendingTrashUndoIds.isNotEmpty()
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    onUndoLastTrashMove()
+                } else if (state.pendingTrashUndoIds.isNotEmpty()) {
+                    onClearPendingTrashUndo()
+                }
             }
         }
     }
@@ -1310,13 +1321,20 @@ fun BrowserScreen(
             isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
             onConfirm = onConfirmDelete,
             onDismiss = onDismissDeleteConfirmation,
-            onTogglePermanentDelete = onTogglePermanentDelete
+            onTogglePermanentDelete = onTogglePermanentDelete,
+            decision = state.deleteDecision
         )
     }
 
     if (state.showMixedDeleteExplanation) {
-        MixedDeleteExplanationDialog(
-            onDismiss = onDismissDeleteConfirmation
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = true,
+            isPermanentDeleteToggleEnabled = false,
+            onConfirm = {},
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = {},
+            decision = state.deleteDecision
         )
     }
 

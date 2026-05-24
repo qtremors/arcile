@@ -46,6 +46,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.basicMarquee
+import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
+import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
@@ -227,6 +230,8 @@ fun FileItemRow(
 ) {
     val file = row.file
     val context = LocalContext.current
+    val doubleLineEnabled = LocalDoubleLineFilenames.current
+    val marqueeEnabled = LocalMarqueeFilenames.current
     val animatedHorizontalPadding by animateDpAsState(
         targetValue = if (isSelected) 8.dp else 0.dp,
         label = "listItemHPadding"
@@ -339,10 +344,11 @@ fun FileItemRow(
             ) {
                 Text(
                     text = file.name,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
+                    overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
                     style = titleStyle,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(

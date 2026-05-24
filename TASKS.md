@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.7.6
-> **Last Updated:** 2026-05-23
+> **Version:** 0.7.9
+> **Last Updated:** 2026-05-24
 
 ---
 
@@ -15,29 +15,6 @@
   - **Problem:** Material 3 adaptive dependencies are present, but the primary app structure still uses a two-page `HorizontalPager` between Home and Browser with no adaptive navigation rail, list-detail layout, dual-pane file browser, or tablet/foldable workspace.
   - **Impact:** Large screens feel stretched rather than upgraded. Power users lose two-pane copy/move, persistent folder panes, drag/drop, side-by-side properties or preview, and multi-folder workspace workflows.
   - **Fix:** Derive layout from `currentWindowAdaptiveInfo()`. Use bottom navigation or the current pager only for compact width. Use navigation rail plus list-detail/supporting pane for medium and expanded width. Add expanded-width dual-browser mode with independent path, sort, selection, and clipboard scopes. Add "send to other pane", drag/drop between panes, operation preview with conflict count before paste, and pane path restoration after process death.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-### Operations / Reliability Tasks
-
-- [ ] **UI-0022 - Destructive Actions / Safety** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/dialogs/DeleteConfirmationDialog.kt
-  - **Problem:** Delete flows exist, but the broader UI does not consistently distinguish reversible trash, permanent delete, native scoped delete, and mixed delete flows at the interaction level.
-  - **Impact:** High-stakes file actions can feel more frightening than necessary, especially with mixed selections and SAF/native delete flows.
-  - **Fix:** Create a delete decision surface that clearly shows destination: Trash vs Permanent vs Android system confirmation. Include selected count, total size, folder count, and irreversible warning. Add undo for trash moves when feasible. Use consistent red only for irreversible final confirmation.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **OP-0007 - Foreground Operations / Reliability** `[Critical]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationCoordinator.kt`
-  - **Problem:** Long-running operations are foreground-service based and have a cancel path, but they are not durable. Requests, progress, phase, cancellation state, and partial results are held in memory only.
-  - **Impact:** If the process is killed, the user can lose operation visibility and may be left with staged temp files or partial copies.
-  - **Fix:** Introduce an operation database/journal. Record source, destination, staging paths, phase, bytes, result, and rollback plan. On app/service startup, recover or clean incomplete operations. Update notifications with real progress and cancel action. Recommended Refactor: Build an `OperationEngine` independent of ViewModels and expose operation state via repository/Flow. Safer Alternative: For now, persist only active operation metadata and staged paths, then cleanup on next launch.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **REL-0024 - Error Handling / Reliability** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/**` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/**`
-  - **Problem:** Error handling relies on generic `Exception` messages in many code paths, while some use typed exceptions. UI often shows raw messages.
-  - **Impact:** Users get inconsistent, sometimes technical, sometimes vague errors.
-  - **Fix:** Define sealed domain errors: access denied, storage unavailable, conflict, insufficient space, unsupported provider, partial success, cancelled, corrupted metadata, unsafe path. Include user-safe message id and recovery action. Stop surfacing arbitrary exception messages directly. Recommended Refactor: Add `ArcileError` and map platform exceptions at data boundaries. Safer Alternative: Wrap existing exceptions in typed errors incrementally for destructive operations first.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ### Visual System / Interaction Tasks

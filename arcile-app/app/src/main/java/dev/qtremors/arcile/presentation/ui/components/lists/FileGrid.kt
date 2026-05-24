@@ -44,6 +44,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.basicMarquee
+import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
+import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -225,6 +228,8 @@ fun FileGridItem(
 ) {
     val file = row.file
     val context = LocalContext.current
+    val doubleLineEnabled = LocalDoubleLineFilenames.current
+    val marqueeEnabled = LocalMarqueeFilenames.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -341,8 +346,9 @@ fun FileGridItem(
                 Text(
                     text = file.name,
                     style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
+                    overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                    modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                 )
                 Text(
                     text = subtitleText,

@@ -1,10 +1,30 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.8
+> **Version:** 0.7.9
 > **Last Updated:** 2026-05-24
 
 ---
+
+## [0.7.9] - 2026-05-24
+
+### Reliability & Destructive Actions
+- **Delete Decision Surface:** Reworked delete confirmations to show the operation destination, selected count, total size, folder count, and irreversible warnings so Trash, permanent delete, Android confirmation, and mixed selections are clearer.
+- **Trash Undo:** Added an undo path for completed Trash moves when Arcile can match the newly created Trash metadata back to the deleted selection.
+- **Durable Foreground Operations:** Added a lightweight operation journal for foreground file operations, persisting request, progress, phase, cancellation, and cleanup-needed state across coordinator/service lifecycles.
+- **Typed User-Safe Errors:** Introduced typed `ArcileError` mappings for high-risk storage and destructive flows, replacing raw exception messages with localized recovery-oriented UI messages.
+
+### Paste & Conflict UI
+- **Smart Paste Conflict Dialog:** Added smart metadata comparison for conflicting files, displaying check banners for identical files, and badge indicators highlighting newer and larger files.
+- **Improved Dialog Action Buttons:** Replaced the horizontal resolution button row with a vertically stacked column of distinct button styles (Filled Replace/Merge, FilledTonal Keep Both, Outlined Skip) to prevent text truncation and establish clear visual priority.
+
+### Settings & User Preferences
+- **Haptic Vibration Toggle:** Added a switch setting to enable/disable haptic feedback globally on actions and gestures via a new `LocalHapticsEnabled` composition local.
+- **Double-Line Filenames:** Introduced a preference to display filenames on up to two lines in both file browser list and grid layouts.
+- **Marquee Filenames:** Added an option to scroll long filenames horizontally using marquee scrolling, preventing clipping and truncation.
+
+### Testing
+- **Reliability Coverage:** Added and updated tests for delete decisions, mixed delete blocking, operation journal hydration/progress/recovery, foreground operation persistence, and typed error mapping.
 
 ## [0.7.8] - 2026-05-24
 

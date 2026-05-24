@@ -14,6 +14,8 @@ import dev.qtremors.arcile.R
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.data.StorageWorkCoordinator
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.toArcileError
+import dev.qtremors.arcile.presentation.asString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +40,9 @@ class BulkFileOperationService : Service() {
     lateinit var storageWorkCoordinator: StorageWorkCoordinator
 
     @Inject
+    lateinit var operationJournal: OperationJournal
+
+    @Inject
     lateinit var dispatchers: ArcileDispatchers
 
     private val serviceScope: CoroutineScope by lazy {
@@ -58,6 +63,8 @@ class BulkFileOperationService : Service() {
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
     private var lastNotificationUpdateAt = 0L
+    private val serviceOperationJournal: OperationJournal
+        get() = if (::operationJournal.isInitialized) operationJournal else NoOpOperationJournal()
 
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -68,6 +75,7 @@ class BulkFileOperationService : Service() {
                 val cancelOperationId = intent.getStringExtra(EXTRA_OPERATION_ID)
                 val request = currentRequest
                 if (request != null && cancelOperationId == request.operationId) {
+                    serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
                     coordinator.onOperationCancelling(request)
                     currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
                     stopForeground(STOP_FOREGROUND_REMOVE)
@@ -79,6 +87,7 @@ class BulkFileOperationService : Service() {
                 val requestJson = intent.getStringExtra(EXTRA_REQUEST_JSON) ?: return START_NOT_STICKY
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
+                serviceOperationJournal.upsert(request.toJournalRecord(OperationPhase.RUNNING))
                 startForeground(NOTIFICATION_ID, buildNotification(request))
                 storageWorkCoordinator.beginMutation()
                 val capturedStartId = startId
@@ -135,13 +144,24 @@ class BulkFileOperationService : Service() {
                         }
 
                         result.onSuccess {
+                            serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.COMPLETED) }
                             coordinator.onOperationCompleted(request)
+                            serviceOperationJournal.clearActive(request.operationId)
                         }.onFailure { error ->
                             if (error is CancellationException) throw error
-                            coordinator.onOperationFailed(request, error.message ?: getString(R.string.error_file_operation_failed))
+                            serviceOperationJournal.update(request.operationId) {
+                                it.copy(phase = OperationPhase.FAILED, error = error.message)
+                            }
+                            coordinator.onOperationFailed(
+                                request,
+                                error.toArcileError().userMessage.asString(this@BulkFileOperationService)
+                            )
+                            serviceOperationJournal.clearActive(request.operationId)
                         }
                     } catch (_: CancellationException) {
+                        serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLED) }
                         coordinator.onOperationCancelled(request)
+                        serviceOperationJournal.clearActive(request.operationId)
                     } finally {
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
@@ -161,6 +181,9 @@ class BulkFileOperationService : Service() {
     }
 
     private fun updateNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+        serviceOperationJournal.update(request.operationId) {
+            it.copy(phase = OperationPhase.RUNNING, progress = progress)
+        }
         val now = System.currentTimeMillis()
         val finished = progress.completedItems >= progress.totalItems
         if (!finished && now - lastNotificationUpdateAt < NOTIFICATION_UPDATE_THROTTLE_MS) return
