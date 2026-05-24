@@ -13,6 +13,13 @@ import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.browser.BrowserState
+import dev.qtremors.arcile.presentation.browser.withUpdatedDisplayState
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -158,10 +165,10 @@ class NavigationDelegate(
                     isCategoryScreen = false,
                     activeCategoryName = "",
                     selectedFolderTabPath = null,
-                    files = volumeFiles(),
-                    folderStatsByPath = emptyMap(),
-                    folderStatsLoadingPaths = emptySet(),
-                    selectedFiles = emptySet(),
+                    files = volumeFiles().toPersistentList(),
+                    folderStatsByPath = persistentMapOf(),
+                    folderStatsLoadingPaths = persistentSetOf(),
+                    selectedFiles = persistentSetOf(),
                     error = errorMessage,
                     browserSortOption = presentation.sortOption,
                     browserViewMode = presentation.viewMode,
@@ -170,7 +177,7 @@ class NavigationDelegate(
                     browserShowThumbnails = presentation.showThumbnails,
                     isLoading = false,
                     isPullToRefreshing = false
-                )
+                ).withUpdatedDisplayState()
             }
             saveNavState()
         }
@@ -218,7 +225,7 @@ class NavigationDelegate(
         if (state.value.selectedFiles.isNotEmpty()) {
             state.update {
                 it.copy(
-                    selectedFiles = emptySet(),
+                    selectedFiles = persistentSetOf(),
                     selectedFilesTotalSize = 0L,
                     isPropertiesVisible = false,
                     isPropertiesLoading = false,
@@ -280,14 +287,14 @@ class NavigationDelegate(
                 error = errorMessage,
                 currentPath = path,
                 currentVolumeId = resolvedVolumeId,
-                selectedFiles = emptySet(),
+                selectedFiles = persistentSetOf(),
                 selectedFolderTabPath = null,
-                files = emptyList(),
-                folderStatsByPath = emptyMap(),
-                folderStatsLoadingPaths = emptySet(),
+                files = persistentListOf(),
+                folderStatsByPath = persistentMapOf(),
+                folderStatsLoadingPaths = persistentSetOf(),
                 isCategoryScreen = false,
                 isVolumeRootScreen = false
-            )
+            ).withUpdatedDisplayState()
         }
         saveNavState()
         viewModelScope.launch {
@@ -314,10 +321,10 @@ class NavigationDelegate(
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
-                        files = files,
-                        folderStatsByPath = cachedStats,
-                        folderStatsLoadingPaths = pathsToQueue.toSet()
-                    )
+                        files = files.toPersistentList(),
+                        folderStatsByPath = cachedStats.toPersistentMap(),
+                        folderStatsLoadingPaths = pathsToQueue.toPersistentSet()
+                    ).withUpdatedDisplayState()
                 }
                 repository.queueFolderStats(pathsToQueue)
                 saveNavState()
@@ -343,12 +350,12 @@ class NavigationDelegate(
                 activeCategoryName = categoryName,
                 currentPath = "",
                 currentVolumeId = volumeId,
-                files = emptyList(),
+                files = persistentListOf(),
                 selectedFolderTabPath = null,
-                folderStatsByPath = emptyMap(),
-                folderStatsLoadingPaths = emptySet(),
-                selectedFiles = emptySet()
-            )
+                folderStatsByPath = persistentMapOf(),
+                folderStatsLoadingPaths = persistentSetOf(),
+                selectedFiles = persistentSetOf()
+            ).withUpdatedDisplayState()
         }
         saveNavState()
         viewModelScope.launch {
@@ -361,13 +368,13 @@ class NavigationDelegate(
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
-                        files = files,
+                        files = files.toPersistentList(),
                         browserSortOption = categoryPresentation.sortOption,
                         browserViewMode = categoryPresentation.viewMode,
                         browserListZoom = categoryPresentation.listZoom,
                         browserGridMinCellSize = categoryPresentation.gridMinCellSize,
                         browserShowThumbnails = categoryPresentation.showThumbnails
-                    )
+                    ).withUpdatedDisplayState()
                 }
                 saveNavState()
             }.onFailure { error ->
@@ -390,7 +397,7 @@ class NavigationDelegate(
                 browserListZoom = presentation.listZoom,
                 browserGridMinCellSize = presentation.gridMinCellSize,
                 browserShowThumbnails = presentation.showThumbnails
-            )
+            ).withUpdatedDisplayState()
         }
     }
 

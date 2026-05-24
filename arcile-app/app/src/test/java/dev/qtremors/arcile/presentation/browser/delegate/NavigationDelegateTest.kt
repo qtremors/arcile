@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentSet
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -69,7 +71,7 @@ class NavigationDelegateTest {
         }
         savedStateHandle = mockk(relaxed = true)
         
-        state = MutableStateFlow(BrowserState(storageVolumes = listOf(testVolume)))
+        state = MutableStateFlow(BrowserState(storageVolumes = listOf(testVolume).toPersistentList()))
         onClearSearchCalled = false
 
         delegate = NavigationDelegate(
@@ -153,7 +155,7 @@ class NavigationDelegateTest {
         advanceUntilIdle()
         state.update {
             it.copy(
-                selectedFiles = setOf("/storage/emulated/0/parent/child/file.txt"),
+                selectedFiles = setOf("/storage/emulated/0/parent/child/file.txt").toPersistentSet(),
                 selectedFilesTotalSize = 123L
             )
         }
@@ -258,7 +260,7 @@ class NavigationDelegateTest {
         state.value = state.value.copy(
             currentPath = "/storage/emulated/0",
             currentVolumeId = "vol1",
-            files = previousFiles
+            files = previousFiles.toPersistentList()
         )
 
         delegate.navigateToFolder("/storage/emulated/0/Downloads")
@@ -282,7 +284,7 @@ class NavigationDelegateTest {
         state.value = state.value.copy(
             currentPath = "/storage/emulated/0",
             currentVolumeId = "vol1",
-            files = previousFiles
+            files = previousFiles.toPersistentList()
         )
 
         delegate.navigateToCategory("Images", "vol1")

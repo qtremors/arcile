@@ -30,6 +30,9 @@ import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.SettingsSection
+import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
+import dev.qtremors.arcile.presentation.ui.components.ArcileSectionHeader
+import dev.qtremors.arcile.presentation.ui.components.ArcileListSurface
 
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
@@ -119,9 +122,8 @@ fun SettingsScreen(
         )
     }
 
-    Scaffold(
+    ArcileScreenScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
@@ -147,17 +149,8 @@ fun SettingsScreen(
         ) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = stringResource(R.string.section_appearance),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = MaterialTheme.shapes.large
-                    ) {
+                    ArcileSectionHeader(text = stringResource(R.string.section_appearance))
+                    ArcileListSurface {
                         ThemeModeSelector(
                             currentMode = currentThemeState.themeMode,
                             onModeSelected = {
@@ -165,11 +158,7 @@ fun SettingsScreen(
                             }
                         )
                     }
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = MaterialTheme.shapes.large
-                    ) {
+                    ArcileListSurface {
                         AccentColorSelector(
                             currentAccent = currentThemeState.accentColor,
                             onAccentSelected = {
@@ -177,11 +166,7 @@ fun SettingsScreen(
                             }
                         )
                     }
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = MaterialTheme.shapes.large
-                    ) {
+                    ArcileListSurface {
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             ListItem(
                                 headlineContent = { Text(stringResource(R.string.settings_show_thumbnails)) },

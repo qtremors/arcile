@@ -39,6 +39,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
+import dev.qtremors.arcile.presentation.ui.components.ArcileSectionHeader
+import dev.qtremors.arcile.presentation.ui.components.ArcileListSurface
 
 // ──────────────────────────────────────────────────────
 // Data model for a third-party library entry
@@ -81,9 +84,8 @@ fun LicensesScreen(
     val uriHandler = LocalUriHandler.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    Scaffold(
+    ArcileScreenScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.open_source_licenses)) },
@@ -112,11 +114,7 @@ fun LicensesScreen(
         ) {
             // ── License notice ──
             item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    shape = ExpressiveShapes.large
-                ) {
+                ArcileListSurface {
                     Text(
                         text = stringResource(R.string.licenses_notice),
                         style = MaterialTheme.typography.bodySmall,
@@ -129,40 +127,29 @@ fun LicensesScreen(
             // ── Library list ──
             item {
                 Column {
-                    Text(
-                        text = stringResource(R.string.licenses_section_libraries),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
-                    )
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceContainer,
-                        shape = ExpressiveShapes.large
-                    ) {
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            libraries.forEachIndexed { index, lib ->
-                                ListItem(
-                                    headlineContent = { Text(lib.name) },
-                                    supportingContent = { Text(lib.license) },
-                                    trailingContent = {
-                                        Icon(
-                                            Icons.AutoMirrored.Filled.OpenInNew,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    },
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                    modifier = Modifier
-                                        .clip(ExpressiveShapes.medium)
-                                        .clickable { uriHandler.openUri(lib.url) }
-                                )
-                                if (index < libraries.lastIndex) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(horizontal = 16.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant
+                    ArcileSectionHeader(text = stringResource(R.string.licenses_section_libraries))
+                    ArcileListSurface {
+                        libraries.forEachIndexed { index, lib ->
+                            ListItem(
+                                headlineContent = { Text(lib.name) },
+                                supportingContent = { Text(lib.license) },
+                                trailingContent = {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.OpenInNew,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
                                     )
-                                }
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(ExpressiveShapes.medium)
+                                    .clickable { uriHandler.openUri(lib.url) }
+                            )
+                            if (index < libraries.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
                             }
                         }
                     }

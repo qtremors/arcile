@@ -18,8 +18,13 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.presentation.browser.BrowserState
+import dev.qtremors.arcile.presentation.browser.withUpdatedDisplayState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.testutil.ArcileTestTheme
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -44,7 +49,7 @@ class BrowserScreenTest {
                 BrowserScreen(
                     state = BrowserState(
                         browserSearchQuery = "report",
-                        searchResults = listOf(browserFile("report.pdf", "/storage/emulated/0/Docs/report.pdf")),
+                        searchResults = listOf(browserFile("report.pdf", "/storage/emulated/0/Docs/report.pdf")).toPersistentList(),
                         isSearching = false,
                         isLoading = false
                     ),
@@ -91,7 +96,7 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isVolumeRootScreen = true,
                         isLoading = false,
-                        storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0"))
+                        storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0")).toPersistentList()
                     ),
                     onNavigateBack = {},
                     onNavigateTo = { navigatedPath = it },
@@ -136,8 +141,8 @@ class BrowserScreenTest {
                         activeCategoryName = "Images",
                         currentPath = "/storage/emulated/0/Download",
                         currentVolumeId = "primary",
-                        storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0"))
-                    ),
+                        storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0")).toPersistentList()
+                    ).withUpdatedDisplayState(),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -177,7 +182,7 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        files = emptyList()
+                        files = persistentListOf()
                     ),
                     onNavigateBack = {},
                     onNavigateTo = {},
@@ -216,7 +221,7 @@ class BrowserScreenTest {
                 BrowserScreen(
                     state = BrowserState(
                         browserSearchQuery = "missing",
-                        searchResults = emptyList(),
+                        searchResults = persistentListOf(),
                         isSearching = false,
                         isLoading = false
                     ),
@@ -261,7 +266,7 @@ class BrowserScreenTest {
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         browserViewMode = BrowserViewMode.GRID,
-                        files = listOf(browserFile("photo.jpg", "/storage/emulated/0/Download/photo.jpg"))
+                        files = listOf(browserFile("photo.jpg", "/storage/emulated/0/Download/photo.jpg")).toPersistentList()
                     ),
                     onNavigateBack = {},
                     onNavigateTo = {},
@@ -304,15 +309,15 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        files = listOf(browserFolder("Docs", "/storage/emulated/0/Download/Docs")),
+                        files = listOf(browserFolder("Docs", "/storage/emulated/0/Download/Docs")).toPersistentList(),
                         folderStatsByPath = mapOf(
                             "/storage/emulated/0/Download/Docs" to FolderStats(
                                 fileCount = 3,
                                 totalBytes = 2048L,
                                 cachedAt = System.currentTimeMillis()
                             )
-                        )
-                    ),
+                        ).toPersistentMap()
+                    ).withUpdatedDisplayState(),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -351,8 +356,8 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android"))
-                    ),
+                        files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android")).toPersistentList()
+                    ).withUpdatedDisplayState(),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -392,7 +397,7 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android")),
+                        files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android")).toPersistentList(),
                         folderStatsByPath = mapOf(
                             "/storage/emulated/0/Download/Android" to FolderStats(
                                 fileCount = 3,
@@ -400,8 +405,8 @@ class BrowserScreenTest {
                                 cachedAt = System.currentTimeMillis(),
                                 status = FolderStatsStatus.Partial
                             )
-                        )
-                    ),
+                        ).toPersistentMap()
+                    ).withUpdatedDisplayState(),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -440,7 +445,7 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        selectedFiles = setOf("/storage/emulated/0/Download/Docs"),
+                        selectedFiles = setOf("/storage/emulated/0/Download/Docs").toPersistentSet(),
                         isPropertiesVisible = true,
                         properties = dev.qtremors.arcile.presentation.browser.PropertiesUiModel(
                             title = "Docs",

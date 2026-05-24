@@ -4,6 +4,15 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.navigation.NavBackStackEntry
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -94,14 +103,45 @@ fun AppNavigationGraph(
             onOpenFile(path)
         }
     }
+
+    val reducedMotion = LocalReducedMotionEnabled.current
+
+    // Details Transitions: Horizontal Slide (e.g. StorageDashboard, ArchiveViewer)
+    val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300, easing = ArcileMotion.Standard)) + fadeIn(tween(300))
+    }
+    val detailExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(300, easing = ArcileMotion.Standard)) + fadeOut(tween(300))
+    }
+    val detailPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(300, easing = ArcileMotion.Standard)) + fadeIn(tween(300))
+    }
+    val detailPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300, easing = ArcileMotion.Standard)) + fadeOut(tween(300))
+    }
+
+    // Utility/Modal Transitions: Vertical Slide + Fade (e.g. Settings, Trash, etc.)
+    val utilityEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = tween(280, easing = ArcileMotion.Standard)) + fadeIn(tween(280))
+    }
+    val utilityExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else fadeOut(tween(220, easing = ArcileMotion.Standard))
+    }
+    val utilityPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else fadeIn(tween(220, easing = ArcileMotion.Standard))
+    }
+    val utilityPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else slideOutVertically(targetOffsetY = { it / 8 }, animationSpec = tween(280, easing = ArcileMotion.Standard)) + fadeOut(tween(280))
+    }
+
     NavHost(
-                    navController = navController,
-                    startDestination = AppRoutes.Main(),
-                    enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
-                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
-                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
-                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
-                ) {
+        navController = navController,
+        startDestination = AppRoutes.Main(),
+        enterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
+        exitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
+        popEnterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
+        popExitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
+    ) {
                 composable<AppRoutes.Main> { backStackEntry ->
                     val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()
                     val homeViewModel = hiltViewModel<HomeViewModel>()
@@ -315,7 +355,12 @@ fun AppNavigationGraph(
                         }
                     }
                 }
-                composable<AppRoutes.StorageDashboard> { backStackEntry ->
+                composable<AppRoutes.StorageDashboard>(
+                    enterTransition = detailEnterTransition,
+                    exitTransition = detailExitTransition,
+                    popEnterTransition = detailPopEnterTransition,
+                    popExitTransition = detailPopExitTransition
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
@@ -348,7 +393,12 @@ fun AppNavigationGraph(
                         popUpTo<AppRoutes.Main> { inclusive = true }
                     }
                 }
-                composable<AppRoutes.Trash> {
+                composable<AppRoutes.Trash>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     val viewModel = hiltViewModel<TrashViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     TrashScreen(
@@ -375,7 +425,12 @@ fun AppNavigationGraph(
                     )
 
                 }
-                composable<AppRoutes.RecentFiles> { backStackEntry ->
+                composable<AppRoutes.RecentFiles>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
@@ -419,13 +474,23 @@ fun AppNavigationGraph(
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
                 }
-                composable<AppRoutes.Tools> {
+                composable<AppRoutes.Tools>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     ToolsScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) }
                     )
                 }
-                composable<AppRoutes.StorageCleaner> {
+                composable<AppRoutes.StorageCleaner>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     val viewModel = hiltViewModel<StorageCleanerViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     StorageCleanerScreen(
@@ -436,7 +501,12 @@ fun AppNavigationGraph(
                         onClearMessages = { viewModel.clearMessages() }
                     )
                 }
-                composable<AppRoutes.Settings> {
+                composable<AppRoutes.Settings>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     val viewModel = hiltViewModel<SettingsViewModel>()
                     val browserPrefs by viewModel.browserPreferences.collectAsStateWithLifecycle()
                     SettingsScreen(
@@ -451,7 +521,12 @@ fun AppNavigationGraph(
                         onRestartApp = onRestartApp
                     )
                 }
-                composable<AppRoutes.StorageManagement> { backStackEntry ->
+                composable<AppRoutes.StorageManagement>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
@@ -464,18 +539,33 @@ fun AppNavigationGraph(
                         onResetVolumeClassification = { storageKey -> viewModel.resetVolumeClassification(storageKey) }
                     )
                 }
-                composable<AppRoutes.About> {
+                composable<AppRoutes.About>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     AboutScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToLicenses = { navController.navigate(AppRoutes.Licenses) }
                     )
                 }
-                composable<AppRoutes.Licenses> {
+                composable<AppRoutes.Licenses>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     LicensesScreen(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable<AppRoutes.QuickAccess> { backStackEntry ->
+                composable<AppRoutes.QuickAccess>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
@@ -505,7 +595,12 @@ fun AppNavigationGraph(
                         }
                     )
                 }
-                composable<AppRoutes.ArchiveViewer> {
+                composable<AppRoutes.ArchiveViewer>(
+                    enterTransition = detailEnterTransition,
+                    exitTransition = detailExitTransition,
+                    popEnterTransition = detailPopEnterTransition,
+                    popExitTransition = detailPopExitTransition
+                ) {
                     val viewModel = hiltViewModel<ArchiveViewerViewModel>()
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     ArchiveViewerScreen(

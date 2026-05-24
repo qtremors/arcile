@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui.components
 
 import android.provider.Settings
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -48,23 +49,6 @@ enum class EmptyStateVariant {
     Recent
 }
 
-val LocalReduceMotion = compositionLocalOf<Boolean?> { null }
-
-@Composable
-fun isReduceMotionEnabled(): Boolean {
-    LocalReduceMotion.current?.let { return it }
-    val context = LocalContext.current
-    return remember(context) {
-        runCatching {
-            Settings.Global.getFloat(
-                context.contentResolver,
-                Settings.Global.ANIMATOR_DURATION_SCALE,
-                1f
-            )
-        }.getOrDefault(1f) == 0f
-    }
-}
-
 /**
  * A minimal, context-aware empty state component for file-manager surfaces.
  */
@@ -77,7 +61,7 @@ fun EmptyState(
     description: String? = null,
     action: (@Composable () -> Unit)? = null
 ) {
-    val reduceMotion = isReduceMotionEnabled()
+    val reduceMotion = LocalReducedMotionEnabled.current
     val visuals = emptyStateVisuals(variant)
     val resolvedTitle = title ?: emptyStateTitle(variant)
     val resolvedDescription = description ?: emptyStateDescription(variant)

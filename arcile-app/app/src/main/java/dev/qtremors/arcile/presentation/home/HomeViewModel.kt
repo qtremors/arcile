@@ -19,6 +19,13 @@ import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.presentation.filterAndSortFiles
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -34,15 +41,23 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
+@androidx.compose.runtime.Immutable
+data class HomeDisplayState(
+    val todayRecentFiles: PersistentList<FileModel> = persistentListOf(),
+    val indexedDashboardVolumes: PersistentList<StorageVolume> = persistentListOf(),
+    val sortedCategoryStorages: PersistentList<CategoryStorage> = persistentListOf()
+)
+
+@androidx.compose.runtime.Immutable
 data class HomeState(
-    val allStorageVolumes: List<StorageVolume> = emptyList(),
-    val quickAccessItems: List<QuickAccessItem> = emptyList(),
+    val allStorageVolumes: PersistentList<StorageVolume> = persistentListOf(),
+    val quickAccessItems: PersistentList<QuickAccessItem> = persistentListOf(),
     val storageInfo: StorageInfo? = null,
-    val categoryStorages: List<CategoryStorage> = emptyList(),
-    val categoryStoragesByVolume: Map<String, List<CategoryStorage>> = emptyMap(),
+    val categoryStorages: PersistentList<CategoryStorage> = persistentListOf(),
+    val categoryStoragesByVolume: PersistentMap<String, PersistentList<CategoryStorage>> = persistentMapOf(),
     val trashStorageUsage: TrashStorageUsage = TrashStorageUsage(0L, emptyMap()),
-    val recentFiles: List<FileModel> = emptyList(),
-    val searchResults: List<FileModel> = emptyList(),
+    val recentFiles: PersistentList<FileModel> = persistentListOf(),
+    val searchResults: PersistentList<FileModel> = persistentListOf(),
     val homeSearchQuery: String = "",
     val homeSortOption: FileSortOption = FileSortOption.DATE_NEWEST,
     val activeSearchFilters: SearchFilters = SearchFilters(),
@@ -52,10 +67,22 @@ data class HomeState(
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
     val error: UiText? = null,
-    val unclassifiedVolumes: List<StorageVolume> = emptyList(),
+    val unclassifiedVolumes: PersistentList<StorageVolume> = persistentListOf(),
     val showClassificationPrompt: Boolean = false,
-    val todayStart: Long = 0L
+    val todayStart: Long = 0L,
+    val displayState: HomeDisplayState = HomeDisplayState()
 )
+
+fun HomeState.withUpdatedDisplayState(): HomeState {
+    val todayFiles = recentFiles.filter { it.lastModified >= todayStart }
+    return copy(
+        displayState = HomeDisplayState(
+            todayRecentFiles = filterAndSortFiles(todayFiles, homeSearchQuery, homeSortOption).toPersistentList(),
+            indexedDashboardVolumes = storageInfo?.volumes?.filter { it.kind.isIndexed }.orEmpty().toPersistentList(),
+            sortedCategoryStorages = categoryStorages.sortedByDescending { it.sizeBytes }.toPersistentList()
+        )
+    )
+}
 
 enum class HomeRefreshMode {
     INITIAL,
@@ -82,7 +109,7 @@ class HomeViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             quickAccessRepo.quickAccessItems.collectLatest { items ->
-                _state.update { it.copy(quickAccessItems = items) }
+                _state.update { it.copy(quickAccessItems = items.toPersistentList()) }
             }
         }
 
@@ -119,7 +146,7 @@ class HomeViewModel @Inject constructor(
                 isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT,
                 error = null,
                 todayStart = newTodayStart
-            )
+            ).withUpdatedDisplayState()
         }
         refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
@@ -197,15 +224,19 @@ class HomeViewModel @Inject constructor(
                         isPullToRefreshing = false,
                         isCalculatingStorage = false,
                         error = errorText,
-                        allStorageVolumes = allStorageVolumes,
-                        recentFiles = recentResult?.getOrNull() ?: currentState.recentFiles,
+                        allStorageVolumes = allStorageVolumes.toPersistentList(),
+                        recentFiles = (recentResult?.getOrNull() ?: currentState.recentFiles).toPersistentList(),
                         storageInfo = storageInfo,
-                        categoryStorages = if (shouldRefreshAnalytics && !timedOut) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages,
-                        categoryStoragesByVolume = if (shouldRefreshAnalytics && !timedOut) categoryByVolume else currentState.categoryStoragesByVolume,
+                        categoryStorages = (if (shouldRefreshAnalytics && !timedOut) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages).toPersistentList(),
+                        categoryStoragesByVolume = (if (shouldRefreshAnalytics && !timedOut) {
+                            categoryByVolume.mapValues { it.value.sortedByDescending(CategoryStorage::sizeBytes).toPersistentList() }
+                        } else {
+                            currentState.categoryStoragesByVolume
+                        }).toPersistentMap(),
                         trashStorageUsage = if (shouldRefreshAnalytics && !timedOut) trashUsageResult?.getOrNull() ?: currentState.trashStorageUsage else currentState.trashStorageUsage,
-                        unclassifiedVolumes = unclassified,
+                        unclassifiedVolumes = unclassified.toPersistentList(),
                         showClassificationPrompt = unclassified.isNotEmpty()
-                    )
+                    ).withUpdatedDisplayState()
                 }
             }
         }
@@ -215,7 +246,7 @@ class HomeViewModel @Inject constructor(
         _state.update { currentState ->
             val remaining = currentState.unclassifiedVolumes.filter { v -> v.storageKey != storageKey }
             currentState.copy(
-                unclassifiedVolumes = remaining,
+                unclassifiedVolumes = remaining.toPersistentList(),
                 showClassificationPrompt = remaining.isNotEmpty()
             )
         }
@@ -239,7 +270,7 @@ class HomeViewModel @Inject constructor(
                     } else currentState.unclassifiedVolumes
 
                     currentState.copy(
-                        unclassifiedVolumes = restoredVolumes,
+                        unclassifiedVolumes = restoredVolumes.toPersistentList(),
                         showClassificationPrompt = restoredVolumes.isNotEmpty(),
                         error = UiText.StringResource(
                             R.string.error_save_classification_failed,
@@ -263,21 +294,21 @@ class HomeViewModel @Inject constructor(
         val remaining = _state.value.unclassifiedVolumes.filter { it.storageKey != storageKey }
         _state.update {
             it.copy(
-                unclassifiedVolumes = remaining,
+                unclassifiedVolumes = remaining.toPersistentList(),
                 showClassificationPrompt = remaining.isNotEmpty()
             )
         }
     }
 
     fun updateHomeSearchQuery(query: String) {
-        _state.update { it.copy(homeSearchQuery = query) }
+        _state.update { it.copy(homeSearchQuery = query).withUpdatedDisplayState() }
         debouncedSearch(query)
     }
 
     private fun debouncedSearch(query: String) {
         searchJob?.cancel()
         if (query.isBlank()) {
-            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            _state.update { it.copy(searchResults = persistentListOf(), isSearching = false) }
             return
         }
         searchJob = viewModelScope.launch {
@@ -288,7 +319,7 @@ class HomeViewModel @Inject constructor(
             val result = repository.searchFiles(query, StorageScope.AllStorage, filters)
 
             result.onSuccess { files ->
-                _state.update { it.copy(isSearching = false, searchResults = files) }
+                _state.update { it.copy(isSearching = false, searchResults = files.toPersistentList()) }
             }.onFailure { error ->
                 _state.update {
                     it.copy(
@@ -301,7 +332,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun updateHomeSortOption(sortOption: FileSortOption) {
-        _state.update { it.copy(homeSortOption = sortOption) }
+        _state.update { it.copy(homeSortOption = sortOption).withUpdatedDisplayState() }
     }
 
     fun updateSearchFilters(filters: SearchFilters) {

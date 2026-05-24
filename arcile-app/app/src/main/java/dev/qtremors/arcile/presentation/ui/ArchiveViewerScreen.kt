@@ -62,6 +62,7 @@ import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.DateFormat
@@ -123,8 +124,8 @@ fun ArchiveViewerScreen(
         )
     }
 
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ArcileScreenScaffold(
+        isLoading = state.isLoading,
         snackbarHost = {
             SnackbarHost(
                 hostState = snackbarHostState,

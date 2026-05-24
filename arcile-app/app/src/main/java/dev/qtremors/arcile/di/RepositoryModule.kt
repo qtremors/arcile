@@ -24,6 +24,10 @@ import dev.qtremors.arcile.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.data.manager.TrashManager
 import dev.qtremors.arcile.domain.ArchiveManager
+import dev.qtremors.arcile.domain.ArchiveRepository
+import dev.qtremors.arcile.domain.ClipboardRepository
+import dev.qtremors.arcile.domain.FileBrowserRepository
+import dev.qtremors.arcile.domain.FileMutationRepository
 import dev.qtremors.arcile.data.provider.DefaultVolumeProvider
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.source.DefaultFileSystemDataSource
@@ -31,6 +35,10 @@ import dev.qtremors.arcile.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.data.source.FileSystemDataSource
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.SearchRepository
+import dev.qtremors.arcile.domain.StorageAnalyticsRepository
+import dev.qtremors.arcile.domain.TrashRepository
+import dev.qtremors.arcile.domain.VolumeRepository
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.DefaultOperationJournal
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
@@ -201,7 +209,7 @@ object RepositoryModule {
 
     @Provides
     @Singleton
-    fun provideFileRepository(
+    fun provideLocalFileRepository(
         volumeProvider: VolumeProvider,
         mediaStoreClient: MediaStoreClient,
         trashManager: TrashManager,
@@ -209,7 +217,7 @@ object RepositoryModule {
         fileSystemDataSource: FileSystemDataSource,
         folderStatsStore: FolderStatsStore,
         dispatchers: ArcileDispatchers
-    ): FileRepository {
+    ): LocalFileRepository {
         return LocalFileRepository(
             volumeProvider,
             mediaStoreClient,
@@ -220,6 +228,42 @@ object RepositoryModule {
             dispatchers
         )
     }
+
+    @Provides
+    @Singleton
+    fun provideFileRepository(repository: LocalFileRepository): FileRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideFileBrowserRepository(repository: LocalFileRepository): FileBrowserRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideFileMutationRepository(repository: LocalFileRepository): FileMutationRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideSearchRepository(repository: LocalFileRepository): SearchRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideStorageAnalyticsRepository(repository: LocalFileRepository): StorageAnalyticsRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideTrashRepository(repository: LocalFileRepository): TrashRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideArchiveRepository(repository: LocalFileRepository): ArchiveRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideVolumeRepository(repository: LocalFileRepository): VolumeRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideClipboardRepository(repository: LocalFileRepository): ClipboardRepository = repository
 
     @Provides
     @Singleton

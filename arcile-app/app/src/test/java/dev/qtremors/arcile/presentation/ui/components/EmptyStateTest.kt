@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.presentation.ui.components
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Text
@@ -67,13 +66,11 @@ class EmptyStateTest {
     fun `reduce motion override renders content immediately`() {
         composeRule.setContent {
             ArcileTestTheme {
-                CompositionLocalProvider(LocalReduceMotion provides true) {
-                    EmptyState(
-                        variant = EmptyStateVariant.Search,
-                        title = "No matches",
-                        description = "Try another query."
-                    )
-                }
+                EmptyState(
+                    variant = EmptyStateVariant.Search,
+                    title = "No matches",
+                    description = "Try another query."
+                )
             }
         }
 

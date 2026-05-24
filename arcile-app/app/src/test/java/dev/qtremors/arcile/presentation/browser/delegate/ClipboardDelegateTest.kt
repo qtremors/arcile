@@ -14,6 +14,8 @@ import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
@@ -62,8 +64,8 @@ class ClipboardDelegateTest {
     fun `copySelectedToClipboard updates state correctly`() {
         val file = FileModel("test.txt", "/test.txt", 100L, 0L, false, "txt", false)
         state.value = state.value.copy(
-            files = listOf(file),
-            selectedFiles = setOf("/test.txt")
+            files = listOf(file).toPersistentList(),
+            selectedFiles = setOf("/test.txt").toPersistentSet()
         )
 
         delegate.copySelectedToClipboard()
@@ -81,8 +83,8 @@ class ClipboardDelegateTest {
     fun `cutSelectedToClipboard updates state correctly`() {
         val file = FileModel("test.txt", "/test.txt", 100L, 0L, false, "txt", false)
         state.value = state.value.copy(
-            files = listOf(file),
-            selectedFiles = setOf("/test.txt")
+            files = listOf(file).toPersistentList(),
+            selectedFiles = setOf("/test.txt").toPersistentSet()
         )
 
         delegate.cutSelectedToClipboard()
@@ -174,7 +176,7 @@ class ClipboardDelegateTest {
             clipboardState = ClipboardState(ClipboardOperation.CUT, listOf(file)),
             currentPath = "/dest",
             showConflictDialog = true,
-            pasteConflicts = listOf(FileConflict("/test.txt", file, existing))
+            pasteConflicts = listOf(FileConflict("/test.txt", file, existing)).toPersistentList()
         )
         coEvery { bulkFileOperationCoordinator.startOperation(any(), any(), any(), any()) } returns true
         
@@ -201,7 +203,7 @@ class ClipboardDelegateTest {
         val existing = FileModel("test.txt", "/dest/test.txt", 0L, 0L, false, "txt", false)
         state.value = state.value.copy(
             showConflictDialog = true,
-            pasteConflicts = listOf(FileConflict("/test.txt", file, existing))
+            pasteConflicts = listOf(FileConflict("/test.txt", file, existing)).toPersistentList()
         )
 
         delegate.dismissConflictDialog()

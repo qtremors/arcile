@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.ui
 
 import dev.qtremors.arcile.presentation.ui.components.ToolItem
 import dev.qtremors.arcile.presentation.ui.components.ToolCard
+import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -46,8 +47,7 @@ fun ToolsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToCleaner: () -> Unit
 ) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ArcileScreenScaffold(
         topBar = {
             @OptIn(ExperimentalMaterial3Api::class)
             TopAppBar(

@@ -97,12 +97,12 @@ fun StorageDashboardScreen(
     val volumes = if (selectedVolumeId != null) {
         if (isTemporarySelection) emptyList() else state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
     } else {
-        state.storageInfo?.volumes?.filter { it.kind.isIndexed }.orEmpty()
+        state.displayState.indexedDashboardVolumes
     }
     val categoryStorages = if (selectedVolumeId != null) {
         if (isTemporarySelection) emptyList() else state.categoryStoragesByVolume[selectedVolumeId].orEmpty()
     } else {
-        state.categoryStorages
+        state.displayState.sortedCategoryStorages
     }
     val totalBytes = volumes.sumOf { it.totalBytes }
     val freeBytes = volumes.sumOf { it.freeBytes }
@@ -133,7 +133,6 @@ fun StorageDashboardScreen(
     }
 
     val displayCategories = categoryStorages
-        .sortedByDescending { it.sizeBytes }
         .map { cat ->
             val icon = when (cat.name) {
                 "Images" -> Icons.Default.Image

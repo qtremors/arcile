@@ -143,11 +143,8 @@ import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.presentation.buildFolderTabs
-import dev.qtremors.arcile.presentation.filterFilesByFolderTab
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
-import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
@@ -308,15 +305,7 @@ fun BrowserScreen(
         }
     }
 
-    val tabFilteredFiles = remember(state.files, state.selectedFolderTabPath) {
-        filterFilesByFolderTab(state.files, state.selectedFolderTabPath)
-    }
-    val displayedFiles = remember(tabFilteredFiles, state.browserSortOption) {
-        filterAndSortFiles(tabFilteredFiles, "", state.browserSortOption)
-    }
-    val sortedCategoryFiles = remember(state.files, state.browserSortOption) {
-        filterAndSortFiles(state.files, "", state.browserSortOption)
-    }
+    val displayedFiles = state.displayState.visibleFiles
     val currentPresentation = remember(
         state.browserSortOption,
         state.browserViewMode,
@@ -332,19 +321,9 @@ fun BrowserScreen(
             showThumbnails = state.browserShowThumbnails
         )
     }
-    val currentVolume = remember(state.currentVolumeId, state.storageVolumes) {
-        state.storageVolumes.firstOrNull { it.id == state.currentVolumeId }
-    }
-    val categoryFolderTabs = remember(state.isCategoryScreen, sortedCategoryFiles, context) {
-        if (state.isCategoryScreen) {
-            buildFolderTabs(sortedCategoryFiles, context.getString(R.string.all_files))
-        } else {
-            emptyList()
-        }
-    }
-    val selectedCategoryFolderTabIndex = remember(categoryFolderTabs, state.selectedFolderTabPath) {
-        categoryFolderTabs.indexOfFirst { it.path == state.selectedFolderTabPath }.takeIf { it >= 0 } ?: 0
-    }
+    val currentVolume = state.displayState.currentVolume
+    val categoryFolderTabs = state.displayState.categoryFolderTabs
+    val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
     val switchCategoryFolderTab: (Int) -> Unit = { direction ->
         if (categoryFolderTabs.size > 1) {
             val nextIndex = (selectedCategoryFolderTabIndex + direction)
@@ -1323,7 +1302,7 @@ fun BrowserScreen(
                 onCreateFolder(name)
                 showCreateFolderDialog = false
             },
-            existingNames = state.files.map { it.name }.toSet(),
+            existingNames = state.displayState.existingNames,
             destinationPath = state.currentPath
         )
     }
@@ -1359,7 +1338,7 @@ fun BrowserScreen(
                 showCreateFileDialog = false
                 onCreateFile(fileName)
             },
-            existingNames = state.files.map { it.name }.toSet(),
+            existingNames = state.displayState.existingNames,
             destinationPath = state.currentPath
         )
     }
@@ -1385,7 +1364,7 @@ fun BrowserScreen(
             defaultName = defaultName,
             selectedCount = state.selectedFiles.size,
             destinationPath = state.currentPath,
-            existingNames = state.files.map { it.name }.toSet(),
+            existingNames = state.displayState.existingNames,
             onDismiss = { showCreateArchiveDialog = false },
             onConfirm = { name, format, password ->
                 showCreateArchiveDialog = false
@@ -1419,7 +1398,7 @@ fun BrowserScreen(
                 onRenameFile(selectedPath, newName)
                 showRenameDialog = false
             },
-            existingNames = state.files.map { it.name }.toSet()
+            existingNames = state.displayState.existingNames
         )
     }
 

@@ -6,6 +6,9 @@ import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.presentation.browser.withUpdatedDisplayState
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,7 +28,7 @@ class SearchDelegate(
             it.copy(
                 browserSearchQuery = query,
                 selectedFolderTabPath = if (query.isBlank()) null else it.selectedFolderTabPath
-            )
+            ).withUpdatedDisplayState()
         }
         debouncedSearch(query)
     }
@@ -33,7 +36,7 @@ class SearchDelegate(
     private fun debouncedSearch(query: String) {
         searchJob?.cancel()
         if (query.isBlank()) {
-            state.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            state.update { it.copy(searchResults = persistentListOf(), isSearching = false) }
             return
         }
         searchJob = viewModelScope.launch {
@@ -50,7 +53,7 @@ class SearchDelegate(
             }
 
             repository.searchFiles(query, scope, stateVal.activeSearchFilters).onSuccess { files ->
-                state.update { it.copy(isSearching = false, searchResults = files) }
+                state.update { it.copy(isSearching = false, searchResults = files.toPersistentList()) }
             }.onFailure { error ->
                 state.update {
                     it.copy(

@@ -1,10 +1,32 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.0
-> **Last Updated:** 2026-05-24
+> **Version:** 0.8.1
+> **Last Updated:** 2026-05-25
 
 ---
+
+## [0.8.1] - 2026-05-24
+
+### Visual System / Foundation
+- **Choreographed Motion System:** Introduced `ArcileMotion` in `Motion.kt` containing unified durations and easing curves (Emphasized, Standard, Decelerate, Accelerate), and system-wide reduced motion detection via `LocalReducedMotionEnabled` providing a fallback to instant animations.
+- **Navigation Transitions:** Configured distinct horizontal shared-axis transitions for Detail screens (ArchiveViewer, StorageDashboard) and smooth vertical slide + fade transitions for Utility/Modal destinations (Settings, About, Licenses, Trash, Tools) in `AppNavigationGraph.kt`.
+- **Premium Screen Primitives:** Created reusable primitives (`ArcileScreenScaffold`, `ArcileSectionHeader`, `ArcileListSurface`, `ArcileActionSheet`, and `ArcileStateView`) and refactored secondary screens to ensure visual consistency.
+
+### Compose Performance & Stability
+- **Browser Display State:** Added `BrowserDisplayState` so browser file lists, category folder tabs, selected tab indexes, visible paths, existing names, and current volume lookups are prepared outside hot composable paths.
+- **Immutable UI Collections:** Converted hot Browser and Home state collections to `kotlinx.collections.immutable` persistent lists, sets, and maps to improve Compose stability for large listings and frequent folder-stat updates.
+- **Home & Storage Selectors:** Moved Home recent-file filtering/sorting and Storage Dashboard volume/category transforms into ViewModel-level display state selectors, reducing repeated work during unrelated UI updates.
+- **Compose Compiler Reports:** Enabled Compose compiler metrics and reports under `app/build/compose_compiler/` for ongoing stability inspection.
+
+### Storage Architecture
+- **Narrow Repository Interfaces:** Split the monolithic storage contract into focused capability interfaces for browsing, mutation, search, analytics, trash, archive, volume discovery, and clipboard operations.
+- **Compatibility Facade:** Kept `FileRepository` as a temporary compatibility facade over the narrow interfaces while binding all capabilities to the singleton `LocalFileRepository` through Hilt.
+- **Incremental Migration:** Migrated first-slice use cases to narrow storage interfaces while deferring broad ViewModel and feature-package refactors to keep the release low-risk.
+
+### Testing
+- **Selector Coverage:** Added targeted tests for browser display-state sorting, folder-tab generation, selected-tab resolution, visible-path derivation, and transient state updates preserving display-state references.
+- **Regression Verification:** Updated affected Browser, Home, delegate, and UI tests for persistent immutable state and verified the release with JVM/Robolectric tests plus production string checks.
 
 ## [0.8.0] - 2026-05-24
 

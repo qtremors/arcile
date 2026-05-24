@@ -42,6 +42,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.collections.immutable.PersistentList
+import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 import javax.inject.Inject
 
 enum class BrowserNativeAction { TRASH }
@@ -70,10 +79,10 @@ data class BrowserState(
     val isCategoryScreen: Boolean = false,
     val activeCategoryName: String = "",
     val selectedFolderTabPath: String? = null,
-    val files: List<FileModel> = emptyList(),
-    val folderStatsByPath: Map<String, FolderStats> = emptyMap(),
-    val folderStatsLoadingPaths: Set<String> = emptySet(),
-    val searchResults: List<FileModel> = emptyList(),
+    val files: PersistentList<FileModel> = persistentListOf(),
+    val folderStatsByPath: PersistentMap<String, FolderStats> = persistentMapOf(),
+    val folderStatsLoadingPaths: PersistentSet<String> = persistentSetOf(),
+    val searchResults: PersistentList<FileModel> = persistentListOf(),
     val isSearching: Boolean = false,
     val browserSearchQuery: String = "",
     val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
@@ -81,16 +90,16 @@ data class BrowserState(
     val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
     val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val browserShowThumbnails: Boolean = BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS,
-    val selectedFiles: Set<String> = emptySet(),
+    val selectedFiles: PersistentSet<String> = persistentSetOf(),
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val error: UiText? = null,
-    val pasteConflicts: List<FileConflict> = emptyList(),
+    val pasteConflicts: PersistentList<FileConflict> = persistentListOf(),
     val showConflictDialog: Boolean = false,
-    val storageVolumes: List<StorageVolume> = emptyList(),
+    val storageVolumes: PersistentList<StorageVolume> = persistentListOf(),
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
@@ -103,8 +112,23 @@ data class BrowserState(
     val properties: PropertiesUiModel? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
-    val pendingTrashUndoIds: List<String> = emptyList(),
-    val selectedFilesTotalSize: Long = 0L
+    val pendingTrashUndoIds: PersistentList<String> = persistentListOf(),
+    val selectedFilesTotalSize: Long = 0L,
+    val displayState: BrowserDisplayState = BrowserDisplayState()
+)
+
+private const val ALL_FILES_LABEL = "All files"
+
+fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
+    displayState = buildBrowserDisplayState(
+        files = files,
+        sortOption = browserSortOption,
+        selectedFolderTabPath = selectedFolderTabPath,
+        isCategoryScreen = isCategoryScreen,
+        currentVolumeId = currentVolumeId,
+        storageVolumes = storageVolumes,
+        allFilesLabel = ALL_FILES_LABEL
+    )
 )
 
 @HiltViewModel
@@ -199,7 +223,7 @@ class BrowserViewModel @Inject constructor(
                 _state.update { it.copy(pendingNativeAction = BrowserNativeAction.TRASH) }
             }
             override fun clearSelection() {
-                _state.update { it.copy(selectedFiles = emptySet()) }
+                _state.update { it.copy(selectedFiles = persistentSetOf()) }
             }
         },
         startBulkDeleteOperation = { type, selected ->
@@ -231,7 +255,7 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             getStorageVolumesUseCase().collectLatest { volumes ->
-                _state.update { it.copy(storageVolumes = volumes) }
+                _state.update { it.copy(storageVolumes = volumes.toPersistentList()).withUpdatedDisplayState() }
 
                 if (!isInitialized) {
                     isInitialized = true
@@ -268,7 +292,7 @@ class BrowserViewModel @Inject constructor(
                     if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
                         navigationDelegate.openVolumeRoots(UiText.StringResource(R.string.error_selected_storage_removed))
                     } else if (_state.value.isVolumeRootScreen) {
-                        _state.update { it.copy(files = navigationDelegate.volumeFiles()) }
+                        _state.update { it.copy(files = navigationDelegate.volumeFiles().toPersistentList()).withUpdatedDisplayState() }
                     }
                 }
             }
@@ -291,8 +315,8 @@ class BrowserViewModel @Inject constructor(
                     }
 
                     currentState.copy(
-                        folderStatsByPath = currentState.folderStatsByPath + (update.path to update.stats),
-                        folderStatsLoadingPaths = currentState.folderStatsLoadingPaths - update.path
+                        folderStatsByPath = (currentState.folderStatsByPath + (update.path to update.stats)).toPersistentMap(),
+                        folderStatsLoadingPaths = (currentState.folderStatsLoadingPaths - update.path).toPersistentSet()
                     )
                 }
             }
@@ -314,7 +338,7 @@ class BrowserViewModel @Inject constructor(
                         browserListZoom = pathPresentation.listZoom,
                         browserGridMinCellSize = pathPresentation.gridMinCellSize,
                         browserShowThumbnails = pathPresentation.showThumbnails
-                    )
+                    ).withUpdatedDisplayState()
                 }
             }
         }
@@ -371,7 +395,7 @@ class BrowserViewModel @Inject constructor(
                         val undoIds = if (event.request.type == BulkFileOperationType.TRASH) {
                             trashUndoIdsFor(event.request.sourcePaths)
                         } else {
-                            emptyList()
+                            persistentListOf()
                         }
                         _state.update {
                             it.copy(
@@ -384,7 +408,7 @@ class BrowserViewModel @Inject constructor(
                                     type = event.request.type,
                                     itemCount = event.request.sourcePaths.size
                                 ),
-                                pendingTrashUndoIds = undoIds
+                                pendingTrashUndoIds = undoIds.toPersistentList()
                             )
                         }
                         navigationDelegate.refresh()
@@ -436,7 +460,7 @@ class BrowserViewModel @Inject constructor(
                 currentState.selectedFiles + path
             }
             currentState.copy(
-                selectedFiles = updatedSelection,
+                selectedFiles = updatedSelection.toPersistentSet(),
                 selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
@@ -450,7 +474,7 @@ class BrowserViewModel @Inject constructor(
         _state.update { currentState ->
             val updatedSelection = paths.toSet()
             currentState.copy(
-                selectedFiles = updatedSelection,
+                selectedFiles = updatedSelection.toPersistentSet(),
                 selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
@@ -465,7 +489,7 @@ class BrowserViewModel @Inject constructor(
             val currentlySelected = currentState.selectedFiles
             val updatedSelection = allPaths.filter { it !in currentlySelected }.toSet()
             currentState.copy(
-                selectedFiles = updatedSelection,
+                selectedFiles = updatedSelection.toPersistentSet(),
                 selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
@@ -494,7 +518,7 @@ class BrowserViewModel @Inject constructor(
         _state.update { currentState ->
             val updatedSelection = currentState.selectedFiles + paths
             currentState.copy(
-                selectedFiles = updatedSelection,
+                selectedFiles = updatedSelection.toPersistentSet(),
                 selectedFilesTotalSize = calculateSelectionSize(updatedSelection, currentState.files, currentState.folderStatsByPath),
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
@@ -506,7 +530,7 @@ class BrowserViewModel @Inject constructor(
     fun clearSelection() {
         _state.update {
             it.copy(
-                selectedFiles = emptySet(),
+                selectedFiles = persistentSetOf(),
                 selectedFilesTotalSize = 0L,
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
@@ -519,7 +543,7 @@ class BrowserViewModel @Inject constructor(
         _state.update { currentState ->
             currentState.copy(
                 selectedFolderTabPath = path,
-                selectedFiles = emptySet(),
+                selectedFiles = persistentSetOf(),
                 selectedFilesTotalSize = 0L,
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
@@ -545,7 +569,7 @@ class BrowserViewModel @Inject constructor(
                 browserListZoom = normalized.listZoom,
                 browserGridMinCellSize = normalized.gridMinCellSize,
                 browserShowThumbnails = normalized.showThumbnails
-            )
+            ).withUpdatedDisplayState()
         }
         viewModelScope.launch {
             if (_state.value.isCategoryScreen) {
@@ -715,7 +739,7 @@ class BrowserViewModel @Inject constructor(
     fun undoLastTrashMove() {
         val trashIds = _state.value.pendingTrashUndoIds
         if (trashIds.isEmpty()) return
-        _state.update { it.copy(pendingTrashUndoIds = emptyList()) }
+        _state.update { it.copy(pendingTrashUndoIds = persistentListOf()) }
         viewModelScope.launch {
             repository.restoreFromTrash(trashIds).onSuccess {
                 refresh()
@@ -726,7 +750,7 @@ class BrowserViewModel @Inject constructor(
     }
 
     fun clearPendingTrashUndo() {
-        _state.update { it.copy(pendingTrashUndoIds = emptyList()) }
+        _state.update { it.copy(pendingTrashUndoIds = persistentListOf()) }
     }
 
     fun clearActiveFileOperation() {

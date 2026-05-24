@@ -114,7 +114,6 @@ import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.filterAndSortFiles
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.ToolCard
 import dev.qtremors.arcile.presentation.ui.components.ToolItem
@@ -298,11 +297,7 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
-    val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption, state.todayStart) {
-        val todayFiles = state.recentFiles.filter { it.lastModified >= state.todayStart }
-        filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
-            .take(HomeRecentFilesPreviewLimit)
-    }
+    val displayedRecentFiles = state.displayState.todayRecentFiles.take(HomeRecentFilesPreviewLimit)
     LaunchedEffect(displayedRecentFiles) {
         displayedRecentFiles
             .asSequence()

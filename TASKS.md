@@ -2,78 +2,61 @@
 
 > **Project:** Arcile
 > **Version:** 0.8.0
-> **Last Updated:** 2026-05-24
+> **Last Updated:** 2026-05-25
 
 ---
 
 ## Consolidated Tasks
 
-### Visual System / Interaction Tasks
-
-- [ ] **UI-0017 - Motion System** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
-  - **Problem:** Motion is present but not systematic: route transitions slide horizontally, file grid press scales, FAB icon rotates, toolbars slide vertically, storage bars spring, thumbnails crossfade, and empty states bounce. These motions do not share duration, easing, hierarchy, or interruption rules.
-  - **Impact:** The UI can feel animated but not choreographed. Premium apps feel calm because motion explains hierarchy.
-  - **Fix:** Create `ArcileMotion` tokens for quick, standard, emphasized, container transform, list item placement, and destructive emphasis. Audit all `animate*`, `AnimatedVisibility`, `AnimatedContent`, `animateContentSize`, and `spring` calls. Define interruption behavior for file operations, selection, search, and folder navigation.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0024 - Navigation Motion** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt
-  - **Problem:** All route transitions use the same horizontal slide/fade pattern regardless of destination type.
-  - **Impact:** Settings, trash, recent files, storage dashboard, quick access, and archive viewer all move like peer pages, even when they are detail/supporting/modal-like destinations.
-  - **Fix:** Define destination classes: top-level, detail, modal-ish utility, archive viewer. Use fade-through for settings/about/licenses, shared bounds for archive/category/file navigation, and standard predictive back for route pops. Respect reduced motion.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0043 - Premium Feel** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
-  - **Problem:** Screen quality varies noticeably: Browser and Home are richer, while ArchiveViewer, Tools, Settings rows, About, Licenses, and some dialogs feel closer to template Material UI.
-  - **Impact:** The app can feel like several design eras in one product.
-  - **Fix:** Create reusable screen primitives: `ArcileScreenScaffold`, `ArcileSectionHeader`, `ArcileListSurface`, `ArcileActionSheet`, `ArcileStateView`. Convert lower-polish screens first: ArchiveViewer, Tools, Licenses, About, Settings. Add screenshot QA for compact/light/dark/OLED.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 ### Architecture / Maintainability Tasks
 
-- [ ] **COMPOSE-0011 - Compose Performance** `[High]`
+- [x] **COMPOSE-0011 - Compose Performance** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/StorageDashboardScreen.kt`
   - **Problem:** Several expensive sorts/groupings/transforms happen in composables or on every state-level change. Some are remembered, but state objects are broad so unrelated changes can still invalidate calculations.
   - **Impact:** Scrolling/searching/selection can feel less responsive in large datasets.
   - **Fix:** Move stable display lists/groupings into ViewModel state or dedicated memoized selectors. Use narrower immutable UI models. Add Compose compiler stability reports and macrobenchmarks. Recommended Refactor: Add `BrowserDisplayState` with already-filtered/sorted file lists and separate transient UI state from data state. Safer Alternative: Use `derivedStateOf` for scroll/progress-triggered derived values and tighten `remember` keys.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for now. Added `BrowserDisplayState`, moved browser/home/storage dashboard display transforms into state selectors, and enabled Compose compiler reports. Connected-device macrobenchmarks and manual QA were intentionally skipped.
+  - **Verification:** Passed `:app:compileDebugKotlin`, targeted JVM/Robolectric tests, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
 
-- [ ] **UI-0034 - Compose Stability** `[High]`
+- [x] **UI-0034 - Compose Stability** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/BrowserViewModel.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt
   - **Problem:** Screen state classes pass standard `List`, `Set`, and `Map` collections through high-level composables. Compose treats standard collections as unstable unless wrapped/annotated/using immutable collections.
   - **Impact:** Large file lists and frequent folder stats updates may recompose more UI than necessary.
   - **Fix:** Run Compose compiler stability reports. Convert hot UI state collections to `kotlinx.collections.immutable` persistent collections or stable UI wrappers. Split large state into smaller state holders for browser files, selection, operation, search, and overlays.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for now. Hot browser/home state collections now use `kotlinx.collections.immutable` persistent collections and stable display state. A deeper split into many state holders is deferred because it would be a wide refactor.
+  - **Verification:** Passed `:app:compileDebugKotlin`, targeted JVM/Robolectric tests, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
 
-- [ ] **ARCH-0002 - Architecture / Storage Abstraction** `[Critical]`
+- [x] **ARCH-0002 - Architecture / Storage Abstraction** `[Critical]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/FileRepository.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt`
   - **Problem:** `FileRepository` is a broad god interface covering browsing, mutation, trash, archive operations, analytics, search, volume discovery, cached stats, and properties.
   - **Impact:** New features can regress unrelated workflows because every ViewModel depends on the same large abstraction.
   - **Fix:** Split into `FileBrowserRepository`, `FileMutationRepository`, `SearchRepository`, `StorageAnalyticsRepository`, `TrashRepository`, `ArchiveRepository`, and `VolumeRepository`. Give each interface explicit capability and error contracts. Keep an app facade only if needed for composition, not as the primary domain API. Recommended Refactor: Move use cases to depend on narrow interfaces. ViewModels should depend on use cases or feature facades, not the monolithic repository. Safer Alternative: Create adapter interfaces incrementally around current implementation and migrate one feature at a time.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed incrementally. Added narrow repository interfaces and Hilt bindings while keeping `FileRepository` as a compatibility facade. First-slice use cases were migrated; full consumer migration is deferred to avoid a wide refactor.
+  - **Verification:** Passed `:app:compileDebugKotlin`, targeted JVM/Robolectric tests, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
 
-- [ ] **ARCH-0009 - Compose Architecture** `[High]`
+- [ ] **ARCH-0009 - Compose Architecture** `[High]` `[Deferred]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt`
   - **Problem:** `BrowserScreen.kt` is roughly 1,500 lines and owns too many dialogs, toolbars, state effects, operation UI, browser content, archive flows, clipboard UI, and bottom sheets in one file.
   - **Impact:** UI regressions become more likely as new file-manager features are added.
   - **Fix:** Split into `BrowserContent`, `BrowserDialogs`, `BrowserOperationOverlay`, `BrowserTopBars`, `BrowserEmptyStates`, and archive dialog files. Define a stable `BrowserUiActions` holder. Keep ephemeral UI state close to owning component. Recommended Refactor: Move browser-specific dialogs and operation surfaces into dedicated composables with focused previews/tests. Safer Alternative: Extract only dialogs and operation progress first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Deferred. The current pass reduced recomposition pressure via display state, but the file-level BrowserScreen split is intentionally skipped because it is a wide structural refactor.
+  - **Verification:** Not run for this deferred refactor.
 
-- [ ] **ARCH-0012 - Presentation State Ownership** `[High]`
+- [ ] **ARCH-0012 - Presentation State Ownership** `[High]` `[Deferred]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/BrowserViewModel.kt`
   - **Problem:** `BrowserState` contains persistent navigation data, list data, search data, selection, clipboard, dialog visibility, native pending actions, properties, progress overlay state, and presentation preferences in one wide state object.
   - **Impact:** Unrelated UI changes can trigger wide recompositions.
   - **Fix:** Split into `BrowserNavigationState`, `BrowserListingState`, `BrowserSelectionState`, `BrowserSearchState`, `BrowserDialogState`, and `OperationUiState`. Expose separate StateFlows or a composed immutable screen state. Recommended Refactor: Use reducers/events for browser state transitions and test them directly. Safer Alternative: At minimum, move dialog visibility and operation state out of `BrowserState`.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Deferred beyond the completed display-state extraction. `BrowserState` still remains a compatibility screen state; full state-holder/reducer split is intentionally skipped because it would be wide.
+  - **Verification:** Not run for this deferred refactor.
 
-- [ ] **MAINT-0030 - Maintainability / Code Organization** `[Medium]`
+- [ ] **MAINT-0030 - Maintainability / Code Organization** `[Medium]` `[Deferred]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/**`
   - **Problem:** The code is package-layered (`data`, `domain`, `presentation`) but not feature-modular. Feature concerns cross directories and files are growing large.
   - **Impact:** Indirect: feature velocity and regression risk will worsen.
   - **Fix:** Move toward feature packages/modules. Define public APIs per feature. Add architecture rules for dependencies. Recommended Refactor: Start with `feature:browser`, `feature:trash`, `feature:archive`, and `core:storage`. Safer Alternative: Within single module, reorganize packages under `feature/*` and `core/*`.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Deferred. Feature/package/module reorganization is intentionally skipped because it would be a broad refactor.
+  - **Verification:** Not run for this deferred refactor.
 
 ### API / Domain Tasks
 

@@ -1,10 +1,10 @@
 package dev.qtremors.arcile.domain.usecase
 
-import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.TrashRepository
 import javax.inject.Inject
 
 class MoveToTrashUseCase @Inject constructor(
-    private val repository: FileRepository
+    private val repository: TrashRepository
 ) {
     suspend operator fun invoke(paths: List<String>): Result<Unit> {
         return repository.moveToTrash(paths)

@@ -32,7 +32,7 @@ class DestinationRequiredException(val trashIds: List<String>) : Exception("Dest
  * without try/catch at the call site. IO-bound operations must be called from a coroutine
  * and are dispatched to [kotlinx.coroutines.Dispatchers.IO] internally.
  */
-interface FileRepository {
+interface FileBrowserRepository {
 
     // ─── Directory listing ───────────────────────────────────────────────────
 
@@ -51,6 +51,9 @@ interface FileRepository {
     fun queueFolderStats(paths: List<String>)
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
     suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
+}
+
+interface ArchiveRepository {
     suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
         Result.failure(NotImplementedError("Archive support is not available"))
     suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
@@ -73,7 +76,9 @@ interface FileRepository {
         password: String? = null,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
+}
 
+interface FileMutationRepository {
     // ─── File mutations ──────────────────────────────────────────────────────
 
     /**
@@ -141,6 +146,9 @@ interface FileRepository {
      *   if the rename failed.
      */
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
+}
+
+interface VolumeRepository {
 
     fun observeStorageVolumes(): Flow<List<StorageVolume>>
 
@@ -158,7 +166,9 @@ interface FileRepository {
      * Returns a map of standard folders (e.g., DCIM, Downloads, Pictures).
      */
     fun getStandardFolders(): Map<String, String?>
+}
 
+interface StorageAnalyticsRepository {
     // ─── Queries ─────────────────────────────────────────────────────────────
 
     /**
@@ -193,6 +203,9 @@ interface FileRepository {
      */
     suspend fun getCategoryStorageSizes(scope: StorageScope = StorageScope.AllStorage): Result<List<CategoryStorage>>
     suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>
+}
+
+interface SearchRepository {
 
     /**
      * Returns all files belonging to [categoryName] from the MediaStore.
@@ -217,7 +230,9 @@ interface FileRepository {
         scope: StorageScope = StorageScope.AllStorage,
         filters: SearchFilters? = null
     ): Result<List<FileModel>>
+}
 
+interface ClipboardRepository {
     // ─── Clipboard operations ─────────────────────────────────────────────────
 
     /**
@@ -267,7 +282,9 @@ interface FileRepository {
         resolutions: Map<String, ConflictResolution> = emptyMap(),
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit>
+}
 
+interface TrashRepository {
     // ─── Trash subsystem ─────────────────────────────────────────────────────
 
     /**
@@ -313,3 +330,16 @@ interface FileRepository {
      */
     suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit>
 }
+
+/**
+ * Compatibility facade while features migrate toward narrow storage capabilities.
+ */
+interface FileRepository :
+    FileBrowserRepository,
+    FileMutationRepository,
+    SearchRepository,
+    StorageAnalyticsRepository,
+    TrashRepository,
+    ArchiveRepository,
+    VolumeRepository,
+    ClipboardRepository

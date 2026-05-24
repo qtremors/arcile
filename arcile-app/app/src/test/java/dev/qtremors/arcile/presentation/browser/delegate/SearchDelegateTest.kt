@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
+import kotlinx.collections.immutable.toPersistentList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -62,7 +63,7 @@ class SearchDelegateTest {
     @Test
     fun `updateBrowserSearchQuery with blank query clears results`() = testScope.runTest {
         state.value = state.value.copy(
-            searchResults = listOf(FileModel("old.txt", "/old.txt", 0L, 0L, false, "txt", false)),
+            searchResults = listOf(FileModel("old.txt", "/old.txt", 0L, 0L, false, "txt", false)).toPersistentList(),
             isSearching = true
         )
         

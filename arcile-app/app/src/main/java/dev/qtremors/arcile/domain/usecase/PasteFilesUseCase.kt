@@ -1,11 +1,11 @@
 package dev.qtremors.arcile.domain.usecase
 
 import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.FileRepository
+import dev.qtremors.arcile.domain.ClipboardRepository
 import javax.inject.Inject
 
 class PasteFilesUseCase @Inject constructor(
-    private val repository: FileRepository
+    private val repository: ClipboardRepository
 ) {
     suspend operator fun invoke(
         sourcePaths: List<String>,

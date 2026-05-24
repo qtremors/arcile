@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.ui.theme
 
 import android.app.Activity
+import android.provider.Settings
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -121,6 +122,18 @@ fun ArcileTheme(
         }
     }
 
+    val reducedMotionEnabled = remember(context) {
+        try {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1.0f
+            ) == 0f
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     CompositionLocalProvider(
         LocalCategoryColors provides categoryColors,
         LocalSemanticColors provides semanticColors,
@@ -128,7 +141,8 @@ fun ArcileTheme(
         LocalHapticsEnabled provides themeState.vibrationsEnabled,
         LocalDoubleLineFilenames provides themeState.doubleLineFilenames,
         LocalMarqueeFilenames provides themeState.marqueeFilenames,
-        LocalHapticFeedback provides customHapticFeedback
+        LocalHapticFeedback provides customHapticFeedback,
+        LocalReducedMotionEnabled provides reducedMotionEnabled
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

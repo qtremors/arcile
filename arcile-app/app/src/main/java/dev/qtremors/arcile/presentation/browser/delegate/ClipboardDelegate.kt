@@ -9,6 +9,9 @@ import dev.qtremors.arcile.presentation.browser.BrowserState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.UiText
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -33,7 +36,7 @@ class ClipboardDelegate(
             state.update {
                 it.copy(
                     clipboardState = ClipboardState(ClipboardOperation.COPY, selectedFiles),
-                    selectedFiles = emptySet(),
+                    selectedFiles = persistentSetOf(),
                     selectedFilesTotalSize = 0L
                 )
             }
@@ -52,7 +55,7 @@ class ClipboardDelegate(
             state.update {
                 it.copy(
                     clipboardState = ClipboardState(ClipboardOperation.CUT, selectedFiles),
-                    selectedFiles = emptySet(),
+                    selectedFiles = persistentSetOf(),
                     selectedFilesTotalSize = 0L
                 )
             }
@@ -90,7 +93,7 @@ class ClipboardDelegate(
                     state.update {
                         it.copy(
                             isLoading = false,
-                            pasteConflicts = conflicts,
+                            pasteConflicts = conflicts.toPersistentList(),
                             showConflictDialog = true
                         )
                     }
@@ -114,13 +117,13 @@ class ClipboardDelegate(
         if (currentPath.isEmpty()) return
 
         viewModelScope.launch {
-            state.update { it.copy(showConflictDialog = false, pasteConflicts = emptyList(), isLoading = true) }
+            state.update { it.copy(showConflictDialog = false, pasteConflicts = persistentListOf(), isLoading = true) }
             executePaste(clipboard, currentPath, resolutions)
         }
     }
 
     fun dismissConflictDialog() {
-        state.update { it.copy(showConflictDialog = false, pasteConflicts = emptyList()) }
+        state.update { it.copy(showConflictDialog = false, pasteConflicts = persistentListOf()) }
     }
 
     private suspend fun executePaste(
