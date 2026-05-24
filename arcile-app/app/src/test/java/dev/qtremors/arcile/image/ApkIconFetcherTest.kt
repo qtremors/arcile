@@ -16,6 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.io.File
 
 class ApkIconFetcherTest {
 
@@ -29,18 +30,20 @@ class ApkIconFetcherTest {
         assertNotNull(factory.create(java.io.File("sample.apk"), options, mockk(relaxed = true)))
         assertNotNull(factory.create(java.io.File("bundle.xapk"), options, mockk(relaxed = true)))
         assertNull(factory.create(java.io.File("notes.txt"), options, mockk(relaxed = true)))
+        assertNotNull(ApkIconFetcher.KeyFactory().create(ThumbnailKey.from(java.io.File("sample.apk")), options, mockk(relaxed = true)))
     }
 
     @Test
     fun `fetch returns drawable result when package archive icon is available`() = runTest {
         val expectedDrawable = ColorDrawable(Color.RED)
+        val apk = File.createTempFile("sample", ".apk").apply { writeBytes(byteArrayOf(1, 2, 3)) }
         val packageManager = mockk<PackageManager>()
         val appInfo = spyk(ApplicationInfo())
         every { appInfo.loadIcon(packageManager) } returns expectedDrawable
         val packageInfo = PackageInfo().apply {
             applicationInfo = appInfo
         }
-        every { packageManager.getPackageArchiveInfo("C:\\apps\\sample.apk", 0) } returns packageInfo
+        every { packageManager.getPackageArchiveInfo(apk.absolutePath, 0) } returns packageInfo
 
         val context = mockk<Context> {
             every { this@mockk.packageManager } returns packageManager
@@ -49,10 +52,10 @@ class ApkIconFetcherTest {
             every { this@mockk.context } returns context
         }
 
-        val result = ApkIconFetcher(java.io.File("C:\\apps\\sample.apk"), options).fetch() as DrawableResult
+        val result = ApkIconFetcher(apk, options).fetch() as DrawableResult
 
         assertEquals(expectedDrawable, result.drawable)
-        assertEquals("C:\\apps\\sample.apk", appInfo.sourceDir)
-        assertEquals("C:\\apps\\sample.apk", appInfo.publicSourceDir)
+        assertEquals(apk.absolutePath, appInfo.sourceDir)
+        assertEquals(apk.absolutePath, appInfo.publicSourceDir)
     }
 }

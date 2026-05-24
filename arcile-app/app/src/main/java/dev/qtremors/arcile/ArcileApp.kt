@@ -6,14 +6,33 @@ import coil.ImageLoaderFactory
 import coil.decode.VideoFrameDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import dev.qtremors.arcile.data.MutationJournal
+import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.image.ApkIconFetcher
 import dev.qtremors.arcile.image.AudioAlbumArtFetcher
 import dev.qtremors.arcile.image.PdfThumbnailFetcher
 import dev.qtremors.arcile.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltAndroidApp
 class ArcileApp : Application(), ImageLoaderFactory {
+    @Inject
+    lateinit var mutationJournal: MutationJournal
+
+    @Inject
+    @ApplicationScope
+    lateinit var applicationScope: CoroutineScope
+
+    override fun onCreate() {
+        super.onCreate()
+        applicationScope.launch {
+            mutationJournal.cleanupAbandonedMutations()
+        }
+    }
+
     override fun newImageLoader(): ImageLoader {
         return ImageLoader.Builder(this)
             .memoryCache {
@@ -29,10 +48,14 @@ class ArcileApp : Application(), ImageLoaderFactory {
             }
             .components {
                 add(PdfThumbnailFetcher.Factory())
+                add(PdfThumbnailFetcher.KeyFactory())
                 add(VideoThumbnailFetcher.Factory())
+                add(VideoThumbnailFetcher.KeyFactory())
                 add(VideoFrameDecoder.Factory())
                 add(ApkIconFetcher.Factory())
+                add(ApkIconFetcher.KeyFactory())
                 add(AudioAlbumArtFetcher.Factory())
+                add(AudioAlbumArtFetcher.KeyFactory())
             }
             .crossfade(true)
             .build()

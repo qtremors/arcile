@@ -18,11 +18,25 @@ object ExternalFileAccessHelper {
     private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
     private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
-    private const val MAX_CACHE_AGE_MS = 24L * 60 * 60 * 1000 // 24 hours
+    private const val MAX_CACHE_AGE_MS = 6L * 60 * 60 * 1000 // 6 hours
+    private const val MAX_SHARE_FILE_BYTES = 256L * 1024 * 1024 // 256MB
+    private const val MAX_SHARE_BATCH_BYTES = 750L * 1024 * 1024 // 750MB
 
-    private fun cleanupStagingArea(context: Context) {
+    data class StagingCacheStats(
+        val fileCount: Int,
+        val sizeBytes: Long
+    )
+
+    data class ShareTarget(
+        val uri: Uri,
+        val mimeType: String,
+        val displayName: String,
+        val sizeBytes: Long
+    )
+
+    fun cleanupStagingArea(context: Context): StagingCacheStats {
         val baseStagingDir = File(context.cacheDir, STAGING_ROOT)
-        if (!baseStagingDir.exists()) return
+        if (!baseStagingDir.exists()) return StagingCacheStats(fileCount = 0, sizeBytes = 0L)
 
         val allStagedFiles = baseStagingDir.walkTopDown()
             .filter { it.isFile }
@@ -59,6 +73,30 @@ object ExternalFileAccessHelper {
                 break
             }
         }
+
+        pruneEmptyDirectories(baseStagingDir)
+        return getStagingCacheStats(context)
+    }
+
+    fun clearStagingArea(context: Context): StagingCacheStats {
+        File(context.cacheDir, STAGING_ROOT).deleteRecursively()
+        return StagingCacheStats(fileCount = 0, sizeBytes = 0L)
+    }
+
+    fun getStagingCacheStats(context: Context): StagingCacheStats {
+        val baseStagingDir = File(context.cacheDir, STAGING_ROOT)
+        if (!baseStagingDir.exists()) return StagingCacheStats(fileCount = 0, sizeBytes = 0L)
+        val files = baseStagingDir.walkTopDown().filter { it.isFile }.toList()
+        return StagingCacheStats(
+            fileCount = files.size,
+            sizeBytes = files.sumOf { it.length() }
+        )
+    }
+
+    private fun pruneEmptyDirectories(root: File) {
+        root.walkBottomUp()
+            .filter { it.isDirectory && it != root && (it.list()?.isEmpty() != false) }
+            .forEach { it.delete() }
     }
 
     private fun sha1(value: String): String {
@@ -93,6 +131,11 @@ object ExternalFileAccessHelper {
         }
     }
 
+    private fun mimeTypeFor(file: File): String =
+        MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(file.extension.lowercase())
+            ?: "*/*"
+
     private suspend fun stageFile(context: Context, file: File, purpose: String): File = withContext(Dispatchers.IO) {
         require(file.exists() && file.isFile) { "Source file does not exist" }
         require(isAllowedUserFile(context, file)) { "Unsupported file path" }
@@ -111,27 +154,50 @@ object ExternalFileAccessHelper {
         stagedFile
     }
 
+    private fun validateShareBatch(files: List<File>) {
+        var totalSize = 0L
+        files.forEach { file ->
+            val size = file.length()
+            require(size <= MAX_SHARE_FILE_BYTES) {
+                "Share target is too large for staged handoff"
+            }
+            totalSize = Math.addExact(totalSize, size)
+            require(totalSize <= MAX_SHARE_BATCH_BYTES) {
+                "Share selection is too large for staged handoff"
+            }
+        }
+    }
+
     suspend fun createOpenIntent(context: Context, path: String): Intent {
         val sourceFile = File(path)
         val stagedFile = stageFile(context, sourceFile, OPEN_STAGING)
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile)
-        val mimeType = MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(sourceFile.extension.lowercase())
-            ?: "*/*"
         return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, mimeType)
+            setDataAndType(uri, mimeTypeFor(sourceFile))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
 
     suspend fun createShareUris(context: Context, filePaths: List<String>): List<Uri> {
-        return filePaths.mapNotNull { path ->
+        return createShareTargets(context, filePaths).map { it.uri }
+    }
+
+    suspend fun createShareTargets(context: Context, filePaths: List<String>): List<ShareTarget> = withContext(Dispatchers.IO) {
+        val files = filePaths.map(::File)
+        validateShareBatch(files)
+
+        files.mapNotNull { file ->
             runCatching {
-                val stagedFile = stageFile(context, File(path), SHARE_STAGING)
-                FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile)
+                val stagedFile = stageFile(context, file, SHARE_STAGING)
+                ShareTarget(
+                    uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile),
+                    mimeType = mimeTypeFor(file),
+                    displayName = file.name,
+                    sizeBytes = file.length()
+                )
             }.getOrElse { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: $path")
+                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: ${file.absolutePath}")
                 null
             }
         }

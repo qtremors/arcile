@@ -2,7 +2,7 @@
 
 package dev.qtremors.arcile.presentation.ui
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -62,6 +62,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -75,6 +77,7 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
@@ -84,6 +87,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -98,6 +102,10 @@ import androidx.compose.runtime.setValue
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFakeFileDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.FileNameInput
+import dev.qtremors.arcile.presentation.ui.components.dialogs.validateFileName
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.ui.theme.LocalSemanticColors
 
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.Alignment
@@ -110,8 +118,20 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.ui.theme.menuGroupLast
+import dev.qtremors.arcile.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -139,7 +159,6 @@ import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
 import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
-import dev.qtremors.arcile.presentation.ui.components.dialogs.MixedDeleteExplanationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
@@ -151,8 +170,10 @@ import dev.qtremors.arcile.presentation.ui.components.lists.FileList
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 
 import dev.qtremors.arcile.domain.FileCategories
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -174,6 +195,7 @@ import dev.qtremors.arcile.presentation.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import dev.qtremors.arcile.presentation.operations.rememberSmoothedProgress
+import dev.qtremors.arcile.presentation.asString
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
@@ -239,19 +261,22 @@ fun BrowserScreen(
     onExtractSelectedArchiveToFolder: (String?) -> Unit = {},
     onCreateZipFromSelection: () -> Unit = {},
     onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit = { _, _, _ -> },
+    onUndoLastTrashMove: () -> Unit = {},
+    onClearPendingTrashUndo: () -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
-    var showCreateFolderDialog by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var showCreateFileDialog by remember { mutableStateOf(false) }
-    var showCreateFakeFileDialog by remember { mutableStateOf(false) }
-    var showCreateArchiveDialog by remember { mutableStateOf(false) }
-    var showExtractArchiveDialog by remember { mutableStateOf(false) }
-    var showSortDialog by remember { mutableStateOf(false) }
-    var showClipboardContents by remember { mutableStateOf(false) }
+    val haptics = rememberArcileHaptics()
+    var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
+    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var showCreateFileDialog by rememberSaveable { mutableStateOf(false) }
+    var showCreateFakeFileDialog by rememberSaveable { mutableStateOf(false) }
+    var showCreateArchiveDialog by rememberSaveable { mutableStateOf(false) }
+    var showExtractArchiveDialog by rememberSaveable { mutableStateOf(false) }
+    var showSortDialog by rememberSaveable { mutableStateOf(false) }
+    var showClipboardContents by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
     
-    var isFabExpanded by remember { mutableStateOf(false) }
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
         targetValue = if (isFabExpanded) 45f else 0f,
         label = "fabRotation"
@@ -346,31 +371,58 @@ fun BrowserScreen(
         }
     }
 
+    val hasModal = showCreateFolderDialog ||
+        showCreateFileDialog ||
+        showCreateFakeFileDialog ||
+        showCreateArchiveDialog ||
+        showExtractArchiveDialog ||
+        showRenameDialog ||
+        showSortDialog ||
+        showClipboardContents ||
+        state.showConflictDialog ||
+        state.isPropertiesVisible ||
+        state.showTrashConfirmation ||
+        state.showPermanentDeleteConfirmation ||
+        state.showMixedDeleteExplanation ||
+        isFabExpanded
+    val backState = BrowserBackState(
+        hasModal = hasModal,
+        hasSheet = state.isSearchFilterMenuVisible,
+        hasSearch = showSearchBar,
+        hasSelection = state.selectedFiles.isNotEmpty(),
+        canNavigateFolderUp = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotBlank(),
+        canPopRoute = true
+    )
     val handleBrowserBack: () -> Unit = {
-        when {
-            showCreateFolderDialog -> showCreateFolderDialog = false
-            showCreateFileDialog -> showCreateFileDialog = false
-            showCreateFakeFileDialog -> showCreateFakeFileDialog = false
-            showCreateArchiveDialog -> showCreateArchiveDialog = false
-            showExtractArchiveDialog -> showExtractArchiveDialog = false
-            showRenameDialog -> showRenameDialog = false
-            showSortDialog -> showSortDialog = false
-            showClipboardContents -> showClipboardContents = false
-            state.isSearchFilterMenuVisible -> onToggleSearchFilterMenu(false)
-            state.showConflictDialog -> onDismissConflictDialog()
-            state.isPropertiesVisible -> onDismissProperties()
-            state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation -> onDismissDeleteConfirmation()
-            isFabExpanded -> isFabExpanded = false
-            showSearchBar -> {
+        when (resolveBrowserBackAction(backState)) {
+            BrowserBackAction.CloseModal -> when {
+                showCreateFolderDialog -> showCreateFolderDialog = false
+                showCreateFileDialog -> showCreateFileDialog = false
+                showCreateFakeFileDialog -> showCreateFakeFileDialog = false
+                showCreateArchiveDialog -> showCreateArchiveDialog = false
+                showExtractArchiveDialog -> showExtractArchiveDialog = false
+                showRenameDialog -> showRenameDialog = false
+                showSortDialog -> showSortDialog = false
+                showClipboardContents -> showClipboardContents = false
+                state.showConflictDialog -> onDismissConflictDialog()
+                state.isPropertiesVisible -> onDismissProperties()
+                state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation -> onDismissDeleteConfirmation()
+                isFabExpanded -> isFabExpanded = false
+            }
+            BrowserBackAction.CloseSheet -> onToggleSearchFilterMenu(false)
+            BrowserBackAction.CloseSearch -> {
                 showSearchBar = false
                 onClearSearch()
             }
-            state.selectedFiles.isNotEmpty() -> onClearSelection()
-            else -> onNavigateBack()
+            BrowserBackAction.ClearSelection -> onClearSelection()
+            BrowserBackAction.NavigateFolderUp,
+            BrowserBackAction.PopRoute,
+            BrowserBackAction.ExitApp -> onNavigateBack()
         }
     }
 
-    BackHandler {
+    PredictiveBackHandler {
+        it.collect { }
         handleBrowserBack()
     }
 
@@ -387,8 +439,9 @@ fun BrowserScreen(
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
+            haptics.error()
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(errorMsg)
+                snackbarHostState.showSnackbar(errorMsg.asString(context))
             }
         }
     }
@@ -503,9 +556,19 @@ fun BrowserScreen(
 
     LaunchedEffect(state.fileOperationStatusMessage) {
         state.fileOperationStatusMessage?.let { message ->
+            val snackbarMessage = message.asString(context)
             onClearFileOperationStatusMessage()
             coroutineScope.launch {
-                snackbarHostState.showSnackbar(message)
+                val result = snackbarHostState.showSnackbar(
+                    message = snackbarMessage,
+                    actionLabel = if (state.pendingTrashUndoIds.isNotEmpty()) context.getString(R.string.undo) else null,
+                    withDismissAction = state.pendingTrashUndoIds.isNotEmpty()
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    onUndoLastTrashMove()
+                } else if (state.pendingTrashUndoIds.isNotEmpty()) {
+                    onClearPendingTrashUndo()
+                }
             }
         }
     }
@@ -514,15 +577,20 @@ fun BrowserScreen(
 
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val isClipboardActive = state.clipboardState != null
+    val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 
+        (if (isSelectionMode || isClipboardActive) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     val snackbarPadding = if (isSelectionMode || isClipboardActive) 80.dp else 0.dp
     val layoutDirection = LocalLayoutDirection.current
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             ArcileSnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = snackbarPadding)
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = snackbarPadding)
             )
         },
         topBar = {
@@ -577,7 +645,7 @@ fun BrowserScreen(
                                     val label = java.io.File(path).name
                                     onPinToQuickAccess(path, label)
                                     coroutineScope.launch {
-                                        snackbarHostState.showSnackbar("Pinned '$label' to Quick Access")
+                                        snackbarHostState.showSnackbar(context.getString(R.string.quick_access_pinned, label))
                                     }
                                 }
                             }
@@ -586,8 +654,14 @@ fun BrowserScreen(
                             TopBarAction.Copy -> onCopySelected()
                             TopBarAction.Cut -> onCutSelected()
                             TopBarAction.Share -> onShareSelected()
-                            TopBarAction.SelectAll -> onSelectAll(displayedFiles.map { it.absolutePath })
-                            TopBarAction.InvertSelection -> onInvertSelection(displayedFiles.map { it.absolutePath })
+                            TopBarAction.SelectAll -> {
+                                haptics.selectionChanged()
+                                onSelectAll(displayedFiles.map { it.absolutePath })
+                            }
+                            TopBarAction.InvertSelection -> {
+                                haptics.selectionChanged()
+                                onInvertSelection(displayedFiles.map { it.absolutePath })
+                            }
                             TopBarAction.Properties -> onOpenProperties()
                             else -> {}
                         }
@@ -598,7 +672,7 @@ fun BrowserScreen(
         bottomBar = {},
         floatingActionButton = {
             if (state.selectedFiles.isEmpty() && !showSearchBar && !state.isVolumeRootScreen && !state.isCategoryScreen && state.clipboardState == null && state.activeFileOperation == null) {
-                Box {
+                Box(modifier = Modifier.navigationBarsPadding()) {
                     Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                         dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu(
                             isExpanded = isFabExpanded,
@@ -657,14 +731,19 @@ fun BrowserScreen(
                 if (targetKey.isSearch) {
                     if (state.searchResults.isEmpty()) {
                         EmptyState(
-                            icon = Icons.Default.SearchOff,
+                            variant = EmptyStateVariant.Search,
                             title = stringResource(R.string.no_results_found),
                             description = stringResource(R.string.no_results_description, state.browserSearchQuery),
                             modifier = Modifier.weight(1f)
                         )
                     } else {
                         val formatter = rememberDateFormatter("MMM dd, yyyy")
-                        LazyColumn(modifier = Modifier.weight(1f)) {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(
+                                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+                            )
+                        ) {
                             items(
                                 items = state.searchResults,
                                 key = { it.absolutePath },
@@ -790,14 +869,14 @@ fun BrowserScreen(
                                 modifier = Modifier.fillMaxSize(),
                                 contentPadding = PaddingValues(
                                     top = 8.dp,
-                                    bottom = padding.calculateBottomPadding() + 100.dp,
+                                    bottom = bottomContentPadding,
                                     start = padding.calculateLeftPadding(layoutDirection),
                                     end = padding.calculateRightPadding(layoutDirection)
                                 )
                             )
                         } else if (displayedFiles.isEmpty() && !state.isLoading) {
                             EmptyState(
-                                icon = Icons.Default.FolderOff,
+                                variant = EmptyStateVariant.Folder,
                                 title = stringResource(R.string.empty_directory),
                                 description = if (state.isCategoryScreen && state.selectedFolderTabPath != null) {
                                     stringResource(R.string.empty_folder_tab_description)
@@ -815,6 +894,7 @@ fun BrowserScreen(
                                  onToggleSelection = onToggleSelection,
                                  onSelectMultiple = onSelectMultiple,
                                  showThumbnails = currentPresentation.showThumbnails,
+                                 thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
                                  modifier = Modifier.fillMaxSize(),
                                  gridState = gridState,
                                  minCellSize = state.browserGridMinCellSize.dp,
@@ -822,7 +902,7 @@ fun BrowserScreen(
                                  folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                                  contentPadding = PaddingValues(
                                      top = 8.dp,
-                                     bottom = padding.calculateBottomPadding() + 100.dp,
+                                     bottom = bottomContentPadding,
                                      start = 8.dp,
                                      end = 8.dp
                                  )
@@ -836,6 +916,7 @@ fun BrowserScreen(
                                  onToggleSelection = onToggleSelection,
                                  onSelectMultiple = onSelectMultiple,
                                  showThumbnails = currentPresentation.showThumbnails,
+                                 thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
                                  modifier = Modifier.fillMaxSize(),
                                  listState = listState,
                                  zoom = state.browserListZoom,
@@ -843,7 +924,7 @@ fun BrowserScreen(
                                  folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                                  contentPadding = PaddingValues(
                                      top = 8.dp,
-                                     bottom = padding.calculateBottomPadding() + 100.dp
+                                     bottom = bottomContentPadding
                                  )
                              )
                          }
@@ -901,7 +982,7 @@ fun BrowserScreen(
                         isVisible = true,
                         actions = mainActions,
                         moreContent = {
-                            var showSelectionMenu by remember { mutableStateOf(false) }
+                            var showSelectionMenu by rememberSaveable { mutableStateOf(false) }
                             Box {
                                 Surface(
                                     onClick = { showSelectionMenu = true },
@@ -926,7 +1007,7 @@ fun BrowserScreen(
                                     expanded = showSelectionMenu,
                                     onDismissRequest = { showSelectionMenu = false }
                                 ) {
-                                    val menuActions = remember(onShareSelected, displayedFiles) {
+                                    val menuActions = remember(onShareSelected, displayedFiles, state.selectedFiles) {
                                         mutableListOf<@Composable () -> Unit>().apply {
                                             add {
                                                 androidx.compose.material3.DropdownMenuItem(
@@ -972,6 +1053,23 @@ fun BrowserScreen(
                                             }
                                             add {
                                                 androidx.compose.material3.DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.select_range)) },
+                                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        val selectedIndexes = displayedFiles.mapIndexedNotNull { index, file ->
+                                                            index.takeIf { state.selectedFiles.contains(file.absolutePath) }
+                                                        }
+                                                        if (selectedIndexes.isNotEmpty()) {
+                                                            val start = selectedIndexes.minOrNull() ?: 0
+                                                            val end = selectedIndexes.maxOrNull() ?: start
+                                                            onSelectMultiple(displayedFiles.subList(start, end + 1).map { it.absolutePath })
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                            add {
+                                                androidx.compose.material3.DropdownMenuItem(
                                                     text = { Text(stringResource(R.string.properties_title)) },
                                                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                                     onClick = {
@@ -985,10 +1083,10 @@ fun BrowserScreen(
 
                                     menuActions.forEachIndexed { index, action ->
                                         val shape = when {
-                                            menuActions.size == 1 -> RoundedCornerShape(24.dp)
-                                            index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                                            index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                            else -> RoundedCornerShape(4.dp)
+                                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                                            else -> MaterialTheme.shapes.menuGroupMiddle
                                         }
                                         Box(
                                             modifier = Modifier
@@ -1017,6 +1115,11 @@ fun BrowserScreen(
                             val terminal = activeOp.terminalStatus
                             if (terminal != null) {
                                 smoothedState.markComplete(terminal)
+                                when (terminal) {
+                                    OperationCompletionStatus.SUCCESS -> haptics.success()
+                                    OperationCompletionStatus.FAILED,
+                                    OperationCompletionStatus.CANCELLED -> haptics.error()
+                                }
                             } else {
                                 // Initialize on first progress event
                                 if (smoothedState.operationStartTime == 0L) {
@@ -1052,8 +1155,8 @@ fun BrowserScreen(
                     val smoothedProgress = smoothedState.displayedProgress
 
                     // Determine pill fill color based on terminal status
-                    val successColor = Color(0xFF4CAF50).copy(alpha = 0.25f)
-                    val failureColor = Color(0xFFF44336).copy(alpha = 0.25f)
+                    val successColor = LocalSemanticColors.current.success.copy(alpha = 0.25f)
+                    val failureColor = MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
                     val inProgressColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                     val progressFillColor = when (activeOp?.terminalStatus) {
                         OperationCompletionStatus.SUCCESS -> successColor
@@ -1067,7 +1170,7 @@ fun BrowserScreen(
                             ToolbarAction(
                                 icon = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.action_cancel_transfer),
-                                containerColor = Color(0xFFF44336),
+                                containerColor = MaterialTheme.colorScheme.error,
                                 tint = Color.White,
                                 onClick = onCancelClipboard
                             )
@@ -1082,7 +1185,7 @@ fun BrowserScreen(
                             ToolbarAction(
                                 icon = Icons.Default.Close,
                                 contentDescription = stringResource(R.string.action_cancel_transfer),
-                                containerColor = Color(0xFFF44336),
+                                containerColor = MaterialTheme.colorScheme.error,
                                 tint = Color.White,
                                 onClick = onCancelClipboard
                             )
@@ -1219,7 +1322,9 @@ fun BrowserScreen(
             onConfirm = { name ->
                 onCreateFolder(name)
                 showCreateFolderDialog = false
-            }
+            },
+            existingNames = state.files.map { it.name }.toSet(),
+            destinationPath = state.currentPath
         )
     }
 
@@ -1230,13 +1335,20 @@ fun BrowserScreen(
             isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
             onConfirm = onConfirmDelete,
             onDismiss = onDismissDeleteConfirmation,
-            onTogglePermanentDelete = onTogglePermanentDelete
+            onTogglePermanentDelete = onTogglePermanentDelete,
+            decision = state.deleteDecision
         )
     }
 
     if (state.showMixedDeleteExplanation) {
-        MixedDeleteExplanationDialog(
-            onDismiss = onDismissDeleteConfirmation
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = true,
+            isPermanentDeleteToggleEnabled = false,
+            onConfirm = {},
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = {},
+            decision = state.deleteDecision
         )
     }
 
@@ -1246,7 +1358,9 @@ fun BrowserScreen(
             onConfirm = { fileName ->
                 showCreateFileDialog = false
                 onCreateFile(fileName)
-            }
+            },
+            existingNames = state.files.map { it.name }.toSet(),
+            destinationPath = state.currentPath
         )
     }
 
@@ -1271,6 +1385,7 @@ fun BrowserScreen(
             defaultName = defaultName,
             selectedCount = state.selectedFiles.size,
             destinationPath = state.currentPath,
+            existingNames = state.files.map { it.name }.toSet(),
             onDismiss = { showCreateArchiveDialog = false },
             onConfirm = { name, format, password ->
                 showCreateArchiveDialog = false
@@ -1303,7 +1418,8 @@ fun BrowserScreen(
             onConfirm = { newName ->
                 onRenameFile(selectedPath, newName)
                 showRenameDialog = false
-            }
+            },
+            existingNames = state.files.map { it.name }.toSet()
         )
     }
 
@@ -1350,6 +1466,7 @@ private fun CreateArchiveDialog(
     defaultName: String,
     selectedCount: Int,
     destinationPath: String,
+    existingNames: Set<String>,
     onDismiss: () -> Unit,
     onConfirm: (String, ArchiveFormat, String?) -> Unit
 ) {
@@ -1358,9 +1475,23 @@ private fun CreateArchiveDialog(
     var usePassword by rememberSaveable { mutableStateOf(false) }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
-    val trimmedName = archiveName.trim()
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    val archiveBase = remember(archiveName, format) {
+        archiveBaseName(archiveName)
+    }
+    val existingArchiveBaseNames = remember(existingNames, format) {
+        existingNames.map { archiveBaseName(it) }.toSet()
+    }
+    val nameValidation = remember(archiveBase, existingArchiveBaseNames) {
+        validateFileName(archiveBase, existingArchiveBaseNames)
+    }
     val passwordError = usePassword && password != confirmPassword
-    val canCreate = trimmedName.isNotEmpty() && (!usePassword || (password.isNotEmpty() && !passwordError))
+    val outputFileName = "${nameValidation.sanitizedName}.${format.extension}"
+    val destinationPreview = remember(destinationPath, outputFileName) {
+        destinationPath.trimEnd('/', '\\') + "/" + outputFileName
+    }
+    val canCreate = nameValidation.isValid && (!usePassword || (password.isNotEmpty() && !passwordError))
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1372,13 +1503,24 @@ private fun CreateArchiveDialog(
                     text = stringResource(R.string.archive_create_summary, selectedCount),
                     style = MaterialTheme.typography.bodyMedium
                 )
-                OutlinedTextField(
+                FileNameInput(
                     value = archiveName,
                     onValueChange = { archiveName = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.archive_name)) },
-                    suffix = { Text(".${format.extension}") },
-                    isError = trimmedName.isEmpty()
+                    label = stringResource(R.string.archive_name),
+                    existingNames = existingArchiveBaseNames,
+                    validationValue = archiveBase,
+                    onDone = {
+                        if (canCreate) {
+                            onConfirm(nameValidation.sanitizedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                        }
+                    }
+                )
+                Text(
+                    text = stringResource(R.string.archive_filename_preview, outputFileName),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Column {
                     ArchiveFormatChoice(ArchiveFormat.ZIP, format, onSelect = { format = it })
@@ -1390,27 +1532,29 @@ private fun CreateArchiveDialog(
                     label = { Text(stringResource(R.string.archive_password_protect)) }
                 )
                 if (usePassword) {
-                    OutlinedTextField(
+                    PasswordInputField(
                         value = password,
                         onValueChange = { password = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.archive_password)) }
+                        label = stringResource(R.string.archive_password),
+                        passwordVisible = passwordVisible,
+                        onToggleVisibility = { passwordVisible = !passwordVisible }
                     )
-                    OutlinedTextField(
+                    PasswordInputField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.archive_confirm_password)) },
+                        label = stringResource(R.string.archive_confirm_password),
                         isError = passwordError,
                         supportingText = if (passwordError) {
-                            { Text(stringResource(R.string.archive_password_mismatch)) }
+                            stringResource(R.string.archive_password_mismatch)
                         } else {
                             null
-                        }
+                        },
+                        passwordVisible = confirmPasswordVisible,
+                        onToggleVisibility = { confirmPasswordVisible = !confirmPasswordVisible }
                     )
                 }
                 Text(
-                    text = stringResource(R.string.archive_destination, destinationPath),
+                    text = stringResource(R.string.archive_destination, destinationPreview),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -1422,7 +1566,7 @@ private fun CreateArchiveDialog(
             TextButton(
                 enabled = canCreate,
                 onClick = {
-                    onConfirm(trimmedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                    onConfirm(nameValidation.sanitizedName, format, password.takeIf { usePassword && it.isNotEmpty() })
                 }
             ) {
                 Text(stringResource(R.string.archive_create_action))
@@ -1464,6 +1608,7 @@ private fun ExtractArchiveDialog(
 ) {
     var password by rememberSaveable { mutableStateOf("") }
     var usePassword by rememberSaveable { mutableStateOf(false) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val archivePassword = password.takeIf { usePassword && it.isNotEmpty() }
 
     AlertDialog(
@@ -1484,12 +1629,13 @@ private fun ExtractArchiveDialog(
                     label = { Text(stringResource(R.string.archive_has_password)) }
                 )
                 if (usePassword) {
-                    OutlinedTextField(
+                    PasswordInputField(
                         value = password,
                         onValueChange = { password = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.archive_password)) },
-                        supportingText = { Text(stringResource(R.string.archive_password_hint)) }
+                        label = stringResource(R.string.archive_password),
+                        supportingText = stringResource(R.string.archive_password_hint),
+                        passwordVisible = passwordVisible,
+                        onToggleVisibility = { passwordVisible = !passwordVisible }
                     )
                 }
             }
@@ -1507,6 +1653,59 @@ private fun ExtractArchiveDialog(
                 TextButton(onClick = { onExtractHere(archivePassword) }) {
                     Text(stringResource(R.string.archive_extract_here))
                 }
+            }
+        }
+    )
+}
+
+private fun archiveBaseName(name: String): String {
+    val trimmed = name.trim()
+    val supportedSuffix = ArchiveFormat.entries
+        .map { ".${it.extension}" }
+        .firstOrNull { trimmed.endsWith(it, ignoreCase = true) }
+    return if (supportedSuffix != null) {
+        trimmed.dropLast(supportedSuffix.length)
+    } else {
+        trimmed
+    }
+}
+
+@Composable
+private fun PasswordInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    passwordVisible: Boolean,
+    onToggleVisibility: () -> Unit,
+    isError: Boolean = false,
+    supportingText: String? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        isError = isError,
+        supportingText = supportingText?.let { text ->
+            { Text(text) }
+        },
+        visualTransformation = if (passwordVisible) {
+            VisualTransformation.None
+        } else {
+            PasswordVisualTransformation()
+        },
+        trailingIcon = {
+            val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
+            val contentDescription = stringResource(
+                if (passwordVisible) {
+                    R.string.archive_password_hide
+                } else {
+                    R.string.archive_password_show
+                }
+            )
+            IconButton(onClick = onToggleVisibility) {
+                Icon(icon, contentDescription = contentDescription)
             }
         }
     )

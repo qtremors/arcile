@@ -1,195 +1,194 @@
 package dev.qtremors.arcile.presentation.ui.components
 
+import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.ui.theme.ExpressiveCutShape
-import kotlin.math.cos
-import kotlin.math.sin
+import dev.qtremors.arcile.R
+
+enum class EmptyStateVariant {
+    Generic,
+    Folder,
+    Search,
+    Trash,
+    StorageAccess,
+    Archive,
+    Recent
+}
+
+val LocalReduceMotion = compositionLocalOf<Boolean?> { null }
+
+@Composable
+fun isReduceMotionEnabled(): Boolean {
+    LocalReduceMotion.current?.let { return it }
+    val context = LocalContext.current
+    return remember(context) {
+        runCatching {
+            Settings.Global.getFloat(
+                context.contentResolver,
+                Settings.Global.ANIMATOR_DURATION_SCALE,
+                1f
+            )
+        }.getOrDefault(1f) == 0f
+    }
+}
 
 /**
- * A highly expressive and modern empty state component with layered animations and graphics.
+ * A minimal, context-aware empty state component for file-manager surfaces.
  */
 @Composable
 fun EmptyState(
-    icon: ImageVector,
-    title: String,
     modifier: Modifier = Modifier,
+    variant: EmptyStateVariant = EmptyStateVariant.Generic,
+    icon: ImageVector? = null,
+    title: String? = null,
     description: String? = null,
     action: (@Composable () -> Unit)? = null
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "EmptyStateIdle")
-    
-    // Idle floating animation
-    val floatOffset by infiniteTransition.animateFloat(
-        initialValue = -8f,
-        targetValue = 8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = EaseInOutSine),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "Floating"
-    )
-
-    // Slow background rotation
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(20000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "BackgroundRotation"
-    )
+    val reduceMotion = isReduceMotionEnabled()
+    val visuals = emptyStateVisuals(variant)
+    val resolvedTitle = title ?: emptyStateTitle(variant)
+    val resolvedDescription = description ?: emptyStateDescription(variant)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(32.dp),
+            .padding(horizontal = 32.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(240.dp)
-        ) {
-            // Layer 1: Background decorative particles
-            Particles(infiniteTransition)
-
-            // Layer 2: Main Background Squircle (Rotating)
-            Surface(
-                modifier = Modifier
-                    .size(140.dp)
-                    .rotate(rotation)
-                    .alpha(0.1f),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.primary
-            ) {}
-
-            // Layer 3: Accent Cut Shape (Counter-rotating + Floating)
-            Surface(
-                modifier = Modifier
-                    .size(100.dp)
-                    .offset(y = floatOffset.dp)
-                    .rotate(-rotation * 1.5f)
-                    .alpha(0.15f),
-                shape = ExpressiveCutShape,
-                color = MaterialTheme.colorScheme.secondary,
-                border = androidx.compose.foundation.BorderStroke(
-                    2.dp, 
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                )
-            ) {}
-
-            // Layer 4: Main Icon Container (Entrance + Idle Float)
-            androidx.compose.animation.AnimatedVisibility(
-                visible = true,
-                enter = fadeIn(tween(800)) + 
-                        scaleIn(spring(Spring.DampingRatioLowBouncy, Spring.StiffnessLow)) +
-                        slideInVertically { 40 }
-            ) {
-                Surface(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    tonalElevation = 8.dp,
-                    modifier = Modifier
-                        .size(120.dp)
-                        .offset(y = (floatOffset * 0.5f).dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+        if (reduceMotion) {
+            EmptyStateIcon(icon ?: visuals.icon, visuals.containerColor, visuals.iconTint)
+        } else {
+            AnimatedVisibility(visible = true, enter = fadeIn(tween(durationMillis = 180))) {
+                EmptyStateIcon(icon ?: visuals.icon, visuals.containerColor, visuals.iconTint)
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            text = resolvedTitle,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
 
-        if (description != null) {
-            Spacer(modifier = Modifier.height(12.dp))
+        if (resolvedDescription != null) {
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = description,
+                text = resolvedDescription,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
 
         if (action != null) {
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             action()
         }
     }
 }
 
 @Composable
-private fun Particles(infiniteTransition: InfiniteTransition) {
-    val progress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(10000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "ParticlesProgress"
-    )
-
-    val primaryColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-    val secondaryColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
-
-    Canvas(modifier = Modifier.size(240.dp).alpha(0.6f)) {
-        val center = Offset(size.width / 2, size.height / 2)
-        val radiusBase = size.width * 0.4f
-        
-        // Dynamic decorative bits
-        repeat(5) { i ->
-            val angle = (progress * 360f + (i * 72f)) * (Math.PI.toFloat() / 180f)
-            val orbitRadius = radiusBase + (sin(progress * Math.PI.toFloat() * 2 + i) * 20f)
-            
-            val x = center.x + cos(angle) * orbitRadius
-            val y = center.y + sin(angle) * orbitRadius
-            
-            drawCircle(
-                color = if (i % 2 == 0) primaryColor else secondaryColor,
-                radius = 8f + (sin(progress * Math.PI.toFloat() * 4 + i) * 4f),
-                center = Offset(x, y)
+private fun EmptyStateIcon(
+    icon: ImageVector,
+    containerColor: Color,
+    iconTint: Color
+) {
+    Surface(
+        shape = CircleShape,
+        color = containerColor,
+        modifier = Modifier.size(80.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(36.dp),
+                tint = iconTint
             )
         }
     }
 }
+
+private data class EmptyStateVisuals(
+    val icon: ImageVector,
+    val containerColor: Color,
+    val iconTint: Color
+)
+
+@Composable
+private fun emptyStateVisuals(variant: EmptyStateVariant): EmptyStateVisuals {
+    val colors = MaterialTheme.colorScheme
+    val quietContainer = colors.surfaceContainerHighest
+    val quietTint = colors.onSurfaceVariant
+    return when (variant) {
+        EmptyStateVariant.Generic -> EmptyStateVisuals(Icons.Default.FolderOff, quietContainer, quietTint)
+        EmptyStateVariant.Folder -> EmptyStateVisuals(Icons.Default.FolderOff, quietContainer, colors.primary)
+        EmptyStateVariant.Search -> EmptyStateVisuals(Icons.Default.SearchOff, quietContainer, colors.secondary)
+        EmptyStateVariant.Trash -> EmptyStateVisuals(Icons.Default.DeleteSweep, quietContainer, colors.error)
+        EmptyStateVariant.StorageAccess -> EmptyStateVisuals(Icons.Default.Storage, quietContainer, colors.tertiary)
+        EmptyStateVariant.Archive -> EmptyStateVisuals(Icons.Default.FolderZip, quietContainer, colors.primary)
+        EmptyStateVariant.Recent -> EmptyStateVisuals(Icons.Default.History, quietContainer, quietTint)
+    }
+}
+
+@Composable
+private fun emptyStateTitle(variant: EmptyStateVariant): String =
+    when (variant) {
+        EmptyStateVariant.Generic -> stringResource(R.string.empty_state_generic_title)
+        EmptyStateVariant.Folder -> stringResource(R.string.empty_directory)
+        EmptyStateVariant.Search -> stringResource(R.string.no_results_found)
+        EmptyStateVariant.Trash -> stringResource(R.string.trash_is_empty)
+        EmptyStateVariant.StorageAccess -> stringResource(R.string.storage_management_empty_title)
+        EmptyStateVariant.Archive -> stringResource(R.string.archive_empty_title)
+        EmptyStateVariant.Recent -> stringResource(R.string.no_recent_files)
+    }
+
+@Composable
+private fun emptyStateDescription(variant: EmptyStateVariant): String? =
+    when (variant) {
+        EmptyStateVariant.Generic -> stringResource(R.string.empty_state_generic_description)
+        EmptyStateVariant.Folder -> stringResource(R.string.empty_directory_description)
+        EmptyStateVariant.Search -> null
+        EmptyStateVariant.Trash -> stringResource(R.string.trash_empty_description)
+        EmptyStateVariant.StorageAccess -> stringResource(R.string.storage_management_empty_description)
+        EmptyStateVariant.Archive -> stringResource(R.string.archive_empty_description)
+        EmptyStateVariant.Recent -> stringResource(R.string.no_recent_files_description)
+    }

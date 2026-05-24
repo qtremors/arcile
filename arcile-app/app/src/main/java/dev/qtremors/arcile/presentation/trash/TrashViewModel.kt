@@ -3,11 +3,14 @@ package dev.qtremors.arcile.presentation.trash
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.TrashRestoreStatus
 import android.content.IntentSender
 import dev.qtremors.arcile.domain.DestinationRequiredException
 import dev.qtremors.arcile.domain.NativeConfirmationRequiredException
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.utils.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,11 +22,22 @@ import javax.inject.Inject
 
 enum class NativeAction { RESTORE, RESTORE_TO_DESTINATION, EMPTY }
 
+enum class TrashSortOption { DELETED_NEWEST, DELETED_OLDEST, NAME_ASC, NAME_DESC, SIZE_LARGEST, SIZE_SMALLEST, TYPE, ORIGINAL_FOLDER }
+
+enum class TrashFilter { ALL, CAN_RESTORE, NEEDS_DESTINATION, RECOVERED }
+
+data class TrashPropertiesUiModel(
+    val title: String,
+    val rows: List<Pair<String, String>>
+)
+
 data class TrashState(
     val trashFiles: List<TrashMetadata> = emptyList(),
+    val visibleTrashFiles: List<TrashMetadata> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = true,
-    val error: String? = null,
+    val error: UiText? = null,
+    val snackbarMessage: UiText? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
     val pendingNativeAction: NativeAction? = null,
@@ -33,7 +47,11 @@ data class TrashState(
     val searchQuery: String = "",
     val searchResults: List<TrashMetadata> = emptyList(),
     val isSearching: Boolean = false,
-    val showPermanentDeleteConfirmation: Boolean = false
+    val showPermanentDeleteConfirmation: Boolean = false,
+    val sortOption: TrashSortOption = TrashSortOption.DELETED_NEWEST,
+    val filter: TrashFilter = TrashFilter.ALL,
+    val isPropertiesVisible: Boolean = false,
+    val properties: TrashPropertiesUiModel? = null
 )
 
 
@@ -54,7 +72,9 @@ class TrashViewModel @Inject constructor(
         matches = { item: TrashMetadata, query: String -> item.fileModel.name.contains(query, ignoreCase = true) },
         onQueryChanged = { query -> _state.update { it.copy(searchQuery = query) } },
         onSearchingChanged = { isSearching -> _state.update { it.copy(isSearching = isSearching) } },
-        onResultsChanged = { results -> _state.update { it.copy(searchResults = results) } }
+        onResultsChanged = { results ->
+            _state.update { state -> state.copy(searchResults = applyTrashPresentation(results, state.filter, state.sortOption)) }
+        }
     )
 
     init {
@@ -75,17 +95,22 @@ class TrashViewModel @Inject constructor(
                     currentState.copy(
                         isLoading = false, 
                         trashFiles = trashItems, 
+                        visibleTrashFiles = applyTrashPresentation(trashItems, currentState.filter, currentState.sortOption),
                         error = null,
                         selectedFiles = currentState.selectedFiles.filter { path -> trashItems.any { it.id == path } }.toSet(),
                         searchResults = if (currentState.searchQuery.isNotBlank()) {
-                            trashItems.filter { it.fileModel.name.contains(currentState.searchQuery, ignoreCase = true) }
+                            applyTrashPresentation(
+                                trashItems.filter { it.fileModel.name.contains(currentState.searchQuery, ignoreCase = true) },
+                                currentState.filter,
+                                currentState.sortOption
+                            )
                         } else emptyList()
 
 
                     )
                 }
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to load Trash Bin") }
+                _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_trash_failed)) }
             }
         }
     }
@@ -108,11 +133,29 @@ class TrashViewModel @Inject constructor(
     fun restoreSelectedTrash() {
         val selectedTrashIds = _state.value.selectedFiles.toList()
         if (selectedTrashIds.isEmpty()) return
+        val selectedItems = _state.value.trashFiles.filter { it.id in selectedTrashIds }
+        val hasDestinationRequiredItems = selectedItems.any {
+            it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||
+                it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM
+        }
+        if (hasDestinationRequiredItems) {
+            _state.update {
+                it.copy(
+                    showDestinationPicker = true,
+                    selectedTrashIdsForDestination = selectedTrashIds,
+                    error = null
+                )
+            }
+            return
+        }
+        val conflictCount = selectedItems.count { it.restoreStatus == TrashRestoreStatus.ORIGINAL_CONFLICT_RENAME }
 
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             repository.restoreFromTrash(selectedTrashIds).onSuccess {
+                val message = restoreSummaryMessage(selectedTrashIds.size, conflictCount)
                 clearSelection()
+                _state.update { it.copy(snackbarMessage = message) }
                 loadTrashFiles()
             }.onFailure { error ->
                 when (error) {
@@ -130,7 +173,7 @@ class TrashViewModel @Inject constructor(
                         viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                     }
                     else -> {
-                        _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                        _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                         loadTrashFiles()
                     }
                 }
@@ -148,7 +191,16 @@ class TrashViewModel @Inject constructor(
         _state.update { it.copy(isLoading = true, error = null, showDestinationPicker = false) }
         viewModelScope.launch {
             repository.restoreFromTrash(trashIds, destinationPath).onSuccess {
-                _state.update { it.copy(selectedFiles = it.selectedFiles - trashIds.toSet(), selectedTrashIdsForDestination = emptyList(), pendingDestinationPath = null, pendingRestoreIds = emptyList()) }
+                val normalizedIds = trashIds.map { it.removePrefix("legacy:") }.toSet()
+                _state.update {
+                    it.copy(
+                        selectedFiles = it.selectedFiles - normalizedIds,
+                        selectedTrashIdsForDestination = emptyList(),
+                        pendingDestinationPath = null,
+                        pendingRestoreIds = emptyList(),
+                        snackbarMessage = restoreSummaryMessage(trashIds.size, 0)
+                    )
+                }
                 loadTrashFiles()
             }.onFailure { error ->
                 if (error is NativeConfirmationRequiredException) {
@@ -162,7 +214,7 @@ class TrashViewModel @Inject constructor(
                     }
                     viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
-                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to restore files") }
+                    _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                     loadTrashFiles()
                 }
             }
@@ -180,7 +232,7 @@ class TrashViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.EMPTY) }
                     viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
                 } else {
-                    _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to empty Trash Bin") }
+                    _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_empty_trash_failed)) }
                     loadTrashFiles()
                 }
             }
@@ -214,7 +266,7 @@ class TrashViewModel @Inject constructor(
                 clearSelection()
                 loadTrashFiles()
             }.onFailure { error ->
-                _state.update { it.copy(isLoading = false, error = error.message ?: "Failed to delete files permanently") }
+                _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_delete_files_permanently_failed)) }
                 loadTrashFiles()
             }
         }
@@ -224,8 +276,125 @@ class TrashViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
+    fun clearSnackbarMessage() {
+        _state.update { it.copy(snackbarMessage = null) }
+    }
+
     fun updateSearchQuery(query: String) {
         localSearchHelper.updateQuery(query)
     }
+
+    fun updateSortOption(sortOption: TrashSortOption) {
+        _state.update {
+            it.copy(
+                sortOption = sortOption,
+                visibleTrashFiles = applyTrashPresentation(it.trashFiles, it.filter, sortOption),
+                searchResults = applyTrashPresentation(searchMatches(it.trashFiles, it.searchQuery), it.filter, sortOption)
+            )
+        }
+    }
+
+    fun updateFilter(filter: TrashFilter) {
+        _state.update {
+            val visibleItems = applyTrashPresentation(it.trashFiles, filter, it.sortOption)
+            it.copy(
+                filter = filter,
+                visibleTrashFiles = visibleItems,
+                searchResults = applyTrashPresentation(searchMatches(it.trashFiles, it.searchQuery), filter, it.sortOption),
+                selectedFiles = it.selectedFiles.filter { id ->
+                    visibleItems.any { item -> item.id == id }
+                }.toSet()
+            )
+        }
+    }
+
+    fun openPropertiesForSelection() {
+        val selectedItems = _state.value.trashFiles.filter { it.id in _state.value.selectedFiles }
+        if (selectedItems.isEmpty()) return
+        _state.update { it.copy(isPropertiesVisible = true, properties = selectedItems.toPropertiesModel()) }
+    }
+
+    fun dismissProperties() {
+        _state.update { it.copy(isPropertiesVisible = false, properties = null) }
+    }
+
+    private fun restoreSummaryMessage(restoredCount: Int, conflictCount: Int): UiText {
+        return if (conflictCount > 0) {
+            UiText.PluralResource(
+                R.plurals.trash_restored_items_with_conflicts,
+                restoredCount,
+                listOf(restoredCount, conflictCount)
+            )
+        } else {
+            UiText.PluralResource(R.plurals.trash_restored_items, restoredCount, listOf(restoredCount))
+        }
+    }
+}
+
+private fun searchMatches(items: List<TrashMetadata>, query: String): List<TrashMetadata> {
+    val normalizedQuery = query.trim()
+    return if (normalizedQuery.isBlank()) {
+        emptyList()
+    } else {
+        items.filter { it.fileModel.name.contains(normalizedQuery, ignoreCase = true) }
+    }
+}
+
+private fun applyTrashPresentation(
+    items: List<TrashMetadata>,
+    filter: TrashFilter,
+    sortOption: TrashSortOption
+): List<TrashMetadata> {
+    val filtered = when (filter) {
+        TrashFilter.ALL -> items
+        TrashFilter.CAN_RESTORE -> items.filter {
+            it.restoreStatus == TrashRestoreStatus.ORIGINAL_AVAILABLE ||
+                it.restoreStatus == TrashRestoreStatus.ORIGINAL_CONFLICT_RENAME
+        }
+        TrashFilter.NEEDS_DESTINATION -> items.filter { it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED }
+        TrashFilter.RECOVERED -> items.filter { it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM }
+    }
+    val comparator = when (sortOption) {
+        TrashSortOption.DELETED_NEWEST -> compareByDescending<TrashMetadata> { it.deletionTime }
+        TrashSortOption.DELETED_OLDEST -> compareBy<TrashMetadata> { it.deletionTime }
+        TrashSortOption.NAME_ASC -> compareBy { it.fileModel.name.lowercase() }
+        TrashSortOption.NAME_DESC -> compareByDescending { it.fileModel.name.lowercase() }
+        TrashSortOption.SIZE_LARGEST -> compareByDescending { it.fileModel.size }
+        TrashSortOption.SIZE_SMALLEST -> compareBy { it.fileModel.size }
+        TrashSortOption.TYPE -> compareBy<TrashMetadata> { !it.fileModel.isDirectory }
+            .thenBy { it.fileModel.extension.lowercase() }
+            .thenBy { it.fileModel.name.lowercase() }
+        TrashSortOption.ORIGINAL_FOLDER -> compareBy<TrashMetadata> { it.originalPath.substringBeforeLast("/", "") }
+            .thenBy { it.fileModel.name.lowercase() }
+    }
+    return filtered.sortedWith(comparator)
+}
+
+private fun List<TrashMetadata>.toPropertiesModel(): TrashPropertiesUiModel {
+    val fileCount = count { !it.fileModel.isDirectory }
+    val folderCount = count { it.fileModel.isDirectory }
+    val totalBytes = sumOf { it.fileModel.size }
+    val single = singleOrNull()
+    val rows = mutableListOf<Pair<String, String>>()
+    rows += "Items" to size.toString()
+    rows += "Files" to fileCount.toString()
+    rows += "Folders" to folderCount.toString()
+    rows += "Size" to dev.qtremors.arcile.utils.formatFileSize(totalBytes)
+    if (single != null) {
+        rows += "Original path" to single.originalPath.ifBlank { "Unavailable" }
+        rows += "Trash payload" to single.fileModel.absolutePath
+        rows += "Restore status" to single.restoreStatus.name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
+        rows += "Source volume" to single.sourceVolumeId
+    } else {
+        rows += "Recovered items" to count { it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM }.toString()
+        rows += "Need destination" to count {
+            it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||
+                it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM
+        }.toString()
+    }
+    return TrashPropertiesUiModel(
+        title = single?.fileModel?.name ?: "$size selected",
+        rows = rows
+    )
 }
 

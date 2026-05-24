@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.operations
 
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.ArchiveFormat
+import dev.qtremors.arcile.domain.ArcileError
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -42,6 +43,10 @@ sealed interface BulkFileOperationEvent {
     data class Progress(val request: BulkFileOperationRequest, val progress: BulkFileOperationProgress) : BulkFileOperationEvent
     data class Cancelling(val request: BulkFileOperationRequest) : BulkFileOperationEvent
     data class Completed(val request: BulkFileOperationRequest) : BulkFileOperationEvent
-    data class Failed(val request: BulkFileOperationRequest, val message: String) : BulkFileOperationEvent
+    data class Failed(
+        val request: BulkFileOperationRequest,
+        val message: String,
+        val error: ArcileError? = null
+    ) : BulkFileOperationEvent
     data class Cancelled(val request: BulkFileOperationRequest?) : BulkFileOperationEvent
 }

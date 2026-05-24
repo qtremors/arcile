@@ -12,12 +12,21 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 // Baseline schemes moved to Color.kt
+
+val LocalHapticsEnabled = staticCompositionLocalOf { true }
+val LocalDoubleLineFilenames = staticCompositionLocalOf { false }
+val LocalMarqueeFilenames = staticCompositionLocalOf { false }
 
 @Composable
 fun ArcileTheme(
@@ -77,7 +86,20 @@ fun ArcileTheme(
         else -> LightColorScheme
     }
 
-    val categoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
+    val baseCategoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
+    val baseSemanticColors = if (effectivelyDark) DarkSemanticColors else LightSemanticColors
+
+    val categoryColors = if (themeState.harmonizeColors) {
+        baseCategoryColors.harmonizeWith(colorScheme.primary)
+    } else {
+        baseCategoryColors
+    }
+
+    val semanticColors = if (themeState.harmonizeColors) {
+        baseSemanticColors.harmonizeWith(colorScheme.primary)
+    } else {
+        baseSemanticColors
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -88,9 +110,25 @@ fun ArcileTheme(
         }
     }
 
+    val currentHapticFeedback = LocalHapticFeedback.current
+    val customHapticFeedback = remember(currentHapticFeedback, themeState.vibrationsEnabled) {
+        object : HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+                if (themeState.vibrationsEnabled) {
+                    currentHapticFeedback.performHapticFeedback(hapticFeedbackType)
+                }
+            }
+        }
+    }
+
     CompositionLocalProvider(
         LocalCategoryColors provides categoryColors,
-        LocalSpacing provides Spacing()
+        LocalSemanticColors provides semanticColors,
+        LocalSpacing provides Spacing(),
+        LocalHapticsEnabled provides themeState.vibrationsEnabled,
+        LocalDoubleLineFilenames provides themeState.doubleLineFilenames,
+        LocalMarqueeFilenames provides themeState.marqueeFilenames,
+        LocalHapticFeedback provides customHapticFeedback
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

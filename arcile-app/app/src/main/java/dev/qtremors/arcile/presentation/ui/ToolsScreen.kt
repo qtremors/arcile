@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,9 +43,11 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun ToolsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToCleaner: () -> Unit
 ) {
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             @OptIn(ExperimentalMaterial3Api::class)
             TopAppBar(
@@ -60,7 +63,7 @@ fun ToolsScreen(
         val tools = listOf(
             ToolItem(stringResource(R.string.tool_ftp), Icons.Default.WifiTethering),
             ToolItem(stringResource(R.string.tool_analyze), Icons.Default.PieChart),
-            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices),
+            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices, isImplemented = true),
             ToolItem(stringResource(R.string.tool_duplicates), Icons.Default.FilterNone),
             ToolItem(stringResource(R.string.tool_large), Icons.Default.ZoomIn),
             ToolItem(stringResource(R.string.tool_manager), Icons.Default.Apps),
@@ -68,18 +71,30 @@ fun ToolsScreen(
             ToolItem(stringResource(R.string.tool_share), Icons.Default.Dns)
         )
 
+        val cleanName = stringResource(R.string.tool_clean)
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(8.dp),
-            contentPadding = PaddingValues(8.dp),
+                .padding(top = padding.calculateTopPadding())
+                .padding(horizontal = 8.dp),
+            contentPadding = PaddingValues(
+                top = 8.dp,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+            ),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(tools) { tool ->
-                ToolCard(tool)
+                ToolCard(
+                    item = tool,
+                    onClick = {
+                        if (tool.name == cleanName) {
+                            onNavigateToCleaner()
+                        }
+                    }
+                )
             }
         }
     }

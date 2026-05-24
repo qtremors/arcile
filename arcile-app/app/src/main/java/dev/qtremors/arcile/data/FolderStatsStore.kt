@@ -2,12 +2,15 @@ package dev.qtremors.arcile.data
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.FolderStatsStatus
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
@@ -23,6 +26,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.coroutineContext
 
 interface FolderStatsStore {
     suspend fun getCached(paths: Collection<String>): Map<String, FolderStats>
@@ -47,7 +51,14 @@ class DefaultFolderStatsStore @Inject constructor(
     private val calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null,
-    private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(2))
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO.limitedParallelism(2)
+    ),
+    private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + dispatchers.storage),
+    private val storageWorkCoordinator: StorageWorkCoordinator = NoOpStorageWorkCoordinator
 ) : FolderStatsStore, AutoCloseable {
 
     companion object {
@@ -61,7 +72,7 @@ class DefaultFolderStatsStore @Inject constructor(
     private val cacheDir = File(context.cacheDir, "folder_stats").apply { mkdirs() }
     private val memoryCache = ConcurrentHashMap<String, FolderStats>()
     private val queuedPaths = ConcurrentHashMap.newKeySet<String>()
-    private val rerunRequested = ConcurrentHashMap.newKeySet<String>()
+    private val activeJobs = ConcurrentHashMap<String, Job>()
     private val retryCounts = ConcurrentHashMap<String, Int>()
     private val pathGenerations = ConcurrentHashMap<String, Long>()
     private val updates = MutableSharedFlow<FolderStatUpdate>(
@@ -94,48 +105,44 @@ class DefaultFolderStatsStore @Inject constructor(
             .map(::normalizePath)
             .distinct()
             .forEach { path ->
-                if (!queuedPaths.add(path)) {
-                    rerunRequested.add(path)
-                    return@forEach
-                }
-                workerScope.launch {
+                val generation = nextGeneration(path)
+                activeJobs.remove(path)?.cancel()
+                queuedPaths.add(path)
+                val job = workerScope.launch(start = CoroutineStart.LAZY) {
                     try {
-                        do {
-                            rerunRequested.remove(path)
-                            val generationAtStart = pathGenerations[path] ?: 0L
-                            onCalculationStarted?.invoke(path)
-                            val stats = calculate(path)
-                            beforePublish?.invoke(path)
-                            val currentGeneration = pathGenerations[path] ?: 0L
+                        storageWorkCoordinator.awaitLowPrioritySlot()
+                        onCalculationStarted?.invoke(path)
+                        val stats = calculate(path)
+                        beforePublish?.invoke(path)
+                        val currentGeneration = pathGenerations[path] ?: 0L
 
-                            if (currentGeneration == generationAtStart) {
-                                memoryCache[path] = stats
-                                persist(path, stats)
-                                updates.emit(FolderStatUpdate(path, stats))
-                                if (stats.status == FolderStatsStatus.Unavailable) {
-                                    val failures = retryCounts.merge(path, 1, Int::plus) ?: 1
-                                    if (failures >= MAX_UNAVAILABLE_RETRIES) {
-                                        rerunRequested.remove(path)
-                                    }
-                                } else {
-                                    retryCounts.remove(path)
-                                }
+                        if (currentGeneration == generation) {
+                            memoryCache[path] = stats
+                            persist(path, stats)
+                            updates.emit(FolderStatUpdate(path, stats))
+                            if (stats.status == FolderStatsStatus.Unavailable) {
+                                retryCounts.merge(path, 1, Int::plus)
+                            } else {
+                                retryCounts.remove(path)
                             }
-                        } while (rerunRequested.remove(path))
+                        }
                     } finally {
-                        queuedPaths.remove(path)
-                        if (rerunRequested.remove(path)) {
-                            queue(listOf(path))
+                        val currentJob = coroutineContext[Job]
+                        if (currentJob != null && activeJobs.remove(path, currentJob)) {
+                            queuedPaths.remove(path)
                         }
                     }
                 }
+                activeJobs[path] = job
+                job.start()
             }
     }
 
     override fun invalidate(paths: Collection<String>) {
         paths.map(::normalizePath).distinct().forEach { path ->
-            pathGenerations.compute(path) { _, current -> (current ?: 0L) + 1L }
-            rerunRequested.add(path)
+            nextGeneration(path)
+            activeJobs.remove(path)?.cancel()
+            queuedPaths.remove(path)
             memoryCache.remove(path)
             val file = cacheFile(path)
             if (file.exists() && !file.delete()) {
@@ -143,6 +150,9 @@ class DefaultFolderStatsStore @Inject constructor(
             }
         }
     }
+
+    private fun nextGeneration(path: String): Long =
+        pathGenerations.compute(path) { _, current -> (current ?: 0L) + 1L } ?: 1L
 
     private suspend fun calculate(path: String): FolderStats {
         return try {

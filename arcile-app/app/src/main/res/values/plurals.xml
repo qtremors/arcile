@@ -1,6 +1,50 @@
 <resources>
+    <plurals name="archive_entry_count">
+        <item quantity="one">%1$d entry</item>
+        <item quantity="other">%1$d entries</item>
+    </plurals>
     <plurals name="folder_stats_files">
         <item quantity="one">%d file</item>
         <item quantity="other">%d files</item>
+    </plurals>
+    <plurals name="clipboard_item_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="file_operation_copied_items">
+        <item quantity="one">Copied %d item</item>
+        <item quantity="other">Copied %d items</item>
+    </plurals>
+    <plurals name="file_operation_moved_items">
+        <item quantity="one">Moved %d item</item>
+        <item quantity="other">Moved %d items</item>
+    </plurals>
+    <plurals name="file_operation_trashed_items">
+        <item quantity="one">Moved %d item to Trash</item>
+        <item quantity="other">Moved %d items to Trash</item>
+    </plurals>
+    <plurals name="file_operation_deleted_items">
+        <item quantity="one">Deleted %d item</item>
+        <item quantity="other">Deleted %d items</item>
+    </plurals>
+    <plurals name="file_operation_created_items">
+        <item quantity="one">Created %d item</item>
+        <item quantity="other">Created %d items</item>
+    </plurals>
+    <plurals name="file_operation_extracted_items">
+        <item quantity="one">Extracted %d item</item>
+        <item quantity="other">Extracted %d items</item>
+    </plurals>
+    <plurals name="file_operation_archived_items">
+        <item quantity="one">Archived %d item</item>
+        <item quantity="other">Archived %d items</item>
+    </plurals>
+    <plurals name="trash_restored_items">
+        <item quantity="one">Restored %d item</item>
+        <item quantity="other">Restored %d items</item>
+    </plurals>
+    <plurals name="trash_restored_items_with_conflicts">
+        <item quantity="one">Restored %1$d item; %2$d renamed due to conflict</item>
+        <item quantity="other">Restored %1$d items; %2$d renamed due to conflict</item>
     </plurals>
 </resources>

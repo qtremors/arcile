@@ -1,10 +1,174 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.0
-> **Last Updated:** 2026-05-17
+> **Version:** 0.8.0
+> **Last Updated:** 2026-05-24
 
 ---
+
+## [0.8.0] - 2026-05-24
+
+### Visual System / Foundation
+- **Semantic Shapes:** Defined a clear hierarchy of shapes in `Shape.kt` (fileRow, fileGridCard, toolbarPill, menuGroupFirst/Middle/Last/Single, sheet, dialog, storageCard) and replaced manual corner sizes with semantic extensions across the app for visual consistency.
+- **Semantic Typography:** Defined file-manager-specific text styles in `Type.kt` (filename, fileMetadata, pathBreadcrumb, storageMetric, sectionHeader, dangerLabel) and adjusted letter spacing to ensure clearer list hierarchy.
+- **Contextual Empty States:** Replaced animated decorative empty states with minimal, context-specific folder, search, trash, storage access, archive, and recent-file states, including reduced-motion handling.
+
+### Utilities & Duplicates UI
+- **Homepage Utilities Tray:** Reorganized the home page utilities tray to display only fully implemented utilities (Trash Bin and Clean Junk), removing all unavailable or placeholder items.
+- **Segmented Duplicates Screen:** Grouped duplicate files into distinct, visually separated cards by name and size on the Storage Cleaner Duplicates screen. Added full details (absolute path, last modified date) and Coil thumbnail rendering (with fallback icons) for media files.
+
+### Dialog & Input Polish
+- **File Name Validation:** Added a reusable file-name input for create and rename dialogs with invalid-character checks, parent-path rejection, case-insensitive duplicate-name feedback, trimmed submissions, and IME Done handling.
+- **Creation Previews:** Added live destination previews for create file, create folder, and create archive flows so users can confirm the final path before starting the operation.
+- **Archive Dialog Refinements:** Normalized archive extension handling, validated archive output names against existing files, and added password visual transformations with reveal toggles for archive create/extract flows.
+
+### Testing
+- **Empty State Coverage:** Added Compose tests for empty folder, no-results search, empty trash, empty archive, and reduced-motion rendering.
+- **Dialog Input Coverage:** Added targeted validation and Compose dialog tests for invalid names, duplicate names, ignored rename names, disabled create actions, and live destination previews.
+
+## [0.7.9] - 2026-05-24
+
+### Reliability & Destructive Actions
+- **Delete Decision Surface:** Reworked delete confirmations to show the operation destination, selected count, total size, folder count, and irreversible warnings so Trash, permanent delete, Android confirmation, and mixed selections are clearer.
+- **Trash Undo:** Added an undo path for completed Trash moves when Arcile can match the newly created Trash metadata back to the deleted selection.
+- **Durable Foreground Operations:** Added a lightweight operation journal for foreground file operations, persisting request, progress, phase, cancellation, and cleanup-needed state across coordinator/service lifecycles.
+- **Typed User-Safe Errors:** Introduced typed `ArcileError` mappings for high-risk storage and destructive flows, replacing raw exception messages with localized recovery-oriented UI messages.
+
+### Paste & Conflict UI
+- **Smart Paste Conflict Dialog:** Added smart metadata comparison for conflicting files, displaying check banners for identical files, and badge indicators highlighting newer and larger files.
+- **Improved Dialog Action Buttons:** Replaced the horizontal resolution button row with a vertically stacked column of distinct button styles (Filled Replace/Merge, FilledTonal Keep Both, Outlined Skip) to prevent text truncation and establish clear visual priority.
+
+### Settings & User Preferences
+- **Haptic Vibration Toggle:** Added a switch setting to enable/disable haptic feedback globally on actions and gestures via a new `LocalHapticsEnabled` composition local.
+- **Double-Line Filenames:** Introduced a preference to display filenames on up to two lines in both file browser list and grid layouts.
+- **Marquee Filenames:** Added an option to scroll long filenames horizontally using marquee scrolling, preventing clipping and truncation.
+
+### Testing
+- **Reliability Coverage:** Added and updated tests for delete decisions, mixed delete blocking, operation journal hydration/progress/recovery, foreground operation persistence, and typed error mapping.
+
+## [0.7.8] - 2026-05-24
+
+### Storage Cleaner
+- **Cleaner Utility:** Added a dedicated Storage Cleaner tool with indexed-storage scanning for large files, old downloads, duplicate-name candidates, APKs, videos, and conservative junk/cache-like files.
+- **Trash-Safe Cleanup:** Cleaner selections now move files to Arcile Trash instead of permanently deleting them, with confirmation, selection controls, refresh, and success/error feedback.
+
+### Testing
+- **Cleaner Coverage:** Added scanner and ViewModel tests for cleaner grouping, indexed-volume scoping, Trash cleanup, refresh behavior, and failure handling.
+
+## [0.7.7] - 2026-05-24
+
+### Storage Dashboard
+- **Radial Usage Map:** Added a Filelight-inspired Usage Map tab to the storage dashboard with a bounded folder scanner, radial disk usage visualization, breadcrumb drill-in, selected-item details, and explicit open actions into the existing file browser.
+
+### Testing
+- **Storage Usage Coverage:** Added scanner and ViewModel tests for folder sizing, small-item grouping, partial scans, volume selection, unavailable temporary storage, and drill-in selection behavior.
+
+## [0.7.6] - 2026-05-23
+
+### Thumbnail Performance & Image Loading
+- **Custom Thumbnail Policy:** Implemented a dedicated `ThumbnailPolicy` and `ThumbnailKey` to evaluate loading conditions dynamically based on file size bounds, mime-type support, and screen layout configurations.
+- **Scroll & Operation Awareness:** Wired visible-item boundaries to defer thumbnail loading outside the active viewport list/grid budget during scrolling, and automatically paused thumbnail loading during bulk operations to conserve IO bandwidth.
+- **Thumbnail Failure Cache:** Added a persistent `ThumbnailFailureCache` to identify and block repeatedly trying to load corrupt or unrenderable media files.
+
+### Localization & Production Polish
+- **UI Text Resource Wrapper:** Integrated a shared `UiText` wrapper to unify static, parameterized, and plural string resource resolving across ViewModels and Compose screens.
+- **Resource Migrations:** Fully replaced raw/hardcoded user-facing strings across settings, archive utilities, browser snackbars, toasts, active search filter chips, and dialogs with parameterized XML string and plural resources.
+
+### Testing
+- **Thumbnail Policy Verification:** Added regression tests covering the thumbnail policy constraints, size limits, failure caching, and layout budgets.
+
+## [0.7.5] - 2026-05-23
+
+### UI Consistency & Back Navigation
+- **Predictive Back Priority:** Added a shared Browser back-priority resolver for modals, sheets, search, selection, folder-up navigation, route pop, and app exit, with predictive back handling wired into the Browser flow.
+- **State Restoration:** Converted workflow UI state across Browser, Quick Access, and Trash screens to `rememberSaveable` where safe, preserving dialog, sheet, search, and FAB context across recreation.
+
+### Search & Selection
+- **Advanced Search Filters:** Expanded search filtering with extension, hidden-file visibility, storage volume, folder scope, exact size/date range, MIME, and saved-preset metadata while keeping the default filter mode simple.
+- **Active Filter Chips:** Added clearer active filter chips for advanced filters so users can remove precise constraints individually.
+- **Selection Affordances:** Added explicit selected check badges in file list/grid items, select/unselect accessibility actions, and a discoverable "Select range..." selection menu action.
+
+### Performance
+- **Lazy List/Grid Row Models:** Introduced preformatted file row UI models so date, size, subtitle, icon type, and thumbnail request metadata are prepared outside hot lazy item composition.
+- **Thumbnail Rendering:** Removed grid-cell `animateContentSize()` and replaced lazy-cell `SubcomposeAsyncImage` usage with lighter `AsyncImage` thumbnail requests sized to the list/grid presentation.
+
+### Testing
+- **Regression Coverage:** Added unit tests for Browser back priority ordering, advanced filter matching, and file row UI model formatting.
+
+## [0.7.4] - 2026-05-22
+
+### Recent Files Pagination
+- **Pagination Deduplication:** Resolved an issue where scrolling the recent files screen could load and render duplicate files due to database-to-filter offset mismatch.
+
+### UI Semantics & Tactility
+- **Accessible File Views:** Merged TalkBack semantics for file row/grid items into single-node announcements, hiding decorative elements, formatting hidden files with a "Hidden" suffix, and providing custom action labels for selecting/opening.
+- **Haptic Tactility Wrapper:** Created `ArcileHaptics` utilizing system vibration events, integrated across selections, multi-select ranges, FAB transitions, deletion checkbox/confirms, copy conflicts, operations completion (success/failure/cancel), and error notifications.
+- **Color Harmonization Setting:** Added a setting toggle "Harmonize Colors" in Appearance Settings. When enabled, it dynamically blends folder categories and system/semantic status colors with the user's active primary color theme using MaterialKolor. When disabled, categories revert to their precise custom design colors.
+- **Semantic Status Colors:** Introduced `SemanticColors` with dedicated light/dark variants for success, warning, operations progress, and badges, eliminating hardcoded raw green/red hex values in file operation toolbars and progress indicators.
+- **Archive Viewer Polish:** Upgraded the archive viewer with a contextual archive header, breadcrumb-style folder location, extraction destination preview, localized archive labels/plurals, masked password entry with reveal controls, and in-view extraction progress with current-entry context and cancellation.
+
+### Edge-to-Edge & Visual System Spacing
+- **Edge-to-Edge Insets:** Configured root Scaffold instances with zero-insets (`contentWindowInsets = WindowInsets(0, 0, 0, 0)`) across all application screens to let backgrounds bleed behind system bars. Added proper top app bar and status bar padding offsets to keep key UI elements interactive.
+- **Visual System Spacing:** Expanded spacing theme class with semantic tokens (`screenGutter`, `listItemHorizontal`, `listItemVertical`, `sheetHorizontal`, `toolbarBottomGap`, `sectionGap`, `compactGap`) and refactored screens to replace raw layout metrics for consistent rhythm.
+- **Bottom Toolbar Safe Areas:** Integrated navigation bar insets and custom dynamic content paddings to floating bottom toolbars (selection overlays), lists, and grids to ensure they correctly clear system gesture pills and 3-button navigation bars.
+
+## [0.7.3] - 2026-05-22
+
+### Home UI & Storage Insights
+- **Quick Access Toggles:** Replaced pin controls on the Quick Access management page with direct Home shortcut toggles while preserving the existing persisted shortcut state.
+- **Recent Files Preview Polish:** Kept image and video recents thumbnail-first, added file-type badges, and upgraded APK, archive, document, audio, folder, and unknown-file carousel cards with cleaner icon-led previews.
+- **Trash Storage Visibility:** Added Trash usage to storage dashboard summaries, storage bars, and the storage legend without adding Trash to browsable file categories.
+
+### Backend Reliability & Compatibility
+- **Coroutine Dispatcher Injection:** Added an injectable dispatcher holder and routed backend repositories, data sources, managers, stores, image fetchers, and foreground operations through explicit dispatchers for deterministic tests and future I/O tuning.
+- **Volume Root Readiness:** Initialized storage roots synchronously in the volume provider so path validation has canonical roots available before the first file operation, while mount changes still refresh cached volumes.
+- **External Handoff Controls:** Added staged open/share cache stats, explicit cleanup APIs, Settings cleanup access, shorter stale cache retention, per-file and batch share guards, and MIME-aware share grouping.
+- **Startup Debug Safety:** Added debug-only StrictMode plus startup trace sections around splash setup, permission checks, preference preload, and Compose setup.
+- **Trash Transfer Reuse:** Routed Trash copy-then-delete fallbacks through the shared transfer engine, preserving the existing `.arcile/.trash` layout while using streaming verification, staged promotion, and progress callbacks for large restore/trash operations.
+- **Mutation Recovery Cleanup:** Added a persistent mutation journal and startup cleanup for abandoned Arcile transfer, replacement, and incomplete Trash fallback artifacts without deleting completed Trash entries.
+
+
+### Testing
+- **Backend Regression Coverage:** Added tests for staged handoff cache cleanup and oversized share rejection, and updated share helper tests for MIME-aware share targets.
+- **Trash & Mutation Regression Coverage:** Added tests for Trash fallback progress, journal cleanup, completed Trash preservation, and transfer temp cleanup.
+- **Home Polish Regression Coverage:** Added coverage for Trash storage usage loading and Quick Access Home shortcut toggles.
+
+## [0.7.2] - 2026-05-21
+
+### Backend Reliability & Safety
+- **Transfer Verification Policy:** Added explicit metadata and full-checksum verification modes. Normal copies now use metadata verification to avoid full SHA-256 re-reads, while move fallback still performs checksum verification before deleting sources.
+- **Streaming Directory Verification:** Replaced directory verification that materialized full file lists with streaming traversal, reducing memory pressure for large folders and emitting progress during longer verification work.
+- **Path Safety Policies:** Centralized path validation by operation policy and tightened mutation/recursive traversal paths to reject symlink traversal and revalidate staging, promotion, delete, rename, and extraction targets.
+- **Operation Work Coordination:** Added a lightweight storage work coordinator so low-priority folder stats defer while foreground file mutations are active.
+- **Folder Stats Backpressure:** Folder stats now cancel stale per-path jobs, prioritize the newest request, and avoid publishing superseded scan results after navigation or invalidation.
+- **Foreground Operation Progress:** File-operation notifications now show throttled determinate progress when bytes or item counts are known, keep a cancel action available, and better reflect the active operation phase.
+
+### Archives & Privacy
+- **Archive Safety Policy:** Added archive entry count, uncompressed size, path length, nesting depth, and compression-ratio guards for ZIP and 7z listing, creation, metadata, and extraction paths.
+- **Extraction Cleanup:** Failed or cancelled extraction now removes files and directories created by that extraction attempt when they can be identified safely.
+- **Backup Privacy Rules:** Tightened backup and data-extraction rules to exclude local storage preferences, quick access paths, classification data, operation/staging metadata, analytics, and Arcile storage metadata.
+
+### Testing
+- **Backend Regression Coverage:** Added tests for transfer verification policy behavior, symlink mutation rejection, archive safety limits, extraction cleanup, backup/data extraction exclusions, storage work coordination, folder stats cancellation/defer behavior, and foreground operation notification progress.
+
+## [0.7.1] - 2026-05-20
+
+### Trash & Recovery
+- **Recoverable Trash Metadata:** Replaced encrypted trash sidecars with plaintext, schema-versioned JSON stored under each volume's `.arcile/.metadata` folder, so trashed items can be rediscovered after reinstall without app-private keys or preferences.
+- **Recovered Item Handling:** Unreadable metadata no longer causes payload loss; if the trash payload still exists, Arcile lists it as a recovered item and requires the user to choose a restore destination.
+- **Safer Restore Flow:** Trash restore now reports whether items can return to their original path, need a destination, or will be restored with a conflict-safe renamed filename.
+
+### UI & UX
+- **Practical Trash Manager:** Added Trash filters for all items, directly restorable items, destination-required items, and recovered payloads.
+- **Trash Sorting & Grouping:** Completed the Trash sort action with deletion date, name, size, type, and original-folder sorting, plus list grouping by Today, Yesterday, and Older.
+- **Trash Properties:** Finished the Trash properties action with selected-item details including original path, trash payload path, restore status, size, and source volume.
+- **Restore Feedback:** Restore actions now show a summary snackbar, including when selected files were restored with conflict names.
+
+### Build
+- **Version Bump:** Updated the app version from `0.7.0` to `0.7.1` with `versionCode` 55.
+
+### Testing
+- **Trash Regression Coverage:** Added tests for plaintext metadata, reinstall recovery, conflict restore, recovered payload restore, orphan metadata cleanup, unsupported storage, Trash filters, sorting, destination routing, and properties.
 
 ## [0.7.0] - 2026-05-16
 

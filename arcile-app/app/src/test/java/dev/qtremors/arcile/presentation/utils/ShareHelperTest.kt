@@ -32,7 +32,7 @@ class ShareHelperTest {
     fun `shareFiles returns false when no share uris can be created`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         mockkObject(ExternalFileAccessHelper)
-        coEvery { ExternalFileAccessHelper.createShareUris(context, any()) } returns emptyList()
+        coEvery { ExternalFileAccessHelper.createShareTargets(context, any()) } returns emptyList()
 
         try {
             assertFalse(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))
@@ -45,7 +45,14 @@ class ShareHelperTest {
     fun `shareFiles launches chooser intent when uris are available`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         mockkObject(ExternalFileAccessHelper)
-        coEvery { ExternalFileAccessHelper.createShareUris(context, any()) } returns listOf(Uri.parse("content://dev.qtremors.arcile/test"))
+        coEvery { ExternalFileAccessHelper.createShareTargets(context, any()) } returns listOf(
+            ExternalFileAccessHelper.ShareTarget(
+                uri = Uri.parse("content://dev.qtremors.arcile/test"),
+                mimeType = "text/plain",
+                displayName = "file.txt",
+                sizeBytes = 12L
+            )
+        )
 
         try {
             assertTrue(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))

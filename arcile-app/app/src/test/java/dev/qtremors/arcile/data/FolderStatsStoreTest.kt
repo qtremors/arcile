@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -149,6 +150,60 @@ class FolderStatsStoreTest {
     }
 
     @Test
+    fun `requeue cancels stale in-flight scan and publishes newest stats`() = runBlocking {
+        val folder = File(root, "Changing").apply { mkdirs() }
+        File(folder, "old.txt").writeText("old")
+        val firstStarted = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val store = trackedStore(
+            context = context,
+            onCalculationStarted = { path ->
+                if (path == folder.absolutePath) firstStarted.countDown()
+            },
+            beforePublish = { path ->
+                if (path == folder.absolutePath) releaseFirst.await(2, TimeUnit.SECONDS)
+            }
+        )
+
+        store.queue(listOf(folder.absolutePath))
+        assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
+
+        File(folder, "new.txt").writeText("newer")
+        val updateDeferred = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().first { it.path == folder.absolutePath }
+        }
+        store.queue(listOf(folder.absolutePath))
+        releaseFirst.countDown()
+
+        val update = withTimeout(5_000) { updateDeferred.await() }
+
+        assertEquals(2L, update.stats.fileCount)
+        assertEquals(8L, update.stats.totalBytes)
+    }
+
+    @Test
+    fun `folder stats wait while foreground mutation is active`() = runBlocking {
+        val folder = File(root, "Deferred").apply { mkdirs() }
+        File(folder, "file.txt").writeText("content")
+        val storageWorkCoordinator = DefaultStorageWorkCoordinator()
+        val started = CountDownLatch(1)
+        val store = trackedStore(
+            context = context,
+            storageWorkCoordinator = storageWorkCoordinator,
+            onCalculationStarted = { path ->
+                if (path == folder.absolutePath) started.countDown()
+            }
+        )
+
+        storageWorkCoordinator.beginMutation()
+        store.queue(listOf(folder.absolutePath))
+
+        assertFalse(started.await(300, TimeUnit.MILLISECONDS))
+        storageWorkCoordinator.endMutation()
+        assertTrue(started.await(2, TimeUnit.SECONDS))
+    }
+
+    @Test
     fun `folder stats calculator returns partial when node limit is exceeded`() = runBlocking {
         val folder = File(root, "Huge").apply { mkdirs() }
         repeat(5) { index ->
@@ -190,13 +245,15 @@ class FolderStatsStoreTest {
         context: Context,
         calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
         onCalculationStarted: ((String) -> Unit)? = null,
-        beforePublish: ((String) -> Unit)? = null
+        beforePublish: ((String) -> Unit)? = null,
+        storageWorkCoordinator: StorageWorkCoordinator = NoOpStorageWorkCoordinator
     ): DefaultFolderStatsStore {
         return DefaultFolderStatsStore(
             context = context,
             calculator = calculator,
             onCalculationStarted = onCalculationStarted,
-            beforePublish = beforePublish
+            beforePublish = beforePublish,
+            storageWorkCoordinator = storageWorkCoordinator
         ).also(stores::add)
     }
 }

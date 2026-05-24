@@ -17,6 +17,7 @@ class ApkIconFetcher(
 ) : Fetcher {
     @Suppress("DEPRECATION")
     override suspend fun fetch(): FetchResult? {
+        if (!data.exists() || !data.isFile || data.length() > ThumbnailPolicy.MAX_APK_BYTES) return null
         val packageManager = options.context.packageManager
         val packageInfo = packageManager.getPackageArchiveInfo(data.absolutePath, 0)
         
@@ -43,6 +44,16 @@ class ApkIconFetcher(
         override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.extension.lowercase() in FileCategories.APKs.extensions) {
                 ApkIconFetcher(data, options)
+            } else {
+                null
+            }
+        }
+    }
+
+    class KeyFactory : Fetcher.Factory<ThumbnailKey> {
+        override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
+            return if (data.type == ThumbnailType.Apk) {
+                ApkIconFetcher(data.file, options)
             } else {
                 null
             }

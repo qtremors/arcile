@@ -8,6 +8,8 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.ColorScheme
+import androidx.compose.runtime.staticCompositionLocalOf
+import com.materialkolor.ktx.harmonize
 
 // Baseline dynamic fallbacks (default purple base)
 val DarkColorScheme = darkColorScheme(
@@ -188,4 +190,56 @@ fun buildScheme(primary: Color, isDark: Boolean): ColorScheme {
             surfaceContainerHighest = Color(scheme.surfaceContainerHighest)
         )
     }
-}
+}
+
+data class SemanticColors(
+    val success: Color,
+    val onSuccess: Color,
+    val successContainer: Color,
+    val warning: Color,
+    val onWarning: Color,
+    val warningContainer: Color,
+    val operationProgress: Color,
+    val hiddenBadge: Color
+)
+
+val LightSemanticColors = SemanticColors(
+    success = Color(0xFF2E6C30),
+    onSuccess = Color(0xFFFFFFFF),
+    successContainer = Color(0xFFB1F1B5),
+    warning = Color(0xFF8B5000),
+    onWarning = Color(0xFFFFFFFF),
+    warningContainer = Color(0xFFFFDCBE),
+    operationProgress = Color(0xFF0061A4),
+    hiddenBadge = Color(0xFF757575)
+)
+
+val DarkSemanticColors = SemanticColors(
+    success = Color(0xFF96D799),
+    onSuccess = Color(0xFF00390A),
+    successContainer = Color(0xFF13531D),
+    warning = Color(0xFFFFB870),
+    onWarning = Color(0xFF4A2800),
+    warningContainer = Color(0xFF693C00),
+    operationProgress = Color(0xFF9ECAFF),
+    hiddenBadge = Color(0xFF9E9E9E)
+)
+
+fun Color.harmonizeWith(keyColor: Color): Color {
+    return this.harmonize(keyColor)
+}
+
+fun SemanticColors.harmonizeWith(keyColor: Color): SemanticColors {
+    return SemanticColors(
+        success = this.success.harmonizeWith(keyColor),
+        onSuccess = this.onSuccess.harmonizeWith(keyColor),
+        successContainer = this.successContainer.harmonizeWith(keyColor),
+        warning = this.warning.harmonizeWith(keyColor),
+        onWarning = this.onWarning.harmonizeWith(keyColor),
+        warningContainer = this.warningContainer.harmonizeWith(keyColor),
+        operationProgress = this.operationProgress.harmonizeWith(keyColor),
+        hiddenBadge = this.hiddenBadge.harmonizeWith(keyColor)
+    )
+}
+
+val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }

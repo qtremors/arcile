@@ -20,6 +20,15 @@ data class Spacing(
     // Intermediate values for finer control if needed, following 4dp grid
     val space12: Dp = 12.dp,
     val space20: Dp = 20.dp,
+
+    // Semantic spacing tokens
+    val screenGutter: Dp = medium,
+    val listItemHorizontal: Dp = medium,
+    val listItemVertical: Dp = small,
+    val sheetHorizontal: Dp = space20,
+    val toolbarBottomGap: Dp = 80.dp,
+    val sectionGap: Dp = large,
+    val compactGap: Dp = space12
 )
 
 val LocalSpacing = staticCompositionLocalOf { Spacing() }

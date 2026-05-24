@@ -16,6 +16,7 @@ import dev.qtremors.arcile.domain.StorageKind
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import dev.qtremors.arcile.testutil.testFile
@@ -171,7 +172,10 @@ private class RecordingMediaStoreClient : MediaStoreClient {
 private class RecordingTrashManager : TrashManager {
     val moveToTrashRequests = mutableListOf<List<String>>()
 
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> {
+    override suspend fun moveToTrash(
+        paths: List<String>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> {
         moveToTrashRequests += paths
         return Result.success(Unit)
     }
@@ -179,6 +183,7 @@ private class RecordingTrashManager : TrashManager {
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = Result.success(Unit)
     override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
     override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = Result.success(emptyList())
+    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
     override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = Result.success(Unit)
 }
 

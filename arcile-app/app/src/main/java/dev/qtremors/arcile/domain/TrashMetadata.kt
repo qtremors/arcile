@@ -1,5 +1,12 @@
 package dev.qtremors.arcile.domain
 
+enum class TrashRestoreStatus {
+    ORIGINAL_AVAILABLE,
+    ORIGINAL_CONFLICT_RENAME,
+    DESTINATION_REQUIRED,
+    RECOVERED_ITEM
+}
+
 /**
  * Metadata record for a file or directory that has been moved to the trash.
  *
@@ -19,5 +26,6 @@ data class TrashMetadata(
     val deletionTime: Long,
     val fileModel: FileModel,
     val sourceVolumeId: String,
-    val sourceStorageKind: StorageKind
+    val sourceStorageKind: StorageKind,
+    val restoreStatus: TrashRestoreStatus = TrashRestoreStatus.ORIGINAL_AVAILABLE
 )

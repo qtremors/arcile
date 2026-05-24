@@ -78,3 +78,8 @@ data class StorageInfo(
     val freeBytes: Long get() = volumes.filter { it.kind.isIndexed }.sumOf { it.freeBytes }
     val primaryVolume: StorageVolume? get() = volumes.find { it.isPrimary }
 }
+
+data class TrashStorageUsage(
+    val totalBytes: Long,
+    val byVolumeId: Map<String, Long>
+)

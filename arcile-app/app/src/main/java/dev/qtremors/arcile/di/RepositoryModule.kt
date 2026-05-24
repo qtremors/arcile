@@ -9,13 +9,17 @@ import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.data.BrowserPreferencesRepository
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.data.DefaultFolderStatsStore
+import dev.qtremors.arcile.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.data.FolderStatsStore
 import dev.qtremors.arcile.data.LocalFileRepository
 import dev.qtremors.arcile.data.MutationFinalizer
+import dev.qtremors.arcile.data.DefaultMutationJournal
+import dev.qtremors.arcile.data.MutationJournal
 import dev.qtremors.arcile.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.data.OnboardingPreferencesStore
 import dev.qtremors.arcile.data.StorageClassificationRepository
 import dev.qtremors.arcile.data.StorageClassificationStore
+import dev.qtremors.arcile.data.StorageWorkCoordinator
 import dev.qtremors.arcile.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.data.manager.TrashManager
@@ -28,22 +32,37 @@ import dev.qtremors.arcile.data.source.FileSystemDataSource
 import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.DefaultOperationJournal
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.OperationJournal
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object RepositoryModule {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Provides
+    @Singleton
+    fun provideArcileDispatchers(): ArcileDispatchers {
+        return ArcileDispatchers(
+            io = Dispatchers.IO,
+            default = Dispatchers.Default,
+            main = Dispatchers.Main,
+            storage = Dispatchers.IO.limitedParallelism(2)
+        )
+    }
+
     @Provides
     @Singleton
     @ApplicationScope
-    fun provideApplicationScope(): CoroutineScope {
-        return CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    fun provideApplicationScope(dispatchers: ArcileDispatchers): CoroutineScope {
+        return CoroutineScope(SupervisorJob() + dispatchers.io)
     }
 
     @Provides
@@ -75,18 +94,20 @@ object RepositoryModule {
     fun provideVolumeProvider(
         @ApplicationContext context: Context,
         classificationRepository: StorageClassificationRepository,
-        @ApplicationScope applicationScope: CoroutineScope
+        @ApplicationScope applicationScope: CoroutineScope,
+        dispatchers: ArcileDispatchers
     ): VolumeProvider {
-        return DefaultVolumeProvider(context, classificationRepository, applicationScope)
+        return DefaultVolumeProvider(context, classificationRepository, applicationScope, dispatchers)
     }
 
     @Provides
     @Singleton
     fun provideMediaStoreClient(
         @ApplicationContext context: Context,
-        volumeProvider: VolumeProvider
+        volumeProvider: VolumeProvider,
+        dispatchers: ArcileDispatchers
     ): MediaStoreClient {
-        return DefaultMediaStoreClient(context, volumeProvider)
+        return DefaultMediaStoreClient(context, volumeProvider, dispatchers)
     }
 
     @Provides
@@ -94,18 +115,27 @@ object RepositoryModule {
     fun provideTrashManager(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mutationFinalizer: MutationFinalizer
+        mutationFinalizer: MutationFinalizer,
+        mutationJournal: MutationJournal,
+        dispatchers: ArcileDispatchers
     ): TrashManager {
-        return DefaultTrashManager(context, volumeProvider, mutationFinalizer)
+        return DefaultTrashManager(
+            context,
+            volumeProvider,
+            mutationFinalizer,
+            dispatchers = dispatchers,
+            mutationJournal = mutationJournal
+        )
     }
 
     @Provides
     @Singleton
     fun provideArchiveManager(
         volumeProvider: VolumeProvider,
-        mutationFinalizer: MutationFinalizer
+        mutationFinalizer: MutationFinalizer,
+        dispatchers: ArcileDispatchers
     ): ArchiveManager {
-        return DefaultArchiveManager(volumeProvider, mutationFinalizer)
+        return DefaultArchiveManager(volumeProvider, mutationFinalizer, dispatchers = dispatchers)
     }
 
     @Provides
@@ -113,9 +143,17 @@ object RepositoryModule {
     fun provideFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
-        mutationFinalizer: MutationFinalizer
+        mutationFinalizer: MutationFinalizer,
+        mutationJournal: MutationJournal,
+        dispatchers: ArcileDispatchers
     ): FileSystemDataSource {
-        return DefaultFileSystemDataSource(context, volumeProvider, mutationFinalizer)
+        return DefaultFileSystemDataSource(
+            context,
+            volumeProvider,
+            mutationFinalizer,
+            dispatchers = dispatchers,
+            mutationJournal = mutationJournal
+        )
     }
 
     @Provides
@@ -131,10 +169,34 @@ object RepositoryModule {
 
     @Provides
     @Singleton
+    fun provideMutationJournal(
+        @ApplicationContext context: Context,
+        volumeProvider: VolumeProvider,
+        dispatchers: ArcileDispatchers
+    ): MutationJournal {
+        return DefaultMutationJournal(context, volumeProvider, dispatchers)
+    }
+
+    @Provides
+    @Singleton
     fun provideFolderStatsStore(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        storageWorkCoordinator: StorageWorkCoordinator,
+        dispatchers: ArcileDispatchers
     ): FolderStatsStore {
-        return DefaultFolderStatsStore(context)
+        return DefaultFolderStatsStore(
+            context,
+            workerScope = CoroutineScope(SupervisorJob() + dispatchers.storage),
+            storageWorkCoordinator = storageWorkCoordinator
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun provideStorageWorkCoordinator(
+        coordinator: DefaultStorageWorkCoordinator
+    ): StorageWorkCoordinator {
+        return coordinator
     }
 
     @Provides
@@ -145,7 +207,8 @@ object RepositoryModule {
         trashManager: TrashManager,
         archiveManager: ArchiveManager,
         fileSystemDataSource: FileSystemDataSource,
-        folderStatsStore: FolderStatsStore
+        folderStatsStore: FolderStatsStore,
+        dispatchers: ArcileDispatchers
     ): FileRepository {
         return LocalFileRepository(
             volumeProvider,
@@ -153,16 +216,18 @@ object RepositoryModule {
             trashManager,
             fileSystemDataSource,
             folderStatsStore,
-            archiveManager
+            archiveManager,
+            dispatchers
         )
     }
 
     @Provides
     @Singleton
     fun provideBrowserPreferencesRepository(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        dispatchers: ArcileDispatchers
     ): BrowserPreferencesRepository {
-        return BrowserPreferencesRepository(context)
+        return BrowserPreferencesRepository(context, dispatchers = dispatchers)
     }
 
     @Provides
@@ -176,9 +241,10 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideOnboardingPreferencesRepository(
-        @ApplicationContext context: Context
+        @ApplicationContext context: Context,
+        dispatchers: ArcileDispatchers
     ): OnboardingPreferencesRepository {
-        return OnboardingPreferencesRepository(context)
+        return OnboardingPreferencesRepository(context, dispatchers = dispatchers)
     }
 
     @Provides
@@ -195,6 +261,14 @@ object RepositoryModule {
         coordinator: ForegroundBulkFileOperationCoordinator
     ): BulkFileOperationCoordinator {
         return coordinator
+    }
+
+    @Provides
+    @Singleton
+    fun provideOperationJournal(
+        @ApplicationContext context: Context
+    ): OperationJournal {
+        return DefaultOperationJournal(context)
     }
 
     @Provides

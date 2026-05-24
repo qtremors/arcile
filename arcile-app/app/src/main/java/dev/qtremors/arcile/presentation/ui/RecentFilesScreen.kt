@@ -9,6 +9,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.ui.theme.menuGroupLast
+import dev.qtremors.arcile.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -60,6 +69,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
@@ -67,11 +77,14 @@ import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.BrowserViewMode
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.presentation.asString
 import dev.qtremors.arcile.presentation.containingFolderPath
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
@@ -114,12 +127,14 @@ fun RecentFilesScreen(
     onOpenContainingFolder: (String) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -134,7 +149,8 @@ fun RecentFilesScreen(
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
-            snackbarHostState.showSnackbar(errorMsg)
+            haptics.error()
+            snackbarHostState.showSnackbar(errorMsg.asString(context))
             onClearError()
         }
     }
@@ -162,10 +178,13 @@ fun RecentFilesScreen(
     val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {
             ArcileSnackbarHost(
                 hostState = snackbarHostState,
-                modifier = Modifier.padding(bottom = snackbarPadding)
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .padding(bottom = snackbarPadding)
             )
         },
         topBar = {
@@ -239,7 +258,7 @@ fun RecentFilesScreen(
                 }
                 state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar -> {
                     EmptyState(
-                        icon = Icons.Default.History,
+                        variant = EmptyStateVariant.Recent,
                         title = stringResource(R.string.no_recent_files),
                         description = stringResource(R.string.no_recent_files_description),
                         modifier = Modifier.fillMaxSize()
@@ -252,7 +271,7 @@ fun RecentFilesScreen(
                 }
                 showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty() -> {
                     EmptyState(
-                        icon = Icons.Default.SearchOff,
+                        variant = EmptyStateVariant.Search,
                         title = stringResource(R.string.no_results_found),
                         description = stringResource(R.string.no_results_description, state.searchQuery),
                         modifier = Modifier.fillMaxSize()
@@ -296,20 +315,20 @@ fun RecentFilesScreen(
             isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
             onConfirm = onConfirmDelete,
             onDismiss = onDismissDeleteConfirmation,
-            onTogglePermanentDelete = onTogglePermanentDelete
+            onTogglePermanentDelete = onTogglePermanentDelete,
+            decision = state.deleteDecision
         )
     }
 
     if (state.showMixedDeleteExplanation) {
-        AlertDialog(
-            onDismissRequest = onDismissDeleteConfirmation,
-            title = { Text(stringResource(R.string.mixed_selection_title)) },
-            text = { Text(stringResource(R.string.mixed_selection_description)) },
-            confirmButton = {
-                TextButton(onClick = onDismissDeleteConfirmation) {
-                    Text(stringResource(R.string.ok))
-                }
-            }
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedFiles.size,
+            isPermanentDeleteChecked = true,
+            isPermanentDeleteToggleEnabled = false,
+            onConfirm = {},
+            onDismiss = onDismissDeleteConfirmation,
+            onTogglePermanentDelete = {},
+            decision = state.deleteDecision
         )
     }
 
@@ -381,7 +400,7 @@ private fun RecentFilesContent(
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val topPadding = contentPadding.calculateTopPadding()
-    val bottomPadding = contentPadding.calculateBottomPadding() + 100.dp
+    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
 
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = state.isPullToRefreshing,
@@ -434,19 +453,8 @@ private fun RecentFilesContent(
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
                 ) {
                     groupedFiles.forEach { (dateHeader, files) ->
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
-                                    .padding(vertical = 8.dp)
-                            ) {
-                                Text(
-                                    text = dateHeader,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                        stickyHeader {
+                            RecentDateHeaderPill(dateHeader = dateHeader)
                         }
                         gridItemsIndexed(
                             items = files,
@@ -529,18 +537,7 @@ private fun RecentFilesContent(
             ) {
                 groupedFiles.forEach { (dateHeader, files) ->
                     stickyHeader {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.95f))
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                text = dateHeader,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        RecentDateHeaderPill(dateHeader = dateHeader)
                     }
                     itemsIndexed(
                         items = files,
@@ -601,6 +598,30 @@ private fun RecentFilesContent(
                     .fillMaxSize()
                     .padding(top = topPadding),
                 contentPadding = PaddingValues(bottom = bottomPadding)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentDateHeaderPill(dateHeader: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.primary,
+            tonalElevation = 3.dp,
+            shadowElevation = 2.dp
+        ) {
+            Text(
+                text = dateHeader,
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
             )
         }
     }
@@ -698,10 +719,10 @@ private fun SelectionToolbar(
 
                         menuActions.forEachIndexed { index, action ->
                             val shape = when {
-                                menuActions.size == 1 -> RoundedCornerShape(24.dp)
-                                index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                                index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                else -> RoundedCornerShape(4.dp)
+                                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                                index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                                else -> MaterialTheme.shapes.menuGroupMiddle
                             }
                             Box(
                                 modifier = Modifier

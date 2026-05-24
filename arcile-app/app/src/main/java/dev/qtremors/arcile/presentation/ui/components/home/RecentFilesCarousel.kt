@@ -1,16 +1,11 @@
 package dev.qtremors.arcile.presentation.ui.components.home
 
-import android.graphics.BitmapFactory
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,7 +29,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,11 +38,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
@@ -65,6 +64,9 @@ fun RecentFilesCarousel(
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
     val primaryWidth = configuration.screenWidthDp.dp / 2
     val itemHeight = primaryWidth * 1.25f
+    val thumbnailSizePx = with(LocalDensity.current) {
+        primaryWidth.roundToPx().coerceIn(192, 512)
+    }
 
     val state = rememberCarouselState { files.size }
     HorizontalMultiBrowseCarousel(
@@ -80,6 +82,7 @@ fun RecentFilesCarousel(
             onClick = { onOpenFile(file.absolutePath) },
             onNavigateToPath = onNavigateToPath,
             itemHeight = itemHeight,
+            thumbnailSizePx = thumbnailSizePx,
             modifier = Modifier.maskClip(RoundedCornerShape(24.dp))
         )
     }
@@ -91,14 +94,26 @@ fun RecentFileCarouselItem(
     onClick: () -> Unit,
     onNavigateToPath: (String) -> Unit,
     itemHeight: androidx.compose.ui.unit.Dp,
+    thumbnailSizePx: Int,
     modifier: Modifier = Modifier
 ) {
-    val isMedia = !file.isDirectory && (
-        FileCategories.Images.extensions.contains(file.extension) ||
-            FileCategories.Videos.extensions.contains(file.extension) ||
-            FileCategories.APKs.extensions.contains(file.extension) ||
-            FileCategories.Audio.extensions.contains(file.extension)
+    val extension = file.extension.lowercase()
+    val usesFullBleedThumbnail = !file.isDirectory && (
+        FileCategories.Images.extensions.contains(extension) ||
+            FileCategories.Videos.extensions.contains(extension)
         )
+    val previewAccent = previewAccentFor(file)
+    val previewIcon = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file)
+    val context = LocalContext.current
+    val thumbnailRequest = remember(file.absolutePath, thumbnailSizePx) {
+        ImageRequest.Builder(context)
+            .data(File(file.absolutePath))
+            .size(thumbnailSizePx)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
+            .crossfade(false)
+            .build()
+    }
 
     Card(
         modifier = modifier
@@ -110,47 +125,57 @@ fun RecentFileCarouselItem(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            if (isMedia) {
-                SubcomposeAsyncImage(
-                    model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                        .data(File(file.absolutePath))
-                        .crossfade(true)
-                        .crossfade(300)
-                        .diskCachePolicy(coil.request.CachePolicy.ENABLED)
-                        .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
-                        .build(),
+            if (usesFullBleedThumbnail) {
+                ThumbnailFallback(icon = previewIcon)
+                AsyncImage(
+                    model = thumbnailRequest,
                     contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    loading = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                                modifier = Modifier.size(48.dp)
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    previewAccent.copy(alpha = 0.28f),
+                                    MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    MaterialTheme.colorScheme.surfaceContainer
+                                )
                             )
-                        }
-                    },
-                    error = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        color = previewAccent.copy(alpha = 0.16f),
+                        modifier = Modifier.size(104.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
+                                imageVector = previewIcon,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(48.dp)
+                                tint = previewAccent,
+                                modifier = Modifier.size(56.dp)
                             )
                         }
                     }
-                )
-            } else {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(64.dp)
-                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 92.dp)
+                    ) {
+                        Text(
+                            text = fileTypeLabel(file),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = previewAccent,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
                 }
             }
 
@@ -180,7 +205,7 @@ fun RecentFileCarouselItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                val parentFolderName = File(file.absolutePath).parentFile?.name ?: "Unknown"
+                val parentFolderName = File(file.absolutePath).parentFile?.name ?: stringResource(R.string.unknown_folder)
                 Text(
                     text = parentFolderName,
                     style = MaterialTheme.typography.bodySmall,
@@ -191,6 +216,14 @@ fun RecentFileCarouselItem(
             }
 
             var showMenu by remember { mutableStateOf(false) }
+
+            FileTypeBadge(
+                icon = previewIcon,
+                tint = if (usesFullBleedThumbnail) Color.White else previewAccent,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+            )
             
             Box(
                 modifier = Modifier
@@ -220,7 +253,7 @@ fun RecentFileCarouselItem(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     DropdownMenuItem(
-                        text = { Text("Open") },
+                        text = { Text(stringResource(R.string.open)) },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                         onClick = {
                             showMenu = false
@@ -239,4 +272,69 @@ fun RecentFileCarouselItem(
             }
         }
     }
+}
+
+@Composable
+private fun ThumbnailFallback(
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f),
+            modifier = Modifier.size(48.dp)
+        )
+    }
+}
+
+@Composable
+private fun FileTypeBadge(
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.4f),
+        modifier = modifier.size(32.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun previewAccentFor(file: FileModel): Color {
+    val scheme = MaterialTheme.colorScheme
+    val ext = file.extension.lowercase()
+    return when {
+        file.isDirectory -> scheme.primary
+        FileCategories.APKs.extensions.contains(ext) -> scheme.tertiary
+        FileCategories.Archives.extensions.contains(ext) -> scheme.secondary
+        FileCategories.Audio.extensions.contains(ext) -> scheme.primary
+        FileCategories.Documents.extensions.contains(ext) -> scheme.error
+        else -> scheme.onSurfaceVariant
+    }
+}
+
+@Composable
+private fun fileTypeLabel(file: FileModel): String {
+    if (file.isDirectory) return stringResource(R.string.file_type_folder)
+    return file.extension
+        .takeIf { it.isNotBlank() }
+        ?.uppercase()
+        ?: stringResource(R.string.file_type_generic)
 }

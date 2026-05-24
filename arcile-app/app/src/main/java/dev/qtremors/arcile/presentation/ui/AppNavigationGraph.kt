@@ -22,12 +22,14 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.presentation.storagecleaner.StorageCleanerViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -215,6 +217,12 @@ fun AppNavigationGraph(
                                             launchSingleTop = true
                                         }
                                     },
+                                    onNavigateToCleaner = {
+                                        navController.navigate(AppRoutes.StorageCleaner) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
                                     onNavigateToRecentFiles = {
                                         navController.navigate(AppRoutes.RecentFiles()) {
                                             popUpTo<AppRoutes.Main> { saveState = true }
@@ -223,7 +231,7 @@ fun AppNavigationGraph(
                                     },
                                     onNavigateToSaf = { uriString ->
                                         if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
-                                            android.widget.Toast.makeText(context, "Could not open folder in Files app", android.widget.Toast.LENGTH_LONG).show()
+                                            android.widget.Toast.makeText(context, context.getString(R.string.could_not_open_folder_files_app), android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     },
                                     onNavigateToQuickAccess = {
@@ -299,6 +307,8 @@ fun AppNavigationGraph(
                                     onCreateArchiveFromSelection = { name, format, password ->
                                         browserViewModel.createArchiveFromSelection(name, format, password)
                                     },
+                                    onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
+                                    onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )
                             }
@@ -319,7 +329,11 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
                             navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
-                        }
+                        },
+                        onOpenPath = { path ->
+                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path))
+                        },
+                        onOpenFile = openPath
                     )
                 }
                 composable<AppRoutes.Explorer> { backStackEntry ->
@@ -352,12 +366,17 @@ fun AppNavigationGraph(
                         onSelectAll = { viewModel.selectAll() },
                         onSearchQueryChange = { viewModel.updateSearchQuery(it) },
                         onClearSearch = { viewModel.updateSearchQuery("") },
+                        onSortChange = { viewModel.updateSortOption(it) },
+                        onFilterChange = { viewModel.updateFilter(it) },
+                        onOpenProperties = { viewModel.openPropertiesForSelection() },
+                        onDismissProperties = { viewModel.dismissProperties() },
+                        onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
                         nativeRequestFlow = viewModel.nativeRequestFlow
                     )
 
                 }
-                composable<AppRoutes.RecentFiles> {
-                    val parentEntry = remember {
+                composable<AppRoutes.RecentFiles> { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
                     val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
@@ -402,7 +421,19 @@ fun AppNavigationGraph(
                 }
                 composable<AppRoutes.Tools> {
                     ToolsScreen(
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) }
+                    )
+                }
+                composable<AppRoutes.StorageCleaner> {
+                    val viewModel = hiltViewModel<StorageCleanerViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    StorageCleanerScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onRefresh = { viewModel.scan() },
+                        onCleanFiles = { viewModel.clean(it) },
+                        onClearMessages = { viewModel.clearMessages() }
                     )
                 }
                 composable<AppRoutes.Settings> {
@@ -444,8 +475,8 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable<AppRoutes.QuickAccess> {
-                    val parentEntry = remember {
+                composable<AppRoutes.QuickAccess> { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
                     val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
@@ -485,7 +516,10 @@ fun AppNavigationGraph(
                         onExtractAll = { password -> viewModel.extractAll(password) },
                         onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
                         onSubmitPassword = { viewModel.submitPassword(it) },
-                        onClearError = { viewModel.clearError() }
+                        onClearError = { viewModel.clearError() },
+                        onCancelExtraction = { viewModel.cancelExtraction() },
+                        onClearOperationStatusMessage = { viewModel.clearOperationStatusMessage() },
+                        onClearActiveOperation = { viewModel.clearActiveOperation() }
                     )
                 }
             }

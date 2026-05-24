@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Storage
@@ -18,8 +19,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
 import dev.qtremors.arcile.presentation.ui.components.settings.SettingsSection
@@ -52,10 +59,21 @@ fun SettingsScreen(
     onRunOnboardingAgain: suspend () -> Unit = {},
     onRestartApp: () -> Unit = {}
 ) {
+    val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var externalAccessCacheStats by remember {
+        mutableStateOf(ExternalFileAccessHelper.StagingCacheStats(fileCount = 0, sizeBytes = 0L))
+    }
     var showResetOnboardingDialog by remember { mutableStateOf(false) }
     var showRestartDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(context) {
+        externalAccessCacheStats = withContext(Dispatchers.IO) {
+            ExternalFileAccessHelper.getStagingCacheStats(context)
+        }
+    }
 
     if (showResetOnboardingDialog) {
         AlertDialog(
@@ -103,6 +121,7 @@ fun SettingsScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.settings_title)) },
@@ -118,56 +137,235 @@ fun SettingsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = padding.calculateTopPadding())
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(
+                top = 16.dp,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+            ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                SettingsSection(title = stringResource(R.string.section_appearance)) {
-                    ThemeModeSelector(
-                        currentMode = currentThemeState.themeMode,
-                        onModeSelected = {
-                            onThemeChange(currentThemeState.copy(themeMode = it))
-                        }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(R.string.section_appearance),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 8.dp)
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    AccentColorSelector(
-                        currentAccent = currentThemeState.accentColor,
-                        onAccentSelected = {
-                            onThemeChange(currentThemeState.copy(accentColor = it))
-                        }
-                    )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.settings_show_thumbnails)) },
-                        supportingContent = { Text(stringResource(R.string.settings_show_thumbnails_description)) },
-                        trailingContent = {
-                            Switch(
-                                checked = showThumbnails,
-                                onCheckedChange = onShowThumbnailsChange,
-                                thumbContent = {
-                                    Icon(
-                                        imageVector = if (showThumbnails) Icons.Default.Check else Icons.Default.Close,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        ThemeModeSelector(
+                            currentMode = currentThemeState.themeMode,
+                            onModeSelected = {
+                                onThemeChange(currentThemeState.copy(themeMode = it))
+                            }
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        AccentColorSelector(
+                            currentAccent = currentThemeState.accentColor,
+                            onAccentSelected = {
+                                onThemeChange(currentThemeState.copy(accentColor = it))
+                            }
+                        )
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        shape = MaterialTheme.shapes.large
+                    ) {
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_show_thumbnails)) },
+                                supportingContent = { Text(stringResource(R.string.settings_show_thumbnails_description)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = showThumbnails,
+                                        onCheckedChange = onShowThumbnailsChange,
+                                        thumbContent = {
+                                            Icon(
+                                                imageVector = if (showThumbnails) Icons.Default.Check else Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("thumbnail_switch")
                                     )
                                 },
-                                modifier = Modifier.testTag("thumbnail_switch")
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable { onShowThumbnailsChange(!showThumbnails) }
+                                    .testTag("thumbnail_setting_row")
                             )
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable { onShowThumbnailsChange(!showThumbnails) }
-                            .testTag("thumbnail_setting_row")
-                    )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_harmonize_colors)) },
+                                supportingContent = { Text(stringResource(R.string.settings_harmonize_colors_description)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = currentThemeState.harmonizeColors,
+                                        onCheckedChange = { isChecked ->
+                                            haptics.toggleMenu()
+                                            onThemeChange(currentThemeState.copy(harmonizeColors = isChecked))
+                                        },
+                                        thumbContent = {
+                                            Icon(
+                                                imageVector = if (currentThemeState.harmonizeColors) Icons.Default.Check else Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("harmonize_colors_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable {
+                                        haptics.toggleMenu()
+                                        onThemeChange(currentThemeState.copy(harmonizeColors = !currentThemeState.harmonizeColors))
+                                    }
+                                    .testTag("harmonize_colors_setting_row")
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_vibrations)) },
+                                supportingContent = { Text(stringResource(R.string.settings_vibrations_description)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = currentThemeState.vibrationsEnabled,
+                                        onCheckedChange = { isChecked ->
+                                            haptics.toggleMenu()
+                                            onThemeChange(currentThemeState.copy(vibrationsEnabled = isChecked))
+                                        },
+                                        thumbContent = {
+                                            Icon(
+                                                imageVector = if (currentThemeState.vibrationsEnabled) Icons.Default.Check else Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("vibrations_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable {
+                                        haptics.toggleMenu()
+                                        onThemeChange(currentThemeState.copy(vibrationsEnabled = !currentThemeState.vibrationsEnabled))
+                                    }
+                                    .testTag("vibrations_setting_row")
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_double_line_filenames)) },
+                                supportingContent = { Text(stringResource(R.string.settings_double_line_filenames_description)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = currentThemeState.doubleLineFilenames,
+                                        onCheckedChange = { isChecked ->
+                                            haptics.toggleMenu()
+                                            val newMarquee = if (isChecked) false else currentThemeState.marqueeFilenames
+                                            onThemeChange(
+                                                currentThemeState.copy(
+                                                    doubleLineFilenames = isChecked,
+                                                    marqueeFilenames = newMarquee
+                                                )
+                                            )
+                                        },
+                                        thumbContent = {
+                                            Icon(
+                                                imageVector = if (currentThemeState.doubleLineFilenames) Icons.Default.Check else Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("double_line_filenames_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable {
+                                        haptics.toggleMenu()
+                                        val isChecked = !currentThemeState.doubleLineFilenames
+                                        val newMarquee = if (isChecked) false else currentThemeState.marqueeFilenames
+                                        onThemeChange(
+                                            currentThemeState.copy(
+                                                doubleLineFilenames = isChecked,
+                                                marqueeFilenames = newMarquee
+                                            )
+                                        )
+                                    }
+                                    .testTag("double_line_filenames_setting_row")
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_marquee_filenames)) },
+                                supportingContent = { Text(stringResource(R.string.settings_marquee_filenames_description)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = currentThemeState.marqueeFilenames,
+                                        onCheckedChange = { isChecked ->
+                                            haptics.toggleMenu()
+                                            val newDouble = if (isChecked) false else currentThemeState.doubleLineFilenames
+                                            onThemeChange(
+                                                currentThemeState.copy(
+                                                    marqueeFilenames = isChecked,
+                                                    doubleLineFilenames = newDouble
+                                                )
+                                            )
+                                        },
+                                        thumbContent = {
+                                            Icon(
+                                                imageVector = if (currentThemeState.marqueeFilenames) Icons.Default.Check else Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("marquee_filenames_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable {
+                                        haptics.toggleMenu()
+                                        val isChecked = !currentThemeState.marqueeFilenames
+                                        val newDouble = if (isChecked) false else currentThemeState.doubleLineFilenames
+                                        onThemeChange(
+                                            currentThemeState.copy(
+                                                marqueeFilenames = isChecked,
+                                                doubleLineFilenames = newDouble
+                                            )
+                                        )
+                                    }
+                                    .testTag("marquee_filenames_setting_row")
+                            )
+                        }
+                    }
                 }
             }
 
@@ -179,6 +377,26 @@ fun SettingsScreen(
                         leadingContent = { Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onOpenStorageManagement)
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.clear_external_access_cache)) },
+                        supportingContent = {
+                            Text(
+                                stringResource(
+                                    R.string.clear_external_access_cache_description,
+                                    externalAccessCacheStats.fileCount
+                                )
+                            )
+                        },
+                        leadingContent = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable {
+                            coroutineScope.launch {
+                                externalAccessCacheStats = withContext(Dispatchers.IO) {
+                                    ExternalFileAccessHelper.clearStagingArea(context)
+                                }
+                            }
+                        }
                     )
                 }
             }

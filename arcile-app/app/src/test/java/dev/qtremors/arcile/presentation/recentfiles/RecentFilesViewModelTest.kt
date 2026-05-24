@@ -313,6 +313,34 @@ class RecentFilesViewModelTest {
         assertEquals("Images", viewModel.state.value.activeSearchFilters.fileType)
         assertEquals(FileSortOption.DATE_NEWEST, viewModel.state.value.presentation.sortOption)
     }
+
+    @Test
+    fun `load more deduplicates files with identical absolute paths`() = runTest(mainDispatcherRule.dispatcher) {
+        val firstPage = (1..48).map {
+            recentFile("dummy_$it.jpg", "/storage/emulated/0/DCIM/dummy_$it.jpg")
+        } + listOf(
+            recentFile("image_1.jpg", "/storage/emulated/0/DCIM/image_1.jpg"),
+            recentFile("image_2.jpg", "/storage/emulated/0/DCIM/image_2.jpg")
+        )
+        val secondPage = listOf(
+            recentFile("image_2.jpg", "/storage/emulated/0/DCIM/image_2.jpg"), // Duplicate
+            recentFile("image_3.jpg", "/storage/emulated/0/DCIM/image_3.jpg")
+        )
+        val repository = FakeFileRepository().apply {
+            recentFilesResultProvider = { _, _, offset, _ ->
+                Result.success(if (offset == 0) firstPage else secondPage)
+            }
+        }
+        val viewModel = recentViewModel(repository)
+
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+
+        assertEquals(51, viewModel.state.value.recentFiles.size)
+        val expectedNames = (1..48).map { "dummy_$it.jpg" } + listOf("image_1.jpg", "image_2.jpg", "image_3.jpg")
+        assertEquals(expectedNames, viewModel.state.value.recentFiles.map { it.name })
+    }
 }
 
 private fun recentFile(

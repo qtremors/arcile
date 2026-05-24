@@ -17,13 +17,16 @@ import coil.request.Options
 import dev.qtremors.arcile.domain.FileCategories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.CoroutineContext
 import java.io.File
 
 class AudioAlbumArtFetcher(
     private val file: File,
-    private val options: Options
+    private val options: Options,
+    private val ioContext: CoroutineContext = Dispatchers.IO
 ) : Fetcher {
-    override suspend fun fetch(): FetchResult? = withContext(Dispatchers.IO) {
+    override suspend fun fetch(): FetchResult? = withContext(ioContext) {
+        if (file.exists() && file.length() > ThumbnailPolicy.MAX_AUDIO_BYTES) return@withContext null
         val context = options.context
         val targetSize = 500
 
@@ -100,6 +103,16 @@ class AudioAlbumArtFetcher(
         override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.extension.lowercase() in FileCategories.Audio.extensions) {
                 AudioAlbumArtFetcher(data, options)
+            } else {
+                null
+            }
+        }
+    }
+
+    class KeyFactory : Fetcher.Factory<ThumbnailKey> {
+        override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
+            return if (data.type == ThumbnailType.Audio) {
+                AudioAlbumArtFetcher(data.file, options)
             } else {
                 null
             }

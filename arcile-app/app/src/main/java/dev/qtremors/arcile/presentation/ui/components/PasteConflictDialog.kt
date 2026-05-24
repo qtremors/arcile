@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components
+package dev.qtremors.arcile.presentation.ui.components
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
@@ -24,8 +24,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -77,8 +79,9 @@ fun PasteConflictDialog(
     onResolve: (Map<String, ConflictResolution>) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val haptics = dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics()
     val resolutions = remember { mutableMapOf<String, ConflictResolution>() }
-    val formatter = rememberDateFormatter("MMM dd, yyyy Â· HH:mm")
+    val formatter = rememberDateFormatter("MMM dd, yyyy · HH:mm")
     
     var currentIndex by remember { mutableStateOf(0) }
     var applyToAll by remember { mutableStateOf(false) }
@@ -147,11 +150,12 @@ fun PasteConflictDialog(
                 }
 
                 // Action Buttons
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     val handleAction = { resolution: ConflictResolution ->
+                        haptics.selectionChanged()
                         if (applyToAll) {
                             for (i in currentIndex until conflicts.size) {
                                 resolutions[conflicts[i].sourcePath] = resolution
@@ -167,20 +171,32 @@ fun PasteConflictDialog(
                         }
                     }
 
+                    Button(
+                        onClick = { handleAction(ConflictResolution.REPLACE) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (currentConflict.sourceFile.isDirectory) stringResource(R.string.action_merge) else stringResource(R.string.action_replace)
+                        )
+                    }
+
                     FilledTonalButton(
                         onClick = { handleAction(ConflictResolution.KEEP_BOTH) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text(stringResource(R.string.action_keep_both), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.action_keep_both)
+                        )
+                    }
 
-                    FilledTonalButton(
-                        onClick = { handleAction(ConflictResolution.REPLACE) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text(if (currentConflict.sourceFile.isDirectory) stringResource(R.string.action_merge) else stringResource(R.string.action_replace), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-
-                    FilledTonalButton(
+                    OutlinedButton(
                         onClick = { handleAction(ConflictResolution.SKIP) },
-                        modifier = Modifier.weight(1f)
-                    ) { Text(stringResource(R.string.action_skip), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.action_skip)
+                        )
+                    }
                 }
 
                 TextButton(
@@ -193,4 +209,3 @@ fun PasteConflictDialog(
         }
     }
 }
-

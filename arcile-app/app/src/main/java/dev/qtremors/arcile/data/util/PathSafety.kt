@@ -4,8 +4,21 @@ import java.io.File
 import java.nio.file.Files
 
 object PathSafety {
-    fun validatePath(file: File, activeStorageRoots: List<String>, rejectSymlinks: Boolean = false): Result<Unit> {
-        if (rejectSymlinks && containsSymbolicLink(file)) {
+    enum class OperationPolicy(
+        internal val rejectSymlinks: Boolean
+    ) {
+        READ(rejectSymlinks = false),
+        RECURSIVE_READ(rejectSymlinks = true),
+        MUTATE(rejectSymlinks = true),
+        RECURSIVE_MUTATE(rejectSymlinks = true)
+    }
+
+    fun validatePath(
+        file: File,
+        activeStorageRoots: List<String>,
+        policy: OperationPolicy = OperationPolicy.READ
+    ): Result<Unit> {
+        if (policy.rejectSymlinks && containsSymbolicLink(file)) {
             return Result.failure(SecurityException("Access denied: symbolic links are not allowed for this operation"))
         }
 

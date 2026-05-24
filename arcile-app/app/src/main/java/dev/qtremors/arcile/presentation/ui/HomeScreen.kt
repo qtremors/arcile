@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.runtime.mutableFloatStateOf
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -125,6 +128,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.shimmer
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
@@ -145,7 +149,15 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.platform.LocalContext
+import coil.imageLoader
+import coil.request.CachePolicy
+import coil.request.ImageRequest
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+
+private const val HomeRecentFilesPreviewLimit = 12
+private const val HomeRecentFilesPreloadLimit = 6
+private const val HomeRecentFilesPreloadSizePx = 512
 /**
  * Dashboard screen shown when the app first launches.
  *
@@ -276,8 +288,11 @@ fun HomeScreen(
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
     onSetVolumeClassification: (String, dev.qtremors.arcile.domain.StorageKind) -> Unit = { _, _ -> },
-    onHideClassificationPrompt: (String) -> Unit = {}
+    onHideClassificationPrompt: (String) -> Unit = {},
+    onNavigateToCleaner: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+
     LifecycleResumeEffect(Unit) {
         onResumeRefresh()
         onPauseOrDispose { }
@@ -286,6 +301,30 @@ fun HomeScreen(
     val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption, state.todayStart) {
         val todayFiles = state.recentFiles.filter { it.lastModified >= state.todayStart }
         filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
+            .take(HomeRecentFilesPreviewLimit)
+    }
+    LaunchedEffect(displayedRecentFiles) {
+        displayedRecentFiles
+            .asSequence()
+            .filter { file ->
+                val extension = file.extension.lowercase()
+                !file.isDirectory && (
+                    FileCategories.Images.extensions.contains(extension) ||
+                        FileCategories.Videos.extensions.contains(extension)
+                    )
+            }
+            .take(HomeRecentFilesPreloadLimit)
+            .forEach { file ->
+                context.imageLoader.enqueue(
+                    ImageRequest.Builder(context)
+                        .data(File(file.absolutePath))
+                        .size(HomeRecentFilesPreloadSizePx)
+                        .memoryCachePolicy(CachePolicy.ENABLED)
+                        .diskCachePolicy(CachePolicy.ENABLED)
+                        .crossfade(false)
+                        .build()
+                )
+            }
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -293,6 +332,7 @@ fun HomeScreen(
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ArcileTopBar(
                 title = stringResource(R.string.app_name),
@@ -338,7 +378,10 @@ fun HomeScreen(
                 }
             ) {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+                    )
                 ) {
 
                     if (state.showClassificationPrompt && state.unclassifiedVolumes.isNotEmpty()) {
@@ -456,32 +499,10 @@ fun HomeScreen(
                                 Box(modifier = Modifier.width(140.dp)) {
                                     ToolCard(
                                         ToolItem(
-                                            stringResource(R.string.placeholder_onlyfiles),
-                                            Icons.Default.Lock,
-                                            isImplemented = false
-                                        )
-                                    )
-                                }
-                            }
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.placeholder_large_files),
-                                            Icons.Default.ZoomIn,
-                                            isImplemented = false
-                                        )
-                                    )
-                                }
-                            }
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.placeholder_ftp_server),
-                                            Icons.Default.WifiTethering,
-                                            isImplemented = false
-                                        )
+                                            stringResource(R.string.tool_clean),
+                                            Icons.Default.CleaningServices,
+                                            isImplemented = true
+                                        ), onClick = onNavigateToCleaner
                                     )
                                 }
                             }
@@ -514,7 +535,7 @@ fun HomeScreen(
                     if (displayedRecentFiles.isEmpty() && !state.isLoading) {
                         item {
                             EmptyState(
-                                icon = Icons.Default.History,
+                                variant = EmptyStateVariant.Recent,
                                 title = stringResource(R.string.no_recent_files),
                                 description = stringResource(R.string.no_recent_files_description),
                                 modifier = Modifier.fillMaxWidth()

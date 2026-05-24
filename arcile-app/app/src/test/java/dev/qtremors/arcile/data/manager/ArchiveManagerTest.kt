@@ -22,18 +22,20 @@ import java.io.File
 class ArchiveManagerTest {
     private lateinit var root: File
     private lateinit var manager: DefaultArchiveManager
+    private lateinit var volumeProvider: VolumeProvider
+    private lateinit var finalizer: MutationFinalizer
 
     @Before
     fun setup() {
         root = createTempDir(prefix = "archive-manager-test").canonicalFile
-        val volumeProvider = object : VolumeProvider {
+        volumeProvider = object : VolumeProvider {
             override val activeStorageRoots: List<String> = listOf(root.absolutePath)
             override fun observeStorageVolumes(): Flow<List<StorageVolume>> = flowOf(emptyList())
             override suspend fun getStorageVolumes(): Result<List<StorageVolume>> = Result.success(emptyList())
             override suspend fun currentVolumes(): List<StorageVolume> = emptyList()
             override fun invalidateCache() = Unit
         }
-        val finalizer = mockk<MutationFinalizer>(relaxed = true)
+        finalizer = mockk<MutationFinalizer>(relaxed = true)
         coEvery { finalizer.finalize(*anyVararg()) } returns Unit
         manager = DefaultArchiveManager(volumeProvider, finalizer)
     }
@@ -174,5 +176,86 @@ class ArchiveManagerTest {
 
         assertEquals("existing", File(destination, "same.txt").readText())
         assertEquals("incoming", File(destination, "same (1).txt").readText())
+    }
+
+    @Test
+    fun `archive extraction rejects excessive entry count`() = runTest {
+        val archive = File(root, "too-many.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            repeat(2) { index ->
+                zip.putArchiveEntry(ZipArchiveEntry("file-$index.txt"))
+                zip.write("x".toByteArray())
+                zip.closeArchiveEntry()
+            }
+        }
+        val strictManager = managerWith(ArchiveSafetyPolicy(maxEntries = 1))
+
+        val result = strictManager.extractArchive(archive.absolutePath, File(root, "too-many-out").apply { mkdirs() }.absolutePath)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("too many entries") == true)
+    }
+
+    @Test
+    fun `archive extraction rejects unsafe path length nesting and size`() = runTest {
+        val pathArchive = zipWithEntry("long-path.zip", "${"a".repeat(12)}.txt", "x")
+        val nestedArchive = zipWithEntry("nested.zip", "a/b/c/d.txt", "x")
+        val largeArchive = zipWithEntry("large.zip", "large.txt", "oversized")
+
+        val pathResult = managerWith(ArchiveSafetyPolicy(maxEntryPathLength = 8))
+            .extractArchive(pathArchive.absolutePath, File(root, "path-out").apply { mkdirs() }.absolutePath)
+        val nestedResult = managerWith(ArchiveSafetyPolicy(maxNestedDepth = 2))
+            .extractArchive(nestedArchive.absolutePath, File(root, "nested-out").apply { mkdirs() }.absolutePath)
+        val sizeResult = managerWith(ArchiveSafetyPolicy(maxUncompressedBytes = 2))
+            .extractArchive(largeArchive.absolutePath, File(root, "large-out").apply { mkdirs() }.absolutePath)
+
+        assertTrue(pathResult.isFailure)
+        assertTrue(nestedResult.isFailure)
+        assertTrue(sizeResult.isFailure)
+    }
+
+    @Test
+    fun `archive extraction rejects excessive compression ratio`() = runTest {
+        val archive = zipWithEntry("ratio.zip", "ratio.txt", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        val strictManager = managerWith(ArchiveSafetyPolicy(maxCompressionRatio = 0.1))
+
+        val result = strictManager.extractArchive(archive.absolutePath, File(root, "ratio-out").apply { mkdirs() }.absolutePath)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message?.contains("compression ratio") == true)
+    }
+
+    @Test
+    fun `failed extraction removes created partial outputs`() = runTest {
+        val archive = File(root, "partial.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("ok.txt"))
+            zip.write("ok".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("../bad.txt"))
+            zip.write("bad".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val destination = File(root, "partial-out").apply { mkdirs() }
+
+        val result = manager.extractArchive(archive.absolutePath, destination.absolutePath)
+
+        assertTrue(result.isFailure)
+        assertFalse(File(destination, "ok.txt").exists())
+        assertFalse(File(root, "bad.txt").exists())
+    }
+
+    private fun managerWith(policy: ArchiveSafetyPolicy): DefaultArchiveManager {
+        return DefaultArchiveManager(volumeProvider, finalizer, policy)
+    }
+
+    private fun zipWithEntry(name: String, entryName: String, body: String): File {
+        val archive = File(root, name)
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry(entryName))
+            zip.write(body.toByteArray())
+            zip.closeArchiveEntry()
+        }
+        return archive
     }
 }

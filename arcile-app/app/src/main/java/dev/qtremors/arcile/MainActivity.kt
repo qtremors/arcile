@@ -2,6 +2,8 @@ package dev.qtremors.arcile
 
 import android.os.Build
 import android.os.Bundle
+import android.os.StrictMode
+import android.os.Trace
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -54,18 +56,27 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        val splashScreen = installSplashScreen()
-        super.onCreate(savedInstanceState)
+        installDebugStrictMode()
+        val splashScreen = traceStartupSection("Arcile.installSplashScreen") {
+            installSplashScreen()
+        }
+        traceStartupSection("Arcile.activityOnCreate") {
+            super.onCreate(savedInstanceState)
+        }
         
         enableEdgeToEdge()
-        viewModel.checkPermission()
+        traceStartupSection("Arcile.permissionCheck") {
+            viewModel.checkPermission()
+        }
 
         var keepSplashScreen = true
         lifecycleScope.launch {
             try {
-                withTimeoutOrNull(2000L) {
-                    themePreferences.themeState.first()
-                    onboardingPreferencesStore.preferencesFlow.first()
+                traceStartupSection("Arcile.splashPreferencePreload") {
+                    withTimeoutOrNull(2000L) {
+                        themePreferences.themeState.first()
+                        onboardingPreferencesStore.preferencesFlow.first()
+                    }
                 }
             } finally {
                 keepSplashScreen = false
@@ -73,7 +84,8 @@ class MainActivity : ComponentActivity() {
         }
         splashScreen.setKeepOnScreenCondition { keepSplashScreen }
         
-        setContent {
+        traceStartupSection("Arcile.setContent") {
+            setContent {
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
             val onboardingPreferences by produceState<OnboardingPreferences?>(initialValue = null) {
                 onboardingPreferencesStore.preferencesFlow.collect { value = it }
@@ -182,6 +194,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        }
     }
 
     override fun onResume() {
@@ -194,14 +207,15 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 if (!ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))) {
-                    Toast.makeText(this@MainActivity, "Cannot open sensitive files", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, getString(R.string.cannot_open_sensitive_files), Toast.LENGTH_SHORT).show()
                     return@launch
                 }
                 startActivity(ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path))
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.e("Arcile", "Failed to open file", e)
-                Toast.makeText(this@MainActivity, "Cannot open file: ${e.localizedMessage ?: "No app found"}", Toast.LENGTH_SHORT).show()
+                val reason = e.localizedMessage ?: getString(R.string.no_app_found)
+                Toast.makeText(this@MainActivity, getString(R.string.cannot_open_file, reason), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -229,6 +243,35 @@ class MainActivity : ComponentActivity() {
             finishAffinity()
         } else {
             recreate()
+        }
+    }
+
+    private fun installDebugStrictMode() {
+        if (!BuildConfig.DEBUG) return
+
+        StrictMode.setThreadPolicy(
+            StrictMode.ThreadPolicy.Builder()
+                .detectDiskReads()
+                .detectDiskWrites()
+                .detectNetwork()
+                .penaltyLog()
+                .build()
+        )
+        StrictMode.setVmPolicy(
+            StrictMode.VmPolicy.Builder()
+                .detectLeakedClosableObjects()
+                .detectActivityLeaks()
+                .penaltyLog()
+                .build()
+        )
+    }
+
+    private inline fun <T> traceStartupSection(name: String, block: () -> T): T {
+        Trace.beginSection(name)
+        return try {
+            block()
+        } finally {
+            Trace.endSection()
         }
     }
 }

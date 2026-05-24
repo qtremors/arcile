@@ -57,7 +57,7 @@ fun VolumeItemRow(
     modifier: Modifier = Modifier
 ) {
     val usedBytes = volume.totalBytes - volume.freeBytes
-    val subtitle = "${formatFileSize(usedBytes)} used of ${formatFileSize(volume.totalBytes)}"
+    val subtitle = stringResource(R.string.volume_usage, formatFileSize(usedBytes), formatFileSize(volume.totalBytes))
 
     val icon = when (volume.kind) {
         StorageKind.INTERNAL -> Icons.Default.Storage
@@ -66,9 +66,9 @@ fun VolumeItemRow(
     }
 
     val badgeText = when (volume.kind) {
-        StorageKind.SD_CARD -> "SD Card"
-        StorageKind.OTG -> "Temporary USB"
-        StorageKind.EXTERNAL_UNCLASSIFIED -> "Unclassified external"
+        StorageKind.SD_CARD -> stringResource(R.string.storage_kind_sd)
+        StorageKind.OTG -> stringResource(R.string.storage_kind_temporary_usb)
+        StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.storage_kind_unclassified_external)
         else -> null
     }
 

@@ -15,11 +15,13 @@ import dev.qtremors.arcile.domain.FileCategories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.withPermit
+import kotlin.coroutines.CoroutineContext
 import java.io.File
 
 class VideoThumbnailFetcher(
     private val file: File,
-    private val options: Options
+    private val options: Options,
+    private val ioContext: CoroutineContext = Dispatchers.IO
 ) : Fetcher {
     companion object {
         /**
@@ -30,7 +32,7 @@ class VideoThumbnailFetcher(
     }
 
     override suspend fun fetch(): FetchResult? = semaphore.withPermit {
-        withContext(Dispatchers.IO) {
+        withContext(ioContext) {
             // Add a delay to allow UI animations (like storage bar) to complete smoothly
             // before starting intensive thumbnail fetching.
             kotlinx.coroutines.delay(300)
@@ -74,6 +76,16 @@ class VideoThumbnailFetcher(
         override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.extension.lowercase() in FileCategories.Videos.extensions) {
                 VideoThumbnailFetcher(data, options)
+            } else {
+                null
+            }
+        }
+    }
+
+    class KeyFactory : Fetcher.Factory<ThumbnailKey> {
+        override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
+            return if (data.type == ThumbnailType.Video) {
+                VideoThumbnailFetcher(data.file, options)
             } else {
                 null
             }

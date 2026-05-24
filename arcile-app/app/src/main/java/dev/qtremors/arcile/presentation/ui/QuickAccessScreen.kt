@@ -9,13 +9,19 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -28,8 +34,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.FolderSpecial
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -41,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -51,9 +56,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
@@ -75,10 +83,10 @@ fun QuickAccessScreen(
     onAddCustomFolder: (String, String) -> Unit,
     onAddSafFolder: (String, String) -> Unit
 ) {
-    var showCustomDialog by remember { mutableStateOf(false) }
+    var showCustomDialog by rememberSaveable { mutableStateOf(false) }
     
-    var tempPath by remember { mutableStateOf("") }
-    var tempLabel by remember { mutableStateOf("") }
+    var tempPath by rememberSaveable { mutableStateOf("") }
+    var tempLabel by rememberSaveable { mutableStateOf("") }
 
     fun buildRestrictedFolderUri(relativeDocPath: String): String {
         val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(
@@ -97,7 +105,7 @@ fun QuickAccessScreen(
         }
     }
 
-    var isFabExpanded by remember { mutableStateOf(false) }
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
         targetValue = if (isFabExpanded) 45f else 0f,
         label = "fabRotation"
@@ -145,6 +153,7 @@ fun QuickAccessScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.quick_access_manage_title)) },
@@ -156,7 +165,7 @@ fun QuickAccessScreen(
             )
         },
         floatingActionButton = {
-            Box {
+            Box(modifier = Modifier.navigationBarsPadding()) {
                 Box(modifier = Modifier.align(Alignment.BottomEnd)) {
                     ExpandableFabMenu(
                         isExpanded = isFabExpanded,
@@ -209,7 +218,10 @@ fun QuickAccessScreen(
                 .padding(padding)
         ) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.toolbarBottomGap
+                )
             ) {
                 val systemFolders = state.items.filter { it.type == QuickAccessType.STANDARD }
                 val customFolders = state.items.filter { it.type == QuickAccessType.CUSTOM }
@@ -263,8 +275,6 @@ fun QuickAccessScreen(
                         )
                     }
                 }
-
-                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
             if (isFabExpanded) {
@@ -396,16 +406,23 @@ fun QuickAccessListItem(
 
             // Control Area (Right)
             Row(
-                modifier = Modifier.padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(onClick = onTogglePin) {
-                    Icon(
-                        imageVector = if (item.isPinned) Icons.Default.PushPin else Icons.Outlined.PushPin,
-                        contentDescription = stringResource(R.string.toggle_pin),
-                        tint = if (item.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                val showOnHomeLabel = stringResource(R.string.quick_access_show_on_home)
+                val showOnHomeContentDescription = stringResource(
+                    R.string.quick_access_home_toggle_description,
+                    item.label,
+                    showOnHomeLabel
+                )
+                Switch(
+                    checked = item.isPinned,
+                    onCheckedChange = { onTogglePin() },
+                    modifier = Modifier.semantics {
+                        contentDescription = showOnHomeContentDescription
+                    }
+                )
 
                 if (item.type != QuickAccessType.STANDARD) {
                     IconButton(onClick = { showRemoveDialog = true }) {

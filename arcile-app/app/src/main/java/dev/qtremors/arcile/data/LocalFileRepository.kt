@@ -7,6 +7,7 @@ import dev.qtremors.arcile.data.source.MediaStoreClient
 import dev.qtremors.arcile.data.util.indexedVolumes
 import dev.qtremors.arcile.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.data.util.scopedVolumes
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.ArchiveEntryModel
 import dev.qtremors.arcile.domain.ArchiveFormat
@@ -26,6 +27,7 @@ import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.domain.supportsTrash
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +63,13 @@ class LocalFileRepository(
             password: String?,
             onProgress: ((BulkFileOperationProgress) -> Unit)?
         ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
-    }
+    },
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : FileRepository {
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> =
@@ -70,7 +78,7 @@ class LocalFileRepository(
     override suspend fun getStorageVolumes(): Result<List<StorageVolume>> =
         volumeProvider.getStorageVolumes()
 
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> = withContext(Dispatchers.IO) {
+    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             if (volumes.isEmpty()) {
@@ -104,7 +112,7 @@ class LocalFileRepository(
     override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> =
         folderStatsStore.observeUpdates()
 
-    override suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties> = withContext(Dispatchers.IO) {
+    override suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties> = withContext(dispatchers.io) {
         try {
             val selectedFiles = paths.distinct().map(::File)
             if (selectedFiles.isEmpty()) {
@@ -242,7 +250,7 @@ class LocalFileRepository(
     ): Result<FileModel> =
         fileSystemDataSource.createFakeFile(parentPath, name, size, onProgress)
 
-    override suspend fun deleteFile(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun deleteFile(path: String): Result<Unit> = withContext(dispatchers.io) {
 
         val volume = getVolumeForPath(path).getOrNull()
             ?: return@withContext Result.failure(IllegalArgumentException("Unable to resolve storage volume"))
@@ -266,7 +274,7 @@ class LocalFileRepository(
     ): Result<List<FileModel>> =
         mediaStoreClient.getRecentFiles(scope, limit, offset, minTimestamp)
 
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = withContext(Dispatchers.IO) {
+    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = withContext(dispatchers.io) {
         getStorageVolumes().map { allVolumes ->
             val queryVolumes = if (scope is StorageScope.AllStorage) {
                 indexedVolumes(allVolumes)
@@ -279,6 +287,9 @@ class LocalFileRepository(
 
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> =
         mediaStoreClient.getCategoryStorageSizes(scope)
+
+    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> =
+        trashManager.getTrashStorageUsage()
 
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> =
         mediaStoreClient.getFilesByCategory(scope, categoryName)
@@ -312,8 +323,11 @@ class LocalFileRepository(
     ): Result<Unit> =
         fileSystemDataSource.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
 
-    override suspend fun moveToTrash(paths: List<String>): Result<Unit> =
-        trashManager.moveToTrash(paths)
+    override suspend fun moveToTrash(
+        paths: List<String>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> =
+        trashManager.moveToTrash(paths, onProgress)
 
     override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> =
         trashManager.restoreFromTrash(trashIds, destinationPath)

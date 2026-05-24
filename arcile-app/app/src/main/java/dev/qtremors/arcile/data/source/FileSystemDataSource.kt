@@ -4,8 +4,11 @@ import dev.qtremors.arcile.domain.FileOperationException
 import android.content.Context
 import android.os.Environment
 import dev.qtremors.arcile.data.MutationFinalizer
+import dev.qtremors.arcile.data.MutationJournal
+import dev.qtremors.arcile.data.NoOpMutationJournal
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.util.PathSafety
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
@@ -32,17 +35,26 @@ class DefaultFileSystemDataSource(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
     private val mutationFinalizer: MutationFinalizer,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    ),
     private val conflictDetector: FileConflictDetector = FileConflictDetector(),
+    mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val transferEngine: FileTransferEngine = FileTransferEngine(validatePath = { file ->
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
-    })
+    }, validateMutationPath = { file ->
+        PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
+    }, mutationJournal = mutationJournal)
 ) : FileSystemDataSource {
     private fun validatePath(file: File): Result<Unit> {
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
     }
 
     private fun validateDestructivePath(file: File): Result<Unit> {
-        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, rejectSymlinks = true)
+        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }
 
     private fun validateFileName(name: String): Result<Unit> {
@@ -87,7 +99,7 @@ class DefaultFileSystemDataSource(
         )
     }
 
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {
             val directory = File(path)
             validatePath(directory).onFailure { return@withContext Result.failure(it) }
@@ -112,11 +124,11 @@ class DefaultFileSystemDataSource(
         }
     }
 
-    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
+    override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = withContext(dispatchers.io) {
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newDir = File(parentPath, name)
-            validatePath(newDir).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(newDir).onFailure { return@withContext Result.failure(it) }
 
             if (newDir.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
@@ -137,11 +149,11 @@ class DefaultFileSystemDataSource(
         }
     }
 
-    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = withContext(Dispatchers.IO) {
+    override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = withContext(dispatchers.io) {
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newFile = File(parentPath, name)
-            validatePath(newFile).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(newFile).onFailure { return@withContext Result.failure(it) }
 
             if (newFile.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
@@ -163,7 +175,7 @@ class DefaultFileSystemDataSource(
     }
 
 
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = withContext(dispatchers.io) {
         try {
             val scannedPaths = mutableListOf<String>()
             for (path in paths) {
@@ -193,15 +205,15 @@ class DefaultFileSystemDataSource(
         }
     }
 
-    override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(Dispatchers.IO) {
+    override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(dispatchers.io) {
          try {
              validateFileName(newName).onFailure { return@withContext Result.failure(it) }
 
              val file = File(path)
-             validatePath(file).onFailure { return@withContext Result.failure(it) }
+             validateDestructivePath(file).onFailure { return@withContext Result.failure(it) }
 
              val newFile = File(file.parent, newName)
-             validatePath(newFile).onFailure { return@withContext Result.failure(it) }
+             validateDestructivePath(newFile).onFailure { return@withContext Result.failure(it) }
 
              if (!file.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File does not exist"))
@@ -229,10 +241,10 @@ class DefaultFileSystemDataSource(
     override suspend fun detectCopyConflicts(
         sourcePaths: List<String>,
         destinationPath: String
-    ): Result<List<FileConflict>> = withContext(Dispatchers.IO) {
+    ): Result<List<FileConflict>> = withContext(dispatchers.io) {
         try {
             val destDir = File(destinationPath)
-            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -254,10 +266,10 @@ class DefaultFileSystemDataSource(
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val destDir = File(destinationPath)
-            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validateDestructivePath(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -282,7 +294,7 @@ class DefaultFileSystemDataSource(
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val destDir = File(destinationPath)
             validatePath(destDir).onFailure { return@withContext Result.failure(it) }
@@ -310,13 +322,14 @@ class DefaultFileSystemDataSource(
         name: String,
         size: Long,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<FileModel> = withContext(Dispatchers.IO) {
+    ): Result<FileModel> = withContext(dispatchers.io) {
         try {
             validateFileName(name).getOrThrow()
             val parentFile = File(parentPath)
-            validatePath(parentFile).getOrThrow()
+            validateDestructivePath(parentFile).getOrThrow()
 
             val targetFile = File(parentFile, name)
+            validateDestructivePath(targetFile).getOrThrow()
             if (targetFile.exists()) {
                 return@withContext Result.failure(Exception("File already exists"))
             }

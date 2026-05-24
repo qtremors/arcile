@@ -26,6 +26,7 @@ class PdfThumbnailFetcherTest {
         assertNotNull(factory.create(File("report.pdf"), options, mockk(relaxed = true)))
         assertNotNull(factory.create(File("REPORT.PDF"), options, mockk(relaxed = true)))
         assertNull(factory.create(File("report.txt"), options, mockk(relaxed = true)))
+        assertNotNull(PdfThumbnailFetcher.KeyFactory().create(ThumbnailKey.from(File("report.pdf")), options, mockk(relaxed = true)))
     }
 
     @Test

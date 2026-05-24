@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -134,6 +135,7 @@ fun OnboardingScreen(
     val canSwipe = !isPermissionOrDonePage || state.canContinue
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             OnboardingHeader(
@@ -439,14 +441,14 @@ private fun OnboardingWelcomeAndFeatures() {
                 modifier = Modifier.fillMaxSize()
             )
         },
-        title = "Welcome to Arcile",
-        description = "An advanced, powerful, fast, and smooth Android file manager built with Kotlin and Material Design 3.",
+        title = stringResource(R.string.onboarding_welcome_title),
+        description = stringResource(R.string.onboarding_intro_description),
         hasBodyContent = true
     ) {
-        FeatureRow(Icons.Default.Storage, "Multi-Volume Support", "Seamlessly manage Internal Storage, SD Cards, and USB OTG devices")
-        FeatureRow(Icons.Default.Bolt, "Batch Operations", "Multi-select files for copy, cut, move, or permanent delete")
-        FeatureRow(Icons.Default.Category, "Instant Categories", "Jump into images, videos, audio, documents, archives, and APKs")
-        FeatureRow(Icons.Default.RestoreFromTrash, "Trash Subsystem", "Safely remove files with metadata-aware restoration")
+        FeatureRow(Icons.Default.Storage, stringResource(R.string.onboarding_feature_multi_volume), stringResource(R.string.onboarding_feature_multi_volume_description))
+        FeatureRow(Icons.Default.Bolt, stringResource(R.string.onboarding_feature_batch_operations), stringResource(R.string.onboarding_feature_batch_operations_description))
+        FeatureRow(Icons.Default.Category, stringResource(R.string.onboarding_feature_instant_categories), stringResource(R.string.onboarding_feature_instant_categories_description))
+        FeatureRow(Icons.Default.RestoreFromTrash, stringResource(R.string.onboarding_feature_trash_subsystem), stringResource(R.string.onboarding_feature_trash_subsystem_description))
     }
 }
 
@@ -454,14 +456,14 @@ private fun OnboardingWelcomeAndFeatures() {
 private fun OnboardingPrivacy() {
     OnboardingPage(
         icon = Icons.Default.PrivacyTip,
-        title = "Privacy Policy & Terms",
-        description = "Arcile is a personal project built with a privacy-first mindset.",
+        title = stringResource(R.string.onboarding_privacy_title),
+        description = stringResource(R.string.onboarding_privacy_description),
         hasBodyContent = true
     ) {
-        FeatureRow(androidx.compose.material.icons.Icons.Default.CloudOff, "Offline by Design", "Arcile does not declare the INTERNET permission, your files and activity data cannot leave your device.")
-        FeatureRow(androidx.compose.material.icons.Icons.Default.Block, "No Trackers", "The application contains zero advertisements and zero third-party tracking SDKs.")
-        FeatureRow(Icons.Default.Folder, "Local File Access", "All file operations are executed locally on your device — no data is transmitted externally.")
-        FeatureRow(androidx.compose.material.icons.Icons.Default.Source, "Source Availability", "Arcile's source code is publicly available for inspection on GitHub.")
+        FeatureRow(androidx.compose.material.icons.Icons.Default.CloudOff, stringResource(R.string.onboarding_privacy_offline), stringResource(R.string.onboarding_privacy_offline_description))
+        FeatureRow(androidx.compose.material.icons.Icons.Default.Block, stringResource(R.string.onboarding_privacy_trackers), stringResource(R.string.onboarding_privacy_trackers_description))
+        FeatureRow(Icons.Default.Folder, stringResource(R.string.onboarding_privacy_local_file_access), stringResource(R.string.onboarding_privacy_local_file_access_description))
+        FeatureRow(androidx.compose.material.icons.Icons.Default.Source, stringResource(R.string.onboarding_privacy_source), stringResource(R.string.onboarding_privacy_source_description))
     }
 }
 

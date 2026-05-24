@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.data.source
 
+import dev.qtremors.arcile.data.MutationJournal
+import dev.qtremors.arcile.data.NoOpMutationJournal
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.currentCoroutineContext
@@ -13,11 +15,34 @@ import java.util.UUID
 
 class FileTransferEngine(
     private val validatePath: (File) -> Result<Unit>,
-    private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) }
+    private val validateMutationPath: (File) -> Result<Unit> = validatePath,
+    private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
+    private val checksumFile: (File) -> ByteArray = ::calculateSha256,
+    private val afterCopy: (File, File) -> Unit = { _, _ -> },
+    private val mutationJournal: MutationJournal = NoOpMutationJournal()
 ) {
     private companion object {
         const val TRANSFER_ESTIMATE_NODE_LIMIT = 10_000
         const val TRANSFER_ESTIMATE_CANCELLATION_GRANULARITY = 128
+        const val METADATA_TIME_TOLERANCE_MS = 2_000L
+
+        fun calculateSha256(file: File): ByteArray {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    digest.update(buffer, 0, read)
+                }
+            }
+            return digest.digest()
+        }
+    }
+
+    enum class VerificationPolicy {
+        METADATA,
+        FULL_CHECKSUM
     }
 
     suspend fun copyFiles(
@@ -55,6 +80,7 @@ class FileTransferEngine(
                     source = sourceFile,
                     target = targetFile,
                     replaceExisting = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE,
+                    verificationPolicy = VerificationPolicy.METADATA,
                     onBytesCopied = tracker::onBytesCopied
                 )
             } catch (e: Exception) {
@@ -103,8 +129,14 @@ class FileTransferEngine(
             if (!success) {
                 try {
                     tracker.currentPath = sourceFile.absolutePath
-                    copyAtomically(sourceFile, targetFile, replaceExisting = shouldReplace, tracker::onBytesCopied)
-                    if (!verifyCopyIntegrity(sourceFile, targetFile)) {
+                    copyAtomically(
+                        source = sourceFile,
+                        target = targetFile,
+                        replaceExisting = shouldReplace,
+                        verificationPolicy = VerificationPolicy.FULL_CHECKSUM,
+                        onBytesCopied = tracker::onBytesCopied
+                    )
+                    if (!verifyCopyIntegrity(sourceFile, targetFile, VerificationPolicy.FULL_CHECKSUM, tracker::onVerificationProgress)) {
                         deleteTarget(targetFile)
                         return Result.failure(IOException("Failed to verify moved ${if (sourceFile.isDirectory) "directory" else "file"} before deleting source"))
                     }
@@ -129,32 +161,84 @@ class FileTransferEngine(
         return Result.success(scannedPaths)
     }
 
+    suspend fun moveToTarget(
+        source: File,
+        target: File,
+        attemptRename: Boolean = true,
+        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+    ): Result<List<String>> {
+        ensureOperationActive()
+        validatePath(source).onFailure { return Result.failure(it) }
+        validatePath(target).onFailure { return Result.failure(it) }
+        if (!source.exists()) return Result.success(emptyList())
+        if (source.absolutePath == target.absolutePath) return Result.success(emptyList())
+
+        val tracker = ProgressTracker(listOf(source.absolutePath), estimateTotalBytes(listOf(source.absolutePath)), onProgress)
+        val renameSuccess = attemptRename && !target.exists() && rename(source, target)
+        if (!renameSuccess) {
+            try {
+                tracker.currentPath = source.absolutePath
+                copyAtomically(
+                    source = source,
+                    target = target,
+                    replaceExisting = false,
+                    verificationPolicy = VerificationPolicy.FULL_CHECKSUM,
+                    onBytesCopied = tracker::onBytesCopied
+                )
+                if (!verifyCopyIntegrity(source, target, VerificationPolicy.FULL_CHECKSUM, tracker::onVerificationProgress)) {
+                    deleteTarget(target)
+                    return Result.failure(IOException("Failed to verify moved ${if (source.isDirectory) "directory" else "file"} before deleting source"))
+                }
+                ensureOperationActive()
+                val deleted = if (source.isDirectory) source.deleteRecursively() else source.delete()
+                if (!deleted) {
+                    deleteTarget(target)
+                    return Result.failure(IOException("Failed to delete source ${if (source.isDirectory) "directory" else "file"} after copy"))
+                }
+            } catch (e: Exception) {
+                deleteTarget(target)
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                return Result.failure(e)
+            }
+        }
+
+        tracker.completeItem(target.absolutePath)
+        return Result.success(listOf(source.absolutePath, target.absolutePath))
+    }
+
     private suspend fun copyAtomically(
         source: File,
         target: File,
         replaceExisting: Boolean,
+        verificationPolicy: VerificationPolicy,
         onBytesCopied: suspend (Long) -> Unit
     ) {
         ensureOperationActive()
+        validateMutationPath(source).getOrThrow()
+        target.parentFile?.let { validateMutationPath(it).getOrThrow() }
         target.parentFile?.mkdirs()
         if (target.exists() && !replaceExisting) {
             throw IllegalStateException("Target already exists: ${target.name}")
         }
 
         val stagingTarget = createStagingTarget(target)
+        mutationJournal.recordTemporaryPath(stagingTarget.absolutePath)
         try {
-            validatePath(stagingTarget).getOrThrow()
+            validateMutationPath(stagingTarget).getOrThrow()
             if (source.isDirectory) {
                 copyDirectoryCancellable(source, stagingTarget, onBytesCopied)
             } else {
                 copyFileCancellable(source, stagingTarget, onBytesCopied)
             }
-            if (!verifyCopyIntegrity(source, stagingTarget)) {
+            afterCopy(source, stagingTarget)
+            if (!verifyCopyIntegrity(source, stagingTarget, verificationPolicy, null)) {
                 throw IOException("Failed to verify copied ${if (source.isDirectory) "directory" else "file"}")
             }
             promoteStagedTarget(stagingTarget, target, replaceExisting)
+            mutationJournal.forgetTemporaryPath(stagingTarget.absolutePath)
         } catch (e: Exception) {
             deleteTarget(stagingTarget)
+            mutationJournal.forgetTemporaryPath(stagingTarget.absolutePath)
             throw e
         }
     }
@@ -205,6 +289,8 @@ class FileTransferEngine(
         onBytesCopied: suspend (Long) -> Unit
     ) {
         ensureOperationActive()
+        validateMutationPath(source).getOrThrow()
+        validateMutationPath(target).getOrThrow()
         target.parentFile?.mkdirs()
 
         BufferedInputStream(source.inputStream()).use { input ->
@@ -228,6 +314,8 @@ class FileTransferEngine(
         onBytesCopied: suspend (Long) -> Unit
     ) {
         ensureOperationActive()
+        validateMutationPath(source).getOrThrow()
+        validateMutationPath(target).getOrThrow()
         if (!target.mkdirs()) {
             throw IllegalStateException("Failed to create directory: ${target.absolutePath}")
         }
@@ -254,22 +342,31 @@ class FileTransferEngine(
     }
 
     private fun promoteStagedTarget(stagingTarget: File, target: File, replaceExisting: Boolean) {
+        validateMutationPath(stagingTarget).getOrThrow()
+        target.parentFile?.let { validateMutationPath(it).getOrThrow() }
+        validateMutationPath(target).getOrThrow()
         if (target.exists()) {
             if (!replaceExisting) throw IllegalStateException("Target already exists: ${target.name}")
             val backupTarget = File(target.parentFile, ".${target.name}.arcile-replace-${UUID.randomUUID()}.bak")
+            validateMutationPath(backupTarget).getOrThrow()
+            mutationJournal.recordTemporaryPath(backupTarget.absolutePath)
             if (!rename(target, backupTarget)) {
+                mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
                 throw IOException("Failed to stage existing target for replacement: ${target.name}")
             }
             try {
                 if (!rename(stagingTarget, target)) {
                     rename(backupTarget, target)
+                    mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
                     throw IOException("Failed to promote replacement: ${target.name}")
                 }
                 deleteTarget(backupTarget)
+                mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
             } catch (e: Exception) {
                 if (!target.exists() && backupTarget.exists()) {
                     rename(backupTarget, target)
                 }
+                mutationJournal.forgetTemporaryPath(backupTarget.absolutePath)
                 throw e
             }
         } else if (!rename(stagingTarget, target)) {
@@ -277,39 +374,66 @@ class FileTransferEngine(
         }
     }
 
-    private fun verifyCopyIntegrity(source: File, target: File): Boolean {
+    private suspend fun verifyCopyIntegrity(
+        source: File,
+        target: File,
+        policy: VerificationPolicy,
+        onVerifiedFile: (suspend () -> Unit)?
+    ): Boolean {
+        ensureOperationActive()
         if (!source.exists() || !target.exists()) return false
         if (source.isFile) {
-            return target.isFile &&
-                source.length() == target.length() &&
-                sha256(source).contentEquals(sha256(target))
+            return target.isFile && verifyFileIntegrity(source, target, policy).also {
+                if (it) onVerifiedFile?.invoke()
+            }
         }
         if (!source.isDirectory || !target.isDirectory) return false
 
-        val sourceFiles = source.walkTopDown().filter { it.isFile }.toList()
-        val targetFiles = target.walkTopDown().filter { it.isFile }.toList()
-        if (sourceFiles.size != targetFiles.size) return false
+        var sourceFileCount = 0
+        val pending = ArrayDeque<File>()
+        pending.add(source)
+        while (pending.isNotEmpty()) {
+            ensureOperationActive()
+            val current = pending.removeFirst()
+            val relativePath = current.relativeTo(source).path.takeUnless { it == "." }.orEmpty()
+            val targetChild = if (relativePath.isBlank()) target else File(target, relativePath)
+            if (current.isDirectory) {
+                if (!targetChild.isDirectory) return false
+                current.listFiles()?.forEach { pending.addLast(it) }
+            } else {
+                sourceFileCount += 1
+                if (!targetChild.isFile || !verifyFileIntegrity(current, targetChild, policy)) return false
+                onVerifiedFile?.invoke()
+            }
+        }
+        return sourceFileCount == countFilesStreaming(target)
+    }
 
-        return sourceFiles.all { sourceChild ->
-            val relativePath = sourceChild.relativeTo(source).path
-            val targetChild = File(target, relativePath)
-            targetChild.isFile &&
-                sourceChild.length() == targetChild.length() &&
-                sha256(sourceChild).contentEquals(sha256(targetChild))
+    private fun verifyFileIntegrity(source: File, target: File, policy: VerificationPolicy): Boolean {
+        if (source.length() != target.length()) return false
+        return when (policy) {
+            VerificationPolicy.METADATA -> {
+                val modifiedDelta = kotlin.math.abs(source.lastModified() - target.lastModified())
+                modifiedDelta <= METADATA_TIME_TOLERANCE_MS
+            }
+            VerificationPolicy.FULL_CHECKSUM -> checksumFile(source).contentEquals(checksumFile(target))
         }
     }
 
-    private fun sha256(file: File): ByteArray {
-        val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-            while (true) {
-                val read = input.read(buffer)
-                if (read < 0) break
-                digest.update(buffer, 0, read)
+    private suspend fun countFilesStreaming(root: File): Int {
+        var count = 0
+        val pending = ArrayDeque<File>()
+        pending.add(root)
+        while (pending.isNotEmpty()) {
+            ensureOperationActive()
+            val current = pending.removeFirst()
+            if (current.isDirectory) {
+                current.listFiles()?.forEach { pending.addLast(it) }
+            } else {
+                count += 1
             }
         }
-        return digest.digest()
+        return count
     }
 
     private fun deleteTarget(target: File) {
@@ -342,6 +466,10 @@ class FileTransferEngine(
             val reportedBytes = if (completedItems == totalItems) totalBytes else copiedBytes
             lastProgressEmitTime = System.currentTimeMillis()
             emit(completedItems, currentPath = path, bytesCopied = reportedBytes)
+        }
+
+        suspend fun onVerificationProgress() {
+            emit(completedItems, currentPath = currentPath, bytesCopied = copiedBytes)
         }
 
         private suspend fun emit(completedItems: Int, currentPath: String, bytesCopied: Long) {

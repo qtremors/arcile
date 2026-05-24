@@ -11,7 +11,10 @@ import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +31,19 @@ data class ArchiveBrowserItem(
     val isDirectory: Boolean
 )
 
+data class ArchiveOperationUiState(
+    val totalItems: Int,
+    val completedItems: Int = 0,
+    val currentPath: String? = null,
+    val isCancelling: Boolean = false,
+    val terminalStatus: OperationCompletionStatus? = null
+)
+
+enum class ArchiveOperationStatusMessage {
+    ExtractionComplete,
+    ExtractionCancelled
+}
+
 data class ArchiveViewerState(
     val archivePath: String = "",
     val currentPrefix: String? = null,
@@ -37,7 +53,9 @@ data class ArchiveViewerState(
     val isLoading: Boolean = true,
     val error: String? = null,
     val passwordRequired: Boolean = false,
-    val archivePassword: String? = null
+    val archivePassword: String? = null,
+    val activeOperation: ArchiveOperationUiState? = null,
+    val operationStatusMessage: ArchiveOperationStatusMessage? = null
 )
 
 @HiltViewModel
@@ -53,6 +71,7 @@ class ArchiveViewerViewModel @Inject constructor(
 
     init {
         load()
+        observeArchiveOperations()
     }
 
     fun load() {
@@ -121,6 +140,18 @@ class ArchiveViewerViewModel @Inject constructor(
         startExtract(_state.value.currentPrefix, password)
     }
 
+    fun cancelExtraction() {
+        bulkFileOperationCoordinator.cancelActiveOperation()
+    }
+
+    fun clearOperationStatusMessage() {
+        _state.update { it.copy(operationStatusMessage = null) }
+    }
+
+    fun clearActiveOperation() {
+        _state.update { it.copy(activeOperation = null) }
+    }
+
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
@@ -137,6 +168,84 @@ class ArchiveViewerViewModel @Inject constructor(
             archivePassword = password ?: _state.value.archivePassword
         )
     }
+
+    private fun observeArchiveOperations() {
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.events.collectLatest { event ->
+                when (event) {
+                    is BulkFileOperationEvent.Started -> {
+                        if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
+                        _state.update {
+                            it.copy(
+                                activeOperation = ArchiveOperationUiState(
+                                    totalItems = event.request.sourcePaths.size,
+                                    currentPath = event.request.archiveEntryPrefix ?: event.request.sourcePaths.firstOrNull()
+                                ),
+                                operationStatusMessage = null
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Progress -> {
+                        if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
+                        _state.update {
+                            it.copy(
+                                activeOperation = ArchiveOperationUiState(
+                                    totalItems = event.progress.totalItems,
+                                    completedItems = event.progress.completedItems,
+                                    currentPath = event.progress.currentPath,
+                                    isCancelling = false
+                                )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Cancelling -> {
+                        if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
+                        _state.update { currentState ->
+                            currentState.copy(
+                                activeOperation = currentState.activeOperation?.copy(isCancelling = true)
+                                    ?: ArchiveOperationUiState(
+                                        totalItems = event.request.sourcePaths.size,
+                                        currentPath = event.request.archiveEntryPrefix,
+                                        isCancelling = true
+                                    )
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Completed -> {
+                        if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
+                        _state.update {
+                            it.copy(
+                                activeOperation = it.activeOperation?.copy(terminalStatus = OperationCompletionStatus.SUCCESS),
+                                operationStatusMessage = ArchiveOperationStatusMessage.ExtractionComplete
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Failed -> {
+                        if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
+                        _state.update {
+                            it.copy(
+                                activeOperation = it.activeOperation?.copy(terminalStatus = OperationCompletionStatus.FAILED),
+                                error = event.message
+                            )
+                        }
+                    }
+                    is BulkFileOperationEvent.Cancelled -> {
+                        val request = event.request ?: return@collectLatest
+                        if (!request.isCurrentArchiveExtraction()) return@collectLatest
+                        _state.update {
+                            it.copy(
+                                activeOperation = it.activeOperation?.copy(terminalStatus = OperationCompletionStatus.CANCELLED),
+                                operationStatusMessage = ArchiveOperationStatusMessage.ExtractionCancelled
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest.isCurrentArchiveExtraction(): Boolean =
+        type == BulkFileOperationType.EXTRACT_ARCHIVE && sourcePaths.firstOrNull() == archivePath
 
     private fun buildVisibleItems(entries: List<ArchiveEntryModel>, prefix: String?): List<ArchiveBrowserItem> {
         val normalizedPrefix = prefix?.trimEnd('/')?.takeIf { it.isNotBlank() }

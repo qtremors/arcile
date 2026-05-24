@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.browser.delegate
 
 import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.FileModel
@@ -10,6 +11,7 @@ import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.StorageBrowserLocation
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.browser.BrowserState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,7 +108,7 @@ class NavigationDelegate(
                     path.startsWith(it.path + java.io.File.separator)
             }
 
-    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) {
+    fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: UiText? = null) {
         viewModelScope.launch {
             if (restorePersistentLocation) {
                 val prefs = browserPreferencesRepository.preferencesFlow.first()
@@ -143,7 +145,7 @@ class NavigationDelegate(
         }
     }
 
-    fun openVolumeRoots(errorMessage: String? = null) {
+    fun openVolumeRoots(errorMessage: UiText? = null) {
         pathHistory.clear()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
@@ -177,7 +179,7 @@ class NavigationDelegate(
     fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) {
         val volume = findVolumeForPath(path)
         if (volume == null) {
-            openFileBrowser(errorMessage = "Storage for this path is not available")
+            openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
             return
         }
         pathHistory.clear()
@@ -261,12 +263,12 @@ class NavigationDelegate(
         path: String,
         volumeId: String?,
         clearHistory: Boolean,
-        errorMessage: String? = null,
+        errorMessage: UiText? = null,
         persistAsLastOpened: Boolean = true
     ) {
         val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
         if (resolvedVolumeId == null) {
-            openFileBrowser(errorMessage = "Storage for this path is not available")
+            openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
             return
         }
         if (clearHistory) {
@@ -324,7 +326,7 @@ class NavigationDelegate(
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
-                        error = error.message ?: "Failed to load directory"
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_directory_failed)
                     )
                 }
             }
@@ -373,7 +375,7 @@ class NavigationDelegate(
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
-                        error = error.message ?: "Failed to load category"
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_category_failed)
                     )
                 }
             }

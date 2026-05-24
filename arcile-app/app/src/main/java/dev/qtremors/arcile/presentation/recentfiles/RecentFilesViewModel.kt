@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.R
 import dev.qtremors.arcile.data.BrowserPreferencesStore
 import dev.qtremors.arcile.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.DeleteDecision
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
@@ -16,6 +18,7 @@ import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.presentation.UiText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -44,10 +47,11 @@ data class RecentFilesState(
     val isLoadingMore: Boolean = false,
     val hasMore: Boolean = true,
     val currentOffset: Int = 0,
-    val error: String? = null,
+    val error: UiText? = null,
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
+    val deleteDecision: DeleteDecision? = null,
     val isPermanentDeleteChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
     val pendingNativeAction: RecentNativeAction? = null,
@@ -120,12 +124,19 @@ class RecentFilesViewModel @Inject constructor(
                     it.copy(
                         showTrashConfirmation = false,
                         showPermanentDeleteConfirmation = false,
-                        showMixedDeleteExplanation = false
+                        showMixedDeleteExplanation = false,
+                        deleteDecision = null
                     )
                 }
             }
             override fun setError(error: String) {
+                _state.update { it.copy(error = UiText.Dynamic(error)) }
+            }
+            override fun setError(error: UiText) {
                 _state.update { it.copy(error = error) }
+            }
+            override fun setDeleteDecision(decision: DeleteDecision) {
+                _state.update { it.copy(deleteDecision = decision) }
             }
             override fun setPendingNativeAction() {
                 _state.update { it.copy(pendingNativeAction = RecentNativeAction.TRASH) }
@@ -224,7 +235,11 @@ class RecentFilesViewModel @Inject constructor(
             result.onSuccess { files ->
                 _state.update {
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
-                    val newFiles = if (loadMore) it.recentFiles + files else files
+                    val newFiles = if (loadMore) {
+                        (it.recentFiles + files).distinctBy { file -> file.absolutePath }
+                    } else {
+                        files.distinctBy { file -> file.absolutePath }
+                    }
                     it.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
@@ -241,7 +256,12 @@ class RecentFilesViewModel @Inject constructor(
             }.onFailure { error ->
                 _state.update {
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
-                    it.copy(isLoading = false, isPullToRefreshing = false, isLoadingMore = false, error = error.message ?: "Failed to load recent files")
+                    it.copy(
+                        isLoading = false,
+                        isPullToRefreshing = false,
+                        isLoadingMore = false,
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_recent_files_failed)
+                    )
                 }
             }
         }
@@ -365,7 +385,7 @@ class RecentFilesViewModel @Inject constructor(
                         isPropertiesVisible = false,
                         isPropertiesLoading = false,
                         properties = null,
-                        error = error.message ?: "Failed to load properties"
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_properties_failed)
                     )
                 }
             }
@@ -410,7 +430,7 @@ class RecentFilesViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             isSearching = false,
-                            error = error.message ?: "Search failed"
+                            error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_search_failed)
                         )
                     }
                 }

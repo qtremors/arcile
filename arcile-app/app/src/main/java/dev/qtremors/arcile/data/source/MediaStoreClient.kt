@@ -8,12 +8,14 @@ import android.provider.MediaStore
 import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.data.util.indexedVolumesForScope
 import dev.qtremors.arcile.data.util.matchesScope
+import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.CategoryStorage
 import dev.qtremors.arcile.domain.FileCategories
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.matchesSearchFilters
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -47,7 +49,13 @@ interface MediaStoreClient {
 
 class DefaultMediaStoreClient(
     private val context: Context,
-    private val volumeProvider: VolumeProvider
+    private val volumeProvider: VolumeProvider,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : MediaStoreClient {
     private companion object {
         const val MAX_PATH_SEARCH_RESULTS = 1000
@@ -343,7 +351,7 @@ class DefaultMediaStoreClient(
         limit: Int,
         offset: Int,
         minTimestamp: Long
-    ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    ): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {
             val allVolumes = volumeProvider.currentVolumes()
             val volumes = indexedVolumesForScope(scope, allVolumes)
@@ -401,7 +409,7 @@ class DefaultMediaStoreClient(
         }
     }
 
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(Dispatchers.IO) {
+    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> = withContext(dispatchers.io) {
         val cached = getCategorySizesFromCache(scope)
         if (cached != null) {
             return@withContext Result.success(cached)
@@ -493,7 +501,7 @@ class DefaultMediaStoreClient(
         }
     }
 
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {
             val allVolumes = volumeProvider.currentVolumes()
             val volumes = indexedVolumesForScope(scope, allVolumes)
@@ -573,7 +581,7 @@ class DefaultMediaStoreClient(
         query: String,
         scope: StorageScope,
         filters: SearchFilters?
-    ): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+    ): Result<List<FileModel>> = withContext(dispatchers.io) {
         if (query.isBlank()) return@withContext Result.success(emptyList())
         val searchFilters = filters
 
@@ -604,11 +612,16 @@ class DefaultMediaStoreClient(
                             currentCoroutineContext().ensureActive()
                         }
 
-                        if (!matchesScope(current.absolutePath, scope, volumes) || (current != rootDir && current.name.startsWith("."))) {
+                        if (!matchesScope(current.absolutePath, scope, volumes) ||
+                            (!searchFilters?.includeHidden.orFalse() && current != rootDir && current.name.startsWith("."))
+                        ) {
                             continue
                         }
 
-                        if (current != rootDir && current.name.contains(query, ignoreCase = true) && !current.name.startsWith(".")) {
+                        if (current != rootDir &&
+                            current.name.contains(query, ignoreCase = true) &&
+                            (searchFilters?.includeHidden == true || !current.name.startsWith("."))
+                        ) {
                             filesList.add(current.toFileModel())
                             if (filesList.size >= MAX_PATH_SEARCH_RESULTS) {
                                 break
@@ -618,7 +631,7 @@ class DefaultMediaStoreClient(
                         if (current.isDirectory) {
                             current.listFiles()
                                 ?.asSequence()
-                                ?.filterNot { it.name.startsWith(".") }
+                                ?.filter { searchFilters?.includeHidden == true || !it.name.startsWith(".") }
                                 ?.sortedBy { !it.isDirectory }
                                 ?.forEach { child ->
                                     pending.addLast(child)
@@ -687,35 +700,7 @@ class DefaultMediaStoreClient(
             var resultList = filesList.toList()
             
             searchFilters?.let { sf ->
-                if (sf.itemType == "Files") {
-                    resultList = resultList.filter { !it.isDirectory }
-                } else if (sf.itemType == "Folders") {
-                    resultList = resultList.filter { it.isDirectory }
-                }
-                
-                if (sf.fileType != null && sf.fileType != "All") {
-                    val category = FileCategories.all.find { it.name == sf.fileType }
-                    if (category != null) {
-                        val exts = category.extensions.map { it.lowercase() }.toSet()
-                        resultList = resultList.filter { !it.isDirectory && exts.contains(it.name.substringAfterLast('.').lowercase()) }
-                    }
-                }
-                
-                if (sf.minSize != null) {
-                    resultList = resultList.filter { !it.isDirectory && it.size >= sf.minSize }
-                }
-                
-                if (sf.maxSize != null) {
-                    resultList = resultList.filter { !it.isDirectory && it.size <= sf.maxSize }
-                }
-                
-                if (sf.minDateMillis != null) {
-                    resultList = resultList.filter { it.lastModified >= sf.minDateMillis }
-                }
-                
-                if (sf.maxDateMillis != null) {
-                    resultList = resultList.filter { it.lastModified <= sf.maxDateMillis }
-                }
+                resultList = resultList.filter { it.matchesSearchFilters(sf, allVolumes) }
             }
             
             Result.success(resultList)
@@ -729,4 +714,6 @@ class DefaultMediaStoreClient(
         }
     }
 }
+
+private fun Boolean?.orFalse(): Boolean = this == true
 
