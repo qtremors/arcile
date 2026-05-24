@@ -31,6 +31,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.ui.theme.menuGroupLast
+import dev.qtremors.arcile.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -281,10 +285,10 @@ fun ArcileTopBar(
 
                             menuActions.forEachIndexed { index, action ->
                                 val shape = when {
-                                    menuActions.size == 1 -> RoundedCornerShape(24.dp)
-                                    index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                                    index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                    else -> RoundedCornerShape(4.dp)
+                                    menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                                    index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                                    index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                                    else -> MaterialTheme.shapes.menuGroupMiddle
                                 }
                                 Box(
                                     modifier = androidx.compose.ui.Modifier

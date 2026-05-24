@@ -51,6 +51,7 @@ import dev.qtremors.arcile.domain.StorageVolume
 import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -120,7 +121,7 @@ fun StorageManagementScreen(
                 if (volumes.isEmpty() && !state.isLoading && !state.isCalculatingStorage) {
                     item {
                         EmptyState(
-                            icon = Icons.Default.Storage,
+                            variant = EmptyStateVariant.StorageAccess,
                             title = stringResource(R.string.storage_management_empty_title),
                             description = stringResource(R.string.storage_management_empty_description),
                             modifier = Modifier.fillParentMaxSize()

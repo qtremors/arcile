@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.7.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.8.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
@@ -30,46 +30,26 @@
 |---------|-------------|
 | **Multi-Volume File Browser** | Browse and manage internal storage, SD cards, and USB OTG volumes with scoped storage labels and user-controlled volume classification. |
 | **Home Dashboard** | Volume-aware storage summaries, category shortcuts, quick access entries, and a Material 3 Expressive recent-files carousel. |
+| **Storage Dashboard** | Volume/category storage breakdown, Trash usage visibility, and a Filelight-inspired radial folder usage map (Usage Map) with breadcrumb drill-in. |
 | **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
 | **Recent Files** | Browse recents with scoped volume support, date grouping, search, filters, list/grid controls, thumbnails, selection, properties, and containing-folder jumps. |
+| **Storage Cleaner** | Early-access scanner for large files, duplicate-name candidate groups (segmented duplicate cards with details), APKs, downloads, videos, and conservative cache/junk cleanup routed through Trash. |
 | **Archive Workflows** | Create, browse, and extract ZIP and 7z archives, including password-protected ZIP/7z flows and safe extraction path checks. |
-| **Foreground File Operations** | Copy, move, archive, extract, and fake-file generation run through foreground operation plumbing with progress events. |
-| **Conflict Resolution** | Smart paste detects top-level name collisions and supports replace, keep both, skip, and batch resolution choices. |
-| **Trash Subsystem** | Permanent volumes use `.arcile/.trash` plus metadata sidecars for restore; temporary OTG-style volumes route deletions permanently. |
+| **Foreground File Operations** | Copy, move, archive, extract, fake-file generation, Trash, and delete flows run through foreground operation plumbing with progress events and a lightweight operation journal. |
+| **Conflict Resolution** | Smart paste detects top-level name collisions, compares metadata for conflicting files, and supports replace, keep both, skip, and batch resolution choices. |
+| **Trash Subsystem** | Permanent volumes use `.arcile/.trash` plus schema-versioned metadata sidecars for restore, recovered payloads, filters, sorting, properties, and undo where possible; temporary OTG-style volumes route deletions permanently. |
 | **Selection Properties** | Single and multi-select metadata includes paths, counts, sizes, hidden-item counts, MIME/extension details, and folder aggregate access status. |
-| **Search & Filters** | MediaStore-backed search and category browsing support type, size, and date filters across relevant scopes. |
-| **Material You Theming** | Dynamic wallpaper colors, MaterialKolor custom accents, light/dark/OLED modes, expressive components, and thumbnail display controls. |
+| **Search & Filters** | MediaStore-backed search and category browsing support type, size, date, extension, hidden-file, volume, folder-scope, MIME, and saved-preset metadata filters across relevant scopes. |
+| **Material You Theming** | Dynamic wallpaper colors, MaterialKolor custom accents, color harmonization, light/dark/OLED modes, haptic tactility (with global toggle), filename display controls, and thumbnail controls. |
 | **First-Run Onboarding** | Guided setup for features, theme/accent choice, All Files Access, and Android 13+ notification permission context. |
-| **Safe Open/Share** | Outbound file access is centralized through allowlisted staging and `FileProvider` handoff paths. |
+| **Safe Open/Share** | Outbound file access is centralized through allowlisted staging, cache cleanup controls, batch guards, MIME-aware grouping, and `FileProvider` handoff paths. |
 | **Offline & Ad-Free** | No internet permission, no ads, no telemetry, and no tracker dependency. |
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-
-| Tool | Version | Install |
-|------|---------|---------|
-| Android Studio | Current stable/canary capable of AGP 9.1.1 | [developer.android.com](https://developer.android.com/studio) |
-| JDK | 11+ | Bundled with Android Studio is fine |
-| Android SDK | API 37 installed, target SDK 36 | Via SDK Manager |
-
-### Setup
-
-```bash
-git clone https://github.com/qtremors/arcile.git
-cd arcile/arcile-app
-./gradlew assembleDebug
-```
-
-Install on a connected device:
-
-```bash
-adb install app/build/outputs/apk/debug/Arcile-0.7.0-debug.apk
-```
-
-Open the project in Android Studio by selecting the `arcile-app/` directory.
+Download the latest APK from [GitHub Releases](https://github.com/qtremors/arcile/releases) and install it on your Android device.
 
 > **Runtime permission:** Arcile requires Android 11+ **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) for full filesystem management. Android 13+ notification permission is requested during onboarding for foreground operation updates.
 
@@ -167,9 +147,9 @@ Current test surface:
 
 | Area | Coverage |
 |------|----------|
-| **JVM/Robolectric** | 53 Kotlin test files across data, domain, image, navigation, presentation, UI, operations, and utilities |
+| **JVM/Robolectric** | 74 Kotlin test files across data, domain, image, navigation, presentation, UI, operations, and utilities |
 | **Instrumented** | 3 Android test files for Home, Quick Access, and shared empty-state rendering |
-| **Approximate test declarations** | 229 `@Test`/test-style function hits |
+| **Approximate test declarations** | 641 `@Test`/test-style function hits |
 | **Key helpers** | `FakeFileRepository`, `FakeBulkFileOperationCoordinator`, `FakeBrowserPreferencesStore`, `MainDispatcherRule`, `ArcileTestTheme`, `TestFixtures` |
 
 ---

@@ -1,10 +1,30 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.9
+> **Version:** 0.8.0
 > **Last Updated:** 2026-05-24
 
 ---
+
+## [0.8.0] - 2026-05-24
+
+### Visual System / Foundation
+- **Semantic Shapes:** Defined a clear hierarchy of shapes in `Shape.kt` (fileRow, fileGridCard, toolbarPill, menuGroupFirst/Middle/Last/Single, sheet, dialog, storageCard) and replaced manual corner sizes with semantic extensions across the app for visual consistency.
+- **Semantic Typography:** Defined file-manager-specific text styles in `Type.kt` (filename, fileMetadata, pathBreadcrumb, storageMetric, sectionHeader, dangerLabel) and adjusted letter spacing to ensure clearer list hierarchy.
+- **Contextual Empty States:** Replaced animated decorative empty states with minimal, context-specific folder, search, trash, storage access, archive, and recent-file states, including reduced-motion handling.
+
+### Utilities & Duplicates UI
+- **Homepage Utilities Tray:** Reorganized the home page utilities tray to display only fully implemented utilities (Trash Bin and Clean Junk), removing all unavailable or placeholder items.
+- **Segmented Duplicates Screen:** Grouped duplicate files into distinct, visually separated cards by name and size on the Storage Cleaner Duplicates screen. Added full details (absolute path, last modified date) and Coil thumbnail rendering (with fallback icons) for media files.
+
+### Dialog & Input Polish
+- **File Name Validation:** Added a reusable file-name input for create and rename dialogs with invalid-character checks, parent-path rejection, case-insensitive duplicate-name feedback, trimmed submissions, and IME Done handling.
+- **Creation Previews:** Added live destination previews for create file, create folder, and create archive flows so users can confirm the final path before starting the operation.
+- **Archive Dialog Refinements:** Normalized archive extension handling, validated archive output names against existing files, and added password visual transformations with reveal toggles for archive create/extract flows.
+
+### Testing
+- **Empty State Coverage:** Added Compose tests for empty folder, no-results search, empty trash, empty archive, and reduced-motion rendering.
+- **Dialog Input Coverage:** Added targeted validation and Compose dialog tests for invalid names, duplicate names, ignored rename names, disabled create actions, and live destination previews.
 
 ## [0.7.9] - 2026-05-24
 

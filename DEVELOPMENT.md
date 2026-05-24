@@ -1,8 +1,8 @@
 # Arcile - Developer Documentation
 
-> Architecture, implementation notes, conventions, and verification guidance for Arcile contributors.
+> Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 0.7.0 | **Last Updated:** 2026-05-17
+**Version:** 0.8.0 | **Last Updated:** 2026-05-24
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -28,7 +28,7 @@
 - [Project Auditing & Quality Standards](#project-auditing--quality-standards)
 - [Troubleshooting](#troubleshooting)
 - [Maintenance Notes](#maintenance-notes)
-- [Contributing](#contributing)
+- [Feedback](#feedback)
 
 ---
 
@@ -75,12 +75,17 @@ arcile/
 │   │   │   │   ├── MainActivity.kt              # Splash, theme, permissions, onboarding, app shell
 │   │   │   │   ├── data/
 │   │   │   │   │   ├── BrowserPreferencesRepository.kt
+│   │   │   │   │   ├── FolderStatsCalculator.kt
 │   │   │   │   │   ├── FolderStatsStore.kt
 │   │   │   │   │   ├── LocalFileRepository.kt
 │   │   │   │   │   ├── MutationFinalizer.kt
+│   │   │   │   │   ├── MutationJournal.kt
 │   │   │   │   │   ├── OnboardingPreferencesRepository.kt
 │   │   │   │   │   ├── QuickAccessPreferencesRepository.kt
 │   │   │   │   │   ├── StorageClassificationRepository.kt
+│   │   │   │   │   ├── StorageCleanerScanner.kt
+│   │   │   │   │   ├── StorageUsageScanner.kt
+│   │   │   │   │   ├── StorageWorkCoordinator.kt
 │   │   │   │   │   ├── manager/                 # Trash + archive managers
 │   │   │   │   │   ├── provider/                # Storage volumes
 │   │   │   │   │   ├── source/                  # FileSystem, MediaStore, transfer/conflict helpers
@@ -98,13 +103,15 @@ arcile/
 │   │   │   │   │   ├── operations/              # Foreground operation coordinator/service
 │   │   │   │   │   ├── quickaccess/             # Quick Access VM
 │   │   │   │   │   ├── recentfiles/             # Recent Files VM + presentation
+│   │   │   │   │   ├── storagecleaner/          # Storage cleaner VM
+│   │   │   │   │   ├── storageusage/            # Storage usage VM
 │   │   │   │   │   ├── trash/                   # Trash VM
 │   │   │   │   │   ├── ui/                      # Screens and Compose components
 │   │   │   │   │   └── utils/                   # Share/open helpers, date/local search helpers
 │   │   │   │   ├── ui/theme/                    # Material theme, dynamic colors, preferences
 │   │   │   │   └── utils/                       # App logging and formatting utilities
-│   │   │   ├── res/                             # 395 string resources plus drawables/fonts/XML
-│   │   │   ├── test/                            # 53 JVM/Robolectric test files
+│   │   │   ├── res/                             # 611 string resources and 12 plurals plus drawables/fonts/XML
+│   │   │   ├── test/                            # 74 JVM/Robolectric test files
 │   │   │   └── androidTest/                     # 3 instrumented test files
 │   │   └── build.gradle.kts
 │   └── gradle/libs.versions.toml
@@ -169,7 +176,7 @@ Arcile classifies storage as permanent or temporary:
 
 `AppRoutes.kt` defines serializable typed routes:
 
-`Main`, `Home`, `Explorer`, `Tools`, `Settings`, `Trash`, `RecentFiles`, `StorageDashboard`, `StorageManagement`, `QuickAccess`, `ArchiveViewer`, `About`, and `Licenses`.
+`Main`, `Home`, `Explorer`, `Tools`, `Settings`, `Trash`, `RecentFiles`, `StorageDashboard`, `StorageCleaner`, `StorageManagement`, `QuickAccess`, `ArchiveViewer`, `About`, and `Licenses`.
 
 Important navigation rules:
 
@@ -205,7 +212,7 @@ The Browser feature uses `BrowserViewModel` plus focused delegates:
 - `SearchDelegate` for search and filters.
 - `DeleteFlowDelegate` for trash/permanent/native confirmation behavior.
 
-Long-running copy and move execution is handed to `BulkFileOperationCoordinator`, which starts `BulkFileOperationService` and reports `Started`, `Progress`, `Completed`, `Failed`, `Cancelling`, and `Cancelled` events.
+Long-running copy, move, archive, extract, Trash, delete, and fake-file execution is handed to `BulkFileOperationCoordinator`, which starts `BulkFileOperationService`, persists lightweight operation-journal state, and reports `Started`, `Progress`, `Completed`, `Failed`, `Cancelling`, and `Cancelled` events.
 
 ### Folder Metadata
 
@@ -216,7 +223,7 @@ Long-running copy and move execution is handed to `BulkFileOperationCoordinator`
 
 ### Search
 
-Search is MediaStore-backed for global/category/recent contexts and supports `SearchFilters` for type, size, and date. Local helper filtering is reused for Recent Files and Trash where appropriate.
+Search is MediaStore-backed for global/category/recent contexts and supports `SearchFilters` for type, size, date, extension, hidden-file visibility, storage volume, folder scope, exact size/date ranges, MIME, and saved-preset metadata. Local helper filtering is reused for Recent Files and Trash where appropriate.
 
 ### Smart Paste & Conflict Resolution
 
@@ -275,8 +282,10 @@ Permanent volumes use a custom trash implementation:
 - Trash data lives under `.arcile/.trash`.
 - Metadata sidecars live under `.arcile/.metadata`.
 - `.nomedia` is forced into trash directories.
-- Restore uses original path metadata by default.
+- Restore uses original path metadata by default, falls back to destination-required handling when needed, and uses conflict-safe names when restoring into an occupied path.
 - If original destination is missing, `DestinationRequiredException` triggers a destination picker.
+- Unreadable metadata with an existing payload is shown as a recovered item instead of silently dropping the file from Trash.
+- Completed Trash moves can be undone when metadata can be matched back to the deleted selection.
 - OTG/temporary volumes bypass trash and delete permanently.
 
 The public-root trash design is intentional but has privacy/security tradeoffs; keep related concerns tracked in `TASKS.md`.
@@ -305,11 +314,13 @@ Arcile uses Material 3 Expressive surfaces and motion throughout:
 | `RecentFilesScreen` | Recents timeline with filters, list/grid presentation, selection, properties, containing-folder jumps. |
 | `TrashScreen` | Searchable trash, restore, destination fallback, permanent delete, empty trash. |
 | `QuickAccessScreen` | Pinned/custom/SAF/external-handoff folders. |
-| `StorageDashboardScreen` | Volume/category storage breakdown. |
+| `StorageDashboardScreen` | Volume/category storage breakdown with radial usage map (Usage Map) tab. |
+| `StorageCleanerScreen` | Clean large files, downloads, duplicate-name grouping, APKs, cache-junk. |
 | `StorageManagementScreen` | Volume classification management. |
 | `ArchiveViewerScreen` | Archive browsing, password prompt, extract all/current folder. |
 | `OnboardingScreen` | First-run setup. |
-| `SettingsScreen` | Theme, accent, thumbnails, storage management, onboarding reset, about. |
+| `SettingsScreen` | Theme, accent, thumbnails, storage management, onboarding reset, about, haptics. |
+| `ToolsScreen` | Utilities tray listing fully implemented tools (Trash Bin, Clean Junk). |
 | `AboutScreen` / `LicensesScreen` | App info and open-source license details. |
 
 ### UI Rules
@@ -373,8 +384,8 @@ Prioritize self-documenting names. A file, function, or component should reveal 
 | `compileSdk` | 37 |
 | `targetSdk` | 36 |
 | `minSdk` | 30 |
-| `versionCode` | 54 |
-| `versionName` | `0.7.0` |
+| `versionCode` | 64 |
+| `versionName` | `0.8.0` |
 | Java / Kotlin target | JVM 11 |
 | Android Gradle Plugin | 9.1.1 |
 | Kotlin | 2.2.10 |
@@ -415,9 +426,12 @@ Release builds enable `isMinifyEnabled = true` and `isShrinkResources = true`.
 2. **Safe extraction:** archive entries cannot be absolute, contain `..`, or escape the destination folder.
 3. **FileProvider exposure:** `file_provider_paths.xml` is narrowed to staged handoff roots.
 4. **Open/share allowlist:** `ExternalFileAccessHelper` gates outbound user-file access and stages sensitive paths before handoff.
-5. **No network permission:** the app cannot send telemetry or files over the network directly.
-6. **Trash `.nomedia`:** trashed media is hidden from media scanner apps.
-7. **Cancellation correctness:** coroutine catches must rethrow `CancellationException`.
+5. **Staged handoff cleanup:** staged open/share cache entries have stats, cleanup APIs, stale retention, batch guards, and MIME-aware grouping.
+6. **No network permission:** the app cannot send telemetry or files over the network directly.
+7. **Trash `.nomedia`:** trashed media is hidden from media scanner apps.
+8. **Backup privacy:** backup and data-extraction rules exclude preferences, quick access paths, storage classification, operation/staging metadata, and Arcile storage metadata.
+9. **Mutation recovery:** startup cleanup removes abandoned transfer, replacement, and incomplete Trash fallback artifacts without deleting completed Trash entries.
+10. **Cancellation correctness:** coroutine catches must rethrow `CancellationException`.
 
 ---
 
@@ -450,22 +464,22 @@ Arcile has a layered JVM and instrumented test suite.
 
 | Area | Current state |
 |------|---------------|
-| JVM/Robolectric tests | 53 Kotlin test files |
+| JVM/Robolectric tests | 74 Kotlin test files |
 | Instrumented tests | 3 Kotlin test files |
-| Approximate test declarations | 229 `@Test`/test-style hits |
-| String resources | 395 string resources |
+| Approximate test declarations | 641 `@Test`/test-style hits |
+| String resources | 611 string resources and 12 plurals |
 
 ### Covered Areas
 
 | Layer | Examples |
 |-------|----------|
 | Domain | `DeletePolicy`, `FileModel`, `StorageInfo`, typed navigation routes. |
-| Data | MediaStore rows, category scope matching, storage classification, trash routing, folder stats, archive manager, file transfer engine. |
+| Data | MediaStore rows, category scope matching, storage classification, trash routing, folder stats, storage cleaner scanning, storage usage scanning, archive manager, file transfer engine. |
 | Preferences | Browser, onboarding, quick access, storage classification behavior. |
 | ViewModels | Home, Browser, Recent Files, Trash, Onboarding, Storage Scope. |
 | Delegates | Clipboard, Navigation, Search, Delete flow. |
-| Operations | `BulkFileOperationService`, `BulkFileOperationCoordinator`, progress behavior. |
-| UI/Robolectric | Browser, Recent Files, Onboarding, top bar, empty state, delete dialog. |
+| Operations | `BulkFileOperationService`, `BulkFileOperationCoordinator`, operation journal, progress behavior. |
+| UI/Robolectric | Browser, Recent Files, Onboarding, archive viewer, top bar, empty state, delete and input dialogs. |
 | Instrumented | Home, Quick Access, Empty State. |
 
 ### Commands
@@ -506,7 +520,13 @@ Robolectric-backed Compose tests are pinned to SDK 35 with `@Config(sdk = [35])`
 Debug APK naming is normalized to:
 
 ```text
-app/build/outputs/apk/debug/Arcile-0.7.0-debug.apk
+app/build/outputs/apk/debug/Arcile-0.8.0-debug.apk
+```
+
+Release APK naming is normalized to:
+
+```text
+app/build/outputs/apk/release/Arcile-0.8.0.apk
 ```
 
 ---
@@ -589,36 +609,11 @@ Useful commands:
 
 ---
 
-## Contributing
+## Feedback
 
-### Commit Messages
+Arcile is a solo project. Forking for personal use is welcome under the license terms, but external code contributions via pull requests are not accepted at this time.
 
-Use Conventional Commits when practical:
-
-```text
-type(scope): short description
-
-optional body
-```
-
-Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`.
-
-### Code Style
-
-- Follow Kotlin coding conventions.
-- Prefer self-documenting names.
-- Keep composables in `PascalCase`.
-- Use expression-body functions when clear.
-- Use trailing commas in multi-line parameter lists.
-- Keep comments short and reserved for non-obvious logic.
-
-### Process
-
-1. Create a branch from `main`.
-2. Implement the change in the smallest sensible scope.
-3. Add or update tests when behavior changes.
-4. Run the relevant Gradle checks.
-5. Update `CHANGELOG.md`, README, website, or this guide when user-facing behavior or developer workflow changes.
+To report bugs, request features, or suggest improvements, please open an issue on the [GitHub issue tracker](https://github.com/qtremors/arcile/issues).
 
 ---
 

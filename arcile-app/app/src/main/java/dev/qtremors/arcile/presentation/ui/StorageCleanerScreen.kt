@@ -77,6 +77,15 @@ import dev.qtremors.arcile.ui.theme.bodyMediumBold
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.utils.formatFileSize
+import coil.compose.SubcomposeAsyncImage
+import androidx.compose.ui.layout.ContentScale
+import dev.qtremors.arcile.domain.FileCategories
+import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.presentation.ui.components.getFileIconVector
+import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
+import java.io.File
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -368,6 +377,22 @@ private fun CleanerDetailsSheet(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            } else if (group.type == CleanerGroupType.Duplicates) {
+                val duplicateGroups = remember(group.candidates) {
+                    group.candidates.groupBy { it.name.lowercase(Locale.ROOT) to it.size }.values.toList()
+                }
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(duplicateGroups, key = { it.first().absolutePath }) { filesInGroup ->
+                        DuplicateGroupCard(
+                            filesInGroup = filesInGroup,
+                            selectedFiles = selectedFiles,
+                            onSelectedFilesChange = onSelectedFilesChange
+                        )
+                    }
+                }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -490,4 +515,179 @@ private fun cleanerIcon(type: CleanerGroupType): ImageVector = when (type) {
     CleanerGroupType.Apks -> Icons.Default.Android
     CleanerGroupType.Videos -> Icons.Default.VideoFile
     CleanerGroupType.Junk -> Icons.Default.DeleteSweep
+}
+
+@Composable
+private fun DuplicateGroupCard(
+    filesInGroup: List<CleanerCandidate>,
+    selectedFiles: Set<String>,
+    onSelectedFilesChange: (Set<String>) -> Unit
+) {
+    val firstFile = filesInGroup.first()
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = firstFile.name,
+                        style = MaterialTheme.typography.bodyLargeMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = stringResource(R.string.cleaner_duplicate_count, filesInGroup.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = formatFileSize(firstFile.size),
+                    style = MaterialTheme.typography.bodyMediumBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(4.dp))
+
+            filesInGroup.forEach { file ->
+                DuplicateFileRow(
+                    file = file,
+                    selected = file.absolutePath in selectedFiles,
+                    onToggle = {
+                        onSelectedFilesChange(
+                            if (file.absolutePath in selectedFiles) {
+                                selectedFiles - file.absolutePath
+                            } else {
+                                selectedFiles + file.absolutePath
+                            }
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DuplicateFileRow(
+    file: CleanerCandidate,
+    selected: Boolean,
+    onToggle: () -> Unit
+) {
+    val context = LocalContext.current
+    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
+    val dateString = remember(file.lastModified) {
+        try {
+            formatter.format(Date(file.lastModified))
+        } catch (_: Exception) {
+            ""
+        }
+    }
+    val ext = remember(file.name) { file.name.substringAfterLast('.', "").lowercase() }
+    val hasPreview = remember(ext) {
+        FileCategories.Images.extensions.contains(ext) ||
+                FileCategories.Videos.extensions.contains(ext)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = selected, onCheckedChange = { onToggle() })
+        Spacer(modifier = Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            if (hasPreview) {
+                SubcomposeAsyncImage(
+                    model = File(file.absolutePath),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop,
+                    error = {
+                        val fileModel = FileModel(
+                            name = file.name,
+                            absolutePath = file.absolutePath,
+                            size = file.size,
+                            lastModified = file.lastModified,
+                            isDirectory = false,
+                            extension = ext,
+                            isHidden = file.name.startsWith(".")
+                        )
+                        Icon(
+                            imageVector = getFileIconVector(fileModel),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                )
+            } else {
+                val fileModel = FileModel(
+                    name = file.name,
+                    absolutePath = file.absolutePath,
+                    size = file.size,
+                    lastModified = file.lastModified,
+                    isDirectory = false,
+                    extension = ext,
+                    isHidden = file.name.startsWith(".")
+                )
+                Icon(
+                    imageVector = getFileIconVector(fileModel),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = file.absolutePath,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (dateString.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = dateString,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
 }

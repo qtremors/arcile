@@ -42,7 +42,8 @@ class HomeScreenTest {
                 onRefresh = {},
                 onResumeRefresh = {},
                 onSetVolumeClassification = { _, _ -> },
-                onHideClassificationPrompt = {}
+                onHideClassificationPrompt = {},
+                onNavigateToCleaner = {}
             )
         }
 

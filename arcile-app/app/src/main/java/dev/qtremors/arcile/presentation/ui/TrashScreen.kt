@@ -98,6 +98,7 @@ import dev.qtremors.arcile.presentation.trash.TrashPropertiesUiModel
 import dev.qtremors.arcile.presentation.trash.TrashState
 import dev.qtremors.arcile.presentation.trash.TrashSortOption
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.trash.EmptyTrashDialog
 import dev.qtremors.arcile.presentation.ui.components.trash.TrashList
 
@@ -313,7 +314,7 @@ fun TrashScreen(
                     }
                 } else if (state.trashFiles.isEmpty() && !state.isLoading && !showSearchBar) {
                     EmptyState(
-                        icon = Icons.Default.DeleteSweep,
+                        variant = EmptyStateVariant.Trash,
                         title = stringResource(R.string.trash_is_empty),
                         description = stringResource(R.string.trash_empty_description),
                         modifier = Modifier.fillMaxSize()
@@ -327,7 +328,7 @@ fun TrashScreen(
                     }
                 } else if (showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty()) {
                     EmptyState(
-                        icon = Icons.Default.SearchOff,
+                        variant = EmptyStateVariant.Search,
                         title = stringResource(R.string.no_results_found),
                         description = stringResource(R.string.no_results_description, state.searchQuery),
                         modifier = Modifier.fillMaxSize()

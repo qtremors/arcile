@@ -59,6 +59,8 @@ import dev.qtremors.arcile.presentation.archive.ArchiveOperationStatusMessage
 import dev.qtremors.arcile.presentation.archive.ArchiveOperationUiState
 import dev.qtremors.arcile.presentation.archive.ArchiveViewerState
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
+import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -195,6 +197,16 @@ fun ArchiveViewerScreen(
             state.summary?.let { summary ->
                 item {
                     ArchiveSummaryHeader(state)
+                }
+            }
+            if (!state.isLoading && state.error == null && !state.passwordRequired && state.visibleItems.isEmpty()) {
+                item {
+                    EmptyState(
+                        variant = EmptyStateVariant.Archive,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 72.dp)
+                    )
                 }
             }
             items(state.visibleItems, key = { it.path }) { item ->

@@ -235,6 +235,8 @@
     <string name="search_category_placeholder">Search %1$s...</string>
     <string name="no_results_found">No results found</string>
     <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
+    <string name="empty_state_generic_title">Nothing to show</string>
+    <string name="empty_state_generic_description">There is no content available for this view.</string>
     <string name="empty_directory">Empty Directory</string>
     <string name="empty_directory_description">This folder doesn\'t have any files yet. You can create one using the + button.</string>
     <string name="browsing_temp_usb">Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent.</string>
@@ -295,11 +297,14 @@
     <string name="archive_extract_folder">Extract folder</string>
     <string name="archive_extract_archive">Extract archive</string>
     <string name="archive_root">Archive root</string>
+    <string name="archive_empty_title">Archive is empty</string>
+    <string name="archive_empty_description">This archive does not contain any files or folders.</string>
     <string name="archive_breadcrumb">%1$s / %2$s</string>
     <string name="archive_destination_preview">Extracts to %1$s</string>
     <string name="archive_create_title">Create archive</string>
     <string name="archive_create_summary">%1$d selected item(s)</string>
     <string name="archive_name">Archive name</string>
+    <string name="archive_filename_preview">File name: %1$s</string>
     <string name="archive_password_title">Archive password</string>
     <string name="archive_password_protect">Password protect</string>
     <string name="archive_has_password">Archive has password</string>
@@ -311,6 +316,7 @@
     <string name="archive_password_mismatch">Passwords do not match</string>
     <string name="archive_password_hint">Leave off for normal archives; enable only if this archive is encrypted.</string>
     <string name="archive_destination">Destination: %1$s</string>
+    <string name="create_destination_preview">Creates at %1$s</string>
     <string name="archive_create_action">Create</string>
     <string name="archive_extract_title">Extract archive</string>
     <string name="archive_ratio_unavailable">n/a</string>
@@ -331,6 +337,7 @@
     <string name="error_create_file_failed">Failed to create file</string>
     <string name="error_unsupported_archive">Selected file is not a supported archive</string>
     <string name="error_invalid_name">Invalid name: must not be blank or contain /, \\, or ..</string>
+    <string name="error_duplicate_name">A file or folder with this name already exists</string>
     <string name="error_rename_file_failed">Failed to rename file</string>
     <string name="error_load_properties_failed">Failed to load properties</string>
     <string name="error_storage_for_path_unavailable">Storage for this path is not available</string>
@@ -425,6 +432,7 @@
     <string name="cleaner_junk_desc">Temporary, log, backup, and cache-like files.</string>
     <string name="cleaner_empty">Nothing found</string>
     <string name="cleaner_group_stat">%1$d files • %2$s</string>
+    <string name="cleaner_duplicate_count">%1$d files</string>
     <string name="cleaner_select_all">Select all</string>
     <string name="clean_selected_summary">Move %1$d to Trash • %2$s</string>
     <string name="clean_confirm_title">Move selected files to Trash?</string>

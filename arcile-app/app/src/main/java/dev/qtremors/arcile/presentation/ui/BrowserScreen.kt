@@ -62,6 +62,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -75,6 +77,7 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
@@ -99,6 +102,8 @@ import androidx.compose.runtime.setValue
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFakeFileDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
+import dev.qtremors.arcile.presentation.ui.components.dialogs.FileNameInput
+import dev.qtremors.arcile.presentation.ui.components.dialogs.validateFileName
 import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.ui.theme.LocalSemanticColors
 
@@ -113,6 +118,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
@@ -121,6 +128,10 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.imePadding
 import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.ui.theme.menuGroupLast
+import dev.qtremors.arcile.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -159,6 +170,7 @@ import dev.qtremors.arcile.presentation.ui.components.lists.FileList
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
 import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
@@ -719,7 +731,7 @@ fun BrowserScreen(
                 if (targetKey.isSearch) {
                     if (state.searchResults.isEmpty()) {
                         EmptyState(
-                            icon = Icons.Default.SearchOff,
+                            variant = EmptyStateVariant.Search,
                             title = stringResource(R.string.no_results_found),
                             description = stringResource(R.string.no_results_description, state.browserSearchQuery),
                             modifier = Modifier.weight(1f)
@@ -864,7 +876,7 @@ fun BrowserScreen(
                             )
                         } else if (displayedFiles.isEmpty() && !state.isLoading) {
                             EmptyState(
-                                icon = Icons.Default.FolderOff,
+                                variant = EmptyStateVariant.Folder,
                                 title = stringResource(R.string.empty_directory),
                                 description = if (state.isCategoryScreen && state.selectedFolderTabPath != null) {
                                     stringResource(R.string.empty_folder_tab_description)
@@ -1071,10 +1083,10 @@ fun BrowserScreen(
 
                                     menuActions.forEachIndexed { index, action ->
                                         val shape = when {
-                                            menuActions.size == 1 -> RoundedCornerShape(24.dp)
-                                            index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                                            index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                            else -> RoundedCornerShape(4.dp)
+                                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                                            else -> MaterialTheme.shapes.menuGroupMiddle
                                         }
                                         Box(
                                             modifier = Modifier
@@ -1310,7 +1322,9 @@ fun BrowserScreen(
             onConfirm = { name ->
                 onCreateFolder(name)
                 showCreateFolderDialog = false
-            }
+            },
+            existingNames = state.files.map { it.name }.toSet(),
+            destinationPath = state.currentPath
         )
     }
 
@@ -1344,7 +1358,9 @@ fun BrowserScreen(
             onConfirm = { fileName ->
                 showCreateFileDialog = false
                 onCreateFile(fileName)
-            }
+            },
+            existingNames = state.files.map { it.name }.toSet(),
+            destinationPath = state.currentPath
         )
     }
 
@@ -1369,6 +1385,7 @@ fun BrowserScreen(
             defaultName = defaultName,
             selectedCount = state.selectedFiles.size,
             destinationPath = state.currentPath,
+            existingNames = state.files.map { it.name }.toSet(),
             onDismiss = { showCreateArchiveDialog = false },
             onConfirm = { name, format, password ->
                 showCreateArchiveDialog = false
@@ -1401,7 +1418,8 @@ fun BrowserScreen(
             onConfirm = { newName ->
                 onRenameFile(selectedPath, newName)
                 showRenameDialog = false
-            }
+            },
+            existingNames = state.files.map { it.name }.toSet()
         )
     }
 
@@ -1448,6 +1466,7 @@ private fun CreateArchiveDialog(
     defaultName: String,
     selectedCount: Int,
     destinationPath: String,
+    existingNames: Set<String>,
     onDismiss: () -> Unit,
     onConfirm: (String, ArchiveFormat, String?) -> Unit
 ) {
@@ -1456,9 +1475,23 @@ private fun CreateArchiveDialog(
     var usePassword by rememberSaveable { mutableStateOf(false) }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
-    val trimmedName = archiveName.trim()
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    val archiveBase = remember(archiveName, format) {
+        archiveBaseName(archiveName)
+    }
+    val existingArchiveBaseNames = remember(existingNames, format) {
+        existingNames.map { archiveBaseName(it) }.toSet()
+    }
+    val nameValidation = remember(archiveBase, existingArchiveBaseNames) {
+        validateFileName(archiveBase, existingArchiveBaseNames)
+    }
     val passwordError = usePassword && password != confirmPassword
-    val canCreate = trimmedName.isNotEmpty() && (!usePassword || (password.isNotEmpty() && !passwordError))
+    val outputFileName = "${nameValidation.sanitizedName}.${format.extension}"
+    val destinationPreview = remember(destinationPath, outputFileName) {
+        destinationPath.trimEnd('/', '\\') + "/" + outputFileName
+    }
+    val canCreate = nameValidation.isValid && (!usePassword || (password.isNotEmpty() && !passwordError))
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1470,13 +1503,24 @@ private fun CreateArchiveDialog(
                     text = stringResource(R.string.archive_create_summary, selectedCount),
                     style = MaterialTheme.typography.bodyMedium
                 )
-                OutlinedTextField(
+                FileNameInput(
                     value = archiveName,
                     onValueChange = { archiveName = it },
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.archive_name)) },
-                    suffix = { Text(".${format.extension}") },
-                    isError = trimmedName.isEmpty()
+                    label = stringResource(R.string.archive_name),
+                    existingNames = existingArchiveBaseNames,
+                    validationValue = archiveBase,
+                    onDone = {
+                        if (canCreate) {
+                            onConfirm(nameValidation.sanitizedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                        }
+                    }
+                )
+                Text(
+                    text = stringResource(R.string.archive_filename_preview, outputFileName),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Column {
                     ArchiveFormatChoice(ArchiveFormat.ZIP, format, onSelect = { format = it })
@@ -1488,27 +1532,29 @@ private fun CreateArchiveDialog(
                     label = { Text(stringResource(R.string.archive_password_protect)) }
                 )
                 if (usePassword) {
-                    OutlinedTextField(
+                    PasswordInputField(
                         value = password,
                         onValueChange = { password = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.archive_password)) }
+                        label = stringResource(R.string.archive_password),
+                        passwordVisible = passwordVisible,
+                        onToggleVisibility = { passwordVisible = !passwordVisible }
                     )
-                    OutlinedTextField(
+                    PasswordInputField(
                         value = confirmPassword,
                         onValueChange = { confirmPassword = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.archive_confirm_password)) },
+                        label = stringResource(R.string.archive_confirm_password),
                         isError = passwordError,
                         supportingText = if (passwordError) {
-                            { Text(stringResource(R.string.archive_password_mismatch)) }
+                            stringResource(R.string.archive_password_mismatch)
                         } else {
                             null
-                        }
+                        },
+                        passwordVisible = confirmPasswordVisible,
+                        onToggleVisibility = { confirmPasswordVisible = !confirmPasswordVisible }
                     )
                 }
                 Text(
-                    text = stringResource(R.string.archive_destination, destinationPath),
+                    text = stringResource(R.string.archive_destination, destinationPreview),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -1520,7 +1566,7 @@ private fun CreateArchiveDialog(
             TextButton(
                 enabled = canCreate,
                 onClick = {
-                    onConfirm(trimmedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                    onConfirm(nameValidation.sanitizedName, format, password.takeIf { usePassword && it.isNotEmpty() })
                 }
             ) {
                 Text(stringResource(R.string.archive_create_action))
@@ -1562,6 +1608,7 @@ private fun ExtractArchiveDialog(
 ) {
     var password by rememberSaveable { mutableStateOf("") }
     var usePassword by rememberSaveable { mutableStateOf(false) }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val archivePassword = password.takeIf { usePassword && it.isNotEmpty() }
 
     AlertDialog(
@@ -1582,12 +1629,13 @@ private fun ExtractArchiveDialog(
                     label = { Text(stringResource(R.string.archive_has_password)) }
                 )
                 if (usePassword) {
-                    OutlinedTextField(
+                    PasswordInputField(
                         value = password,
                         onValueChange = { password = it },
-                        singleLine = true,
-                        label = { Text(stringResource(R.string.archive_password)) },
-                        supportingText = { Text(stringResource(R.string.archive_password_hint)) }
+                        label = stringResource(R.string.archive_password),
+                        supportingText = stringResource(R.string.archive_password_hint),
+                        passwordVisible = passwordVisible,
+                        onToggleVisibility = { passwordVisible = !passwordVisible }
                     )
                 }
             }
@@ -1605,6 +1653,59 @@ private fun ExtractArchiveDialog(
                 TextButton(onClick = { onExtractHere(archivePassword) }) {
                     Text(stringResource(R.string.archive_extract_here))
                 }
+            }
+        }
+    )
+}
+
+private fun archiveBaseName(name: String): String {
+    val trimmed = name.trim()
+    val supportedSuffix = ArchiveFormat.entries
+        .map { ".${it.extension}" }
+        .firstOrNull { trimmed.endsWith(it, ignoreCase = true) }
+    return if (supportedSuffix != null) {
+        trimmed.dropLast(supportedSuffix.length)
+    } else {
+        trimmed
+    }
+}
+
+@Composable
+private fun PasswordInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    passwordVisible: Boolean,
+    onToggleVisibility: () -> Unit,
+    isError: Boolean = false,
+    supportingText: String? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        isError = isError,
+        supportingText = supportingText?.let { text ->
+            { Text(text) }
+        },
+        visualTransformation = if (passwordVisible) {
+            VisualTransformation.None
+        } else {
+            PasswordVisualTransformation()
+        },
+        trailingIcon = {
+            val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
+            val contentDescription = stringResource(
+                if (passwordVisible) {
+                    R.string.archive_password_hide
+                } else {
+                    R.string.archive_password_show
+                }
+            )
+            IconButton(onClick = onToggleVisibility) {
+                Icon(icon, contentDescription = contentDescription)
             }
         }
     )

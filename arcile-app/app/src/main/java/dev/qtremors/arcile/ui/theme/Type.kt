@@ -14,7 +14,7 @@ val Typography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 57.sp,
         lineHeight = 64.sp,
-        letterSpacing = (-0.25).sp
+        letterSpacing = 0.sp
     ),
     displayMedium = TextStyle(
 
@@ -139,3 +139,21 @@ val Typography.bodyMediumMedium: TextStyle
 
 val Typography.bodySmallMedium: TextStyle
     get() = bodySmall.copy(fontWeight = FontWeight.Medium)
+
+val Typography.filename: TextStyle
+    get() = titleMedium.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
+
+val Typography.fileMetadata: TextStyle
+    get() = bodySmall.copy(fontWeight = FontWeight.Normal, letterSpacing = 0.sp)
+
+val Typography.pathBreadcrumb: TextStyle
+    get() = labelLarge.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.sp)
+
+val Typography.storageMetric: TextStyle
+    get() = headlineMedium.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp)
+
+val Typography.sectionHeader: TextStyle
+    get() = titleSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+
+val Typography.dangerLabel: TextStyle
+    get() = labelLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 0.sp)

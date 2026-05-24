@@ -217,6 +217,12 @@ fun AppNavigationGraph(
                                             launchSingleTop = true
                                         }
                                     },
+                                    onNavigateToCleaner = {
+                                        navController.navigate(AppRoutes.StorageCleaner) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
                                     onNavigateToRecentFiles = {
                                         navController.navigate(AppRoutes.RecentFiles()) {
                                             popUpTo<AppRoutes.Main> { saveState = true }

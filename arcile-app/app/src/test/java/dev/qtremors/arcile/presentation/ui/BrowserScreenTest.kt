@@ -169,6 +169,88 @@ class BrowserScreenTest {
         composeRule.onAllNodesWithText("Download").assertCountEquals(0)
     }
 
+    @Test
+    fun `empty folder renders folder empty state`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Download",
+                        files = emptyList()
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Empty Directory").assertExists()
+    }
+
+    @Test
+    fun `empty browser search renders search empty state`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        browserSearchQuery = "missing",
+                        searchResults = emptyList(),
+                        isSearching = false,
+                        isLoading = false
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("No results found").assertExists()
+        composeRule.onNodeWithText("We couldn't find anything matching \"missing\". Try a different keyword or filters.").assertExists()
+    }
+
     @org.junit.Ignore("Outdated UI test, ModalBottomSheet interactions fail in Robolectric after 0.6.0")
     @Test
     fun `browser controls sheet shows grid controls when opened`() {

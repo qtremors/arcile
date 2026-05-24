@@ -128,6 +128,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.shimmer
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
@@ -287,7 +288,8 @@ fun HomeScreen(
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
     onSetVolumeClassification: (String, dev.qtremors.arcile.domain.StorageKind) -> Unit = { _, _ -> },
-    onHideClassificationPrompt: (String) -> Unit = {}
+    onHideClassificationPrompt: (String) -> Unit = {},
+    onNavigateToCleaner: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -497,32 +499,10 @@ fun HomeScreen(
                                 Box(modifier = Modifier.width(140.dp)) {
                                     ToolCard(
                                         ToolItem(
-                                            stringResource(R.string.placeholder_onlyfiles),
-                                            Icons.Default.Lock,
-                                            isImplemented = false
-                                        )
-                                    )
-                                }
-                            }
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.placeholder_large_files),
-                                            Icons.Default.ZoomIn,
-                                            isImplemented = false
-                                        )
-                                    )
-                                }
-                            }
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.placeholder_ftp_server),
-                                            Icons.Default.WifiTethering,
-                                            isImplemented = false
-                                        )
+                                            stringResource(R.string.tool_clean),
+                                            Icons.Default.CleaningServices,
+                                            isImplemented = true
+                                        ), onClick = onNavigateToCleaner
                                     )
                                 }
                             }
@@ -555,7 +535,7 @@ fun HomeScreen(
                     if (displayedRecentFiles.isEmpty() && !state.isLoading) {
                         item {
                             EmptyState(
-                                icon = Icons.Default.History,
+                                variant = EmptyStateVariant.Recent,
                                 title = stringResource(R.string.no_recent_files),
                                 description = stringResource(R.string.no_recent_files_description),
                                 modifier = Modifier.fillMaxWidth()

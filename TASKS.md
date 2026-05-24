@@ -1,37 +1,14 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.7.9
+> **Version:** 0.8.0
 > **Last Updated:** 2026-05-24
 
 ---
 
 ## Consolidated Tasks
 
-### Browser / File Browsing Tasks
-
-- [ ] **UI-0001 - Adaptive Layout / Dual-Pane Workspace** `[Critical]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt
-  - **Problem:** Material 3 adaptive dependencies are present, but the primary app structure still uses a two-page `HorizontalPager` between Home and Browser with no adaptive navigation rail, list-detail layout, dual-pane file browser, or tablet/foldable workspace.
-  - **Impact:** Large screens feel stretched rather than upgraded. Power users lose two-pane copy/move, persistent folder panes, drag/drop, side-by-side properties or preview, and multi-folder workspace workflows.
-  - **Fix:** Derive layout from `currentWindowAdaptiveInfo()`. Use bottom navigation or the current pager only for compact width. Use navigation rail plus list-detail/supporting pane for medium and expanded width. Add expanded-width dual-browser mode with independent path, sort, selection, and clipboard scopes. Add "send to other pane", drag/drop between panes, operation preview with conflict count before paste, and pane path restoration after process death.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 ### Visual System / Interaction Tasks
-
-- [ ] **UI-0013 - Visual System / Shape** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/ui/theme/Shape.kt
-  - **Problem:** Shape usage is expressive but not disciplined: large cards, circular chips, extraLarge menus, 16dp quick access rows, 24dp menu item groups, and raw rounded shapes coexist without a clear hierarchy.
-  - **Impact:** The app looks modern, but not yet iconic or fully cohesive. Some surfaces feel pill-heavy while others are plain.
-  - **Fix:** Define semantic shapes: fileRow, fileGridCard, toolbarPill, menuGroupFirst/Middle/Last, sheet, dialog, storageCard. Replace raw `RoundedCornerShape(...)` where it represents a shared pattern. Reserve circles for icons/FABs/true chips.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0014 - Visual System / Typography** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/ui/theme/Type.kt
-  - **Problem:** Typography mostly mirrors Material defaults but includes negative letter spacing on `displayLarge` and does not define file-manager-specific roles for filename, metadata, path, volume metric, and danger labels.
-  - **Impact:** Filename and metadata hierarchy depends on local choices, so scan efficiency varies between list, grid, trash, recent, archive, and quick access.
-  - **Fix:** Add semantic text extensions: `filename`, `fileMetadata`, `pathBreadcrumb`, `storageMetric`, `sectionHeader`, `dangerLabel`. Use zero letter spacing unless intentionally matching a Material token that has been visually verified. Ensure line heights survive 1.3x-2.0x font scale.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 - [ ] **UI-0017 - Motion System** `[High]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
@@ -47,41 +24,11 @@
   - **Fix:** Define destination classes: top-level, detail, modal-ish utility, archive viewer. Use fade-through for settings/about/licenses, shared bounds for archive/category/file navigation, and standard predictive back for route pops. Respect reduced motion.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-- [ ] **UI-0027 - Empty / Loading States** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/EmptyState.kt
-  - **Problem:** Empty states include animated/particle-like visual decoration, but there is no reduce-motion policy and state illustration quality is not tied to specific file-manager contexts.
-  - **Impact:** Some states feel playful but not premium, and motion-sensitive users cannot opt out.
-  - **Fix:** Add reduce-motion composition local or system animator scale check. Create context-specific empty states: empty folder, no search results, empty trash, no storage access, archive empty. Keep animation subtle and purposeful.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0042 - Dialog/Input UX** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/dialogs arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt
-  - **Problem:** Dialogs mostly use basic `AlertDialog` + `OutlinedTextField` flows. File naming edge cases, IME actions, invalid characters, duplicate names, extension handling, password visibility, and live preview are not consistently handled.
-  - **Impact:** Users can hit errors late, and high-stakes creation/rename/archive flows feel utilitarian rather than polished.
-  - **Fix:** Add reusable `FileNameInput` with invalid character checks, duplicate hints, extension handling, and IME Done. Add live destination preview for create/archive. Use password visual transformation and reveal toggles. Make error text accessible and localized.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 - [ ] **UI-0043 - Premium Feel** `[Medium]`
   - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui
   - **Problem:** Screen quality varies noticeably: Browser and Home are richer, while ArchiveViewer, Tools, Settings rows, About, Licenses, and some dialogs feel closer to template Material UI.
   - **Impact:** The app can feel like several design eras in one product.
   - **Fix:** Create reusable screen primitives: `ArcileScreenScaffold`, `ArcileSectionHeader`, `ArcileListSurface`, `ArcileActionSheet`, `ArcileStateView`. Convert lower-polish screens first: ArchiveViewer, Tools, Licenses, About, Settings. Add screenshot QA for compact/light/dark/OLED.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-### Home / Tools Tasks
-
-- [ ] **UI-0038 - Home Screen Polish** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt
-  - **Problem:** Home includes utility cards for unimplemented features like OnlyFiles, Large Files, and FTP Server. They may be labeled as placeholders visually but still reduce perceived production quality.
-  - **Impact:** Users see a premium shell mixed with "coming later" content, which feels unfinished.
-  - **Fix:** Hide unimplemented utilities from production builds or move them to a clearly labeled "Labs/Coming soon" area. Prioritize working tools: Trash, Storage Analyzer, Recent, Quick Access, Search. If placeholders remain, provide disable semantics and clear unavailable state.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **TOOL-0032 - Product Surface / Debug Utility** `[Low]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/TestToolbar.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt`
-  - **Problem:** `TestToolbar` still exists in main source and production UI still exposes unimplemented or placeholder-like tool surfaces.
-  - **Impact:** Users may see unavailable functionality or inconsistent polish.
-  - **Fix:** Remove unused debug UI from main source or move it into a debug source set. Gate unimplemented tools behind feature flags or hide them. Recommended Refactor: Add `FeatureFlagRepository` and build-type aware flags. Safer Alternative: Remove `TestToolbar` from main source if unused.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
 ### Architecture / Maintainability Tasks
@@ -183,6 +130,11 @@
 
 > A parking lot for future ideas, enhancements, and unprioritized Android file-manager features.
 
+### Architecture & Foundation (Comparison Insights)
+- **Persistent Operation Manager**: Move away from fire-and-forget Coroutines for file operations (Copy/Move/Delete). Implement a persistent Service-backed queuing architecture (similar to WorkManager or Foreground Services) to ensure heavy I/O operations survive UI destruction and provide robust pause/resume/retry capabilities.
+- **Storage Provider Interfaces (VFS)**: Decouple the data layer from hardcoded `java.io.File` and Android Scoped Storage APIs. Introduce a `StorageProvider` interface that returns standard domain `FileModel`s and handles `InputStream/OutputStream` streams. This lays the groundwork for seamless future integration of SMB, FTP, or Cloud storage without modifying the UI layer.
+- **Native File Viewers**: Integrate native, in-app viewers for common developer and text formats (e.g., Markdown, JSON, XML, TXT). Explore integrating lightweight code editors (like Sora) with syntax highlighting to keep users engaged within Arcile rather than bouncing them to external apps via Intents.
+
 ### File Browsing & Navigation
 - **Dual-Pane File Browser**: Add a tablet, foldable, and landscape mode with two live folder panes for drag/copy/move workflows.
 - **Breadcrumb Path Editing**: Let users tap the current path and type or paste a filesystem path directly.
@@ -204,6 +156,11 @@
 - **APK / AAB Inspector**: Show package name, version, signatures, permissions, icons, split APK details, and install/open actions.
 - **Text / Code Previewer**: Add a lightweight viewer with encoding detection, syntax highlighting, line numbers, search, and share/copy actions.
 - **PDF / Document Preview Hooks**: Provide better thumbnails and safe handoff to installed viewers for PDFs, Office files, and ebooks.
+- **Expanded Format Support**: Add read-only extraction support for RAR (e.g., via junrar), and add TAR, GZIP, BZIP2, and XZ using existing commons-compress dependencies.
+- **Advanced Archive Creation Options**: Add compression levels, archive splitting (multi-volume), and AES-256 encryption options using Zip4j.
+- **Archive Modification**: Allow in-place editing of ZIP archives (adding or removing files) without full extraction using Zip4j.
+- **In-Memory Previews**: Stream entries directly into image or text previewers within the ArchiveViewerScreen without extracting to disk.
+- **Archive Integrations**: Register Share intent for creating ZIPs from external apps, and add smart extraction rules (e.g., auto-delete archive after extraction).
 
 ### Storage, Access & Android Integration
 - **Storage Health Diagnostics**: Basic storage status checks, mount state, free-space trends, and repair/trim suggestions for mounted volumes.

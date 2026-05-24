@@ -55,6 +55,7 @@ import dev.qtremors.arcile.domain.StorageUsageScanState
 import dev.qtremors.arcile.domain.StorageUsageScanStatus
 import dev.qtremors.arcile.presentation.storageusage.StorageUsageUiState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.titleMediumBold
@@ -81,7 +82,7 @@ fun StorageUsageMap(
         when {
             state.unavailableVolume != null -> {
                 EmptyState(
-                    icon = Icons.Default.Folder,
+                    variant = EmptyStateVariant.StorageAccess,
                     title = stringResource(R.string.storage_usage_map_unavailable_title),
                     description = stringResource(R.string.storage_usage_map_unavailable_description)
                 )

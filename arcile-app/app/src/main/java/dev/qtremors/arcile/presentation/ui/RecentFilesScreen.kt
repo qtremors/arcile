@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.ui.theme.menuGroupLast
+import dev.qtremors.arcile.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -80,6 +84,7 @@ import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
 import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
@@ -253,7 +258,7 @@ fun RecentFilesScreen(
                 }
                 state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar -> {
                     EmptyState(
-                        icon = Icons.Default.History,
+                        variant = EmptyStateVariant.Recent,
                         title = stringResource(R.string.no_recent_files),
                         description = stringResource(R.string.no_recent_files_description),
                         modifier = Modifier.fillMaxSize()
@@ -266,7 +271,7 @@ fun RecentFilesScreen(
                 }
                 showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty() -> {
                     EmptyState(
-                        icon = Icons.Default.SearchOff,
+                        variant = EmptyStateVariant.Search,
                         title = stringResource(R.string.no_results_found),
                         description = stringResource(R.string.no_results_description, state.searchQuery),
                         modifier = Modifier.fillMaxSize()
@@ -714,10 +719,10 @@ private fun SelectionToolbar(
 
                         menuActions.forEachIndexed { index, action ->
                             val shape = when {
-                                menuActions.size == 1 -> RoundedCornerShape(24.dp)
-                                index == 0 -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                                index == menuActions.size - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                else -> RoundedCornerShape(4.dp)
+                                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                                index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                                else -> MaterialTheme.shapes.menuGroupMiddle
                             }
                             Box(
                                 modifier = Modifier

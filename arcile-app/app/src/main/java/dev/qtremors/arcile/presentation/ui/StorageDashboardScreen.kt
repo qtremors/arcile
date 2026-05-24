@@ -61,6 +61,7 @@ import dev.qtremors.arcile.domain.isIndexed
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.storageusage.StorageUsageViewModel
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.home.MultiColorStorageBar
 import dev.qtremors.arcile.presentation.ui.components.storage.StorageUsageMap
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
@@ -280,7 +281,7 @@ private fun StorageSummaryTab(
         if (volumes.isEmpty() && !state.isLoading && !state.isCalculatingStorage) {
             item {
                 EmptyState(
-                    icon = Icons.Default.Description,
+                    variant = EmptyStateVariant.StorageAccess,
                     title = stringResource(R.string.insights_unavailable),
                     description = stringResource(R.string.no_indexed_volumes),
                     modifier = Modifier.fillParentMaxSize()
