@@ -381,6 +381,29 @@
     <string name="tool_manager">App Manager</string>
     <string name="tool_onlyfiles">OnlyFiles</string>
     <string name="tool_share">Network Share</string>
+    <string name="storage_cleaner_title">Storage Cleaner</string>
+    <string name="cleaner_scanning">Scanning indexed storage…</string>
+    <string name="cleaner_partial_results">Some folders could not be scanned. Results may be incomplete.</string>
+    <string name="cleaner_large_files">Large files</string>
+    <string name="cleaner_large_files_desc">Files over 100 MB sorted by size.</string>
+    <string name="cleaner_old_downloads">Old downloads</string>
+    <string name="cleaner_old_downloads_desc">Downloads older than 30 days.</string>
+    <string name="cleaner_duplicates">Duplicate names</string>
+    <string name="cleaner_duplicates_desc">Files with the same name and size.</string>
+    <string name="cleaner_apks">APK files</string>
+    <string name="cleaner_apks_desc">Installer packages that may no longer be needed.</string>
+    <string name="cleaner_videos">Videos</string>
+    <string name="cleaner_videos_desc">Large video files from indexed storage.</string>
+    <string name="cleaner_junk">Junk files</string>
+    <string name="cleaner_junk_desc">Temporary, log, backup, and cache-like files.</string>
+    <string name="cleaner_empty">Nothing found</string>
+    <string name="cleaner_group_stat">%1$d files • %2$s</string>
+    <string name="cleaner_select_all">Select all</string>
+    <string name="clean_selected_summary">Move %1$d to Trash • %2$s</string>
+    <string name="clean_confirm_title">Move selected files to Trash?</string>
+    <string name="clean_confirm_message">%1$d selected file(s) will be moved to Arcile Trash. You can restore them later.</string>
+    <string name="clean_success">Moved %1$d file(s) to Trash</string>
+    <string name="clean_failed">Could not clean selected files</string>
 
     <!-- Additional Deletion & Trash Bin -->
     <string name="permanently_delete_checkbox">Permanently delete</string>

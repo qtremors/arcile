@@ -43,7 +43,8 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun ToolsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToCleaner: () -> Unit
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -62,13 +63,15 @@ fun ToolsScreen(
         val tools = listOf(
             ToolItem(stringResource(R.string.tool_ftp), Icons.Default.WifiTethering),
             ToolItem(stringResource(R.string.tool_analyze), Icons.Default.PieChart),
-            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices),
+            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices, isImplemented = true),
             ToolItem(stringResource(R.string.tool_duplicates), Icons.Default.FilterNone),
             ToolItem(stringResource(R.string.tool_large), Icons.Default.ZoomIn),
             ToolItem(stringResource(R.string.tool_manager), Icons.Default.Apps),
             ToolItem(stringResource(R.string.tool_onlyfiles), Icons.Default.Lock),
             ToolItem(stringResource(R.string.tool_share), Icons.Default.Dns)
         )
+
+        val cleanName = stringResource(R.string.tool_clean)
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
@@ -84,7 +87,14 @@ fun ToolsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(tools) { tool ->
-                ToolCard(tool)
+                ToolCard(
+                    item = tool,
+                    onClick = {
+                        if (tool.name == cleanName) {
+                            onNavigateToCleaner()
+                        }
+                    }
+                )
             }
         }
     }

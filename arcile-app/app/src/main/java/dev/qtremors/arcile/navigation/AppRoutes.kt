@@ -29,6 +29,7 @@ object AppRoutes {
     @Serializable object Trash
     @Serializable data class RecentFiles(val volumeId: String? = null)
     @Serializable data class StorageDashboard(val volumeId: String? = null)
+    @Serializable object StorageCleaner
     @Serializable object StorageManagement
     @Serializable object QuickAccess
     @Serializable data class ArchiveViewer(val archivePath: String)

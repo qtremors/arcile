@@ -17,22 +17,6 @@
   - **Fix:** Derive layout from `currentWindowAdaptiveInfo()`. Use bottom navigation or the current pager only for compact width. Use navigation rail plus list-detail/supporting pane for medium and expanded width. Add expanded-width dual-browser mode with independent path, sort, selection, and clipboard scopes. Add "send to other pane", drag/drop between panes, operation preview with conflict count before paste, and pane path restoration after process death.
   - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
 
-### Storage / Access Tasks
-
-- [ ] **UI-0033 - Permission UX** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt arcile-app/app/src/main/java/dev/qtremors/arcile/MainActivity.kt
-  - **Problem:** The all-files-access permission screen is a centered card with title/body/button, but lacks richer rationale, denied-state recovery, privacy reassurance, Android version nuance, and fallback paths.
-  - **Impact:** Users may deny or abandon permission because the app does not clearly explain the benefit and boundaries.
-  - **Fix:** Add a permission rationale screen with concrete benefits and privacy notes. Show fallback for limited access/SAF where available. Handle "permission denied" return with next-step copy. Move toast strings to resources.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
-- [ ] **UI-0039 - Storage Visualization** `[Medium]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/StorageDashboardScreen.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/home/StorageSummaryCards.kt
-  - **Problem:** Storage insight is mainly a segmented bar and category list. It lacks a premium analyzer visualization, drill-down, cleanup candidates, and explanatory hierarchy.
-  - **Impact:** Arcile misses a major differentiator against Files by Google and Samsung My Files.
-  - **Fix:** Add folder/category treemap or sunburst/radial view for storage. Add large files, old downloads, duplicate candidates, APKs, videos, and cache-like cleanup groups. Allow tapping category to browse scoped files with sort preserved.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
-
 ### Operations / Reliability Tasks
 
 - [ ] **UI-0022 - Destructive Actions / Safety** `[High]`

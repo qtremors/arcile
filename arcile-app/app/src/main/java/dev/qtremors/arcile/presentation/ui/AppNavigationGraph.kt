@@ -29,6 +29,7 @@ import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.presentation.storagecleaner.StorageCleanerViewModel
 import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -412,7 +413,19 @@ fun AppNavigationGraph(
                 }
                 composable<AppRoutes.Tools> {
                     ToolsScreen(
-                        onNavigateBack = { navController.popBackStack() }
+                        onNavigateBack = { navController.popBackStack() },
+                        onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) }
+                    )
+                }
+                composable<AppRoutes.StorageCleaner> {
+                    val viewModel = hiltViewModel<StorageCleanerViewModel>()
+                    val state by viewModel.state.collectAsStateWithLifecycle()
+                    StorageCleanerScreen(
+                        state = state,
+                        onNavigateBack = { navController.popBackStack() },
+                        onRefresh = { viewModel.scan() },
+                        onCleanFiles = { viewModel.clean(it) },
+                        onClearMessages = { viewModel.clearMessages() }
                     )
                 }
                 composable<AppRoutes.Settings> {

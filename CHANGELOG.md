@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.7
+> **Version:** 0.7.8
 > **Last Updated:** 2026-05-24
 
 ---
+
+## [0.7.8] - 2026-05-24
+
+### Storage Cleaner
+- **Cleaner Utility:** Added a dedicated Storage Cleaner tool with indexed-storage scanning for large files, old downloads, duplicate-name candidates, APKs, videos, and conservative junk/cache-like files.
+- **Trash-Safe Cleanup:** Cleaner selections now move files to Arcile Trash instead of permanently deleting them, with confirmation, selection controls, refresh, and success/error feedback.
+
+### Testing
+- **Cleaner Coverage:** Added scanner and ViewModel tests for cleaner grouping, indexed-volume scoping, Trash cleanup, refresh behavior, and failure handling.
 
 ## [0.7.7] - 2026-05-24
 
