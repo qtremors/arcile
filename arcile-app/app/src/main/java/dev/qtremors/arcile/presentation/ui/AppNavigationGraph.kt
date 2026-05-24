@@ -320,7 +320,11 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
                             navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
-                        }
+                        },
+                        onOpenPath = { path ->
+                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path))
+                        },
+                        onOpenFile = openPath
                     )
                 }
                 composable<AppRoutes.Explorer> { backStackEntry ->

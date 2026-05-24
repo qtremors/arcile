@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.7.6
-> **Last Updated:** 2026-05-23
+> **Version:** 0.7.7
+> **Last Updated:** 2026-05-24
 
 ---
+
+## [0.7.7] - 2026-05-24
+
+### Storage Dashboard
+- **Radial Usage Map:** Added a Filelight-inspired Usage Map tab to the storage dashboard with a bounded folder scanner, radial disk usage visualization, breadcrumb drill-in, selected-item details, and explicit open actions into the existing file browser.
+
+### Testing
+- **Storage Usage Coverage:** Added scanner and ViewModel tests for folder sizing, small-item grouping, partial scans, volume selection, unavailable temporary storage, and drill-in selection behavior.
 
 ## [0.7.6] - 2026-05-23
 

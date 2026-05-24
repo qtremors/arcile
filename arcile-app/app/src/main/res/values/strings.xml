@@ -7,6 +7,7 @@
     <string name="delete">Delete</string>
     <string name="ok">OK</string>
     <string name="dismiss">Dismiss</string>
+    <string name="refresh">Refresh</string>
     <string name="clear_selection">Clear Selection</string>
     <string name="selected_count">%1$d selected</string>
     <string name="share">Share</string>
@@ -148,6 +149,20 @@
     <string name="categories_title">Categories</string>
     <string name="other_files_system">"Other Files &amp; System"</string>
     <string name="temp_storage_description">"This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card."</string>
+    <string name="storage_dashboard_summary_tab">Summary</string>
+    <string name="storage_dashboard_usage_map_tab">Usage Map</string>
+    <string name="storage_usage_map_unavailable_title">Usage map unavailable</string>
+    <string name="storage_usage_map_unavailable_description">Temporary storage stays browsable, but folder usage mapping is available only for indexed internal storage and SD cards.</string>
+    <string name="storage_usage_map_scanning">Scanning folders</string>
+    <string name="storage_usage_map_scan_progress">%1$d items • %2$s found</string>
+    <string name="storage_usage_map_error_title">Could not scan storage</string>
+    <string name="storage_usage_map_error_description">Try refreshing, or open the folder in the browser.</string>
+    <string name="storage_usage_map_size">Size</string>
+    <string name="storage_usage_map_share">Share</string>
+    <string name="storage_usage_map_items">Items</string>
+    <string name="storage_usage_map_scan_partial">Some folders could not be read, so this total may be partial.</string>
+    <string name="storage_usage_map_scan_partial_live">Scan is still running, so this total may change.</string>
+    <string name="storage_usage_map_drill_in">Drill in</string>
 
     <!-- Permission Request -->
     <string name="permission_title">Storage Permission Required</string>
