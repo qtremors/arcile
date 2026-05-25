@@ -10,10 +10,12 @@ import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.ListingPage
 import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.domain.StorageInfo
+import dev.qtremors.arcile.domain.StorageNodePath
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -21,6 +23,7 @@ import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flow
 import java.io.File
 
 class FakeFileRepository(
@@ -126,6 +129,18 @@ class FakeFileRepository(
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         listFilesResultProvider?.invoke(path) ?: Result.success(filesByPath[path].orEmpty())
+
+    override fun listFilePages(path: String, pageSize: Int): Flow<ListingPage> = flow {
+        val nodePath = StorageNodePath.of(path)
+        listFiles(path).fold(
+            onSuccess = { files ->
+                emit(ListingPage(nodePath, files, pageIndex = 0, isComplete = true))
+            },
+            onFailure = { error ->
+                emit(ListingPage.failed(nodePath, error))
+            }
+        )
+    }
 
     override suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats> =
         paths.mapNotNull { path -> cachedFolderStats[path]?.let { path to it } }.toMap()

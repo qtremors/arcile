@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui.components.dialogs
 
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -38,6 +39,24 @@ class DialogInputTest {
     }
 
     @Test
+    fun `create file dialog starts without blank name error and focuses name field`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                CreateFileDialog(
+                    onDismiss = {},
+                    onConfirm = {}
+                )
+            }
+        }
+
+        composeRule.mainClock.advanceTimeBy(200)
+
+        composeRule.onNodeWithText("Invalid name", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("File Name (e.g., text.txt)").assertIsFocused()
+        composeRule.onNodeWithText("Create").assertIsNotEnabled()
+    }
+
+    @Test
     fun `create folder dialog shows destination preview`() {
         composeRule.setContent {
             ArcileTestTheme {
@@ -52,5 +71,23 @@ class DialogInputTest {
         composeRule.onNodeWithText("Folder Name").performTextInput("Docs")
 
         composeRule.onNodeWithText("Creates at /storage/emulated/0/Download/Docs").assertExists()
+    }
+
+    @Test
+    fun `create folder dialog starts without blank name error and focuses name field`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                CreateFolderDialog(
+                    onDismiss = {},
+                    onConfirm = {}
+                )
+            }
+        }
+
+        composeRule.mainClock.advanceTimeBy(200)
+
+        composeRule.onNodeWithText("Invalid name", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("Folder Name").assertIsFocused()
+        composeRule.onNodeWithText("Create").assertIsNotEnabled()
     }
 }

@@ -12,13 +12,25 @@ import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.domain.ListingPage
+import dev.qtremors.arcile.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.domain.StorageNodePath
+import dev.qtremors.arcile.domain.StorageNodeRef
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import java.io.File
 
-interface FileSystemDataSource {
+interface DirectoryListingDataSource {
+    fun list(path: StorageNodePath, pageSize: Int = ListingPage.DEFAULT_PAGE_SIZE): Flow<ListingPage>
+}
+
+interface FileSystemDataSource : DirectoryListingDataSource {
     fun getStandardFolders(): Map<String, String?>
     suspend fun listFiles(path: String): Result<List<FileModel>>
     suspend fun createDirectory(parentPath: String, name: String): Result<FileModel>
@@ -49,6 +61,9 @@ class DefaultFileSystemDataSource(
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }, mutationJournal = mutationJournal)
 ) : FileSystemDataSource {
+    private val listingComparator = compareBy<FileModel> { !it.isDirectory }
+        .thenBy { it.name.lowercase() }
+
     private fun validatePath(file: File): Result<Unit> {
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
     }
@@ -56,6 +71,15 @@ class DefaultFileSystemDataSource(
     private fun validateDestructivePath(file: File): Result<Unit> {
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }
+
+    private fun validatedDestructiveRef(file: File): Result<StorageNodeRef> =
+        runCatching { StorageNodeRef.local(file.absolutePath) }
+            .fold(
+                onSuccess = { ref ->
+                    validateDestructivePath(file).map { ref }
+                },
+                onFailure = { Result.failure(it) }
+            )
 
     private fun validateFileName(name: String): Result<Unit> {
         if (name.contains('/') || name.contains('\\') || name.contains("..") || name.contains('\u0000')) {
@@ -69,7 +93,6 @@ class DefaultFileSystemDataSource(
         val mime = if (ext.isNotEmpty()) {
             android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase())
         } else null
-
         return FileModel(
             name = name,
             absolutePath = absolutePath,
@@ -78,7 +101,17 @@ class DefaultFileSystemDataSource(
             isDirectory = isDirectory,
             extension = ext,
             isHidden = isHidden,
-            mimeType = mime
+            mimeType = mime,
+            nodeRef = StorageNodeRef.local(
+                path = absolutePath,
+                capabilities = StorageNodeCapabilities(
+                    canRead = true,
+                    canWrite = true,
+                    canDelete = true,
+                    canTrash = false,
+                    canArchive = isFile
+                )
+            )
         )
     }
 
@@ -99,21 +132,64 @@ class DefaultFileSystemDataSource(
         )
     }
 
-    override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(dispatchers.io) {
+    override fun list(path: StorageNodePath, pageSize: Int): Flow<ListingPage> = flow {
         try {
-            val directory = File(path)
-            validatePath(directory).onFailure { return@withContext Result.failure(it) }
-
-            if (!directory.exists() || !directory.isDirectory) {
-                return@withContext Result.failure(IllegalArgumentException("Path is not a valid directory"))
+            val directory = File(path.absolutePath)
+            validatePath(directory).onFailure {
+                emit(ListingPage.failed(path, it))
+                return@flow
             }
 
-            val files = directory.listFiles()?.map { it.toFileModel() } ?: emptyList()
-            val sortedFiles = files.sortedWith(
-                compareBy<FileModel> { !it.isDirectory }
-                    .thenBy { it.name.lowercase() }
-            )
-            Result.success(sortedFiles)
+            if (!directory.exists() || !directory.isDirectory) {
+                emit(ListingPage.failed(path, IllegalArgumentException("Path is not a valid directory")))
+                return@flow
+            }
+
+            val children = directory.listFiles()
+                ?: run {
+                    emit(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
+                    return@flow
+                }
+
+            if (children.isEmpty()) {
+                emit(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
+                return@flow
+            }
+
+            val boundedPageSize = pageSize.coerceIn(1, ListingPage.MAX_PAGE_SIZE)
+            children.asSequence()
+                .chunked(boundedPageSize)
+                .forEachIndexed { index, chunk ->
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    val files = chunk.map { it.toFileModel() }.sortedWith(listingComparator)
+                    val complete = (index + 1) * boundedPageSize >= children.size
+                    emit(
+                        ListingPage(
+                            path = path,
+                            files = files,
+                            pageIndex = index,
+                            isComplete = complete
+                        )
+                    )
+                }
+        } catch (e: SecurityException) {
+            emit(ListingPage.failed(path, FileOperationException.AccessDenied(cause = e)))
+        } catch (e: java.io.IOException) {
+            emit(ListingPage.failed(path, FileOperationException.IOError(cause = e)))
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            emit(ListingPage.failed(path, FileOperationException.Unknown(cause = e)))
+        }
+    }.flowOn(dispatchers.io)
+
+    override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(dispatchers.io) {
+        try {
+            val nodePath = StorageNodePath.of(path)
+            val pages = list(nodePath).toList()
+            pages.firstOrNull { it.error != null }?.error?.let { error ->
+                return@withContext Result.failure(error)
+            }
+            Result.success(pages.flatMap { it.files }.sortedWith(listingComparator))
         } catch (e: SecurityException) {
             Result.failure(FileOperationException.AccessDenied(cause = e))
         } catch (e: java.io.IOException) {
@@ -128,7 +204,7 @@ class DefaultFileSystemDataSource(
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newDir = File(parentPath, name)
-            validateDestructivePath(newDir).onFailure { return@withContext Result.failure(it) }
+            validatedDestructiveRef(newDir).onFailure { return@withContext Result.failure(it) }
 
             if (newDir.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("Directory already exists"))
@@ -153,7 +229,7 @@ class DefaultFileSystemDataSource(
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }
             val newFile = File(parentPath, name)
-            validateDestructivePath(newFile).onFailure { return@withContext Result.failure(it) }
+            validatedDestructiveRef(newFile).onFailure { return@withContext Result.failure(it) }
 
             if (newFile.exists()) {
                 return@withContext Result.failure(IllegalArgumentException("File already exists"))
@@ -180,7 +256,7 @@ class DefaultFileSystemDataSource(
             val scannedPaths = mutableListOf<String>()
             for (path in paths) {
                 val file = File(path)
-                validateDestructivePath(file).onFailure { return@withContext Result.failure(it) }
+                validatedDestructiveRef(file).onFailure { return@withContext Result.failure(it) }
 
                 if (!file.exists()) continue
 
@@ -210,10 +286,10 @@ class DefaultFileSystemDataSource(
              validateFileName(newName).onFailure { return@withContext Result.failure(it) }
 
              val file = File(path)
-             validateDestructivePath(file).onFailure { return@withContext Result.failure(it) }
+             validatedDestructiveRef(file).onFailure { return@withContext Result.failure(it) }
 
              val newFile = File(file.parent, newName)
-             validateDestructivePath(newFile).onFailure { return@withContext Result.failure(it) }
+             validatedDestructiveRef(newFile).onFailure { return@withContext Result.failure(it) }
 
              if (!file.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File does not exist"))
@@ -244,7 +320,7 @@ class DefaultFileSystemDataSource(
     ): Result<List<FileConflict>> = withContext(dispatchers.io) {
         try {
             val destDir = File(destinationPath)
-            validateDestructivePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validatedDestructiveRef(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -269,7 +345,7 @@ class DefaultFileSystemDataSource(
     ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val destDir = File(destinationPath)
-            validateDestructivePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validatedDestructiveRef(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -297,7 +373,7 @@ class DefaultFileSystemDataSource(
     ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val destDir = File(destinationPath)
-            validatePath(destDir).onFailure { return@withContext Result.failure(it) }
+            validatedDestructiveRef(destDir).onFailure { return@withContext Result.failure(it) }
 
             if (!destDir.exists() || !destDir.isDirectory) {
                 return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
@@ -326,10 +402,10 @@ class DefaultFileSystemDataSource(
         try {
             validateFileName(name).getOrThrow()
             val parentFile = File(parentPath)
-            validateDestructivePath(parentFile).getOrThrow()
+            validatedDestructiveRef(parentFile).getOrThrow()
 
             val targetFile = File(parentFile, name)
-            validateDestructivePath(targetFile).getOrThrow()
+            validatedDestructiveRef(targetFile).getOrThrow()
             if (targetFile.exists()) {
                 return@withContext Result.failure(Exception("File already exists"))
             }

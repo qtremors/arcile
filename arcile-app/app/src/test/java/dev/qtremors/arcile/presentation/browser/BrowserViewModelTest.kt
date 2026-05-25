@@ -883,6 +883,7 @@ private class BrowserFakeFileRepository(
         }
 
     override suspend fun listFiles(path: String) = delegate.listFiles(path)
+    override fun listFilePages(path: String, pageSize: Int) = delegate.listFilePages(path, pageSize)
     override suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.getCachedFolderStats(paths)
     override fun queueFolderStats(paths: List<String>) = delegate.queueFolderStats(paths)
     override fun observeFolderStatUpdates() = delegate.observeFolderStatUpdates()

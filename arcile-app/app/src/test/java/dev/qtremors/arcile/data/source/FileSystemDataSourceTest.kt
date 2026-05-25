@@ -8,6 +8,7 @@ import dev.qtremors.arcile.data.provider.VolumeProvider
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.StorageNodePath
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import dev.qtremors.arcile.testutil.testVolume
 import io.mockk.coEvery
@@ -15,6 +16,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -83,6 +85,36 @@ class FileSystemDataSourceTest {
         assertEquals("folder", files[0].name)
         assertFalse(files[1].isDirectory)
         assertEquals("test.txt", files[1].name)
+    }
+
+    @Test
+    fun `list emits directory pages incrementally`() = runTest {
+        File(root, "zeta.txt").apply { createNewFile() }
+        File(root, "alpha").apply { mkdirs() }
+        File(root, "beta.txt").apply { createNewFile() }
+
+        val pages = dataSource.list(StorageNodePath.of(root.absolutePath), pageSize = 2).toList()
+
+        assertEquals(2, pages.size)
+        assertEquals(0, pages[0].pageIndex)
+        assertFalse(pages[0].isComplete)
+        assertEquals(1, pages[1].pageIndex)
+        assertTrue(pages[1].isComplete)
+        assertEquals(3, pages.sumOf { it.files.size })
+    }
+
+    @Test
+    fun `listFiles compatibility returns globally sorted large directory`() = runTest {
+        repeat(1_000) { index ->
+            File(root, "file-${index.toString().padStart(4, '0')}.txt").createNewFile()
+        }
+        File(root, "folder").mkdirs()
+
+        val files = dataSource.listFiles(root.absolutePath).getOrThrow()
+
+        assertEquals(1_001, files.size)
+        assertTrue(files.first().isDirectory)
+        assertEquals("folder", files.first().name)
     }
 
     @Test

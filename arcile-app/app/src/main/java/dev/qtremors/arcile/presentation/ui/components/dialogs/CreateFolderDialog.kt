@@ -23,6 +23,7 @@ fun CreateFolderDialog(
     destinationPath: String? = null
 ) {
     var folderName by remember { mutableStateOf("") }
+    var hasEditedFolderName by remember { mutableStateOf(false) }
     val validation = remember(folderName, existingNames) {
         validateFileName(folderName, existingNames)
     }
@@ -37,9 +38,14 @@ fun CreateFolderDialog(
             ) {
                 FileNameInput(
                     value = folderName,
-                    onValueChange = { folderName = it },
+                    onValueChange = {
+                        hasEditedFolderName = true
+                        folderName = it
+                    },
                     label = stringResource(R.string.label_folder_name),
                     existingNames = existingNames,
+                    showValidationErrors = hasEditedFolderName,
+                    autoFocus = true,
                     onDone = {
                         if (validation.isValid) {
                             onConfirm(validation.sanitizedName)

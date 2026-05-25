@@ -10,9 +10,11 @@ import dev.qtremors.arcile.domain.FileConflict
 import dev.qtremors.arcile.domain.FileModel
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.domain.ListingPage
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.domain.StorageNodePath
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
 import dev.qtremors.arcile.domain.TrashMetadata
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -194,6 +197,8 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
 
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(emptyList())
+    override fun list(path: StorageNodePath, pageSize: Int): Flow<ListingPage> =
+        flowOf(ListingPage(path, emptyList(), pageIndex = 0, isComplete = true))
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", isDirectory = true))
     override suspend fun createFile(parentPath: String, name: String): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name"))
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> {

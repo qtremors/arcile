@@ -64,7 +64,12 @@ data class StorageVolume(
     val isRemovable: Boolean,
     val kind: StorageKind = if (isPrimary) StorageKind.INTERNAL else StorageKind.EXTERNAL_UNCLASSIFIED,
     val isUserClassified: Boolean = false
-)
+) {
+    val volumeId: StorageVolumeId get() = StorageVolumeId.of(id)
+    val rootPath: StorageNodePath get() = StorageNodePath.of(path)
+    val totalByteCount: ByteCount get() = ByteCount.of(totalBytes)
+    val freeByteCount: ByteCount get() = ByteCount.of(freeBytes)
+}
 /**
  * Snapshot of the device's storage capacity across all volumes.
  *
@@ -82,4 +87,6 @@ data class StorageInfo(
 data class TrashStorageUsage(
     val totalBytes: Long,
     val byVolumeId: Map<String, Long>
-)
+) {
+    val totalByteCount: ByteCount get() = ByteCount.of(totalBytes)
+}

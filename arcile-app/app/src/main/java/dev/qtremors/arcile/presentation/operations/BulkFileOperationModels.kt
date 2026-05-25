@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.operations
 import dev.qtremors.arcile.domain.ConflictResolution
 import dev.qtremors.arcile.domain.ArchiveFormat
 import dev.qtremors.arcile.domain.ArcileError
+import dev.qtremors.arcile.domain.StorageNodeRef
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -27,7 +28,10 @@ data class BulkFileOperationRequest(
     val archiveFormat: ArchiveFormat? = null,
     val archiveEntryPrefix: String? = null,
     val archivePassword: String? = null
-)
+) {
+    val sourceRefs: List<StorageNodeRef> get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }
+    val destinationRef: StorageNodeRef? get() = destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }
+}
 
 @Serializable
 data class BulkFileOperationProgress(

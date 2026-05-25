@@ -22,6 +22,7 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -304,8 +305,24 @@ class NavigationDelegate(
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             applyPresentation(prefs.getPresentationForPath(path))
 
-            repository.listFiles(path).onSuccess { files ->
-                val folderPaths = files.filter { it.isDirectory }.map { it.absolutePath }
+            repository.listFilePages(path).collect { page ->
+                page.error?.let { error ->
+                    state.update {
+                        it.copy(
+                            isLoading = false,
+                            isPullToRefreshing = false,
+                            error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_directory_failed)
+                        )
+                    }
+                    return@collect
+                }
+
+                val updatedFiles = if (page.pageIndex == 0) {
+                    page.files
+                } else {
+                    state.value.files + page.files
+                }
+                val folderPaths = page.files.filter { it.isDirectory }.map { it.absolutePath }
                 val cachedStats = repository.getCachedFolderStats(folderPaths)
                 val now = System.currentTimeMillis()
                 val pathsToQueue = folderPaths.filter { folderPath ->
@@ -320,22 +337,14 @@ class NavigationDelegate(
                 state.update {
                     it.copy(
                         isLoading = false,
-                        isPullToRefreshing = false,
-                        files = files.toPersistentList(),
-                        folderStatsByPath = cachedStats.toPersistentMap(),
-                        folderStatsLoadingPaths = pathsToQueue.toPersistentSet()
+                        isPullToRefreshing = if (page.isComplete) false else it.isPullToRefreshing,
+                        files = updatedFiles.toPersistentList(),
+                        folderStatsByPath = (it.folderStatsByPath + cachedStats).toPersistentMap(),
+                        folderStatsLoadingPaths = (it.folderStatsLoadingPaths + pathsToQueue).toPersistentSet()
                     ).withUpdatedDisplayState()
                 }
                 repository.queueFolderStats(pathsToQueue)
-                saveNavState()
-            }.onFailure { error ->
-                state.update {
-                    it.copy(
-                        isLoading = false,
-                        isPullToRefreshing = false,
-                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_directory_failed)
-                    )
-                }
+                if (page.isComplete) saveNavState()
             }
         }
     }

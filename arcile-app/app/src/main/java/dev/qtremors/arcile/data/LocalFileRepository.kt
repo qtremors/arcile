@@ -20,18 +20,21 @@ import dev.qtremors.arcile.domain.FileRepository
 import dev.qtremors.arcile.domain.FolderStatUpdate
 import dev.qtremors.arcile.domain.FolderStats
 import dev.qtremors.arcile.domain.FolderStatsStatus
+import dev.qtremors.arcile.domain.ListingPage
 import dev.qtremors.arcile.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.domain.SearchFilters
 import dev.qtremors.arcile.domain.SelectionProperties
 import dev.qtremors.arcile.domain.StorageInfo
 import dev.qtremors.arcile.domain.StorageScope
 import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.domain.StorageNodePath
 import dev.qtremors.arcile.domain.TrashMetadata
 import dev.qtremors.arcile.domain.TrashStorageUsage
 import dev.qtremors.arcile.domain.supportsTrash
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -101,6 +104,11 @@ class LocalFileRepository(
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         fileSystemDataSource.listFiles(path)
+
+    override fun listFilePages(path: String, pageSize: Int): Flow<ListingPage> =
+        runCatching { StorageNodePath.of(path) }
+            .map { fileSystemDataSource.list(it, pageSize) }
+            .getOrElse { flowOf(ListingPage.failed(StorageNodePath.of(File("/").absolutePath), it)) }
 
     override suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats> =
         folderStatsStore.getCached(paths)

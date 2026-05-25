@@ -28,4 +28,9 @@ data class TrashMetadata(
     val sourceVolumeId: String,
     val sourceStorageKind: StorageKind,
     val restoreStatus: TrashRestoreStatus = TrashRestoreStatus.ORIGINAL_AVAILABLE
-)
+) {
+    val trashItemId: TrashItemId get() = TrashItemId.of(id)
+    val originalNodePath: StorageNodePath? get() = originalPath.takeIf { it.isNotBlank() }?.let(StorageNodePath::of)
+    val deletedAt: EpochMillis get() = EpochMillis.of(deletionTime)
+    val typedSourceVolumeId: StorageVolumeId get() = StorageVolumeId.of(sourceVolumeId)
+}

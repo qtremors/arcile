@@ -23,6 +23,7 @@ fun CreateFileDialog(
     destinationPath: String? = null
 ) {
     var fileName by remember { mutableStateOf("") }
+    var hasEditedFileName by remember { mutableStateOf(false) }
     val validation = remember(fileName, existingNames) {
         validateFileName(fileName, existingNames)
     }
@@ -37,9 +38,14 @@ fun CreateFileDialog(
             ) {
                 FileNameInput(
                     value = fileName,
-                    onValueChange = { fileName = it },
+                    onValueChange = {
+                        hasEditedFileName = true
+                        fileName = it
+                    },
                     label = stringResource(R.string.label_file_name_example),
                     existingNames = existingNames,
+                    showValidationErrors = hasEditedFileName,
+                    autoFocus = true,
                     onDone = {
                         if (validation.isValid) {
                             onConfirm(validation.sanitizedName)

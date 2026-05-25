@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.8.0
+> **Version:** 0.8.2
 > **Last Updated:** 2026-05-25
 
 ---
@@ -60,53 +60,59 @@
 
 ### API / Domain Tasks
 
-- [ ] **API-0003 - API Design / Type Safety** `[High]`
+- [x] **API-0003 - API Design / Type Safety** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/FileRepository.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/FileModel.kt`
   - **Problem:** Most APIs accept raw `String` paths for identities, selections, clipboard contents, destinations, archive entries, trash restoration, and routing.
   - **Impact:** Edge cases around paths with unusual separators, volume boundaries, virtual documents, and stale selections are more likely.
   - **Fix:** Add value classes for path/id concepts. Canonicalize once at boundary creation. Make destructive APIs require validated handles, not arbitrary strings. Recommended Refactor: Introduce `StorageNodeRef` containing backend id, volume id, display path, canonical identity, and capability flags. Safer Alternative: Start with value classes around existing strings and migrate high-risk methods first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for the 0.8.2 safer slice. Added typed path/id/value wrappers, `StorageNodeRef`, canonical identity creation, model-level typed accessors, and destructive-boundary validation while preserving string compatibility APIs for existing UI and tests. A full StorageNodeRef migration across every ViewModel remains deferred.
+  - **Verification:** Passed targeted typed model, listing, stress, and visual QA tests plus `:app:compileDebugKotlin`. Manual device QA was not run.
 
-- [ ] **API-0031 - Kotlin API Quality** `[Medium]`
+- [x] **API-0031 - Kotlin API Quality** `[Medium]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/*.kt`
   - **Problem:** Several domain models use primitive strings/longs for semantically distinct values and lack stronger invariants.
   - **Impact:** Edge-case bugs around sizes, timestamps, paths, ids, and category names can leak into UI.
   - **Fix:** Add value classes for bytes, timestamps where useful, ids, paths, category ids. Use sealed capability models. Keep display names distinct from identifiers. Recommended Refactor: Introduce invariant constructors/factories for high-risk model types. Safer Alternative: Add value classes only for path/id/storage volume concepts first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for the 0.8.2 safer slice. Introduced invariant value classes for storage volume ids, storage node paths, canonical identities, trash ids, category ids, byte counts, and epoch milliseconds; added typed accessors to high-risk domain models without breaking existing call sites.
+  - **Verification:** Passed targeted typed model, listing, stress, and visual QA tests plus `:app:compileDebugKotlin`. Manual device QA was not run.
 
 ### Filesystem Performance / Memory Tasks
 
-- [ ] **MEM-0010 - Memory / Large Directory Handling** `[High]`
+- [x] **MEM-0010 - Memory / Large Directory Handling** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileSystemDataSource.kt`
   - **Problem:** Directory listing loads all children into memory, maps all to `FileModel`, then sorts the full list before returning.
   - **Impact:** Huge directories can load slowly, freeze visible progress, or consume excessive memory.
   - **Fix:** Introduce paged/incremental directory listing. Emit loading batches through Flow. Add configurable sorting that can operate on chunks or defer expensive metadata. Recommended Refactor: Create `DirectoryListingDataSource.list(path): Flow<ListingPage>`. Safer Alternative: Add a max initial batch and "load more" fallback for huge folders.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for the 0.8.2 safer slice. Added `ListingPage` and paged `DirectoryListingDataSource` flow emission, kept `listFiles` as a compatibility collector, and updated browser loading to consume pages incrementally while queueing folder stats per page. Full virtualized backend/provider pagination remains deferred.
+  - **Verification:** Passed targeted `FileSystemDataSourceTest`, large-directory compatibility coverage, and `:app:compileDebugKotlin`. Manual device QA was not run.
 
 ### Build / Startup Tasks
 
-- [ ] **BUILD-0023 - Build System / Dependency Freshness** `[Medium]`
+- [x] **BUILD-0023 - Build System / Dependency Freshness** `[Medium]`
   - **Location:** `arcile-app/gradle/libs.versions.toml` `arcile-app/app/build.gradle.kts`
   - **Problem:** The build uses a single app module with no convention plugins, no feature modules, no benchmark module, and no modular dependency boundaries.
   - **Impact:** Indirect: slower iteration and higher regression risk as the app grows.
   - **Fix:** Add convention plugins. Split modules by `core:domain`, `core:storage`, `core:ui`, `feature:browser`, `feature:home`, `feature:trash`, `feature:archive`, `benchmark`. Add dependency analysis and version update checks as ongoing tooling, not as a one-off dependency freshness task. Recommended Refactor: Start by extracting pure Kotlin domain and storage interfaces. Safer Alternative: Keep one APK module but add Gradle convention logic and package-level architecture checks.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for the 0.8.2 safer slice. Added included `build-logic` convention plugin with release metadata and version catalog freshness verification tasks while keeping the single APK module. Full module extraction and benchmark module creation remain deferred.
+  - **Verification:** Passed `:app:compileDebugKotlin` and targeted tests. Manual device QA was not run.
 
 ### Testing / QA Tasks
 
-- [ ] **UI-0044 - Testing / Visual QA** `[Medium]`
+- [x] **UI-0044 - Testing / Visual QA** `[Medium]`
   - **Location:** arcile-app/app/src/androidTest/java/dev/qtremors/arcile/ui arcile-app/app/src/test/java/dev/qtremors/arcile/presentation/ui
   - **Problem:** There are UI tests, but the audit found no evidence of systematic screenshot/golden testing for theme modes, font scales, RTL, screen sizes, foldable layouts, or 1,000-file stress states.
   - **Impact:** Pixel-level regressions can ship unnoticed.
   - **Fix:** Add Paparazzi/Roborazzi or Compose screenshot testing. Cover compact phone, landscape, tablet, RTL, fontScale 1.5/2.0, light/dark/OLED/dynamic fallback. Add macrobenchmarks for browser scroll, thumbnail grid, search, and storage load.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for the 0.8.2 foundation slice. Added a JVM Compose visual QA matrix covering large font scales and RTL rendering using existing Compose/Robolectric infrastructure. Golden image capture remains deferred until a screenshot plugin is selected for long-term storage/CI.
+  - **Verification:** Passed targeted visual QA matrix test. Manual device QA was not run.
 
-- [ ] **TEST-0025 - Testability / Production Verification** `[High]`
+- [x] **TEST-0025 - Testability / Production Verification** `[High]`
   - **Location:** `arcile-app/app/src/test/**` `arcile-app/app/src/androidTest/**`
   - **Problem:** The project has useful unit/UI tests, but lacks stress, benchmark, mutation recovery, SAF compatibility, process-death, and real large-directory tests.
   - **Impact:** Critical regressions may only appear on real devices with large storage.
   - **Fix:** Add contract tests for storage backends. Add large directory synthetic tests. Add transfer cancellation/recovery tests. Add archive safety tests. Add macrobenchmarks for startup, listing, scrolling, search, thumbnail grid. Recommended Refactor: Create test fixtures for in-memory, temp filesystem, SAF-like fake, and failure-injecting storage backends. Safer Alternative: Add stress tests for `FileTransferEngine`, `TrashManager`, and `FolderStatsCalculator` first.
-  - **Verification:** Run targeted implementation tests plus manual QA for the affected flow.
+  - **Status:** Completed for the 0.8.2 safer slice. Added stress coverage for large directory listing and folder stats traversal, plus typed path/canonicalization tests. Existing transfer, trash, archive, and operation tests remain the contract base for the affected production flows.
+  - **Verification:** Passed targeted typed model, paged listing, folder stats stress, and visual QA tests plus `:app:compileDebugKotlin`. Manual device QA was not run.
 
 ---
 ## Backlog / Future Ideas

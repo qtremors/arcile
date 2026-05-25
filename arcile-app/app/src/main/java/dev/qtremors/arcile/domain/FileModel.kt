@@ -26,5 +26,18 @@ data class FileModel(
     val isDirectory: Boolean = false,
     val extension: String = "",
     val isHidden: Boolean = false,
-    val mimeType: String? = null
-)
+    val mimeType: String? = null,
+    val nodeRef: StorageNodeRef = StorageNodeRef.local(
+        path = absolutePath,
+        capabilities = StorageNodeCapabilities(
+            canRead = true,
+            canWrite = true,
+            canDelete = true,
+            canTrash = false,
+            canArchive = !isDirectory
+        )
+    )
+) {
+    val byteCount: ByteCount get() = ByteCount.of(size)
+    val modifiedAt: EpochMillis get() = EpochMillis.of(lastModified)
+}

@@ -1,10 +1,31 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.1
+> **Version:** 0.8.2
 > **Last Updated:** 2026-05-25
 
 ---
+
+## [0.8.2] - 2026-05-25
+
+### API Safety & Domain Types
+- **Typed Storage Identities:** Added invariant value classes for storage volume ids, storage paths, canonical identities, trash ids, category ids, byte counts, and epoch timestamps.
+- **Storage Node References:** Introduced `StorageNodeRef` with backend id, optional volume id, display path, canonical identity, and capability flags, and exposed typed accessors from high-risk file/trash/storage models.
+- **Destructive Boundary Validation:** Routed destructive filesystem operations through validated typed refs before mutation while preserving existing string-based compatibility APIs.
+
+### Large Directory Listing
+- **Paged Listing Flow:** Added `ListingPage` and a paged directory listing flow in the filesystem datasource so browser loading can receive batches instead of waiting for one full list.
+- **Compatibility Collector:** Kept `listFiles(path)` available for existing callers and tests, collecting paged results into a globally sorted list.
+- **Incremental Browser Loading:** Updated browser navigation refresh to append listing pages, clear visible loading after the first page, and queue folder stats per received page.
+
+### Build & QA
+- **Build Convention Hook:** Added included `build-logic` with an Arcile Android app convention plugin and release verification tasks for version metadata and version catalog freshness.
+- **Visual QA Foundation:** Added a JVM Compose/Robolectric visual matrix covering large font scales and RTL rendering as a foundation for future golden screenshots.
+- **Stress Coverage:** Added targeted tests for typed path canonicalization, large directory paging, and folder stats traversal/partial limits.
+- **Version Bump:** Updated the app version to `0.8.2` with `versionCode` 66.
+
+### Dialog Polish
+- **Create Dialog Focus:** Create file and folder dialogs now focus the name field and request the keyboard when opened, while delaying blank-name validation until the user starts typing.
 
 ## [0.8.1] - 2026-05-24
 
