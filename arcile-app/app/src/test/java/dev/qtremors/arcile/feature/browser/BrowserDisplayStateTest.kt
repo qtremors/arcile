@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.browser
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import kotlinx.collections.immutable.toPersistentList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame

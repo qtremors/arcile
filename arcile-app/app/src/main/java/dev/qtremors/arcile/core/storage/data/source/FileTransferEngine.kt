@@ -3,7 +3,7 @@ package dev.qtremors.arcile.core.storage.data.source
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import java.io.BufferedInputStream

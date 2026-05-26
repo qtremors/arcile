@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.core.storage.domain
 
 import androidx.compose.runtime.Immutable
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 
 enum class ArchiveFormat(val extension: String, val displayName: String) {
     ZIP("zip", "ZIP"),

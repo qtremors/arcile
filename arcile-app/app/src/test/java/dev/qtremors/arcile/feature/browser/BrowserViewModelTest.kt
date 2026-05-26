@@ -27,13 +27,13 @@ import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import io.mockk.mockk
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.presentation.ClipboardOperation
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
-import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -933,7 +933,7 @@ private class BrowserFakeFileRepository(
         parentPath: String,
         name: String,
         size: Long,
-        onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?
+        onProgress: ((dev.qtremors.arcile.core.operation.BulkFileOperationProgress) -> Unit)?
     ): Result<FileModel> = delegate.createFakeFile(parentPath, name, size, onProgress)
 
     fun emitFolderStatUpdate(update: FolderStatUpdate) {

@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.8.3
+> **Version:** 0.8.5
 > **Last Updated:** 2026-05-26
 
 ---
@@ -26,26 +26,29 @@
   - **Status:** Deferred, but should become an architectural runway task before adding network storage, persistent operation queues, dual-pane browsing, or richer previewers.
   - **Verification:** Add architecture tests before moving packages/modules so regressions are caught during normal unit tests.
 
-- [ ] **ARCH-0031 - Move Operation Models Out of Presentation** `[High]`
+- [x] **ARCH-0031 - Move Operation Models Out of Presentation** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/*`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/**`
   - **Problem:** Core/domain and core/data code import `presentation.operations.BulkFileOperationProgress`, which inverts the dependency direction.
   - **Impact:** Storage domain APIs are coupled to UI/presentation naming, making future modules harder to extract cleanly.
   - **Fix:** Move `BulkFileOperationType`, `BulkFileOperationRequest`, `BulkFileOperationProgress`, and operation events into a core operation package such as `core.operation` or `core.storage.domain.operation`. Keep UI-only progress smoothing/status rendering in presentation.
+  - **Status:** Complete in 0.8.5. Shared operation request/progress/type/event models now live in `core.operation`; the foreground coordinator, service, journal, and progress smoothing remain presentation-owned.
   - **Verification:** Unit tests compile without any `core -> presentation` imports.
 
-- [ ] **ARCH-0032 - Expand Architecture Boundary Tests** `[High]`
+- [x] **ARCH-0032 - Expand Architecture Boundary Tests** `[High]`
   - **Location:** `arcile-app/app/src/test/java/dev/qtremors/arcile/ArchitectureBoundaryTest.kt`
   - **Problem:** The current boundary test only protects `feature -> concrete storage data` imports. It does not catch `core -> presentation`, broad feature/presentation cross-imports, or accidental dependency direction regressions.
   - **Impact:** Modularization can silently become harder even when tests pass.
   - **Fix:** Add rules forbidding `core -> presentation`, `core -> feature`, and concrete data imports from feature/presentation code except explicitly allowed store interfaces. Add a small allowlist for app shell/navigation wiring if needed.
+  - **Status:** Complete in 0.8.5. The boundary test now protects `core -> presentation/feature`, feature storage-data imports, and presentation storage-data imports with a narrow public-service allowlist.
   - **Verification:** `ArchitectureBoundaryTest` fails with readable file:line output when a forbidden import is introduced.
 
-- [ ] **MAINT-0033 - Enforce Large File Budget** `[Medium]`
+- [x] **MAINT-0033 - Enforce Large File Budget** `[Medium]`
   - **Location:** `arcile-app/app/src/main/java/**/*.kt`, `arcile-app/app/src/test/java/**/*.kt`, `docs/**/*.html`
   - **Problem:** Files above 700 LOC are already present, and several files are close enough to cross the limit during normal feature work.
   - **Impact:** Review, testing, and refactoring cost grows nonlinearly when screens/ViewModels/tests become catch-all files.
   - **Fix:** Add a lightweight Gradle verification task or architecture test that flags Kotlin/HTML test and production files above 700 LOC, with a temporary allowlist for known files while they are being split.
-  - **Current Hotspots:** `BrowserViewModelTest.kt` (~915 LOC), `BrowserViewModel.kt` (~795 LOC), `RecentFilesScreen.kt` (~722 LOC). Near-threshold: `StorageCleanerScreen.kt`, `MediaStoreClient.kt`, `TrashScreen.kt`, and `AppNavigationGraph.kt`.
+  - **Status:** Complete in 0.8.5. `ArchitectureBoundaryTest` now enforces the 700 LOC budget for Kotlin and docs HTML files, with temporary allowlist entries for known split work.
+  - **Current Hotspots:** `BrowserViewModelTest.kt` (~1031 LOC), `BrowserViewModel.kt` (~853 LOC), `RecentFilesScreen.kt` (~747 LOC), and `MediaStoreClient.kt` (~719 LOC). Near-threshold: `StorageCleanerScreen.kt` (~693 LOC) and `TrashScreen.kt` (~653 LOC).
   - **Verification:** CI/check task reports clear file sizes and fails only for non-allowlisted growth.
 
 - [ ] **MAINT-0034 - Split Browser ViewModel Tests by Behavior** `[Medium]`
@@ -53,6 +56,7 @@
   - **Problem:** The browser ViewModel test file is over 700 LOC and covers many unrelated workflows in one suite.
   - **Impact:** Future browser changes will make the test file harder to scan, slower to update, and more conflict-prone.
   - **Fix:** Split into behavior-focused suites: navigation, search, clipboard, delete, archive, properties, folder stats, and operation events. Keep shared builders in `testutil` or a browser-specific fixture file.
+  - **Status:** Still open. Current file is ~1031 LOC.
   - **Verification:** Same behavioral coverage remains, with no individual test file above 700 LOC.
 
 - [ ] **MAINT-0035 - Split Recent Files Screen Route and Content** `[Medium]`
@@ -60,13 +64,14 @@
   - **Problem:** The screen file mixes route wiring, activity result launchers, snackbar behavior, top bars, content rendering, selection toolbar, and grouping logic.
   - **Impact:** UI changes to recent files risk touching unrelated orchestration/effects code.
   - **Fix:** Split into `RecentFilesRoute`, `RecentFilesContent`, `RecentFilesTopBars`, `RecentFilesSelectionToolbar`, and small list/grouping helpers. Keep public API stable for navigation.
+  - **Status:** Still open. Current file is ~747 LOC.
   - **Verification:** Existing RecentFiles UI/ViewModel tests pass and the main screen file drops below 700 LOC.
 
 - [ ] **MAINT-0036 - Preemptively Split Near-Threshold Screens and Data Sources** `[Medium]`
   - **Location:** `StorageCleanerScreen.kt`, `TrashScreen.kt`, `AppNavigationGraph.kt`, `MediaStoreClient.kt`
   - **Problem:** Several files are below 700 LOC but likely to grow as backlog features land.
   - **Impact:** Storage cleaner, trash, navigation, and MediaStore querying can become future bottlenecks.
-  - **Fix:** For screens, split route/effects from composable content and local widgets. For `MediaStoreClient`, extract query building, cursor mapping, category cache, and scope/volume filtering helpers.
+  - **Fix:** For screens, split route/effects from composable content and local widgets. For `MediaStoreClient` (~719 LOC), extract query building, cursor mapping, category cache, and scope/volume filtering helpers. Also watch `StorageCleanerScreen.kt` (~693 LOC) and `TrashScreen.kt` (~653 LOC).
   - **Verification:** No behavior changes; targeted unit/UI tests continue passing after each split.
 
 - [ ] **ARCH-0037 - Prepare Gradle Module Extraction Roadmap** `[Medium]`

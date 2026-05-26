@@ -7,8 +7,8 @@ import dev.qtremors.arcile.core.storage.domain.DeleteDestination
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.evaluateDeletePolicy
 import dev.qtremors.arcile.core.storage.domain.DeletePolicyResult
-import dev.qtremors.arcile.presentation.UiText
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

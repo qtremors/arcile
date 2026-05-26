@@ -5,6 +5,9 @@ import android.content.Intent
 import android.app.Notification
 import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.testutil.FakeFileRepository

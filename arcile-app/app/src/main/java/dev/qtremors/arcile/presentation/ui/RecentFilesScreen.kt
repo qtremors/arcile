@@ -76,8 +76,8 @@ import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
-import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.presentation.asString
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.presentation.containingFolderPath
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator

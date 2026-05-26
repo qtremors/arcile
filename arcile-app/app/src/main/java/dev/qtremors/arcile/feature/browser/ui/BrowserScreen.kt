@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.presentation.asString
+import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.feature.browser.ui.BrowserContent
 import dev.qtremors.arcile.feature.browser.ui.BrowserCreateFab
 import dev.qtremors.arcile.feature.browser.ui.BrowserDialogs

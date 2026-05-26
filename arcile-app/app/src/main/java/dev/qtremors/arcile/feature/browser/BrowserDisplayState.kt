@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.browser
 import androidx.compose.runtime.Immutable
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.presentation.FolderTab
 import dev.qtremors.arcile.presentation.buildFolderTabs
 import dev.qtremors.arcile.presentation.filterAndSortFiles

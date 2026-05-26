@@ -1,10 +1,27 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.4
+> **Version:** 0.8.5
 > **Last Updated:** 2026-05-26
 
 ---
+
+## [0.8.5] - 2026-05-26
+
+### Architecture
+- **Core Operation Models:** Moved shared bulk operation request, progress, type, and event models into `core.operation` so storage domain/data code no longer imports presentation operation models.
+- **Boundary Guard Expansion:** Expanded architecture tests to reject `core -> presentation`, `core -> feature`, and non-allowlisted feature/presentation imports of concrete storage data code.
+- **Shared Core Types:** Moved `UiText` and `FileSortOption` out of presentation so core storage preferences and error models no longer depend upward.
+
+### Maintainability
+- **Large File Budget:** Added a 700 LOC architecture budget check for Kotlin and docs HTML files with temporary allowlist entries for the current known split targets.
+- **Task Runway Refresh:** Marked the completed operation-model, boundary-test, and file-budget architecture tasks done while refreshing hotspot counts for future browser/recent-files/media-store splits.
+
+### Build
+- **Version Bump:** Updated the app version to `0.8.5` with `versionCode` 69.
+
+### Verification
+- **Architecture Regression Coverage:** Verified the new architecture/budget guard with the focused `ArchitectureBoundaryTest` JVM run.
 
 ## [0.8.4] - 2026-05-26
 

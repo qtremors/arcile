@@ -11,7 +11,7 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.BrowserNavigationEvent
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.feature.browser.reduce

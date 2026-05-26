@@ -14,7 +14,7 @@ import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

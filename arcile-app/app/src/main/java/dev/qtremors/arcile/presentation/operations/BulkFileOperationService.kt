@@ -11,11 +11,14 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.data.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
-import dev.qtremors.arcile.presentation.asString
+import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope

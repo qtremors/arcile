@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation
+package dev.qtremors.arcile.core.ui
 
 import android.content.Context
 import androidx.annotation.PluralsRes

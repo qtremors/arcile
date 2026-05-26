@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.core.storage.domain
 
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import java.io.IOException
 
 sealed class ArcileError(

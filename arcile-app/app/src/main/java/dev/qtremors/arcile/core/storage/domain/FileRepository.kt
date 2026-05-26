@@ -4,7 +4,7 @@ import android.content.IntentSender
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 
 /**

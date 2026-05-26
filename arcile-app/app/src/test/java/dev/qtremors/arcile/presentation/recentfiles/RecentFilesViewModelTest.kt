@@ -14,8 +14,8 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
-import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.FakeFileRepository

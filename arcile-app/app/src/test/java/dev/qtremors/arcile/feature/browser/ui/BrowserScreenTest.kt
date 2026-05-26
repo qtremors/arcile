@@ -19,7 +19,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.feature.browser.withUpdatedDisplayState
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList

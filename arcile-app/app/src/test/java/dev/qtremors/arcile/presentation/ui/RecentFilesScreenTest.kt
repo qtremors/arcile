@@ -9,7 +9,7 @@ import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Rule

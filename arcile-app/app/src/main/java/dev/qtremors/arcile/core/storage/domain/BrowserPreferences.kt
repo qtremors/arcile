@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 
 enum class BrowserViewMode {
     LIST,

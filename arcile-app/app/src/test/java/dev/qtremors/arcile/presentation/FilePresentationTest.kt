@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

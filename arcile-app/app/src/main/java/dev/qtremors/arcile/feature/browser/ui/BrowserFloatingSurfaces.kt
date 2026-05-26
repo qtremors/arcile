@@ -61,7 +61,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import dev.qtremors.arcile.presentation.operations.rememberSmoothedProgress
 import dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar

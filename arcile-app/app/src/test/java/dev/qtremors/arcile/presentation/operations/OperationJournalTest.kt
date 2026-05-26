@@ -2,6 +2,9 @@ package dev.qtremors.arcile.presentation.operations
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -82,4 +85,3 @@ class OperationJournalTest {
             destinationPath = null
         )
 }
-

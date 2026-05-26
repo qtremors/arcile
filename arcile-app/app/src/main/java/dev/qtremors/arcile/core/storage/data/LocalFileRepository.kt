@@ -31,7 +31,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.supportsTrash
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf

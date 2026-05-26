@@ -10,8 +10,8 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.presentation.ClipboardState
-import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.ui.UiText
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.PersistentSet

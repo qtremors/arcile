@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.core.operation
 
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat

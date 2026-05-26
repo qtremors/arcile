@@ -1,15 +1,7 @@
 package dev.qtremors.arcile.presentation
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
-
-enum class FileSortOption {
-    NAME_ASC,
-    NAME_DESC,
-    DATE_NEWEST,
-    DATE_OLDEST,
-    SIZE_LARGEST,
-    SIZE_SMALLEST
-}
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 
 fun filterAndSortFiles(
     files: List<FileModel>,

@@ -109,7 +109,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.presentation.asString
+import dev.qtremors.arcile.core.ui.asString
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable

@@ -2,6 +2,10 @@ package dev.qtremors.arcile.presentation.operations
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first

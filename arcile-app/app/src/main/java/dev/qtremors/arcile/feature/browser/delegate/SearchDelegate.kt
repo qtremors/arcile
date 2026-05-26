@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.feature.browser.BrowserSearchEvent
 import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.reduce
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.CoroutineScope

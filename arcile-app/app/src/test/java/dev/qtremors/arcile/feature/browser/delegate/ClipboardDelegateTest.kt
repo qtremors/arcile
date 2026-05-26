@@ -7,10 +7,10 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.presentation.ClipboardOperation
 import dev.qtremors.arcile.presentation.ClipboardState
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk

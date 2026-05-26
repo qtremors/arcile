@@ -20,7 +20,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.flow
@@ -221,7 +221,7 @@ class FakeFileRepository(
         parentPath: String,
         name: String,
         size: Long,
-        onProgress: ((dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress) -> Unit)?
+        onProgress: ((dev.qtremors.arcile.core.operation.BulkFileOperationProgress) -> Unit)?
     ): Result<FileModel> {
         return Result.success(testFile(name, "$parentPath/$name", false, size))
     }

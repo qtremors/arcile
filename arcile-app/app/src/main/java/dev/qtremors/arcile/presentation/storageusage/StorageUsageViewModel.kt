@@ -10,7 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.isIndexed
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

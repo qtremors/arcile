@@ -14,11 +14,11 @@ import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.UiText
+import dev.qtremors.arcile.core.ui.UiText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow

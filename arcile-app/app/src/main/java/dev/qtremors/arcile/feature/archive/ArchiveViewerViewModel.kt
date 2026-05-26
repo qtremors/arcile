@@ -11,8 +11,8 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -244,7 +244,7 @@ class ArchiveViewerViewModel @Inject constructor(
         }
     }
 
-    private fun dev.qtremors.arcile.presentation.operations.BulkFileOperationRequest.isCurrentArchiveExtraction(): Boolean =
+    private fun dev.qtremors.arcile.core.operation.BulkFileOperationRequest.isCurrentArchiveExtraction(): Boolean =
         type == BulkFileOperationType.EXTRACT_ARCHIVE && sourcePaths.firstOrNull() == archivePath
 
     private fun buildVisibleItems(entries: List<ArchiveEntryModel>, prefix: String?): List<ArchiveBrowserItem> {

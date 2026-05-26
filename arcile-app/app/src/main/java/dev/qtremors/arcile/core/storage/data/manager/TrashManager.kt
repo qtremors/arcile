@@ -17,7 +17,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.supportsTrash
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

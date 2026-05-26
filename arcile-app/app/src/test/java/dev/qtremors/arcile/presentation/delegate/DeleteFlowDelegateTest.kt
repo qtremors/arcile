@@ -5,8 +5,8 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.presentation.UiText
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
+import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every

@@ -16,7 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
