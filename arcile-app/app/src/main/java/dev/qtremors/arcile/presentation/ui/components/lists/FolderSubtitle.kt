@@ -4,8 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.FolderStats
-import dev.qtremors.arcile.domain.FolderStatsStatus
+import dev.qtremors.arcile.core.storage.domain.FolderStats
+import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable

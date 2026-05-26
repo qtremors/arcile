@@ -10,21 +10,71 @@
 
 ### Architecture / Maintainability Tasks
 
-- [ ] **ARCH-0012 - Presentation State Ownership** `[High]` `[Deferred]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/BrowserViewModel.kt`
+- [ ] **ARCH-0012 - Presentation State Ownership** `[High]`
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt`
   - **Problem:** `BrowserState` contains persistent navigation data, list data, search data, selection, clipboard, dialog visibility, native pending actions, properties, progress overlay state, and presentation preferences in one wide state object.
-  - **Impact:** Unrelated UI changes can trigger wide recompositions.
-  - **Fix:** Split into `BrowserNavigationState`, `BrowserListingState`, `BrowserSelectionState`, `BrowserSearchState`, `BrowserDialogState`, and `OperationUiState`. Expose separate StateFlows or a composed immutable screen state. Recommended Refactor: Use reducers/events for browser state transitions and test them directly. Safer Alternative: At minimum, move dialog visibility and operation state out of `BrowserState`.
-  - **Status:** Deferred beyond the completed display-state extraction. `BrowserState` still remains a compatibility screen state; full state-holder/reducer split is intentionally skipped because it would be wide.
-  - **Verification:** Not run for this deferred refactor.
+  - **Impact:** Unrelated UI changes can trigger wide recompositions. The ViewModel also remains a workflow hub for navigation, selection, search, delete, clipboard, archive, properties, undo, and operation progress.
+  - **Fix:** Continue the reducer/slice work already started in `BrowserStateSlices.kt`. Extract archive actions, properties loading, operation-event handling, and selection sizing into injected interactors or dedicated delegates. Keep `BrowserViewModel` as a thin coordinator that translates UI intents into state reducers and use-case calls.
+  - **Status:** Partially complete. `BrowserNavigationState`, `BrowserListingState`, `BrowserSelectionState`, `BrowserSearchState`, `BrowserDialogState`, and `OperationUiState` exist, but `BrowserState` remains the compatibility screen state and `BrowserViewModel.kt` is still over the 700 LOC limit.
+  - **Verification:** Add/keep reducer-level unit tests and split the large browser ViewModel test suite by behavior.
 
-- [ ] **MAINT-0030 - Maintainability / Code Organization** `[Medium]` `[Deferred]`
+- [ ] **MAINT-0030 - Maintainability / Code Organization** `[Medium]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/**`
   - **Problem:** The code is package-layered (`data`, `domain`, `presentation`) but not feature-modular. Feature concerns cross directories and files are growing large.
-  - **Impact:** Indirect: feature velocity and regression risk will worsen.
-  - **Fix:** Move toward feature packages/modules. Define public APIs per feature. Add architecture rules for dependencies. Recommended Refactor: Start with `feature:browser`, `feature:trash`, `feature:archive`, and `core:storage`. Safer Alternative: Within single module, reorganize packages under `feature/*` and `core/*`.
-  - **Status:** Deferred. Feature/package/module reorganization is intentionally skipped because it would be a broad refactor.
-  - **Verification:** Not run for this deferred refactor.
+  - **Impact:** Feature velocity and regression risk will worsen as the app grows, especially around browser, trash, archive, storage analytics, and operation-management features.
+  - **Fix:** Move toward explicit Gradle modules after package boundaries are stable. Recommended target modules: `:core:storage-domain`, `:core:storage-data`, `:core:operation`, `:core:ui`, `:feature:browser`, `:feature:trash`, `:feature:archive`, `:feature:recent-files`, and `:app`. Safer Alternative: First enforce the same boundaries inside the single `:app` module with architecture tests.
+  - **Status:** Deferred, but should become an architectural runway task before adding network storage, persistent operation queues, dual-pane browsing, or richer previewers.
+  - **Verification:** Add architecture tests before moving packages/modules so regressions are caught during normal unit tests.
+
+- [ ] **ARCH-0031 - Move Operation Models Out of Presentation** `[High]`
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/*`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/**`
+  - **Problem:** Core/domain and core/data code import `presentation.operations.BulkFileOperationProgress`, which inverts the dependency direction.
+  - **Impact:** Storage domain APIs are coupled to UI/presentation naming, making future modules harder to extract cleanly.
+  - **Fix:** Move `BulkFileOperationType`, `BulkFileOperationRequest`, `BulkFileOperationProgress`, and operation events into a core operation package such as `core.operation` or `core.storage.domain.operation`. Keep UI-only progress smoothing/status rendering in presentation.
+  - **Verification:** Unit tests compile without any `core -> presentation` imports.
+
+- [ ] **ARCH-0032 - Expand Architecture Boundary Tests** `[High]`
+  - **Location:** `arcile-app/app/src/test/java/dev/qtremors/arcile/ArchitectureBoundaryTest.kt`
+  - **Problem:** The current boundary test only protects `feature -> concrete storage data` imports. It does not catch `core -> presentation`, broad feature/presentation cross-imports, or accidental dependency direction regressions.
+  - **Impact:** Modularization can silently become harder even when tests pass.
+  - **Fix:** Add rules forbidding `core -> presentation`, `core -> feature`, and concrete data imports from feature/presentation code except explicitly allowed store interfaces. Add a small allowlist for app shell/navigation wiring if needed.
+  - **Verification:** `ArchitectureBoundaryTest` fails with readable file:line output when a forbidden import is introduced.
+
+- [ ] **MAINT-0033 - Enforce Large File Budget** `[Medium]`
+  - **Location:** `arcile-app/app/src/main/java/**/*.kt`, `arcile-app/app/src/test/java/**/*.kt`, `docs/**/*.html`
+  - **Problem:** Files above 700 LOC are already present, and several files are close enough to cross the limit during normal feature work.
+  - **Impact:** Review, testing, and refactoring cost grows nonlinearly when screens/ViewModels/tests become catch-all files.
+  - **Fix:** Add a lightweight Gradle verification task or architecture test that flags Kotlin/HTML test and production files above 700 LOC, with a temporary allowlist for known files while they are being split.
+  - **Current Hotspots:** `BrowserViewModelTest.kt` (~915 LOC), `BrowserViewModel.kt` (~795 LOC), `RecentFilesScreen.kt` (~722 LOC). Near-threshold: `StorageCleanerScreen.kt`, `MediaStoreClient.kt`, `TrashScreen.kt`, and `AppNavigationGraph.kt`.
+  - **Verification:** CI/check task reports clear file sizes and fails only for non-allowlisted growth.
+
+- [ ] **MAINT-0034 - Split Browser ViewModel Tests by Behavior** `[Medium]`
+  - **Location:** `arcile-app/app/src/test/java/dev/qtremors/arcile/feature/browser/BrowserViewModelTest.kt`
+  - **Problem:** The browser ViewModel test file is over 700 LOC and covers many unrelated workflows in one suite.
+  - **Impact:** Future browser changes will make the test file harder to scan, slower to update, and more conflict-prone.
+  - **Fix:** Split into behavior-focused suites: navigation, search, clipboard, delete, archive, properties, folder stats, and operation events. Keep shared builders in `testutil` or a browser-specific fixture file.
+  - **Verification:** Same behavioral coverage remains, with no individual test file above 700 LOC.
+
+- [ ] **MAINT-0035 - Split Recent Files Screen Route and Content** `[Medium]`
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt`
+  - **Problem:** The screen file mixes route wiring, activity result launchers, snackbar behavior, top bars, content rendering, selection toolbar, and grouping logic.
+  - **Impact:** UI changes to recent files risk touching unrelated orchestration/effects code.
+  - **Fix:** Split into `RecentFilesRoute`, `RecentFilesContent`, `RecentFilesTopBars`, `RecentFilesSelectionToolbar`, and small list/grouping helpers. Keep public API stable for navigation.
+  - **Verification:** Existing RecentFiles UI/ViewModel tests pass and the main screen file drops below 700 LOC.
+
+- [ ] **MAINT-0036 - Preemptively Split Near-Threshold Screens and Data Sources** `[Medium]`
+  - **Location:** `StorageCleanerScreen.kt`, `TrashScreen.kt`, `AppNavigationGraph.kt`, `MediaStoreClient.kt`
+  - **Problem:** Several files are below 700 LOC but likely to grow as backlog features land.
+  - **Impact:** Storage cleaner, trash, navigation, and MediaStore querying can become future bottlenecks.
+  - **Fix:** For screens, split route/effects from composable content and local widgets. For `MediaStoreClient`, extract query building, cursor mapping, category cache, and scope/volume filtering helpers.
+  - **Verification:** No behavior changes; targeted unit/UI tests continue passing after each split.
+
+- [ ] **ARCH-0037 - Prepare Gradle Module Extraction Roadmap** `[Medium]`
+  - **Location:** `arcile-app/settings.gradle.kts`, `arcile-app/app/build.gradle.kts`, `arcile-app/build-logic/**`
+  - **Problem:** The repo currently has a single Android `:app` module, so package boundaries are social conventions instead of compile-time guarantees.
+  - **Impact:** Planned backlog items like VFS/storage providers, persistent operation manager, network storage, archive expansion, and dual-pane browsing will add pressure to shared code.
+  - **Fix:** Document and stage module extraction in small passes: first core operation/domain models, then storage data, then shared UI, then feature modules. Keep `:app` as composition/navigation shell.
+  - **Verification:** Each extraction pass has a compiling intermediate state and does not require moving unrelated features at the same time.
 
 ---
 ## Backlog / Future Ideas

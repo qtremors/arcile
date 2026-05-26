@@ -55,9 +55,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.StorageVolume
-import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.storageusage.StorageUsageViewModel
 import dev.qtremors.arcile.presentation.ui.components.EmptyState

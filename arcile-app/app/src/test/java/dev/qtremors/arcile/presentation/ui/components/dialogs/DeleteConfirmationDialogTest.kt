@@ -4,8 +4,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import dev.qtremors.arcile.domain.DeleteDecision
-import dev.qtremors.arcile.domain.DeleteDestination
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.DeleteDestination
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule

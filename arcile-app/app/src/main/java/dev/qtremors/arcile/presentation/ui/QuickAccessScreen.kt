@@ -65,8 +65,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.QuickAccessItem
-import dev.qtremors.arcile.domain.QuickAccessType
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessState
 import dev.qtremors.arcile.presentation.ui.components.menus.ExpandableFabMenu
 import dev.qtremors.arcile.presentation.ui.components.menus.FabMenuItem

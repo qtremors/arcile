@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.presentation.operations
 
 import android.content.Context
-import dev.qtremors.arcile.domain.toArcileError
+import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.Serializable

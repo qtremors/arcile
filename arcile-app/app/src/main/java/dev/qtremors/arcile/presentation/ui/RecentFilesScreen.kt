@@ -73,9 +73,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.domain.BrowserViewMode
-import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.asString
 import dev.qtremors.arcile.presentation.containingFolderPath
@@ -385,7 +385,7 @@ private fun SelectionTopBar(
 @Composable
 private fun RecentFilesContent(
     state: RecentFilesState,
-    filesToDisplay: List<dev.qtremors.arcile.domain.FileModel>,
+    filesToDisplay: List<dev.qtremors.arcile.core.storage.domain.FileModel>,
     showSearchBar: Boolean,
     formatter: java.text.DateFormat,
     todayLabel: String,

@@ -1,9 +1,9 @@
 package dev.qtremors.arcile.presentation.operations
 
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.ArchiveFormat
-import dev.qtremors.arcile.domain.ArcileError
-import dev.qtremors.arcile.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArcileError
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.serialization.Serializable
 
 @Serializable

@@ -57,10 +57,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.isIndexed
-import dev.qtremors.arcile.domain.showTemporaryStorageBadge
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.components.shimmer
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
@@ -185,7 +185,7 @@ fun StorageSummaryCard(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StorageVolumeCard(
-    volume: dev.qtremors.arcile.domain.StorageVolume,
+    volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
     categoryStorages: List<CategoryStorage>,
     trashBytes: Long,
     onClick: () -> Unit,

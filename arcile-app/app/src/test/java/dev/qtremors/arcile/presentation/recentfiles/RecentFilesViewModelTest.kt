@@ -2,18 +2,18 @@ package dev.qtremors.arcile.presentation.recentfiles
 
 import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.FileConflict
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.SearchFilters
-import dev.qtremors.arcile.domain.StorageInfo
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageScope
-import dev.qtremors.arcile.domain.StorageVolume
-import dev.qtremors.arcile.domain.TrashMetadata
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.FileConflict
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.StorageInfo
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
@@ -278,7 +278,7 @@ class RecentFilesViewModelTest {
         val viewModel = recentViewModel(FakeFileRepository(), preferences = preferences)
         val presentation = BrowserPresentationPreferences(
             sortOption = FileSortOption.NAME_ASC,
-            viewMode = dev.qtremors.arcile.domain.BrowserViewMode.GRID
+            viewMode = dev.qtremors.arcile.core.storage.domain.BrowserViewMode.GRID
         )
 
         advanceUntilIdle()

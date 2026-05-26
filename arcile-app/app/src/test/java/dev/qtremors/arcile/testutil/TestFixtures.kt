@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.testutil
 
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import java.io.File
 import java.nio.file.Files
 

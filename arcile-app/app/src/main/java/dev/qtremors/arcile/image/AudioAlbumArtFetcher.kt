@@ -14,7 +14,7 @@ import coil.fetch.DrawableResult
 import coil.fetch.FetchResult
 import coil.fetch.Fetcher
 import coil.request.Options
-import dev.qtremors.arcile.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext

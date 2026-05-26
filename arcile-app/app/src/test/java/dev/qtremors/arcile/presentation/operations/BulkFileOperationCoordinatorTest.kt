@@ -2,7 +2,7 @@ package dev.qtremors.arcile.presentation.operations
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import dev.qtremors.arcile.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch

@@ -40,8 +40,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.presentation.FileSortOption
 import kotlin.math.floor
 import kotlin.math.max

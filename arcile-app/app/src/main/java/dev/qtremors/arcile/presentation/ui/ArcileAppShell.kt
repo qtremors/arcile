@@ -43,11 +43,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.feature.trash.TrashViewModel
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ThemeState

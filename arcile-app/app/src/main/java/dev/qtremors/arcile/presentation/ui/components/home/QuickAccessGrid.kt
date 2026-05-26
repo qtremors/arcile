@@ -27,8 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.QuickAccessItem
-import dev.qtremors.arcile.domain.QuickAccessType
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 
 @Composable
 fun QuickAccessGrid(

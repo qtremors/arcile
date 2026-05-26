@@ -36,10 +36,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.domain.FileConflict
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileConflict
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.R
 import java.io.File

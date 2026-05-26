@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.lists
+package dev.qtremors.arcile.presentation.ui.components.lists
+
+
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
@@ -17,7 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
 @Composable
 fun ActiveFiltersRow(

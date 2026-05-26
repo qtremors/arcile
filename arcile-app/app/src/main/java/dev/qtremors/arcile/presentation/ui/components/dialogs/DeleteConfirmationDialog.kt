@@ -21,8 +21,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.DeleteDecision
-import dev.qtremors.arcile.domain.DeleteDestination
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.DeleteDestination
 import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable

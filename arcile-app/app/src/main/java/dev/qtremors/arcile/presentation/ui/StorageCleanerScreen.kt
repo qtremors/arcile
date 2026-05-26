@@ -68,9 +68,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.CleanerCandidate
-import dev.qtremors.arcile.domain.CleanerGroup
-import dev.qtremors.arcile.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
+import dev.qtremors.arcile.core.storage.domain.CleanerGroup
+import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.presentation.storagecleaner.StorageCleanerState
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
@@ -79,8 +79,8 @@ import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.utils.formatFileSize
 import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.layout.ContentScale
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.presentation.ui.components.getFileIconVector
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import java.io.File

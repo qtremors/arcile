@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.presentation.ui.components.lists
+package dev.qtremors.arcile.presentation.ui.components.lists
+
+
 import dev.qtremors.arcile.R
 import androidx.compose.ui.res.stringResource
 
@@ -25,8 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable

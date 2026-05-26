@@ -16,8 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.PropertiesAccessStatus
-import dev.qtremors.arcile.presentation.browser.PropertiesUiModel
+import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.feature.browser.PropertiesUiModel
 import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable

@@ -111,8 +111,8 @@ import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium
 import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
 import dev.qtremors.arcile.presentation.ui.components.ToolCard
@@ -131,7 +131,7 @@ import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
 import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
 import dev.qtremors.arcile.presentation.ui.components.shimmer
 import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
-import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -139,9 +139,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.isIndexed
-import dev.qtremors.arcile.domain.showTemporaryStorageBadge
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
@@ -181,8 +181,8 @@ private const val HomeRecentFilesPreloadSizePx = 512
 
 @Composable
 fun StorageClassificationPrompt(
-    volume: dev.qtremors.arcile.domain.StorageVolume,
-    onClassify: (dev.qtremors.arcile.domain.StorageKind) -> Unit,
+    volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
+    onClassify: (dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit,
     onDecideLater: () -> Unit
 ) {
     ElevatedCard(
@@ -286,7 +286,7 @@ fun HomeScreen(
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
-    onSetVolumeClassification: (String, dev.qtremors.arcile.domain.StorageKind) -> Unit = { _, _ -> },
+    onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
     onNavigateToCleaner: () -> Unit = {}
 ) {

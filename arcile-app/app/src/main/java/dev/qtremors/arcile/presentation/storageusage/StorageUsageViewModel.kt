@@ -3,13 +3,13 @@ package dev.qtremors.arcile.presentation.storageusage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.data.StorageUsageScanner
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageUsageNode
-import dev.qtremors.arcile.domain.StorageUsageScanState
-import dev.qtremors.arcile.domain.StorageVolume
-import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.core.storage.data.StorageUsageScanner
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
+import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.presentation.UiText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,7 +88,7 @@ class StorageUsageViewModel @Inject constructor(
                     rootVolume = volume,
                     unavailableVolume = null,
                     scanState = StorageUsageScanState.Loading(
-                        dev.qtremors.arcile.domain.StorageUsageScanProgress(volume.path, 0, 0L, null)
+                        dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress(volume.path, 0, 0L, null)
                     ),
                     currentRoot = null,
                     selectedNode = null,

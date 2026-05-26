@@ -6,8 +6,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import dev.qtremors.arcile.domain.QuickAccessItem
-import dev.qtremors.arcile.domain.QuickAccessType
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessState
 import dev.qtremors.arcile.presentation.ui.QuickAccessScreen
 import org.junit.Rule

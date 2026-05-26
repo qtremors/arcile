@@ -36,7 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.R

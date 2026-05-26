@@ -1,9 +1,9 @@
 package dev.qtremors.arcile.presentation.storageusage
 
-import dev.qtremors.arcile.data.StorageUsageScanner
+import dev.qtremors.arcile.core.storage.data.StorageUsageScanner
 import dev.qtremors.arcile.di.ArcileDispatchers
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageUsageScanState
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers

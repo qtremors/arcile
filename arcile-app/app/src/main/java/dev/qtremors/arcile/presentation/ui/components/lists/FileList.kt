@@ -54,9 +54,9 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.BrowserViewMode
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.FolderStats
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailPolicyInput
 import dev.qtremors.arcile.presentation.ui.components.getFileIconVector

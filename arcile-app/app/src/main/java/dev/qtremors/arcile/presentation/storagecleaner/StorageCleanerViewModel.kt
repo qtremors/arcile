@@ -3,11 +3,11 @@ package dev.qtremors.arcile.presentation.storagecleaner
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.data.StorageCleanerScanner
-import dev.qtremors.arcile.domain.CleanerGroup
-import dev.qtremors.arcile.domain.CleanerGroupType
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.isIndexed
+import dev.qtremors.arcile.core.storage.data.StorageCleanerScanner
+import dev.qtremors.arcile.core.storage.domain.CleanerGroup
+import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.isIndexed
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

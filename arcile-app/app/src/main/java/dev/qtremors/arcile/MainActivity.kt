@@ -19,8 +19,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.qtremors.arcile.data.OnboardingPreferencesStore
-import dev.qtremors.arcile.domain.OnboardingPreferences
+import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.presentation.onboarding.OnboardingStep
 import dev.qtremors.arcile.presentation.onboarding.OnboardingViewModel

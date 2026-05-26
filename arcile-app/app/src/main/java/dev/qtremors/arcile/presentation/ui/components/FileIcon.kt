@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.material.icons.filled.TableView
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.ui.graphics.vector.ImageVector
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileModel
 
 fun getFileIconVector(file: FileModel): ImageVector {
     if (file.isDirectory) return Icons.Default.Folder

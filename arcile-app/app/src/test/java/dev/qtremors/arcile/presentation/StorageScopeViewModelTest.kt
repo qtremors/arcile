@@ -1,23 +1,23 @@
 package dev.qtremors.arcile.presentation
 
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.data.StorageClassification
-import dev.qtremors.arcile.data.StorageClassificationStore
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.FileConflict
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.SearchFilters
-import dev.qtremors.arcile.domain.StorageInfo
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageScope
-import dev.qtremors.arcile.domain.StorageVolume
-import dev.qtremors.arcile.domain.TrashMetadata
-import dev.qtremors.arcile.domain.DestinationRequiredException
+import dev.qtremors.arcile.core.storage.data.StorageClassification
+import dev.qtremors.arcile.core.storage.data.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.FileConflict
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.StorageInfo
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.TrashMetadata
+import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.feature.trash.TrashViewModel
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
@@ -69,7 +69,7 @@ class StorageScopeViewModelTest {
             )
         )
 
-        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, FakeStorageClassificationStore(), quickAccessRepo)
         advanceUntilIdle()
 
@@ -132,7 +132,7 @@ class StorageScopeViewModelTest {
         val store = RecordingStorageClassificationStore()
         val repository = FakeFileRepository(volumes = listOf(otg))
 
-        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, store, quickAccessRepo)
         advanceUntilIdle()
 
@@ -157,7 +157,7 @@ class StorageScopeViewModelTest {
         val store = RecordingStorageClassificationStore()
         val repository = FakeFileRepository(volumes = listOf(otg))
 
-        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, store, quickAccessRepo)
         advanceUntilIdle()
 

@@ -6,39 +6,39 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import dev.qtremors.arcile.data.BrowserPreferencesRepository
-import dev.qtremors.arcile.data.BrowserPreferencesStore
-import dev.qtremors.arcile.data.DefaultFolderStatsStore
-import dev.qtremors.arcile.data.DefaultStorageWorkCoordinator
-import dev.qtremors.arcile.data.FolderStatsStore
-import dev.qtremors.arcile.data.LocalFileRepository
-import dev.qtremors.arcile.data.MutationFinalizer
-import dev.qtremors.arcile.data.DefaultMutationJournal
-import dev.qtremors.arcile.data.MutationJournal
-import dev.qtremors.arcile.data.OnboardingPreferencesRepository
-import dev.qtremors.arcile.data.OnboardingPreferencesStore
-import dev.qtremors.arcile.data.StorageClassificationRepository
-import dev.qtremors.arcile.data.StorageClassificationStore
-import dev.qtremors.arcile.data.StorageWorkCoordinator
-import dev.qtremors.arcile.data.manager.DefaultTrashManager
-import dev.qtremors.arcile.data.manager.DefaultArchiveManager
-import dev.qtremors.arcile.data.manager.TrashManager
-import dev.qtremors.arcile.domain.ArchiveManager
-import dev.qtremors.arcile.domain.ArchiveRepository
-import dev.qtremors.arcile.domain.ClipboardRepository
-import dev.qtremors.arcile.domain.FileBrowserRepository
-import dev.qtremors.arcile.domain.FileMutationRepository
-import dev.qtremors.arcile.data.provider.DefaultVolumeProvider
-import dev.qtremors.arcile.data.provider.VolumeProvider
-import dev.qtremors.arcile.data.source.DefaultFileSystemDataSource
-import dev.qtremors.arcile.data.source.DefaultMediaStoreClient
-import dev.qtremors.arcile.data.source.FileSystemDataSource
-import dev.qtremors.arcile.data.source.MediaStoreClient
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.SearchRepository
-import dev.qtremors.arcile.domain.StorageAnalyticsRepository
-import dev.qtremors.arcile.domain.TrashRepository
-import dev.qtremors.arcile.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesRepository
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultFolderStatsStore
+import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
+import dev.qtremors.arcile.core.storage.data.FolderStatsStore
+import dev.qtremors.arcile.core.storage.data.LocalFileRepository
+import dev.qtremors.arcile.core.storage.data.MutationFinalizer
+import dev.qtremors.arcile.core.storage.data.DefaultMutationJournal
+import dev.qtremors.arcile.core.storage.data.MutationJournal
+import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
+import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
+import dev.qtremors.arcile.core.storage.data.StorageClassificationRepository
+import dev.qtremors.arcile.core.storage.data.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.data.StorageWorkCoordinator
+import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
+import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
+import dev.qtremors.arcile.core.storage.data.manager.TrashManager
+import dev.qtremors.arcile.core.storage.domain.ArchiveManager
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
+import dev.qtremors.arcile.core.storage.data.provider.DefaultVolumeProvider
+import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
+import dev.qtremors.arcile.core.storage.data.source.DefaultFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.DefaultOperationJournal
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
@@ -319,7 +319,7 @@ object RepositoryModule {
     @Singleton
     fun provideQuickAccessPreferencesRepository(
         @ApplicationContext context: Context
-    ): dev.qtremors.arcile.data.QuickAccessPreferencesRepository {
-        return dev.qtremors.arcile.data.QuickAccessPreferencesRepository(context)
+    ): dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository {
+        return dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository(context)
     }
 }

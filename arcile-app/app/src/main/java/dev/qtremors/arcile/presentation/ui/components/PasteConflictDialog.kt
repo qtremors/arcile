@@ -54,10 +54,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.domain.FileConflict
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileConflict
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter

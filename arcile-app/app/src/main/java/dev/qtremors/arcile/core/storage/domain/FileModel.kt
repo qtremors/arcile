@@ -1,0 +1,43 @@
+package dev.qtremors.arcile.core.storage.domain
+
+import androidx.compose.runtime.Immutable
+
+/**
+ * Core domain model representing a single file or directory entry.
+ *
+ * All properties must be supplied explicitly by the caller. This keeps the domain
+ * layer free of `java.io.File` references and avoids implicit I/O during construction.
+ *
+ * @property name Display name of the file or directory.
+ * @property absolutePath Absolute filesystem path (e.g. `/storage/emulated/0/DCIM`).
+ * @property size File size in bytes. Always `0` for directories.
+ * @property lastModified Last-modified timestamp as a Unix epoch millisecond value.
+ * @property isDirectory `true` when this entry represents a directory.
+ * @property extension Lowercase file extension without the leading dot (e.g. `"jpg"`).
+ *   Empty string for directories or files without an extension.
+ * @property isHidden `true` when the filename starts with a dot (Unix hidden-file convention).
+ */
+@Immutable
+data class FileModel(
+    val name: String,
+    val absolutePath: String,
+    val size: Long = 0L,
+    val lastModified: Long = 0L,
+    val isDirectory: Boolean = false,
+    val extension: String = "",
+    val isHidden: Boolean = false,
+    val mimeType: String? = null,
+    val nodeRef: StorageNodeRef = StorageNodeRef.local(
+        path = absolutePath,
+        capabilities = StorageNodeCapabilities(
+            canRead = true,
+            canWrite = true,
+            canDelete = true,
+            canTrash = false,
+            canArchive = !isDirectory
+        )
+    )
+) {
+    val byteCount: ByteCount get() = ByteCount.of(size)
+    val modifiedAt: EpochMillis get() = EpochMillis.of(lastModified)
+}

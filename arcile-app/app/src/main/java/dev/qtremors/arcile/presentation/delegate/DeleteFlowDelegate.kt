@@ -2,11 +2,11 @@ package dev.qtremors.arcile.presentation.delegate
 
 import android.content.IntentSender
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.DeleteDecision
-import dev.qtremors.arcile.domain.DeleteDestination
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.evaluateDeletePolicy
-import dev.qtremors.arcile.domain.DeletePolicyResult
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.DeleteDestination
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.evaluateDeletePolicy
+import dev.qtremors.arcile.core.storage.domain.DeletePolicyResult
 import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import kotlinx.coroutines.CoroutineScope

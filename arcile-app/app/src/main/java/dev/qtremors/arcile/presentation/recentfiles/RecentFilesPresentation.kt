@@ -1,9 +1,9 @@
 package dev.qtremors.arcile.presentation.recentfiles
 
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.presentation.filterAndSortFiles
 
 fun buildRecentFilesDisplay(

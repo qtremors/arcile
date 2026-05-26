@@ -6,7 +6,7 @@ import coil.ImageLoaderFactory
 import coil.decode.VideoFrameDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
-import dev.qtremors.arcile.data.MutationJournal
+import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.image.ApkIconFetcher
 import dev.qtremors.arcile.image.AudioAlbumArtFetcher

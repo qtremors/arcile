@@ -38,8 +38,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.TrashMetadata
-import dev.qtremors.arcile.domain.TrashRestoreStatus
+import dev.qtremors.arcile.core.storage.domain.TrashMetadata
+import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.presentation.utils.rememberDateFormatter
 import dev.qtremors.arcile.utils.formatFileSize
 import java.util.Calendar
@@ -108,10 +108,10 @@ private fun TrashRow(
             leadingContent = {
                 val file = trashItem.fileModel
                 if (!file.isDirectory &&
-                    (dev.qtremors.arcile.domain.FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                            dev.qtremors.arcile.domain.FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                            dev.qtremors.arcile.domain.FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
-                            dev.qtremors.arcile.domain.FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
+                    (dev.qtremors.arcile.core.storage.domain.FileCategories.Images.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                            dev.qtremors.arcile.core.storage.domain.FileCategories.Videos.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                            dev.qtremors.arcile.core.storage.domain.FileCategories.APKs.extensions.contains(file.name.substringAfterLast('.').lowercase()) ||
+                            dev.qtremors.arcile.core.storage.domain.FileCategories.Audio.extensions.contains(file.name.substringAfterLast('.').lowercase()))
                 ) {
                     SubcomposeAsyncImage(
                         model = java.io.File(file.absolutePath),
@@ -151,9 +151,9 @@ private fun TrashRow(
             supportingContent = {
                 Column {
                     val sourceVolumeStr = when (trashItem.sourceStorageKind) {
-                        dev.qtremors.arcile.domain.StorageKind.INTERNAL -> stringResource(R.string.internal_storage)
-                        dev.qtremors.arcile.domain.StorageKind.SD_CARD -> stringResource(R.string.sd_card)
-                        dev.qtremors.arcile.domain.StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.external_unclassified)
+                        dev.qtremors.arcile.core.storage.domain.StorageKind.INTERNAL -> stringResource(R.string.internal_storage)
+                        dev.qtremors.arcile.core.storage.domain.StorageKind.SD_CARD -> stringResource(R.string.sd_card)
+                        dev.qtremors.arcile.core.storage.domain.StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.external_unclassified)
                         else -> stringResource(R.string.otg_usb)
                     }
                     val parentPath = if (trashItem.originalPath.contains("/")) {

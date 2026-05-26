@@ -10,7 +10,7 @@ import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.utils.formatFileSize
 
 /**

@@ -46,8 +46,8 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState

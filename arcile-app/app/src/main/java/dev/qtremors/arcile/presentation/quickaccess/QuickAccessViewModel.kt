@@ -3,9 +3,9 @@ package dev.qtremors.arcile.presentation.quickaccess
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.data.QuickAccessPreferencesRepository
-import dev.qtremors.arcile.domain.QuickAccessItem
-import dev.qtremors.arcile.domain.QuickAccessType
+import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

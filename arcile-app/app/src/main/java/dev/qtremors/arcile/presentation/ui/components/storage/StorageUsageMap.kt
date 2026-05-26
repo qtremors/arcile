@@ -49,10 +49,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.StorageUsageNode
-import dev.qtremors.arcile.domain.StorageUsageNodeKind
-import dev.qtremors.arcile.domain.StorageUsageScanState
-import dev.qtremors.arcile.domain.StorageUsageScanStatus
+import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
+import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
+import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
+import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
 import dev.qtremors.arcile.presentation.storageusage.StorageUsageUiState
 import dev.qtremors.arcile.presentation.ui.components.EmptyState
 import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
@@ -115,7 +115,7 @@ fun StorageUsageMap(
             }
             else -> {
                 StorageUsageLoading(StorageUsageScanState.Loading(
-                    dev.qtremors.arcile.domain.StorageUsageScanProgress("", 0, 0L, null)
+                    dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress("", 0, 0L, null)
                 ))
             }
         }

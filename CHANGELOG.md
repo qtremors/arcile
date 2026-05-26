@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.3
+> **Version:** 0.8.4
 > **Last Updated:** 2026-05-26
 
 ---
+
+## [0.8.4] - 2026-05-26
+
+### Architecture
+- **Feature Package Reorganization:** Moved browser, trash, and archive code into in-module `feature/*` packages, and moved shared storage domain/data code under `core/storage`.
+- **Browser State Ownership:** Added browser state slices and reducer events while preserving the existing composed `BrowserState` screen-state API for current UI call sites.
+- **Boundary Guard:** Added a lightweight architecture test to catch feature imports of concrete storage data implementations.
+
+### Verification
+- **Regression Coverage:** Added reducer tests for navigation, selection, search, dialog, and operation state transitions.
 
 ## [0.8.3] - 2026-05-26
 

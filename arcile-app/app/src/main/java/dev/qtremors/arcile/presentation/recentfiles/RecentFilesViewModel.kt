@@ -6,13 +6,13 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.data.BrowserPreferencesStore
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.DeleteDecision
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.SearchFilters
-import dev.qtremors.arcile.domain.StorageScope
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.FileSortOption
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import dev.qtremors.arcile.presentation.browser.toUiModel
+import dev.qtremors.arcile.feature.browser.toUiModel
 
 enum class RecentNativeAction { TRASH }
 
@@ -66,7 +66,7 @@ data class RecentFilesState(
     val yesterdayStart: Long = 0L,
     val isPropertiesVisible: Boolean = false,
     val isPropertiesLoading: Boolean = false,
-    val properties: dev.qtremors.arcile.presentation.browser.PropertiesUiModel? = null
+    val properties: dev.qtremors.arcile.feature.browser.PropertiesUiModel? = null
 )
 
 @HiltViewModel

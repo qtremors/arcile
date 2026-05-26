@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.image
 
-import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 
 data class ThumbnailPolicyInput(
     val userEnabled: Boolean,

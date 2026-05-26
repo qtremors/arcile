@@ -34,8 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

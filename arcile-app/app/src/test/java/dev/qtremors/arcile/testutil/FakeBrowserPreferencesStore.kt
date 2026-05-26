@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.testutil
 
-import dev.qtremors.arcile.data.BrowserPreferencesStore
-import dev.qtremors.arcile.domain.BrowserPreferences
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 

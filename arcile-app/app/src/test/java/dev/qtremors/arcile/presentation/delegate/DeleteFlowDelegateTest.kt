@@ -1,10 +1,10 @@
 package dev.qtremors.arcile.presentation.delegate
 
 import android.content.IntentSender
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.PropertiesAccessStatus
-import dev.qtremors.arcile.domain.SelectionProperties
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.presentation.UiText
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationType
 import io.mockk.coEvery
@@ -63,8 +63,8 @@ class DeleteFlowDelegateTest {
     fun `requestDeleteSelected with trashable files shows trash confirmation`() = testScope.runTest {
         val selected = listOf("/path/to/file.txt")
         every { callbacks.getSelectedFiles() } returns selected
-        val volume = mockk<dev.qtremors.arcile.domain.StorageVolume> {
-            every { kind } returns dev.qtremors.arcile.domain.StorageKind.INTERNAL
+        val volume = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
+            every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.INTERNAL
         }
         coEvery { repository.getVolumeForPath("/path/to/file.txt") } returns Result.success(volume)
 
@@ -80,8 +80,8 @@ class DeleteFlowDelegateTest {
     fun `requestDeleteSelected with permanent delete files shows permanent confirmation`() = testScope.runTest {
         val selected = listOf("/path/to/file.txt")
         every { callbacks.getSelectedFiles() } returns selected
-        val volume = mockk<dev.qtremors.arcile.domain.StorageVolume> {
-            every { kind } returns dev.qtremors.arcile.domain.StorageKind.OTG
+        val volume = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
+            every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.OTG
         }
         coEvery { repository.getVolumeForPath("/path/to/file.txt") } returns Result.success(volume)
 
@@ -95,11 +95,11 @@ class DeleteFlowDelegateTest {
     fun `requestDeleteSelected with mixed files shows mixed explanation`() = testScope.runTest {
         val selected = listOf("/path/to/file1.txt", "/path/to/file2.txt")
         every { callbacks.getSelectedFiles() } returns selected
-        val volumeTrash = mockk<dev.qtremors.arcile.domain.StorageVolume> {
-            every { kind } returns dev.qtremors.arcile.domain.StorageKind.INTERNAL
+        val volumeTrash = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
+            every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.INTERNAL
         }
-        val volumePerm = mockk<dev.qtremors.arcile.domain.StorageVolume> {
-            every { kind } returns dev.qtremors.arcile.domain.StorageKind.OTG
+        val volumePerm = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
+            every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.OTG
         }
         coEvery { repository.getVolumeForPath("/path/to/file1.txt") } returns Result.success(volumeTrash)
         coEvery { repository.getVolumeForPath("/path/to/file2.txt") } returns Result.success(volumePerm)

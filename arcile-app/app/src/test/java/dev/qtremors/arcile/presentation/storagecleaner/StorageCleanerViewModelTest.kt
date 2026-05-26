@@ -1,9 +1,9 @@
 package dev.qtremors.arcile.presentation.storagecleaner
 
-import dev.qtremors.arcile.data.StorageCleanerScanner
+import dev.qtremors.arcile.core.storage.data.StorageCleanerScanner
 import dev.qtremors.arcile.di.ArcileDispatchers
-import dev.qtremors.arcile.domain.CleanerGroupType
-import dev.qtremors.arcile.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.testutil.FakeFileRepository
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers

@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.image
 
-import dev.qtremors.arcile.domain.FileCategories
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import java.io.File
 
 data class ThumbnailKey(

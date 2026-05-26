@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.testutil
 
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationEvent
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationProgress

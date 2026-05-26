@@ -32,14 +32,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.feature.archive.ArchiveViewerScreen
+import dev.qtremors.arcile.feature.archive.ArchiveViewerViewModel
+import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
+import dev.qtremors.arcile.feature.trash.TrashScreen
+import dev.qtremors.arcile.feature.trash.TrashViewModel
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.presentation.storagecleaner.StorageCleanerViewModel
-import dev.qtremors.arcile.presentation.trash.TrashViewModel
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,11 +53,10 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import dev.qtremors.arcile.domain.BrowserPreferences
-import dev.qtremors.arcile.domain.ArchiveFormat
-import dev.qtremors.arcile.data.BrowserPreferencesStore
-import dev.qtremors.arcile.data.OnboardingPreferencesStore
-import dev.qtremors.arcile.presentation.archive.ArchiveViewerViewModel
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(

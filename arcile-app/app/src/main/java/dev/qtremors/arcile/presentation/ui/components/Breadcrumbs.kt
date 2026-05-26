@@ -28,7 +28,7 @@ import java.io.File
 @Composable
 fun Breadcrumbs(
     currentPath: String,
-    storageVolumes: List<dev.qtremors.arcile.domain.StorageVolume>,
+    storageVolumes: List<dev.qtremors.arcile.core.storage.domain.StorageVolume>,
     onPathSegmentClick: (String) -> Unit
 ) {
     val scrollState = rememberScrollState()

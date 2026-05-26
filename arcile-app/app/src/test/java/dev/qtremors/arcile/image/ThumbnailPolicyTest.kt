@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.image
 
-import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test

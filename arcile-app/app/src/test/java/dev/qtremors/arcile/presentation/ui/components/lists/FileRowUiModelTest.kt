@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.presentation.ui.components.lists
 
-import dev.qtremors.arcile.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
