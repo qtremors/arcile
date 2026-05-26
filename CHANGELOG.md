@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.2
-> **Last Updated:** 2026-05-25
+> **Version:** 0.8.3
+> **Last Updated:** 2026-05-26
 
 ---
+
+## [0.8.3] - 2026-05-26
+
+### Browser Architecture
+- **Browser UI Split:** Refactored the monolithic `BrowserScreen.kt` into focused browser UI files for top bars, content, dialogs, archive dialogs, floating action/selection surfaces, and shared UI contracts.
+- **Stable UI Contracts:** Added internal `BrowserUiActions` and `BrowserDialogVisibility` holders so extracted composables can share callbacks and saved modal state without changing the public `BrowserScreen` API or `BrowserViewModel` state.
+- **Behavior-Preserving Verification:** Verified the refactor with browser UI/display-state/ViewModel tests and the full debug unit test suite.
 
 ## [0.8.2] - 2026-05-25
 

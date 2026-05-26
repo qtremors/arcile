@@ -1,46 +1,14 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.8.2
-> **Last Updated:** 2026-05-25
+> **Version:** 0.8.3
+> **Last Updated:** 2026-05-26
 
 ---
 
 ## Consolidated Tasks
 
 ### Architecture / Maintainability Tasks
-
-- [x] **COMPOSE-0011 - Compose Performance** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/StorageDashboardScreen.kt`
-  - **Problem:** Several expensive sorts/groupings/transforms happen in composables or on every state-level change. Some are remembered, but state objects are broad so unrelated changes can still invalidate calculations.
-  - **Impact:** Scrolling/searching/selection can feel less responsive in large datasets.
-  - **Fix:** Move stable display lists/groupings into ViewModel state or dedicated memoized selectors. Use narrower immutable UI models. Add Compose compiler stability reports and macrobenchmarks. Recommended Refactor: Add `BrowserDisplayState` with already-filtered/sorted file lists and separate transient UI state from data state. Safer Alternative: Use `derivedStateOf` for scroll/progress-triggered derived values and tighten `remember` keys.
-  - **Status:** Completed for now. Added `BrowserDisplayState`, moved browser/home/storage dashboard display transforms into state selectors, and enabled Compose compiler reports. Connected-device macrobenchmarks and manual QA were intentionally skipped.
-  - **Verification:** Passed `:app:compileDebugKotlin`, targeted JVM/Robolectric tests, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
-
-- [x] **UI-0034 - Compose Stability** `[High]`
-  - **Location:** arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/BrowserViewModel.kt arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt
-  - **Problem:** Screen state classes pass standard `List`, `Set`, and `Map` collections through high-level composables. Compose treats standard collections as unstable unless wrapped/annotated/using immutable collections.
-  - **Impact:** Large file lists and frequent folder stats updates may recompose more UI than necessary.
-  - **Fix:** Run Compose compiler stability reports. Convert hot UI state collections to `kotlinx.collections.immutable` persistent collections or stable UI wrappers. Split large state into smaller state holders for browser files, selection, operation, search, and overlays.
-  - **Status:** Completed for now. Hot browser/home state collections now use `kotlinx.collections.immutable` persistent collections and stable display state. A deeper split into many state holders is deferred because it would be a wide refactor.
-  - **Verification:** Passed `:app:compileDebugKotlin`, targeted JVM/Robolectric tests, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
-
-- [x] **ARCH-0002 - Architecture / Storage Abstraction** `[Critical]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/FileRepository.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/data/LocalFileRepository.kt`
-  - **Problem:** `FileRepository` is a broad god interface covering browsing, mutation, trash, archive operations, analytics, search, volume discovery, cached stats, and properties.
-  - **Impact:** New features can regress unrelated workflows because every ViewModel depends on the same large abstraction.
-  - **Fix:** Split into `FileBrowserRepository`, `FileMutationRepository`, `SearchRepository`, `StorageAnalyticsRepository`, `TrashRepository`, `ArchiveRepository`, and `VolumeRepository`. Give each interface explicit capability and error contracts. Keep an app facade only if needed for composition, not as the primary domain API. Recommended Refactor: Move use cases to depend on narrow interfaces. ViewModels should depend on use cases or feature facades, not the monolithic repository. Safer Alternative: Create adapter interfaces incrementally around current implementation and migrate one feature at a time.
-  - **Status:** Completed incrementally. Added narrow repository interfaces and Hilt bindings while keeping `FileRepository` as a compatibility facade. First-slice use cases were migrated; full consumer migration is deferred to avoid a wide refactor.
-  - **Verification:** Passed `:app:compileDebugKotlin`, targeted JVM/Robolectric tests, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
-
-- [ ] **ARCH-0009 - Compose Architecture** `[High]` `[Deferred]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/BrowserScreen.kt`
-  - **Problem:** `BrowserScreen.kt` is roughly 1,500 lines and owns too many dialogs, toolbars, state effects, operation UI, browser content, archive flows, clipboard UI, and bottom sheets in one file.
-  - **Impact:** UI regressions become more likely as new file-manager features are added.
-  - **Fix:** Split into `BrowserContent`, `BrowserDialogs`, `BrowserOperationOverlay`, `BrowserTopBars`, `BrowserEmptyStates`, and archive dialog files. Define a stable `BrowserUiActions` holder. Keep ephemeral UI state close to owning component. Recommended Refactor: Move browser-specific dialogs and operation surfaces into dedicated composables with focused previews/tests. Safer Alternative: Extract only dialogs and operation progress first.
-  - **Status:** Deferred. The current pass reduced recomposition pressure via display state, but the file-level BrowserScreen split is intentionally skipped because it is a wide structural refactor.
-  - **Verification:** Not run for this deferred refactor.
 
 - [ ] **ARCH-0012 - Presentation State Ownership** `[High]` `[Deferred]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/browser/BrowserViewModel.kt`
@@ -57,62 +25,6 @@
   - **Fix:** Move toward feature packages/modules. Define public APIs per feature. Add architecture rules for dependencies. Recommended Refactor: Start with `feature:browser`, `feature:trash`, `feature:archive`, and `core:storage`. Safer Alternative: Within single module, reorganize packages under `feature/*` and `core/*`.
   - **Status:** Deferred. Feature/package/module reorganization is intentionally skipped because it would be a broad refactor.
   - **Verification:** Not run for this deferred refactor.
-
-### API / Domain Tasks
-
-- [x] **API-0003 - API Design / Type Safety** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/FileRepository.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/FileModel.kt`
-  - **Problem:** Most APIs accept raw `String` paths for identities, selections, clipboard contents, destinations, archive entries, trash restoration, and routing.
-  - **Impact:** Edge cases around paths with unusual separators, volume boundaries, virtual documents, and stale selections are more likely.
-  - **Fix:** Add value classes for path/id concepts. Canonicalize once at boundary creation. Make destructive APIs require validated handles, not arbitrary strings. Recommended Refactor: Introduce `StorageNodeRef` containing backend id, volume id, display path, canonical identity, and capability flags. Safer Alternative: Start with value classes around existing strings and migrate high-risk methods first.
-  - **Status:** Completed for the 0.8.2 safer slice. Added typed path/id/value wrappers, `StorageNodeRef`, canonical identity creation, model-level typed accessors, and destructive-boundary validation while preserving string compatibility APIs for existing UI and tests. A full StorageNodeRef migration across every ViewModel remains deferred.
-  - **Verification:** Passed targeted typed model, listing, stress, and visual QA tests plus `:app:compileDebugKotlin`. Manual device QA was not run.
-
-- [x] **API-0031 - Kotlin API Quality** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/domain/*.kt`
-  - **Problem:** Several domain models use primitive strings/longs for semantically distinct values and lack stronger invariants.
-  - **Impact:** Edge-case bugs around sizes, timestamps, paths, ids, and category names can leak into UI.
-  - **Fix:** Add value classes for bytes, timestamps where useful, ids, paths, category ids. Use sealed capability models. Keep display names distinct from identifiers. Recommended Refactor: Introduce invariant constructors/factories for high-risk model types. Safer Alternative: Add value classes only for path/id/storage volume concepts first.
-  - **Status:** Completed for the 0.8.2 safer slice. Introduced invariant value classes for storage volume ids, storage node paths, canonical identities, trash ids, category ids, byte counts, and epoch milliseconds; added typed accessors to high-risk domain models without breaking existing call sites.
-  - **Verification:** Passed targeted typed model, listing, stress, and visual QA tests plus `:app:compileDebugKotlin`. Manual device QA was not run.
-
-### Filesystem Performance / Memory Tasks
-
-- [x] **MEM-0010 - Memory / Large Directory Handling** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/data/source/FileSystemDataSource.kt`
-  - **Problem:** Directory listing loads all children into memory, maps all to `FileModel`, then sorts the full list before returning.
-  - **Impact:** Huge directories can load slowly, freeze visible progress, or consume excessive memory.
-  - **Fix:** Introduce paged/incremental directory listing. Emit loading batches through Flow. Add configurable sorting that can operate on chunks or defer expensive metadata. Recommended Refactor: Create `DirectoryListingDataSource.list(path): Flow<ListingPage>`. Safer Alternative: Add a max initial batch and "load more" fallback for huge folders.
-  - **Status:** Completed for the 0.8.2 safer slice. Added `ListingPage` and paged `DirectoryListingDataSource` flow emission, kept `listFiles` as a compatibility collector, and updated browser loading to consume pages incrementally while queueing folder stats per page. Full virtualized backend/provider pagination remains deferred.
-  - **Verification:** Passed targeted `FileSystemDataSourceTest`, large-directory compatibility coverage, and `:app:compileDebugKotlin`. Manual device QA was not run.
-
-### Build / Startup Tasks
-
-- [x] **BUILD-0023 - Build System / Dependency Freshness** `[Medium]`
-  - **Location:** `arcile-app/gradle/libs.versions.toml` `arcile-app/app/build.gradle.kts`
-  - **Problem:** The build uses a single app module with no convention plugins, no feature modules, no benchmark module, and no modular dependency boundaries.
-  - **Impact:** Indirect: slower iteration and higher regression risk as the app grows.
-  - **Fix:** Add convention plugins. Split modules by `core:domain`, `core:storage`, `core:ui`, `feature:browser`, `feature:home`, `feature:trash`, `feature:archive`, `benchmark`. Add dependency analysis and version update checks as ongoing tooling, not as a one-off dependency freshness task. Recommended Refactor: Start by extracting pure Kotlin domain and storage interfaces. Safer Alternative: Keep one APK module but add Gradle convention logic and package-level architecture checks.
-  - **Status:** Completed for the 0.8.2 safer slice. Added included `build-logic` convention plugin with release metadata and version catalog freshness verification tasks while keeping the single APK module. Full module extraction and benchmark module creation remain deferred.
-  - **Verification:** Passed `:app:compileDebugKotlin` and targeted tests. Manual device QA was not run.
-
-### Testing / QA Tasks
-
-- [x] **UI-0044 - Testing / Visual QA** `[Medium]`
-  - **Location:** arcile-app/app/src/androidTest/java/dev/qtremors/arcile/ui arcile-app/app/src/test/java/dev/qtremors/arcile/presentation/ui
-  - **Problem:** There are UI tests, but the audit found no evidence of systematic screenshot/golden testing for theme modes, font scales, RTL, screen sizes, foldable layouts, or 1,000-file stress states.
-  - **Impact:** Pixel-level regressions can ship unnoticed.
-  - **Fix:** Add Paparazzi/Roborazzi or Compose screenshot testing. Cover compact phone, landscape, tablet, RTL, fontScale 1.5/2.0, light/dark/OLED/dynamic fallback. Add macrobenchmarks for browser scroll, thumbnail grid, search, and storage load.
-  - **Status:** Completed for the 0.8.2 foundation slice. Added a JVM Compose visual QA matrix covering large font scales and RTL rendering using existing Compose/Robolectric infrastructure. Golden image capture remains deferred until a screenshot plugin is selected for long-term storage/CI.
-  - **Verification:** Passed targeted visual QA matrix test. Manual device QA was not run.
-
-- [x] **TEST-0025 - Testability / Production Verification** `[High]`
-  - **Location:** `arcile-app/app/src/test/**` `arcile-app/app/src/androidTest/**`
-  - **Problem:** The project has useful unit/UI tests, but lacks stress, benchmark, mutation recovery, SAF compatibility, process-death, and real large-directory tests.
-  - **Impact:** Critical regressions may only appear on real devices with large storage.
-  - **Fix:** Add contract tests for storage backends. Add large directory synthetic tests. Add transfer cancellation/recovery tests. Add archive safety tests. Add macrobenchmarks for startup, listing, scrolling, search, thumbnail grid. Recommended Refactor: Create test fixtures for in-memory, temp filesystem, SAF-like fake, and failure-injecting storage backends. Safer Alternative: Add stress tests for `FileTransferEngine`, `TrashManager`, and `FolderStatsCalculator` first.
-  - **Status:** Completed for the 0.8.2 safer slice. Added stress coverage for large directory listing and folder stats traversal, plus typed path/canonicalization tests. Existing transfer, trash, archive, and operation tests remain the contract base for the affected production flows.
-  - **Verification:** Passed targeted typed model, paged listing, folder stats stress, and visual QA tests plus `:app:compileDebugKotlin`. Manual device QA was not run.
 
 ---
 ## Backlog / Future Ideas
