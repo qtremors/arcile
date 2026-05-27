@@ -6,9 +6,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
-import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -22,13 +22,15 @@ import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.presentation.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.feature.browser.delegate.ArchiveActionDelegate
+import dev.qtremors.arcile.feature.browser.delegate.BrowserOperationDelegate
 import dev.qtremors.arcile.feature.browser.delegate.ClipboardDelegate
 import dev.qtremors.arcile.feature.browser.delegate.NavigationDelegate
+import dev.qtremors.arcile.feature.browser.delegate.PropertiesDelegate
 import dev.qtremors.arcile.feature.browser.delegate.SearchDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.toArcileError
@@ -187,6 +189,23 @@ class BrowserViewModel @Inject constructor(
         bulkFileOperationCoordinator = bulkFileCoordinator,
         refreshAction = { navigationDelegate.refresh() }
     )
+    private val operationDelegate = BrowserOperationDelegate(
+        state = _state,
+        viewModelScope = viewModelScope,
+        repository = repository,
+        bulkFileOperationCoordinator = bulkFileCoordinator,
+        refreshAction = { navigationDelegate.refresh() }
+    )
+    private val archiveActionDelegate = ArchiveActionDelegate(
+        state = _state,
+        bulkFileOperationCoordinator = bulkFileCoordinator,
+        clearSelection = { clearSelection() }
+    )
+    private val propertiesDelegate = PropertiesDelegate(
+        state = _state,
+        viewModelScope = viewModelScope,
+        repository = repository
+    )
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
         repository = repository,
@@ -262,17 +281,7 @@ class BrowserViewModel @Inject constructor(
     private var isInitialized = false
 
     init {
-        bulkFileCoordinator.activeRequest.value?.let { activeReq ->
-            _state.update {
-                it.copy(
-                    activeFileOperation = BrowserFileOperationUiState(
-                        type = activeReq.type,
-                        totalItems = activeReq.sourcePaths.size,
-                        currentPath = activeReq.sourcePaths.firstOrNull()
-                    )
-                )
-            }
-        }
+        operationDelegate.hydrateActiveOperation()
 
         viewModelScope.launch {
             getStorageVolumesUseCase().collectLatest { volumes ->
@@ -364,103 +373,7 @@ class BrowserViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            bulkFileCoordinator.events.collectLatest { event ->
-                when (event) {
-                    is BulkFileOperationEvent.Started -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = true,
-                                error = null,
-                                activeFileOperation = BrowserFileOperationUiState(
-                                    type = event.request.type,
-                                    totalItems = event.request.sourcePaths.size,
-                                    currentPath = event.request.sourcePaths.firstOrNull()
-                                ),
-                                fileOperationStatusMessage = null
-                            )
-                        }
-                    }
-                    is BulkFileOperationEvent.Progress -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = true,
-                                activeFileOperation = BrowserFileOperationUiState(
-                                    type = event.request.type,
-                                    totalItems = event.progress.totalItems,
-                                    completedItems = event.progress.completedItems,
-                                    currentPath = event.progress.currentPath,
-                                    isCancelling = false,
-                                    bytesCopied = event.progress.bytesCopied,
-                                    totalBytes = event.progress.totalBytes,
-                                    startTimeMillis = it.activeFileOperation?.startTimeMillis
-                                        ?: System.currentTimeMillis()
-                                )
-                            )
-                        }
-                    }
-                    is BulkFileOperationEvent.Cancelling -> {
-                        _state.update { currentState ->
-                            currentState.copy(
-                                isLoading = true,
-                                activeFileOperation = currentState.activeFileOperation?.copy(isCancelling = true)
-                                    ?: BrowserFileOperationUiState(
-                                        type = event.request.type,
-                                        totalItems = event.request.sourcePaths.size,
-                                        isCancelling = true
-                                    )
-                            )
-                        }
-                    }
-                    is BulkFileOperationEvent.Completed -> {
-                        val undoIds = if (event.request.type == BulkFileOperationType.TRASH) {
-                            trashUndoIdsFor(event.request.sourcePaths)
-                        } else {
-                            persistentListOf()
-                        }
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                activeFileOperation = it.activeFileOperation?.copy(
-                                    terminalStatus = OperationCompletionStatus.SUCCESS
-                                ),
-                                clipboardState = null,
-                                fileOperationStatusMessage = formatOperationCompletedMessage(
-                                    type = event.request.type,
-                                    itemCount = event.request.sourcePaths.size
-                                ),
-                                pendingTrashUndoIds = undoIds.toPersistentList()
-                            )
-                        }
-                        navigationDelegate.refresh()
-                    }
-                    is BulkFileOperationEvent.Failed -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                activeFileOperation = it.activeFileOperation?.copy(
-                                    terminalStatus = OperationCompletionStatus.FAILED
-                                ),
-                                clipboardState = null,
-                                fileOperationStatusMessage = event.error?.userMessage ?: UiText.StringResource(R.string.error_file_operation_failed)
-                            )
-                        }
-                    }
-                    is BulkFileOperationEvent.Cancelled -> {
-                        _state.update {
-                            it.copy(
-                                isLoading = false,
-                                activeFileOperation = it.activeFileOperation?.copy(
-                                    terminalStatus = OperationCompletionStatus.CANCELLED
-                                ),
-                                clipboardState = null,
-                                fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_cancelled)
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        operationDelegate.observeOperationEvents()
     }
 
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
@@ -614,70 +527,14 @@ class BrowserViewModel @Inject constructor(
         )
     }
 
-    fun extractSelectedArchiveHere(password: String? = null) {
-        val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
-        if (!ArchiveFormat.isSupported(archivePath)) {
-            _state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
-            return
-        }
-        bulkFileCoordinator.startOperation(
-            type = BulkFileOperationType.EXTRACT_ARCHIVE,
-            sourcePaths = listOf(archivePath),
-            destinationPath = _state.value.currentPath,
-            resolutions = emptyMap<String, ConflictResolution>(),
-            archivePassword = password
-        )
-        clearSelection()
-    }
-
-    fun extractSelectedArchiveToFolder(password: String? = null) {
-        val archivePath = _state.value.selectedFiles.singleOrNull() ?: return
-        val currentPath = _state.value.currentPath
-        if (!ArchiveFormat.isSupported(archivePath) || currentPath.isEmpty()) {
-            _state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
-            return
-        }
-        val archive = java.io.File(archivePath)
-        val destination = java.io.File(currentPath, archive.nameWithoutExtension).absolutePath
-        bulkFileCoordinator.startOperation(
-            type = BulkFileOperationType.EXTRACT_ARCHIVE,
-            sourcePaths = listOf(archivePath),
-            destinationPath = destination,
-            resolutions = emptyMap<String, ConflictResolution>(),
-            archivePassword = password
-        )
-        clearSelection()
-    }
-
+    fun extractSelectedArchiveHere(password: String? = null) = archiveActionDelegate.extractSelectedArchiveHere(password)
+    fun extractSelectedArchiveToFolder(password: String? = null) = archiveActionDelegate.extractSelectedArchiveToFolder(password)
     fun createArchiveFromSelection(
         archiveName: String,
         format: ArchiveFormat,
         password: String? = null
-    ) {
-        val selected = _state.value.selectedFiles.toList()
-        val currentPath = _state.value.currentPath
-        if (selected.isEmpty() || currentPath.isEmpty()) return
-        val archivePath = nextArchivePath(currentPath, selected, archiveName, format)
-        bulkFileCoordinator.startOperation(
-            type = BulkFileOperationType.CREATE_ARCHIVE,
-            sourcePaths = selected,
-            destinationPath = archivePath,
-            resolutions = emptyMap<String, ConflictResolution>(),
-            archiveFormat = format,
-            archivePassword = password
-        )
-        clearSelection()
-    }
-
-    fun createZipFromSelection() {
-        val selected = _state.value.selectedFiles.toList()
-        val defaultName = if (selected.size == 1) {
-            java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
-        } else {
-            "Archive"
-        }
-        createArchiveFromSelection(defaultName, ArchiveFormat.ZIP)
-    }
+    ) = archiveActionDelegate.createArchiveFromSelection(archiveName, format, password)
+    fun createZipFromSelection() = archiveActionDelegate.createZipFromSelection()
 
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
@@ -717,9 +574,7 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
-    fun clearFileOperationStatusMessage() {
-        _state.update { it.copy(fileOperationStatusMessage = null) }
-    }
+    fun clearFileOperationStatusMessage() = operationDelegate.clearStatusMessage()
 
     fun undoLastTrashMove() {
         val trashIds = _state.value.pendingTrashUndoIds
@@ -738,56 +593,10 @@ class BrowserViewModel @Inject constructor(
         _state.update { it.copy(pendingTrashUndoIds = persistentListOf()) }
     }
 
-    fun clearActiveFileOperation() {
-        _state.update { it.copy(activeFileOperation = null) }
-    }
+    fun clearActiveFileOperation() = operationDelegate.clearActiveOperation()
 
-    fun openPropertiesForSelection() {
-        val selectedPaths = _state.value.selectedFiles.toList()
-        if (selectedPaths.isEmpty()) return
-
-        _state.update {
-            it.copy(
-                isPropertiesVisible = true,
-                isPropertiesLoading = true,
-                properties = null
-            )
-        }
-
-        viewModelScope.launch {
-            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
-                val archiveSummary = selectedPaths.singleOrNull()
-                    ?.takeIf { ArchiveFormat.isSupported(it) }
-                    ?.let { repository.getArchiveMetadata(it).getOrNull() }
-                _state.update {
-                    it.copy(
-                        isPropertiesVisible = true,
-                        isPropertiesLoading = false,
-                        properties = properties.toUiModel().copy(archiveSummary = archiveSummary)
-                    )
-                }
-            }.onFailure { error ->
-                _state.update {
-                    it.copy(
-                        isPropertiesVisible = false,
-                        isPropertiesLoading = false,
-                        properties = null,
-                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_properties_failed)
-                    )
-                }
-            }
-        }
-    }
-
-    fun dismissProperties() {
-        _state.update {
-            it.copy(
-                isPropertiesVisible = false,
-                isPropertiesLoading = false,
-                properties = null
-            )
-        }
-    }
+    fun openPropertiesForSelection() = propertiesDelegate.openPropertiesForSelection()
+    fun dismissProperties() = propertiesDelegate.dismissProperties()
 
     fun copySelectedToClipboard() = clipboardDelegate.copySelectedToClipboard()
     fun cutSelectedToClipboard() = clipboardDelegate.cutSelectedToClipboard()
@@ -797,57 +606,4 @@ class BrowserViewModel @Inject constructor(
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
 
-    private fun formatOperationCompletedMessage(
-        type: BulkFileOperationType,
-        itemCount: Int
-    ): UiText {
-        val pluralRes = when (type) {
-            BulkFileOperationType.COPY -> R.plurals.file_operation_copied_items
-            BulkFileOperationType.MOVE -> R.plurals.file_operation_moved_items
-            BulkFileOperationType.TRASH -> R.plurals.file_operation_trashed_items
-            BulkFileOperationType.DELETE -> R.plurals.file_operation_deleted_items
-            BulkFileOperationType.CREATE_FAKE -> R.plurals.file_operation_created_items
-            BulkFileOperationType.EXTRACT_ARCHIVE -> R.plurals.file_operation_extracted_items
-            BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items
-        }
-        return UiText.PluralResource(pluralRes, itemCount, listOf(itemCount))
-    }
-
-    private suspend fun trashUndoIdsFor(sourcePaths: List<String>): List<String> {
-        val sourceSet = sourcePaths.toSet()
-        return repository.getTrashFiles().getOrNull()
-            ?.filter { it.originalPath in sourceSet }
-            ?.sortedByDescending { it.deletionTime }
-            ?.map { it.id }
-            ?.take(sourcePaths.size)
-            .orEmpty()
-    }
-
-    private fun nextArchivePath(
-        currentPath: String,
-        selected: List<String>,
-        requestedName: String? = null,
-        format: ArchiveFormat = ArchiveFormat.ZIP
-    ): String {
-        val defaultBaseName = if (selected.size == 1) {
-            java.io.File(selected.first()).nameWithoutExtension.ifBlank { "Archive" }
-        } else {
-            "Archive"
-        }
-        val extension = format.extension
-        val cleanedName = requestedName
-            ?.substringBeforeLast(".${extension}", requestedName)
-            ?.replace('/', '_')
-            ?.replace('\\', '_')
-            ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: defaultBaseName
-        var candidate = java.io.File(currentPath, "$cleanedName.$extension")
-        var index = 1
-        while (candidate.exists()) {
-            candidate = java.io.File(currentPath, "$cleanedName ($index).$extension")
-            index += 1
-        }
-        return candidate.absolutePath
-    }
 }

@@ -479,45 +479,6 @@ private fun CleanerCandidateRow(
 }
 
 @Composable
-private fun cleanerTitle(type: CleanerGroupType): String = when (type) {
-    CleanerGroupType.LargeFiles -> stringResource(R.string.cleaner_large_files)
-    CleanerGroupType.OldDownloads -> stringResource(R.string.cleaner_old_downloads)
-    CleanerGroupType.Duplicates -> stringResource(R.string.cleaner_duplicates)
-    CleanerGroupType.Apks -> stringResource(R.string.cleaner_apks)
-    CleanerGroupType.Videos -> stringResource(R.string.cleaner_videos)
-    CleanerGroupType.Junk -> stringResource(R.string.cleaner_junk)
-}
-
-@Composable
-private fun cleanerDescription(type: CleanerGroupType): String = when (type) {
-    CleanerGroupType.LargeFiles -> stringResource(R.string.cleaner_large_files_desc)
-    CleanerGroupType.OldDownloads -> stringResource(R.string.cleaner_old_downloads_desc)
-    CleanerGroupType.Duplicates -> stringResource(R.string.cleaner_duplicates_desc)
-    CleanerGroupType.Apks -> stringResource(R.string.cleaner_apks_desc)
-    CleanerGroupType.Videos -> stringResource(R.string.cleaner_videos_desc)
-    CleanerGroupType.Junk -> stringResource(R.string.cleaner_junk_desc)
-}
-
-@Composable
-private fun cleanerColor(type: CleanerGroupType): Color = when (type) {
-    CleanerGroupType.LargeFiles -> MaterialTheme.colorScheme.primary
-    CleanerGroupType.OldDownloads -> MaterialTheme.colorScheme.secondary
-    CleanerGroupType.Duplicates -> MaterialTheme.colorScheme.tertiary
-    CleanerGroupType.Apks -> MaterialTheme.colorScheme.primary
-    CleanerGroupType.Videos -> MaterialTheme.colorScheme.secondary
-    CleanerGroupType.Junk -> MaterialTheme.colorScheme.error
-}
-
-private fun cleanerIcon(type: CleanerGroupType): ImageVector = when (type) {
-    CleanerGroupType.LargeFiles -> Icons.Default.Storage
-    CleanerGroupType.OldDownloads -> Icons.Default.Download
-    CleanerGroupType.Duplicates -> Icons.Default.CopyAll
-    CleanerGroupType.Apks -> Icons.Default.Android
-    CleanerGroupType.Videos -> Icons.Default.VideoFile
-    CleanerGroupType.Junk -> Icons.Default.DeleteSweep
-}
-
-@Composable
 private fun DuplicateGroupCard(
     filesInGroup: List<CleanerCandidate>,
     selectedFiles: Set<String>,

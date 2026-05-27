@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -30,21 +29,11 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -53,9 +42,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -68,7 +55,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -78,7 +64,6 @@ import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.asString
-import dev.qtremors.arcile.presentation.containingFolderPath
 import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
 import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
@@ -189,7 +174,7 @@ fun RecentFilesScreen(
         },
         topBar = {
             when {
-                isSelectionMode -> SelectionTopBar(
+                isSelectionMode -> RecentSelectionTopBar(
                     selectedCount = state.selectedFiles.size,
                     onClearSelection = onClearSelection
                 )
@@ -295,7 +280,7 @@ fun RecentFilesScreen(
                 }
             }
 
-            SelectionToolbar(
+            RecentSelectionToolbar(
                 isVisible = isSelectionMode,
                 selectedFiles = state.selectedFiles,
                 contentPadding = padding,
@@ -359,28 +344,6 @@ fun RecentFilesScreen(
         )
     }
 }
-
-@Composable
-private fun SelectionTopBar(
-    selectedCount: Int,
-    onClearSelection: () -> Unit
-) {
-    TopAppBar(
-        title = { Text(stringResource(R.string.selected_count, selectedCount)) },
-        navigationIcon = {
-            IconButton(onClick = onClearSelection) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.clear_selection))
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-    )
-}
-
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun RecentFilesContent(
@@ -602,146 +565,3 @@ private fun RecentFilesContent(
         }
     }
 }
-
-@Composable
-private fun RecentDateHeaderPill(dateHeader: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.primary,
-            tonalElevation = 3.dp,
-            shadowElevation = 2.dp
-        ) {
-            Text(
-                text = dateHeader,
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun SelectionToolbar(
-    isVisible: Boolean,
-    selectedFiles: Set<String>,
-    contentPadding: PaddingValues,
-    onSelectAll: () -> Unit,
-    onShareSelected: () -> Unit,
-    onRequestDeleteSelected: () -> Unit,
-    onOpenProperties: () -> Unit,
-    onOpenContainingFolder: (String) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        val mainActions = listOf(
-            ToolbarAction(
-                icon = Icons.Default.SelectAll,
-                contentDescription = stringResource(R.string.select_all),
-                onClick = onSelectAll
-            ),
-            ToolbarAction(
-                icon = Icons.Default.Share,
-                contentDescription = stringResource(R.string.share),
-                onClick = onShareSelected
-            ),
-            ToolbarAction(
-                icon = Icons.Default.Delete,
-                contentDescription = stringResource(R.string.delete),
-                tint = MaterialTheme.colorScheme.error,
-                onClick = onRequestDeleteSelected
-            )
-        )
-
-        dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
-            isVisible = isVisible,
-            actions = mainActions,
-            moreContent = {
-                var showMoreMenu by remember { mutableStateOf(false) }
-                Box {
-                    Surface(
-                        onClick = { showMoreMenu = true },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = stringResource(R.string.action_more_options),
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                    androidx.compose.material3.DropdownMenu(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        expanded = showMoreMenu,
-                        onDismissRequest = { showMoreMenu = false }
-                    ) {
-                        val menuActions = remember(onOpenProperties, selectedFiles) {
-                            mutableListOf<@Composable () -> Unit>().apply {
-                                if (selectedFiles.size == 1) {
-                                    add {
-                                        androidx.compose.material3.DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.open_containing_folder)) },
-                                            leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
-                                            onClick = {
-                                                showMoreMenu = false
-                                                containingFolderPath(selectedFiles.first())?.let(onOpenContainingFolder)
-                                            }
-                                        )
-                                    }
-                                }
-                                add {
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.properties_title)) },
-                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                        onClick = {
-                                            showMoreMenu = false
-                                            onOpenProperties()
-                                        }
-                                    )
-                                }
-                            }
-                        }
-
-                        menuActions.forEachIndexed { index, action ->
-                            val shape = when {
-                                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                                index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                                else -> MaterialTheme.shapes.menuGroupMiddle
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(shape)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            ) {
-                                action()
-                            }
-                        }
-                    }
-                }
-            }
-        )
-    }
-}
-
-private fun shouldGroupRecentFiles(
-    showSearchBar: Boolean,
-    presentation: BrowserPresentationPreferences
-): Boolean = !showSearchBar &&
-    presentation.sortOption in setOf(FileSortOption.DATE_NEWEST, FileSortOption.DATE_OLDEST)

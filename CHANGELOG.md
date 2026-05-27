@@ -1,10 +1,21 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.5
-> **Last Updated:** 2026-05-26
+> **Version:** 0.8.6
+> **Last Updated:** 2026-05-27
 
 ---
+
+## [0.8.6] - 2026-05-27
+
+### Architecture
+- **Browser ViewModel Delegates:** Extracted operation-event handling, archive actions, and properties loading from `BrowserViewModel`, keeping it under the 700 LOC architecture budget.
+- **In-Module Boundary Completion:** Completed the current in-module architecture/refactor slice while leaving Gradle module extraction tracked separately in `ARCH-0037`.
+- **Large File Budget Hardening:** Removed the temporary large-file allowlist from `ArchitectureBoundaryTest`; Kotlin and docs HTML files now fail the budget check directly when they exceed 700 LOC.
+
+### Maintainability
+- **Browser ViewModel Test Split:** Moved shared browser ViewModel fixtures into a dedicated fixture file and split navigation/search coverage out of the former 1k+ LOC suite.
+- **Screen And Data Source Splits:** Extracted recent-files selection/grouping UI, MediaStore query helpers, cleaner metadata helpers, and trash control UI into focused files.
 
 ## [0.8.5] - 2026-05-26
 

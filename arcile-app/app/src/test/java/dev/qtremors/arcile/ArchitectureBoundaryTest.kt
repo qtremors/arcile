@@ -82,12 +82,8 @@ class ArchitectureBoundaryTest {
     @Test
     fun `large files stay within the architecture budget`() {
         val projectRoot = projectRoot()
-        val allowedLargeFiles = setOf(
-            "app/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt",
-            "app/src/main/java/dev/qtremors/arcile/presentation/ui/RecentFilesScreen.kt",
-            "app/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreClient.kt",
-            "app/src/test/java/dev/qtremors/arcile/feature/browser/BrowserViewModelTest.kt"
-        )
+        // Keep in-module feature/core boundaries enforceable by preventing catch-all files.
+        val allowedLargeFiles = emptySet<String>()
         val roots = listOf(
             File(projectRoot, "app/src/main/java"),
             File(projectRoot, "app/src/test/java"),
