@@ -10,7 +10,11 @@ class ArchitectureBoundaryTest {
         val sourceRoot = sourceRoot("feature")
         val concreteDataImport = Regex("""import dev\.qtremors\.arcile\.core\.storage\.data\.(.+)""")
         val allowedStorageDataImports = setOf(
-            "BrowserPreferencesStore"
+            "BrowserPreferencesStore",
+            "OnboardingPreferencesStore",
+            "QuickAccessPreferencesRepository",
+            "StorageCleanerScanner",
+            "StorageUsageScanner"
         )
         val offenders = sourceRoot.kotlinFiles()
             .filter { it.isFile && it.extension == "kt" }
@@ -28,6 +32,110 @@ class ArchitectureBoundaryTest {
 
         if (offenders.isNotEmpty()) {
             fail("Feature packages must depend on storage public APIs, not concrete data implementations:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `feature packages do not import presentation internals`() {
+        val sourceRoot = sourceRoot("feature")
+        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.presentation\..+""")
+        val offenders = sourceRoot.kotlinFiles()
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbiddenImport.matches(line.trim())) violation(file, index, line) else null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Feature packages must depend on core/shared or their own feature contracts, not presentation internals:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `presentation shell imports only approved feature entry points`() {
+        val sourceRoot = sourceRoot("presentation")
+        val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.(.+)""")
+        val allowedFeatureImports = setOf(
+            "archive.ArchiveViewerScreen",
+            "archive.ArchiveViewerViewModel",
+            "browser.BrowserViewModel",
+            "browser.ui.BrowserScreen",
+            "quickaccess.QuickAccessScreen",
+            "quickaccess.QuickAccessViewModel",
+            "recentfiles.RecentFilesViewModel",
+            "recentfiles.ui.RecentFilesScreen",
+            "storagecleaner.StorageCleanerViewModel",
+            "storagecleaner.ui.StorageCleanerScreen",
+            "storageusage.StorageUsageViewModel",
+            "storageusage.ui.StorageUsageMap",
+            "trash.TrashScreen",
+            "trash.TrashViewModel"
+        )
+        val allowedShellFiles = setOf(
+            "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
+            "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
+            "dev/qtremors/arcile/presentation/ui/StorageDashboardScreen.kt"
+        )
+        val offenders = sourceRoot.kotlinFiles()
+            .flatMap { file ->
+                val relativePath = file.relativeTo(File(projectRoot(), "app/src/main/java")).invariantSeparatorsPath
+                file.readLines().mapIndexedNotNull { index, line ->
+                    val importedName = featureImport.matchEntire(line.trim())?.groupValues?.get(1)
+                    if (importedName != null &&
+                        (relativePath !in allowedShellFiles || importedName !in allowedFeatureImports)
+                    ) {
+                        violation(file, index, line)
+                    } else {
+                        null
+                    }
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Presentation may import feature code only from approved app-shell composition files:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `feature packages do not import unrelated feature packages`() {
+        val sourceRoot = sourceRoot("feature")
+        val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.([^.]+)\..+""")
+        val offenders = sourceRoot.kotlinFiles()
+            .flatMap { file ->
+                val relativePath = file.relativeTo(sourceRoot).invariantSeparatorsPath
+                val owningFeature = relativePath.substringBefore('/', missingDelimiterValue = "")
+                file.readLines().mapIndexedNotNull { index, line ->
+                    val importedFeature = featureImport.matchEntire(line.trim())?.groupValues?.get(1)
+                    if (importedFeature != null && importedFeature != owningFeature) {
+                        violation(file, index, line)
+                    } else {
+                        null
+                    }
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Feature packages must not depend on unrelated feature packages:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `shared ui does not import feature or app shell presentation code`() {
+        val sourceRoot = sourceRoot("shared/ui")
+        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(feature\..+|presentation\.ui\..+)""")
+        val offenders = sourceRoot.kotlinFiles()
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbiddenImport.matches(line.trim())) violation(file, index, line) else null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Shared UI must stay feature-neutral and must not import app shell presentation UI:\n${offenders.joinToString("\n")}")
         }
     }
 

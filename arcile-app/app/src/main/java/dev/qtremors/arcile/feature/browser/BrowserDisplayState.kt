@@ -4,10 +4,10 @@ import androidx.compose.runtime.Immutable
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.presentation.FolderTab
-import dev.qtremors.arcile.presentation.buildFolderTabs
-import dev.qtremors.arcile.presentation.filterAndSortFiles
-import dev.qtremors.arcile.presentation.filterFilesByFolderTab
+import dev.qtremors.arcile.shared.presentation.FolderTab
+import dev.qtremors.arcile.shared.presentation.buildFolderTabs
+import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
+import dev.qtremors.arcile.shared.presentation.filterFilesByFolderTab
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf

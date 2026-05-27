@@ -11,7 +11,7 @@ import android.content.IntentSender
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
 import dev.qtremors.arcile.core.storage.domain.NativeConfirmationRequiredException
 import dev.qtremors.arcile.core.ui.UiText
-import dev.qtremors.arcile.presentation.utils.LocalSearchHelper
+import dev.qtremors.arcile.shared.presentation.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

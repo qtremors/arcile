@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.presentation.ui
 
-import dev.qtremors.arcile.presentation.ui.components.ToolItem
-import dev.qtremors.arcile.presentation.ui.components.ToolCard
-import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
+import dev.qtremors.arcile.shared.ui.ToolItem
+import dev.qtremors.arcile.shared.ui.ToolCard
+import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState

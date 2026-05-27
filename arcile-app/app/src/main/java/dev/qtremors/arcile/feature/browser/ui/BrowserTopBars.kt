@@ -9,10 +9,10 @@ import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
-import dev.qtremors.arcile.presentation.ui.components.TopBarAction
-import dev.qtremors.arcile.presentation.ui.components.lists.ActiveFiltersRow
+import dev.qtremors.arcile.shared.ui.ArcileTopBar
+import dev.qtremors.arcile.shared.ui.SearchTopBar
+import dev.qtremors.arcile.shared.ui.TopBarAction
+import dev.qtremors.arcile.shared.ui.lists.ActiveFiltersRow
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 

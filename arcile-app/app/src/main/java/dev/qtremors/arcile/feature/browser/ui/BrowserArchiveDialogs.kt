@@ -36,8 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.presentation.ui.components.dialogs.FileNameInput
-import dev.qtremors.arcile.presentation.ui.components.dialogs.validateFileName
+import dev.qtremors.arcile.shared.ui.dialogs.FileNameInput
+import dev.qtremors.arcile.shared.ui.dialogs.validateFileName
 
 @Composable
 internal fun CreateArchiveDialog(

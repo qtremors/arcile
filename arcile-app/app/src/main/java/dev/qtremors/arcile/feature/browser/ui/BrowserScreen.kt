@@ -32,9 +32,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.presentation.ClipboardOperation
-import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
-import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect

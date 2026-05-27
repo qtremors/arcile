@@ -103,7 +103,7 @@ fun RecentFileCarouselItem(
             FileCategories.Videos.extensions.contains(extension)
         )
     val previewAccent = previewAccentFor(file)
-    val previewIcon = dev.qtremors.arcile.presentation.ui.components.getFileIconVector(file)
+    val previewIcon = dev.qtremors.arcile.shared.ui.getFileIconVector(file)
     val context = LocalContext.current
     val thumbnailRequest = remember(file.absolutePath, thumbnailSizePx) {
         ImageRequest.Builder(context)

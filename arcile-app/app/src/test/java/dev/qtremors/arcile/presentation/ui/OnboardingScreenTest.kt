@@ -8,8 +8,9 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import dev.qtremors.arcile.presentation.onboarding.OnboardingStep
-import dev.qtremors.arcile.presentation.onboarding.OnboardingUiState
+import dev.qtremors.arcile.feature.onboarding.OnboardingStep
+import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import dev.qtremors.arcile.ui.theme.ThemeState
 import org.junit.Rule

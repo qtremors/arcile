@@ -50,9 +50,9 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList
+import dev.qtremors.arcile.shared.ui.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable

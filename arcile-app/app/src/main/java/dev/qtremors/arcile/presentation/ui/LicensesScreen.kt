@@ -39,9 +39,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
-import dev.qtremors.arcile.presentation.ui.components.ArcileSectionHeader
-import dev.qtremors.arcile.presentation.ui.components.ArcileListSurface
+import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
+import dev.qtremors.arcile.shared.ui.ArcileListSurface
 
 // ──────────────────────────────────────────────────────
 // Data model for a third-party library entry

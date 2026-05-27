@@ -7,8 +7,8 @@ import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope

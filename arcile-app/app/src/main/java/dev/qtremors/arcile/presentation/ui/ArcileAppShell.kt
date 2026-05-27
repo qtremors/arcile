@@ -46,13 +46,13 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.feature.trash.TrashViewModel
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable

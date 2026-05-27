@@ -26,10 +26,10 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
-import dev.qtremors.arcile.presentation.ui.components.ToolbarAction
-import dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup
-import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
-import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.shared.ui.ToolbarAction
+import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
@@ -60,7 +60,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.rememberScrollState
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
+import dev.qtremors.arcile.shared.ui.SearchTopBar
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.SelectAll
@@ -97,10 +97,10 @@ import dev.qtremors.arcile.feature.trash.TrashFilter
 import dev.qtremors.arcile.feature.trash.TrashPropertiesUiModel
 import dev.qtremors.arcile.feature.trash.TrashState
 import dev.qtremors.arcile.feature.trash.TrashSortOption
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.trash.EmptyTrashDialog
-import dev.qtremors.arcile.presentation.ui.components.trash.TrashList
+import dev.qtremors.arcile.shared.ui.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.feature.trash.ui.EmptyTrashDialog
+import dev.qtremors.arcile.feature.trash.ui.TrashList
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -251,18 +251,18 @@ fun TrashScreen(
                     actions = {
                         if (!isSelectionMode) {
                             val topActions = listOf(
-                                dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                                dev.qtremors.arcile.shared.ui.ToolbarAction(
                                     icon = Icons.Default.Search,
                                     contentDescription = stringResource(R.string.action_search),
                                     onClick = { showSearchBar = true }
                                 ),
-                                dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                                dev.qtremors.arcile.shared.ui.ToolbarAction(
                                     icon = Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = stringResource(R.string.action_sort),
                                     onClick = { showSortDialog = true }
                                 )
                             )
-                            dev.qtremors.arcile.presentation.ui.components.SplitButtonGroup(actions = topActions)
+                            dev.qtremors.arcile.shared.ui.SplitButtonGroup(actions = topActions)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -353,25 +353,25 @@ fun TrashScreen(
                     .padding(padding),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                val mainActions = mutableListOf<dev.qtremors.arcile.presentation.ui.components.ToolbarAction>()
-                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                val mainActions = mutableListOf<dev.qtremors.arcile.shared.ui.ToolbarAction>()
+                mainActions.add(dev.qtremors.arcile.shared.ui.ToolbarAction(
                     icon = Icons.Default.SelectAll,
                     contentDescription = stringResource(R.string.select_all),
                     onClick = onSelectAll
                 ))
-                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                mainActions.add(dev.qtremors.arcile.shared.ui.ToolbarAction(
                     icon = Icons.Default.Restore,
                     contentDescription = stringResource(R.string.restore),
                     onClick = onRestoreSelected
                 ))
-                mainActions.add(dev.qtremors.arcile.presentation.ui.components.ToolbarAction(
+                mainActions.add(dev.qtremors.arcile.shared.ui.ToolbarAction(
                     icon = Icons.Default.DeleteForever,
                     contentDescription = stringResource(R.string.delete_permanently),
                     tint = MaterialTheme.colorScheme.error,
                     onClick = onPermanentlyDeleteSelected
                 ))
                 
-                dev.qtremors.arcile.presentation.ui.components.FloatingSelectionToolbar(
+                dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar(
                     isVisible = isSelectionMode,
                     actions = mainActions,
                     moreContent = {
@@ -429,7 +429,7 @@ fun TrashScreen(
         }
 
         if (state.showPermanentDeleteConfirmation) {
-            dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog(
+            dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog(
                 selectedCount = state.selectedFiles.size,
                 isPermanentDeleteChecked = true,
                 isPermanentDeleteToggleEnabled = false,

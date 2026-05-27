@@ -89,7 +89,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.combinedClickable
-import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.shared.ui.TopBarAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -110,13 +110,13 @@ import dev.qtremors.arcile.ui.theme.titleLargeBold
 import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium
-import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
+import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.ui.components.ToolCard
-import dev.qtremors.arcile.presentation.ui.components.ToolItem
+import dev.qtremors.arcile.shared.ui.ArcileTopBar
+import dev.qtremors.arcile.shared.ui.ToolCard
+import dev.qtremors.arcile.shared.ui.ToolItem
 import dev.qtremors.arcile.presentation.ui.components.home.StorageSummaryCard
 import dev.qtremors.arcile.presentation.ui.components.home.CategoryGrid
 import dev.qtremors.arcile.presentation.ui.components.home.QuickAccessGrid
@@ -126,11 +126,11 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
-import dev.qtremors.arcile.presentation.ui.components.shimmer
-import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
+import dev.qtremors.arcile.shared.ui.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.SearchTopBar
+import dev.qtremors.arcile.shared.ui.shimmer
+import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
@@ -152,7 +152,7 @@ import androidx.compose.ui.platform.LocalContext
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 
 private const val HomeRecentFilesPreviewLimit = 12
 private const val HomeRecentFilesPreloadLimit = 6
@@ -323,7 +323,7 @@ fun HomeScreen(
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val dateFormatter = dev.qtremors.arcile.presentation.utils.rememberDateFormatter("MMM dd, yyyy")
+    val dateFormatter = dev.qtremors.arcile.shared.ui.rememberDateFormatter("MMM dd, yyyy")
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),

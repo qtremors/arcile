@@ -5,6 +5,7 @@ import android.content.Intent
 import android.app.Notification
 import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -163,6 +164,8 @@ class BulkFileOperationServiceTest {
             assertTrue(notifications.any { notification -> notification.actions.any { it.title == "Cancel" } })
         } finally {
             finishOperation.countDown()
+            verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+            awaitInactiveMutation()
         }
     }
 

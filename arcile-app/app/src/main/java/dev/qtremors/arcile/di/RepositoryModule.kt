@@ -39,7 +39,7 @@ import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.DefaultOperationJournal
 import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
 import dev.qtremors.arcile.presentation.operations.OperationJournal

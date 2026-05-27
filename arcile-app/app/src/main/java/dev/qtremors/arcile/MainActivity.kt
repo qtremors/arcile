@@ -22,13 +22,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.presentation.MainViewModel
-import dev.qtremors.arcile.presentation.onboarding.OnboardingStep
-import dev.qtremors.arcile.presentation.onboarding.OnboardingViewModel
+import dev.qtremors.arcile.feature.onboarding.OnboardingStep
+import dev.qtremors.arcile.feature.onboarding.OnboardingViewModel
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.utils.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
-import dev.qtremors.arcile.presentation.ui.OnboardingScreen
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState

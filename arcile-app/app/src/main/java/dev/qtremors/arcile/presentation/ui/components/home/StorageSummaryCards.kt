@@ -62,7 +62,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.components.shimmer
+import dev.qtremors.arcile.shared.ui.shimmer
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium

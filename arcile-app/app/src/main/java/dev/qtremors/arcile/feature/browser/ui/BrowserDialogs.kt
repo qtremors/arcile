@@ -6,16 +6,16 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.presentation.ui.components.PasteConflictDialog
-import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
-import dev.qtremors.arcile.presentation.ui.components.SortOptionDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.ClipboardContentsDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFakeFileDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFileDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.CreateFolderDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.PropertiesDialog
-import dev.qtremors.arcile.presentation.ui.components.dialogs.RenameDialog
+import dev.qtremors.arcile.shared.ui.PasteConflictDialog
+import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
+import dev.qtremors.arcile.shared.ui.SortOptionDialog
+import dev.qtremors.arcile.shared.ui.dialogs.ClipboardContentsDialog
+import dev.qtremors.arcile.shared.ui.dialogs.CreateFakeFileDialog
+import dev.qtremors.arcile.shared.ui.dialogs.CreateFileDialog
+import dev.qtremors.arcile.shared.ui.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
 import java.io.File
 
 @Composable

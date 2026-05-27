@@ -10,7 +10,8 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
+import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
+import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test

@@ -41,9 +41,12 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
-import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.presentation.storagecleaner.StorageCleanerViewModel
+import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
+import dev.qtremors.arcile.feature.quickaccess.QuickAccessScreen
+import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
+import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerViewModel
+import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -57,38 +60,6 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
-
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    private val browserPreferencesStore: BrowserPreferencesStore,
-    private val onboardingPreferencesStore: OnboardingPreferencesStore
-) : ViewModel() {
-    val browserPreferences = browserPreferencesStore.preferencesFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserPreferences())
-
-    fun updateShowThumbnails(show: Boolean) {
-        viewModelScope.launch {
-            val current = browserPreferences.value.globalPresentation
-            browserPreferencesStore.updateGlobalPresentation(current.copy(showThumbnails = show))
-        }
-    }
-
-    suspend fun resetOnboarding() {
-        onboardingPreferencesStore.resetOnboarding()
-    }
-}
-
-internal enum class BrowserBackFallback {
-    PopAppBackStack,
-    ShowHomePager
-}
-
-internal fun browserBackFallback(hasPreviousBackStackEntry: Boolean): BrowserBackFallback =
-    if (hasPreviousBackStackEntry) {
-        BrowserBackFallback.PopAppBackStack
-    } else {
-        BrowserBackFallback.ShowHomePager
-    }
 
 @Composable
 fun AppNavigationGraph(

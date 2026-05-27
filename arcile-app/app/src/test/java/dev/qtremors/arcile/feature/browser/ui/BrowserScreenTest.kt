@@ -447,7 +447,7 @@ class BrowserScreenTest {
                         currentPath = "/storage/emulated/0/Download",
                         selectedFiles = setOf("/storage/emulated/0/Download/Docs").toPersistentSet(),
                         isPropertiesVisible = true,
-                        properties = dev.qtremors.arcile.feature.browser.PropertiesUiModel(
+                        properties = dev.qtremors.arcile.shared.presentation.PropertiesUiModel(
                             title = "Docs",
                             pathSummary = "/storage/emulated/0/Download/Docs",
                             itemCount = 1,

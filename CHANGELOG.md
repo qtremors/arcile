@@ -1,10 +1,27 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.6
+> **Version:** 0.8.7
 > **Last Updated:** 2026-05-27
 
 ---
+
+## [0.8.7] - 2026-05-27
+
+### Architecture
+- **Feature Boundary Decoupling:** Moved feature-facing operation, clipboard, operation status, local search, folder-tab, file presentation, and delete-flow contracts out of `presentation.*` into `core.*` or `shared.*` packages.
+- **Shared UI Boundary:** Promoted reusable Compose primitives, dialogs, list/grid UI, haptics, snackbars, date formatting, progress smoothing, and presentation contracts into `shared.ui` / `shared.presentation` as the in-module boundary for future shared UI extraction.
+- **Trash UI Ownership:** Moved trash-specific list and empty-trash UI into `feature.trash.ui` so shared UI remains feature-neutral.
+- **Feature Package Normalization:** Moved recent files, storage cleaner, storage usage, quick access, and onboarding implementation into explicit `feature.*` packages while keeping app-shell navigation and Hilt composition in `presentation.ui`.
+- **Shared Settings UI Boundary:** Moved reusable theme, accent, and settings-section controls into `shared.ui.settings` so feature-owned onboarding no longer depends on presentation UI internals.
+- **Architecture Guardrails:** Tightened architecture tests so feature packages cannot import presentation internals, shared UI cannot import feature/app-shell UI code, and features cannot import unrelated feature packages.
+- **App Shell Import Guardrails:** Added explicit architecture-test coverage for the small set of feature entry points that `presentation.ui` may import for app-shell composition.
+
+### Maintainability
+- **Near-Threshold Screen Splits:** Split storage cleaner, onboarding, and recent-files screens into focused shell/content/chrome/detail files, and extracted settings/navigation helper code out of `AppNavigationGraph`.
+
+### Verification
+- **Regression Coverage:** Verified with `:app:compileDebugKotlin`, `:app:testDebugUnitTest`, and `:app:checkProductionStrings`.
 
 ## [0.8.6] - 2026-05-27
 

@@ -25,14 +25,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
+import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
-import dev.qtremors.arcile.presentation.ui.components.settings.ThemeModeSelector
-import dev.qtremors.arcile.presentation.ui.components.settings.AccentColorSelector
-import dev.qtremors.arcile.presentation.ui.components.settings.SettingsSection
-import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
-import dev.qtremors.arcile.presentation.ui.components.ArcileSectionHeader
-import dev.qtremors.arcile.presentation.ui.components.ArcileListSurface
+import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
+import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
+import dev.qtremors.arcile.shared.ui.settings.SettingsSection
+import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
+import dev.qtremors.arcile.shared.ui.ArcileListSurface
 
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.R

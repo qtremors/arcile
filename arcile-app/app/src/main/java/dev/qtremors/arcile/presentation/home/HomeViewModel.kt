@@ -19,7 +19,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.UiText
-import dev.qtremors.arcile.presentation.filterAndSortFiles
+import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentListOf

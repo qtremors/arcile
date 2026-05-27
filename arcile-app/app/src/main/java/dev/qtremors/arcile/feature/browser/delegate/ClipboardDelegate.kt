@@ -3,12 +3,12 @@ package dev.qtremors.arcile.feature.browser.delegate
 import dev.qtremors.arcile.R
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileRepository
-import dev.qtremors.arcile.presentation.ClipboardOperation
-import dev.qtremors.arcile.presentation.ClipboardState
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.feature.browser.BrowserDialogEvent
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.feature.browser.reduce
-import dev.qtremors.arcile.presentation.operations.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.ui.UiText
 import kotlinx.collections.immutable.persistentListOf

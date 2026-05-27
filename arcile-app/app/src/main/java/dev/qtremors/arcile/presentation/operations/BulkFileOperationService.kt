@@ -11,6 +11,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -81,7 +82,7 @@ class BulkFileOperationService : Service() {
                     serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
                     coordinator.onOperationCancelling(request)
                     currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
-                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopForegroundSafely()
                     stopSelf(startId)
                 }
                 return START_NOT_STICKY
@@ -169,7 +170,7 @@ class BulkFileOperationService : Service() {
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
-                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopForegroundSafely()
                         stopSelf(capturedStartId)
                     }
                 }
@@ -286,6 +287,12 @@ class BulkFileOperationService : Service() {
             description = getString(R.string.notification_channel_file_operations_description)
         }
         manager.createNotificationChannel(channel)
+    }
+
+    private fun stopForegroundSafely() {
+        runCatching {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
     }
 
     companion object {

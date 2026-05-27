@@ -58,11 +58,11 @@ import dev.qtremors.arcile.R
 import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
 import dev.qtremors.arcile.feature.archive.ArchiveOperationUiState
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
-import dev.qtremors.arcile.presentation.operations.OperationCompletionStatus
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.rememberArcileHaptics
-import dev.qtremors.arcile.presentation.ui.components.ArcileScreenScaffold
+import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.shared.ui.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.DateFormat
