@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.7
-> **Last Updated:** 2026-05-27
+> **Version:** 0.8.8
+> **Last Updated:** 2026-05-28
 
 ---
+
+## [0.8.8] - 2026-05-28
+
+### Architecture
+- **Archive Manager Split:** Split archive orchestration from ZIP and 7z format handling while keeping the existing `ArchiveManager` contract unchanged.
+
+### Maintainability
+- **Browser ViewModel Test Split:** Split the remaining browser ViewModel coverage into behavior-focused test files for clipboard, operations, navigation, and folder stats/properties.
+- **Architecture Task Refresh:** Marked the roadmap and near-threshold architecture cleanup tasks complete while leaving actual Gradle module extraction tracked in the follow-up architecture tasks.
 
 ## [0.8.7] - 2026-05-27
 

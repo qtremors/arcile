@@ -2,53 +2,13 @@
 
 > **Project:** Arcile
 > **Version:** 0.8.7
-> **Last Updated:** 2026-05-27
+> **Last Updated:** 2026-05-28
 
 ---
 
 ## Consolidated Tasks
 
 ### Architecture / Maintainability Tasks
-
-- [ ] **ARCH-0037 - Prepare Gradle Module Extraction Roadmap** `[Medium]`
-  - **Location:** `arcile-app/settings.gradle.kts`, `arcile-app/app/build.gradle.kts`, `arcile-app/build-logic/**`
-  - **Problem:** The repo currently has a single Android `:app` module, so package boundaries are enforced by tests and convention instead of compile-time module edges.
-  - **Impact:** VFS/storage providers, persistent operation manager, network storage, archive expansion, dual-pane browsing, and richer feature surfaces will keep increasing pressure on shared code unless module seams are planned explicitly.
-  - **Fix:** Maintain a staged extraction roadmap that bridges from the current single-module package cleanup to Gradle modules. Sequence the work as feature/presentation decoupling, shared UI contracts, feature package normalization, core operation/domain extraction, storage data extraction, shared UI extraction, and finally feature module extraction.
-  - **Status:** Open. This is the umbrella roadmap for the remaining single-module-to-multi-module architecture work.
-  - **Verification:** Each phase has its own task, compiling intermediate state, and no requirement to move unrelated features at the same time.
-
-- [x] **MAINT-0042 - Decouple Feature Packages From Presentation Internals** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/feature/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/**`
-  - **Problem:** Feature packages still import presentation-owned operation contracts, clipboard state, operation status models, local search helpers, folder tab helpers, and shared utility code.
-  - **Impact:** Feature modules will depend on the presentation package shape instead of stable app/core/shared contracts, making Gradle extraction fragile and forcing unrelated UI moves.
-  - **Fix:** Move feature-facing contracts and helpers out of `presentation.*` into core/shared or feature-owned packages. Keep presentation-only rendering and Android UI effects in presentation/shared UI packages.
-  - **Status:** Complete. Feature-facing operation, clipboard, status, search, folder-tab, file presentation, and delete-flow contracts now live under `core.*` or `shared.*`; architecture tests prevent feature packages from importing `presentation.*`.
-  - **Verification:** Add or tighten architecture tests so feature packages cannot import presentation internals except explicitly shared UI APIs until those APIs move to a shared package.
-
-- [x] **MAINT-0043 - Promote Shared UI And Presentation Contracts** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/**`
-  - **Problem:** Reusable Compose components, dialogs, list/grid UI, snackbars, haptics, date formatting, and file-row presentation models live under broad presentation packages.
-  - **Impact:** Browser, trash, archive, recent files, cleaner, and future feature modules need the same UI primitives, but today those dependencies look like feature-to-presentation coupling.
-  - **Fix:** Establish a shared UI/package boundary inside `:app` for reusable UI primitives and presentation contracts before extracting a Gradle module. Keep feature-specific screens and ViewModels outside the shared boundary.
-  - **Status:** Complete. Feature-facing reusable Compose primitives moved to `shared.ui`, reusable presentation contracts moved to `shared.presentation`, and trash-only UI moved to `feature.trash.ui`.
-  - **Verification:** Architecture tests allow feature packages to depend on the shared UI boundary while preventing imports from app shell or unrelated feature packages.
-
-- [x] **MAINT-0044 - Normalize Remaining Feature Packages Inside `:app`** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/feature/**`
-  - **Problem:** Recent files, storage cleaner, storage usage, quick access, onboarding, and properties UI models are still split between broad presentation packages and feature packages.
-  - **Impact:** Module extraction will require larger moves if feature ownership remains unclear, and app shell/navigation code will continue to mix feature composition with feature implementation.
-  - **Fix:** Move remaining feature implementation into explicit feature-style packages while keeping navigation, Hilt composition, and app-level shell wiring in `:app`/presentation shell packages.
-  - **Status:** Complete. Recent files, storage cleaner, storage usage, quick access, and onboarding now live under explicit `feature.*` packages; reusable settings UI moved to `shared.ui.settings`; app shell composition remains in `presentation.ui`.
-  - **Verification:** Package-boundary tests document the allowed app-shell imports and fail if feature implementation leaks back into generic presentation packages.
-
-- [ ] **MAINT-0045 - Split Near-Threshold Screens And Managers** `[Medium]`
-  - **Location:** `StorageCleanerScreen.kt`, `ArchiveManager.kt`, `OnboardingScreen.kt`, `AppNavigationGraph.kt`, `BrowserViewModelTest.kt`, `docs/index.html`
-  - **Problem:** Several files remain below the 700 LOC budget but are close enough to become catch-all files during normal backlog work.
-  - **Impact:** Review risk and merge conflicts will grow around storage cleaner, archive handling, onboarding, navigation, browser tests, and docs updates.
-  - **Fix:** Preemptively split route/effects from content, manager policies from format-specific archive operations, onboarding page content from shell controls, navigation shell helpers from route declarations, and browser tests by behavior.
-  - **Status:** Partial. The feature-normalization pass split `StorageCleanerScreen.kt`, `OnboardingScreen.kt`, and recent-files screen/content files, and extracted navigation helper/settings ViewModel code from `AppNavigationGraph.kt`; `ArchiveManager.kt`, `BrowserViewModelTest.kt`, and docs split work remains open.
-  - **Verification:** `ArchitectureBoundaryTest` continues to pass with no large-file allowlist, and focused tests cover any extracted behavior.
 
 - [ ] **ARCH-0046 - Extract Core Operation And Storage Domain Modules** `[High]`
   - **Location:** `arcile-app/settings.gradle.kts`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/operation/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/domain/**`

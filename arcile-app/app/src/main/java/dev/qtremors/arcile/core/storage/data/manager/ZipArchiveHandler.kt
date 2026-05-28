@@ -1,0 +1,238 @@
+package dev.qtremors.arcile.core.storage.data.manager
+
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.IOException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import net.lingala.zip4j.ZipFile as Zip4jFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.AesKeyStrength
+import net.lingala.zip4j.model.enums.CompressionMethod
+import net.lingala.zip4j.model.enums.EncryptionMethod
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
+import org.apache.commons.compress.archivers.zip.ZipFile
+
+internal class ZipArchiveHandler(
+    private val safetyPolicy: ArchiveSafetyPolicy,
+    private val validateMutationPath: (File) -> Result<Unit>
+) {
+    private val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
+
+    fun listEntries(archive: File, password: String?): List<ArchiveEntryModel> {
+        val zip4j = Zip4jFile(archive, password?.toCharArray())
+        if (zip4j.isEncrypted && password.isNullOrEmpty()) {
+            throw IllegalArgumentException("A password is required or the password is incorrect")
+        }
+        if (zip4j.isEncrypted) {
+            val safety = ArchiveSafetyTally(safetyPolicy)
+            return zip4j.fileHeaders.map { entry ->
+                safety.accept(entry.fileName, entry.uncompressedSize.coerceAtLeast(0L), entry.compressedSize.coerceAtLeast(0L))
+                ArchiveEntryModel(
+                    name = entry.fileName.substringAfterLast('/').ifBlank { entry.fileName.trimEnd('/') },
+                    path = entry.fileName.normalizeEntryName(),
+                    size = entry.uncompressedSize.coerceAtLeast(0L),
+                    compressedSize = entry.compressedSize.coerceAtLeast(0L),
+                    lastModified = entry.lastModifiedTimeEpoch.takeIf { it > 0L },
+                    isDirectory = entry.isDirectory,
+                    canRead = true
+                )
+            }
+        }
+        return ZipFile.builder().setFile(archive).get().use { zip ->
+            val safety = ArchiveSafetyTally(safetyPolicy)
+            zip.entries.asSequence().map { entry ->
+                safety.accept(entry.name, entry.size.coerceAtLeast(0L), entry.compressedSize.takeIf { it >= 0L })
+                ArchiveEntryModel(
+                    name = entry.name.substringAfterLast('/').ifBlank { entry.name.trimEnd('/') },
+                    path = entry.name.normalizeEntryName(),
+                    size = entry.size.coerceAtLeast(0L),
+                    compressedSize = entry.compressedSize.takeIf { it >= 0L },
+                    lastModified = entry.lastModifiedDate?.time,
+                    isDirectory = entry.isDirectory,
+                    canRead = zip.canReadEntryData(entry)
+                )
+            }.toList()
+        }
+    }
+
+    suspend fun extract(
+        archive: File,
+        destination: File,
+        entryPrefix: String?,
+        password: String?,
+        createdOutputs: MutableSet<File>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        val zip4j = Zip4jFile(archive, password?.toCharArray())
+        if (zip4j.isEncrypted || !password.isNullOrEmpty()) {
+            extractZip4j(zip4j, destination, entryPrefix, createdOutputs, onProgress)
+            return
+        }
+        val prefix = entryPrefix?.normalizeEntryName()?.trimEnd('/')?.takeIf { it.isNotBlank() }
+        ZipFile.builder().setFile(archive).get().use { zip ->
+            val safety = ArchiveSafetyTally(safetyPolicy)
+            val entries = zip.entries.asSequence()
+                .filter { it.name.matchesPrefix(prefix) }
+                .onEach { safety.accept(it.name, it.size.coerceAtLeast(0L), it.compressedSize.takeIf { size -> size >= 0L }) }
+                .toList()
+            val totalBytes = entries.sumOf { it.size.coerceAtLeast(0L) }.coerceAtLeast(1L)
+            var copied = 0L
+            var completed = 0
+            for (entry in entries) {
+                currentCoroutineContext().ensureActive()
+                if (!zip.canReadEntryData(entry)) throw IOException("Archive contains unsupported entries")
+                val target = extractionContext.resolveTarget(destination, entry.name, entry.isDirectory)
+                if (entry.isDirectory) {
+                    rememberCreatedOutput(target, createdOutputs)
+                    target.mkdirs()
+                } else {
+                    rememberCreatedOutput(target, createdOutputs)
+                    target.parentFile?.mkdirs()
+                    validateMutationPath(target).getOrThrow()
+                    zip.getInputStream(entry).use { input ->
+                        BufferedInputStream(input).use { buffered ->
+                            BufferedOutputStream(target.outputStream()).use { output ->
+                                copied += copyWithProgress(buffered::read, output::write) {
+                                    onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.name, copied + it, totalBytes))
+                                }
+                            }
+                        }
+                    }
+                    entry.lastModifiedDate?.time?.let { target.setLastModified(it) }
+                }
+                completed += 1
+                onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.name, copied.coerceAtMost(totalBytes), totalBytes))
+            }
+        }
+    }
+
+    suspend fun create(
+        sources: List<File>,
+        target: File,
+        password: String?,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        if (!password.isNullOrEmpty()) {
+            createEncrypted(sources, target, password, onProgress)
+            return
+        }
+        val files = sources.flatMap { it.walkArchiveFiles(validateMutationPath) }
+        validateArchiveCreationEntries(files)
+        val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
+        var copied = 0L
+        var completed = 0
+        ZipArchiveOutputStream(target).use { zip ->
+            for ((sourceRoot, file) in files) {
+                currentCoroutineContext().ensureActive()
+                val name = archiveEntryName(sourceRoot, file)
+                val entry = ZipArchiveEntry(name + if (file.isDirectory) "/" else "")
+                entry.time = file.lastModified()
+                if (!file.isDirectory) entry.size = file.length()
+                zip.putArchiveEntry(entry)
+                if (file.isFile) {
+                    file.inputStream().use { input ->
+                        BufferedInputStream(input).use { buffered ->
+                            copied += copyWithProgress(buffered::read, zip::write) {
+                                onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied + it, totalBytes))
+                            }
+                        }
+                    }
+                }
+                zip.closeArchiveEntry()
+                completed += 1
+                onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied.coerceAtMost(totalBytes), totalBytes))
+            }
+        }
+    }
+
+    private suspend fun extractZip4j(
+        zip: Zip4jFile,
+        destination: File,
+        entryPrefix: String?,
+        createdOutputs: MutableSet<File>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        val entries = zip.fileHeaders.filter { it.fileName.matchesPrefix(entryPrefix) }
+        val safety = ArchiveSafetyTally(safetyPolicy)
+        entries.forEach { safety.accept(it.fileName, it.uncompressedSize.coerceAtLeast(0L), it.compressedSize.coerceAtLeast(0L)) }
+        val totalBytes = entries.sumOf { it.uncompressedSize.coerceAtLeast(0L) }.coerceAtLeast(1L)
+        var copied = 0L
+        var completed = 0
+        for (entry in entries) {
+            currentCoroutineContext().ensureActive()
+            val target = extractionContext.resolveTarget(destination, entry.fileName, entry.isDirectory)
+            if (entry.isDirectory) {
+                rememberCreatedOutput(target, createdOutputs)
+                target.mkdirs()
+            } else {
+                rememberCreatedOutput(target, createdOutputs)
+                target.parentFile?.mkdirs()
+                validateMutationPath(target).getOrThrow()
+                zip.getInputStream(entry).use { input ->
+                    BufferedInputStream(input).use { buffered ->
+                        BufferedOutputStream(target.outputStream()).use { output ->
+                            copied += copyWithProgress(buffered::read, output::write) {
+                                onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.fileName, copied + it, totalBytes))
+                            }
+                        }
+                    }
+                }
+                entry.lastModifiedTimeEpoch.takeIf { it > 0L }?.let { target.setLastModified(it) }
+            }
+            completed += 1
+            onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.fileName, copied.coerceAtMost(totalBytes), totalBytes))
+        }
+    }
+
+    private suspend fun createEncrypted(
+        sources: List<File>,
+        target: File,
+        password: String,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        val files = sources.flatMap { it.walkArchiveFiles(validateMutationPath) }
+        validateArchiveCreationEntries(files)
+        val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
+        val zip = Zip4jFile(target, password.toCharArray())
+        var copied = 0L
+        var completed = 0
+        for ((sourceRoot, file) in files) {
+            currentCoroutineContext().ensureActive()
+            val name = archiveEntryName(sourceRoot, file)
+            val parameters = ZipParameters().apply {
+                fileNameInZip = name + if (file.isDirectory) "/" else ""
+                compressionMethod = CompressionMethod.DEFLATE
+                isEncryptFiles = true
+                encryptionMethod = EncryptionMethod.AES
+                aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
+                lastModifiedFileTime = file.lastModified()
+            }
+            if (file.isDirectory) {
+                zip.addStream(ByteArray(0).inputStream(), parameters)
+            } else {
+                file.inputStream().use { input ->
+                    zip.addStream(input, parameters)
+                }
+                copied += file.length()
+            }
+            completed += 1
+            onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied.coerceAtMost(totalBytes), totalBytes))
+        }
+    }
+
+    private fun validateArchiveCreationEntries(files: List<Pair<File, File>>) {
+        val safety = ArchiveSafetyTally(safetyPolicy)
+        files.forEach { (sourceRoot, file) ->
+            safety.accept(
+                rawName = archiveEntryName(sourceRoot, file),
+                uncompressedSize = if (file.isFile) file.length() else 0L,
+                compressedSize = null
+            )
+        }
+    }
+}
