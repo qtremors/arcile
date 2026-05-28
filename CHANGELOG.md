@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.9
+> **Version:** 0.9.0
 > **Last Updated:** 2026-05-28
 
 ---
+
+## [0.9.0] - 2026-05-28
+
+### Architecture
+- **Shared UI Module:** Extracted reusable Compose components, shared presentation helpers, theme primitives, formatting helpers, haptics, dialogs, snackbars, list/grid primitives, and thumbnail policy types into `:core:ui`.
+- **Feature Module Extraction:** Moved Browser, Trash, Archive Viewer, and Recent Files into dedicated Gradle modules while keeping `:app` responsible for navigation, Hilt composition, shell lifecycle, and cross-feature orchestration.
+- **Module Boundary Cleanup:** Replaced feature dependencies on app navigation routes with direct `SavedStateHandle` argument reads and updated architecture checks to scan extracted module roots.
 
 ## [0.8.9] - 2026-05-28
 

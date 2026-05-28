@@ -7,10 +7,10 @@ import org.junit.Test
 class ArchitectureBoundaryTest {
     @Test
     fun `feature packages do not import concrete storage data implementations`() {
-        val sourceRoot = sourceRoot("feature")
+        val sourceRoots = featureSourceRoots()
         val concreteDataImport = Regex("""import dev\.qtremors\.arcile\.core\.storage\.data\.(.+)""")
         val allowedStorageDataImports = emptySet<String>()
-        val offenders = sourceRoot.kotlinFiles()
+        val offenders = sourceRoots.asSequence().flatMap { it.kotlinFiles() }
             .filter { it.isFile && it.extension == "kt" }
             .flatMap { file ->
                 file.readLines().mapIndexedNotNull { index, line ->
@@ -31,9 +31,9 @@ class ArchitectureBoundaryTest {
 
     @Test
     fun `feature packages do not import presentation internals`() {
-        val sourceRoot = sourceRoot("feature")
+        val sourceRoots = featureSourceRoots()
         val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.presentation\..+""")
-        val offenders = sourceRoot.kotlinFiles()
+        val offenders = sourceRoots.asSequence().flatMap { it.kotlinFiles() }
             .flatMap { file ->
                 file.readLines().mapIndexedNotNull { index, line ->
                     if (forbiddenImport.matches(line.trim())) violation(file, index, line) else null
@@ -94,16 +94,18 @@ class ArchitectureBoundaryTest {
 
     @Test
     fun `feature packages do not import unrelated feature packages`() {
-        val sourceRoot = sourceRoot("feature")
+        val sourceRoots = featureSourceRoots()
         val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.([^.]+)\..+""")
-        val offenders = sourceRoot.kotlinFiles()
+        val offenders = sourceRoots.asSequence().flatMap { root ->
+            root.kotlinFiles().map { file -> root to file }
+        }
             .flatMap { file ->
-                val relativePath = file.relativeTo(sourceRoot).invariantSeparatorsPath
+                val relativePath = file.second.relativeTo(file.first).invariantSeparatorsPath
                 val owningFeature = relativePath.substringBefore('/', missingDelimiterValue = "")
-                file.readLines().mapIndexedNotNull { index, line ->
+                file.second.readLines().mapIndexedNotNull { index, line ->
                     val importedFeature = featureImport.matchEntire(line.trim())?.groupValues?.get(1)
                     if (importedFeature != null && importedFeature != owningFeature) {
-                        violation(file, index, line)
+                        moduleViolation(file.second, index, line)
                     } else {
                         null
                     }
@@ -118,7 +120,7 @@ class ArchitectureBoundaryTest {
 
     @Test
     fun `shared ui does not import feature or app shell presentation code`() {
-        val sourceRoot = sourceRoot("shared/ui")
+        val sourceRoot = File(projectRoot(), "core/ui/src/main/java/dev/qtremors/arcile/shared/ui")
         val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(feature\..+|presentation\.ui\..+)""")
         val offenders = sourceRoot.kotlinFiles()
             .flatMap { file ->
@@ -180,7 +182,8 @@ class ArchitectureBoundaryTest {
             File(projectRoot(), "core/runtime/src/main/java"),
             File(projectRoot(), "core/operation/api/src/main/java"),
             File(projectRoot(), "core/operation/src/main/java"),
-            File(projectRoot(), "core/storage/domain/src/main/java")
+            File(projectRoot(), "core/storage/domain/src/main/java"),
+            File(projectRoot(), "core/ui/src/main/java")
         )
         val offenders = moduleSourceRoots
             .asSequence()
@@ -222,6 +225,16 @@ class ArchitectureBoundaryTest {
         val roots = listOf(
             File(projectRoot, "app/src/main/java"),
             File(projectRoot, "app/src/test/java"),
+            File(projectRoot, "core/ui/src/main/java"),
+            File(projectRoot, "core/ui/src/test/java"),
+            File(projectRoot, "feature/browser/src/main/java"),
+            File(projectRoot, "feature/browser/src/test/java"),
+            File(projectRoot, "feature/trash/src/main/java"),
+            File(projectRoot, "feature/trash/src/test/java"),
+            File(projectRoot, "feature/archive/src/main/java"),
+            File(projectRoot, "feature/archive/src/test/java"),
+            File(projectRoot, "feature/recentfiles/src/main/java"),
+            File(projectRoot, "feature/recentfiles/src/test/java"),
             File(projectRoot.parentFile ?: projectRoot, "docs")
         )
         val offenders = roots
@@ -251,6 +264,15 @@ class ArchitectureBoundaryTest {
 
     private fun sourceRoot(packageName: String): File =
         File(projectRoot(), "app/src/main/java/dev/qtremors/arcile/$packageName")
+
+    private fun featureSourceRoots(): List<File> =
+        listOf(
+            sourceRoot("feature"),
+            File(projectRoot(), "feature/browser/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/trash/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/archive/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/recentfiles/src/main/java/dev/qtremors/arcile/feature")
+        )
 
     private fun projectRoot(): File =
         generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }

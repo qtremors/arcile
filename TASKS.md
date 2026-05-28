@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.8.9
+> **Version:** 0.9.0
 > **Last Updated:** 2026-05-28
 
 ---
@@ -24,15 +24,15 @@
   - **Fix:** Extract storage data into a Gradle module that implements storage domain interfaces, expose only stable repository/service contracts, and keep Hilt bindings in the app shell or a dedicated wiring module.
   - **Verification:** Feature and presentation code depend on domain/shared contracts only; architecture tests and Gradle dependencies prevent direct concrete data imports.
 
-- [ ] **ARCH-0048 - Extract Shared UI Module** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/ui/**`
+- [x] **ARCH-0048 - Extract Shared UI Module** `[Medium]`
+  - **Location:** `arcile-app/core/ui/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/shared/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/ui/theme/**`
   - **Problem:** Shared UI primitives and UI text contracts are needed across features but currently live inside the app module's presentation tree.
   - **Impact:** Feature modules cannot be cleanly extracted while depending on app-owned presentation components.
   - **Fix:** Extract the shared UI boundary created by `MAINT-0043` into a Gradle module containing reusable Compose components, UI text helpers, haptics, list/grid primitives, dialogs, snackbars, and formatting helpers that are intentionally feature-neutral.
   - **Verification:** Feature packages/modules compile against shared UI without importing app shell or unrelated feature code, and Compose UI tests still pass.
 
-- [ ] **ARCH-0049 - Extract Browser, Trash, Archive, And Recent Feature Modules** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/feature/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/recentfiles/**`
+- [x] **ARCH-0049 - Extract Browser, Trash, Archive, And Recent Feature Modules** `[Medium]`
+  - **Location:** `arcile-app/feature/browser/**`, `arcile-app/feature/trash/**`, `arcile-app/feature/archive/**`, `arcile-app/feature/recentfiles/**`
   - **Problem:** Browser, trash, archive, and recent files have feature-shaped packages but are still compiled inside `:app`.
   - **Impact:** Feature boundaries remain soft, and future browser/trash/archive/recent changes can still accidentally depend on app shell internals.
   - **Fix:** Extract feature modules after core and shared UI modules exist. Keep `:app` responsible for navigation graph, Hilt composition, activity/shell lifecycle, and cross-feature orchestration.
