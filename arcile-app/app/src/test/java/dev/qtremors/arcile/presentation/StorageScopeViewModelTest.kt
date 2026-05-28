@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.presentation
 
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.core.storage.data.StorageClassification
-import dev.qtremors.arcile.core.storage.data.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.domain.StorageClassification
+import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -69,7 +69,7 @@ class StorageScopeViewModelTest {
             )
         )
 
-        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, FakeStorageClassificationStore(), quickAccessRepo)
         advanceUntilIdle()
 
@@ -132,7 +132,7 @@ class StorageScopeViewModelTest {
         val store = RecordingStorageClassificationStore()
         val repository = FakeFileRepository(volumes = listOf(otg))
 
-        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, store, quickAccessRepo)
         advanceUntilIdle()
 
@@ -157,7 +157,7 @@ class StorageScopeViewModelTest {
         val store = RecordingStorageClassificationStore()
         val repository = FakeFileRepository(volumes = listOf(otg))
 
-        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
         val viewModel = HomeViewModel(repository, store, quickAccessRepo)
         advanceUntilIdle()
 

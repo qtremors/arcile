@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.onboarding
 
-import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi

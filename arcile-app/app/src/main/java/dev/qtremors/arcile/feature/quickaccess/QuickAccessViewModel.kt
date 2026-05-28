@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.quickaccess
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
+import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +25,7 @@ data class QuickAccessState(
 
 @HiltViewModel
 class QuickAccessViewModel @Inject constructor(
-    private val quickAccessRepository: QuickAccessPreferencesRepository
+    private val quickAccessRepository: QuickAccessPreferencesStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(QuickAccessState())

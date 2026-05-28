@@ -1,0 +1,67 @@
+package dev.qtremors.arcile.core.storage.domain
+
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+
+interface BrowserPreferencesStore {
+    val preferencesFlow: Flow<BrowserPreferences>
+
+    suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences)
+    suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences)
+    suspend fun updatePathPresentation(
+        path: String,
+        presentation: BrowserPresentationPreferences?,
+        applyToSubfolders: Boolean = false
+    )
+    suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
+}
+
+interface OnboardingPreferencesStore {
+    val preferencesFlow: Flow<OnboardingPreferences>
+
+    suspend fun markCompleted(completedVersion: Int, notificationPermissionHandled: Boolean)
+    suspend fun markNotificationPermissionHandled()
+    suspend fun resetOnboarding()
+}
+
+interface QuickAccessPreferencesStore {
+    val quickAccessItems: Flow<List<QuickAccessItem>>
+
+    suspend fun updateItems(items: List<QuickAccessItem>)
+    suspend fun addItem(item: QuickAccessItem)
+    suspend fun removeItem(id: String)
+}
+
+interface StorageClassificationStore {
+    fun observeClassifications(): Flow<Map<String, StorageClassification>>
+    suspend fun getClassification(storageKey: String): StorageClassification?
+    suspend fun setClassification(
+        storageKey: String,
+        kind: StorageKind,
+        lastSeenName: String? = null,
+        lastSeenPath: String? = null
+    )
+    suspend fun resetClassification(storageKey: String)
+}
+
+interface StorageWorkCoordinator {
+    val isMutationActive: StateFlow<Boolean>
+    fun beginMutation()
+    fun endMutation()
+    suspend fun awaitLowPrioritySlot()
+}
+
+interface StorageUsageScanner {
+    fun scanStorageUsage(
+        rootPath: String,
+        limits: StorageUsageScanLimits = StorageUsageScanLimits()
+    ): Flow<StorageUsageScanState>
+}
+
+interface StorageCleanerScanner {
+    suspend fun scan(
+        rootPaths: List<String>,
+        now: Long = System.currentTimeMillis(),
+        limits: StorageCleanerScanLimits = StorageCleanerScanLimits()
+    ): StorageCleanerResult
+}

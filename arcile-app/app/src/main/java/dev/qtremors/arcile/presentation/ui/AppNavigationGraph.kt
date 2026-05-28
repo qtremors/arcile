@@ -58,8 +58,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 
 @Composable
 fun AppNavigationGraph(

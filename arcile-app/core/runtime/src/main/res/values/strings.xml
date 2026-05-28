@@ -1,0 +1,21 @@
+<resources>
+    <string name="error_file_operation_failed">File operation failed</string>
+    <string name="error_access_denied">Arcile does not have permission to change those files.</string>
+    <string name="error_storage_unavailable">That storage location is not available.</string>
+    <string name="error_conflict">A file or folder with that name already exists.</string>
+    <string name="error_insufficient_space">There is not enough free space to finish this operation.</string>
+    <string name="error_unsupported_provider">This storage provider does not support that action.</string>
+    <string name="error_partial_success">Some files were changed before the operation stopped.</string>
+    <string name="error_operation_cancelled_safe">File operation cancelled.</string>
+    <string name="error_corrupted_metadata">Trash metadata is damaged or incomplete.</string>
+    <string name="error_unsafe_path">Arcile blocked this action because the path is unsafe.</string>
+    <string name="error_recovery_check_permissions">Check storage permissions and try again.</string>
+    <string name="error_recovery_reconnect_storage">Reconnect the storage device, then refresh.</string>
+    <string name="error_recovery_choose_different_name">Choose a different name or resolve the conflict.</string>
+    <string name="error_recovery_free_space">Free up space, then try again.</string>
+    <string name="error_recovery_use_permanent_delete">Use permanent delete for this storage.</string>
+    <string name="error_recovery_review_files">Review the affected files before trying again.</string>
+    <string name="error_recovery_choose_destination">Choose a destination folder to recover the files.</string>
+    <string name="error_recovery_choose_safe_path">Choose a folder inside an available storage volume.</string>
+    <string name="error_recovery_try_again">Try again. If it keeps failing, refresh the folder.</string>
+</resources>

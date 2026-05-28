@@ -7,19 +7,22 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.BrowserPreferencesRepository
-import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultStorageCleanerScanner
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
+import dev.qtremors.arcile.core.storage.data.DefaultStorageUsageScanner
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.LocalFileRepository
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.DefaultMutationJournal
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
-import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesStore
+import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
+import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.data.StorageClassificationRepository
-import dev.qtremors.arcile.core.storage.data.StorageClassificationStore
-import dev.qtremors.arcile.core.storage.data.StorageWorkCoordinator
+import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
@@ -35,8 +38,11 @@ import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
@@ -319,7 +325,15 @@ object RepositoryModule {
     @Singleton
     fun provideQuickAccessPreferencesRepository(
         @ApplicationContext context: Context
-    ): dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository {
-        return dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository(context)
+    ): QuickAccessPreferencesStore {
+        return QuickAccessPreferencesRepository(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideStorageUsageScanner(scanner: DefaultStorageUsageScanner): StorageUsageScanner = scanner
+
+    @Provides
+    @Singleton
+    fun provideStorageCleanerScanner(scanner: DefaultStorageCleanerScanner): StorageCleanerScanner = scanner
 }

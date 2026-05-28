@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.storageusage
 
-import dev.qtremors.arcile.core.storage.data.StorageUsageScanner
+import dev.qtremors.arcile.core.storage.data.DefaultStorageUsageScanner
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
@@ -54,7 +54,7 @@ class StorageUsageViewModelTest {
         val root = temporaryFolder.newFolder("storage")
         File(root, "movie.mp4").writeBytes(ByteArray(25))
         val repository = FakeFileRepository(volumes = listOf(indexedVolume("primary", root)))
-        val viewModel = StorageUsageViewModel(repository, StorageUsageScanner(dispatchers))
+        val viewModel = StorageUsageViewModel(repository, DefaultStorageUsageScanner(dispatchers))
 
         viewModel.load("primary")
         advanceUntilIdle()
@@ -71,7 +71,7 @@ class StorageUsageViewModelTest {
         val folder = File(root, "Downloads").apply { mkdirs() }
         File(folder, "archive.zip").writeBytes(ByteArray(12))
         val repository = FakeFileRepository(volumes = listOf(indexedVolume("primary", root)))
-        val viewModel = StorageUsageViewModel(repository, StorageUsageScanner(dispatchers))
+        val viewModel = StorageUsageViewModel(repository, DefaultStorageUsageScanner(dispatchers))
 
         viewModel.load("primary")
         advanceUntilIdle()
@@ -103,7 +103,7 @@ class StorageUsageViewModelTest {
                 )
             )
         )
-        val viewModel = StorageUsageViewModel(repository, StorageUsageScanner(dispatchers))
+        val viewModel = StorageUsageViewModel(repository, DefaultStorageUsageScanner(dispatchers))
 
         viewModel.load("usb")
         advanceUntilIdle()

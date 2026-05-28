@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.8.7
+> **Version:** 0.8.9
 > **Last Updated:** 2026-05-28
 
 ---
@@ -10,14 +10,14 @@
 
 ### Architecture / Maintainability Tasks
 
-- [ ] **ARCH-0046 - Extract Core Operation And Storage Domain Modules** `[High]`
+- [x] **ARCH-0046 - Extract Core Operation And Storage Domain Modules** `[High]`
   - **Location:** `arcile-app/settings.gradle.kts`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/operation/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/domain/**`
   - **Problem:** Core operation and storage domain models are package-isolated but still compiled inside `:app`.
   - **Impact:** Data, presentation, and feature code can still grow accidental compile-time coupling unless the stable domain API becomes its own module boundary.
   - **Fix:** Extract core operation and storage domain code into Gradle modules first, keeping dependencies Android-light where possible and preserving current public types.
   - **Verification:** `:app` compiles against the new modules, existing unit tests pass, and no extracted core module depends on app, presentation, feature, Android UI, or concrete data packages.
 
-- [ ] **ARCH-0047 - Extract Storage Data Module Behind Domain Interfaces** `[High]`
+- [x] **ARCH-0047 - Extract Storage Data Module Behind Domain Interfaces** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/data/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/di/**`
   - **Problem:** Storage data implementation is already package-scoped but still directly reachable from feature and presentation code through the single app module.
   - **Impact:** Future providers, SAF/VFS work, operation recovery, and scanner changes can leak concrete implementation details into UI layers.

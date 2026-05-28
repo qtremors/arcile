@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.browser.delegate
 import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.core.storage.data.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences

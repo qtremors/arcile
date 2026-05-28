@@ -9,13 +9,7 @@ class ArchitectureBoundaryTest {
     fun `feature packages do not import concrete storage data implementations`() {
         val sourceRoot = sourceRoot("feature")
         val concreteDataImport = Regex("""import dev\.qtremors\.arcile\.core\.storage\.data\.(.+)""")
-        val allowedStorageDataImports = setOf(
-            "BrowserPreferencesStore",
-            "OnboardingPreferencesStore",
-            "QuickAccessPreferencesRepository",
-            "StorageCleanerScanner",
-            "StorageUsageScanner"
-        )
+        val allowedStorageDataImports = emptySet<String>()
         val offenders = sourceRoot.kotlinFiles()
             .filter { it.isFile && it.extension == "kt" }
             .flatMap { file ->
@@ -143,15 +137,7 @@ class ArchitectureBoundaryTest {
     fun `presentation packages do not import concrete storage data implementations except public app services`() {
         val sourceRoot = sourceRoot("presentation")
         val concreteDataImport = Regex("""import dev\.qtremors\.arcile\.core\.storage\.data\.(.+)""")
-        val allowedStorageDataImports = setOf(
-            "BrowserPreferencesStore",
-            "OnboardingPreferencesStore",
-            "QuickAccessPreferencesRepository",
-            "StorageClassificationStore",
-            "StorageCleanerScanner",
-            "StorageUsageScanner",
-            "StorageWorkCoordinator"
-        )
+        val allowedStorageDataImports = emptySet<String>()
         val offenders = sourceRoot.kotlinFiles()
             .flatMap { file ->
                 file.readLines().mapIndexedNotNull { index, line ->
@@ -184,6 +170,47 @@ class ArchitectureBoundaryTest {
 
         if (offenders.isNotEmpty()) {
             fail("Core packages must not depend on presentation or feature packages:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `extracted core modules do not import app feature presentation or concrete data from contracts`() {
+        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(presentation|feature|core\.storage\.data)\..+""")
+        val moduleSourceRoots = listOf(
+            File(projectRoot(), "core/runtime/src/main/java"),
+            File(projectRoot(), "core/operation/api/src/main/java"),
+            File(projectRoot(), "core/operation/src/main/java"),
+            File(projectRoot(), "core/storage/domain/src/main/java")
+        )
+        val offenders = moduleSourceRoots
+            .asSequence()
+            .flatMap { it.kotlinFiles() }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbiddenImport.matches(line.trim())) moduleViolation(file, index, line) else null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Extracted core API/domain modules must not import app, feature, presentation, or concrete storage data code:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `storage data module does not import presentation feature or app shell packages`() {
+        val sourceRoot = File(projectRoot(), "core/storage/data/src/main/java")
+        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(presentation|feature|ui\.theme)\..+""")
+        val offenders = sourceRoot.kotlinFiles()
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbiddenImport.matches(line.trim())) moduleViolation(file, index, line) else null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Storage data must stay behind domain contracts and must not import presentation, feature, or app shell code:\n${offenders.joinToString("\n")}")
         }
     }
 
@@ -231,10 +258,13 @@ class ArchitectureBoundaryTest {
             ?: File(".").absoluteFile
 
     private fun File.kotlinFiles(): Sequence<File> =
-        walkTopDown().filter { it.isFile && it.extension == "kt" }
+        if (exists()) walkTopDown().filter { it.isFile && it.extension == "kt" } else emptySequence()
 
     private fun violation(file: File, index: Int, line: String): String =
         "${file.relativeTo(File(projectRoot(), "app/src/main/java")).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
+
+    private fun moduleViolation(file: File, index: Int, line: String): String =
+        "${file.relativeTo(projectRoot()).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
 
     private companion object {
         const val MAX_FILE_LINES = 700

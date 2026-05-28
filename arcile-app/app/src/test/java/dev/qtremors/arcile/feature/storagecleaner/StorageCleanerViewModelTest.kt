@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner
 
-import dev.qtremors.arcile.core.storage.data.StorageCleanerScanner
+import dev.qtremors.arcile.core.storage.data.DefaultStorageCleanerScanner
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -62,7 +62,7 @@ class StorageCleanerViewModelTest {
             )
         )
 
-        val viewModel = StorageCleanerViewModel(repository, StorageCleanerScanner(dispatchers))
+        val viewModel = StorageCleanerViewModel(repository, DefaultStorageCleanerScanner(dispatchers))
         advanceUntilIdle()
 
         val apks = viewModel.state.value.group(CleanerGroupType.Apks).candidates
@@ -76,7 +76,7 @@ class StorageCleanerViewModelTest {
         val apk = File(root, "remove.apk").apply { writeBytes(ByteArray(1)) }
         val repository = FakeFileRepository(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
 
-        val viewModel = StorageCleanerViewModel(repository, StorageCleanerScanner(dispatchers))
+        val viewModel = StorageCleanerViewModel(repository, DefaultStorageCleanerScanner(dispatchers))
         advanceUntilIdle()
 
         viewModel.clean(listOf(apk.absolutePath))
@@ -94,7 +94,7 @@ class StorageCleanerViewModelTest {
             moveToTrashResultProvider = { Result.failure(IllegalStateException("blocked")) }
         }
 
-        val viewModel = StorageCleanerViewModel(repository, StorageCleanerScanner(dispatchers))
+        val viewModel = StorageCleanerViewModel(repository, DefaultStorageCleanerScanner(dispatchers))
         advanceUntilIdle()
 
         viewModel.clean(listOf(apk.absolutePath))

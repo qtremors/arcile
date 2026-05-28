@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.8.8
+> **Version:** 0.8.9
 > **Last Updated:** 2026-05-28
 
 ---
+
+## [0.8.9] - 2026-05-28
+
+### Architecture
+- **Core Module Extraction:** Extracted runtime helpers, operation API/contracts, storage domain contracts, and storage data implementations into Gradle modules while preserving existing public package names.
+- **Operation API Boundary:** Moved `BulkFileOperationProgress` into `:core:operation:api` to break the operation/storage module cycle.
+- **Storage Contract Boundary:** Promoted storage preferences, scanner, classification, and work-coordination contracts into `:core:storage:domain`, with concrete implementations behind `:core:storage:data`.
+- **Architecture Guardrails:** Expanded architecture tests to scan extracted module roots and prevent feature/presentation code from importing concrete storage data implementations.
 
 ## [0.8.8] - 2026-05-28
 

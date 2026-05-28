@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.storageusage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.core.storage.data.StorageUsageScanner
+import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode

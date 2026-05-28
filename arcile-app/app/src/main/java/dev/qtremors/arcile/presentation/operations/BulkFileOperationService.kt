@@ -16,7 +16,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.di.ArcileDispatchers
-import dev.qtremors.arcile.core.storage.data.StorageWorkCoordinator
+import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.ui.asString
@@ -246,8 +246,9 @@ class BulkFileOperationService : Service() {
         builder: NotificationCompat.Builder,
         progress: BulkFileOperationProgress?
     ) {
+        val totalBytes = progress?.totalBytes
         when {
-            progress?.totalBytes != null && progress.totalBytes > 0L -> {
+            totalBytes != null && totalBytes > 0L -> {
                 builder.setProgress(100, progressPercent(progress), false)
             }
             progress != null && progress.totalItems > 0 -> {

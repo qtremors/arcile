@@ -28,22 +28,25 @@ fun ActiveFiltersRow(
 ) {
     val activeChips = mutableListOf<Pair<String, SearchFilters>>()
 
-    if (filters.itemType != null && filters.itemType != "Any") {
-        activeChips.add(Pair(filters.itemType, filters.copy(itemType = null)))
+    val itemType = filters.itemType
+    if (itemType != null && itemType != "Any") {
+        activeChips.add(Pair(itemType, filters.copy(itemType = null)))
     }
 
-    if (filters.fileType != null) {
-        activeChips.add(Pair(filters.fileType, filters.copy(fileType = null)))
+    filters.fileType?.let { fileType ->
+        activeChips.add(Pair(fileType, filters.copy(fileType = null)))
     }
-    if (filters.minSize != null || filters.maxSize != null) {
+    val minSize = filters.minSize
+    val maxSize = filters.maxSize
+    if (minSize != null || maxSize != null) {
         val label = when {
-            filters.minSize != null && filters.maxSize != null -> stringResource(
+            minSize != null && maxSize != null -> stringResource(
                 R.string.filter_chip_size_range,
-                filters.minSize / (1024 * 1024),
-                filters.maxSize / (1024 * 1024)
+                minSize / (1024 * 1024),
+                maxSize / (1024 * 1024)
             )
-            filters.minSize != null -> stringResource(R.string.filter_chip_size_min, filters.minSize / (1024 * 1024))
-            else -> stringResource(R.string.filter_chip_size_max, filters.maxSize!! / (1024 * 1024))
+            minSize != null -> stringResource(R.string.filter_chip_size_min, minSize / (1024 * 1024))
+            else -> stringResource(R.string.filter_chip_size_max, maxSize!! / (1024 * 1024))
         }
         activeChips.add(Pair(label, filters.copy(minSize = null, maxSize = null)))
     }
@@ -56,17 +59,17 @@ fun ActiveFiltersRow(
     if (filters.includeHidden) {
         activeChips.add(Pair(stringResource(R.string.filter_chip_hidden), filters.copy(includeHidden = false)))
     }
-    if (filters.storageVolumeId != null) {
-        activeChips.add(Pair(stringResource(R.string.filter_chip_volume, filters.storageVolumeId), filters.copy(storageVolumeId = null)))
+    filters.storageVolumeId?.let { storageVolumeId ->
+        activeChips.add(Pair(stringResource(R.string.filter_chip_volume, storageVolumeId), filters.copy(storageVolumeId = null)))
     }
-    if (filters.folderScopePath != null) {
-        activeChips.add(Pair(stringResource(R.string.filter_chip_scope, filters.folderScopePath), filters.copy(folderScopePath = null)))
+    filters.folderScopePath?.let { folderScopePath ->
+        activeChips.add(Pair(stringResource(R.string.filter_chip_scope, folderScopePath), filters.copy(folderScopePath = null)))
     }
-    if (filters.mimeType != null) {
-        activeChips.add(Pair(stringResource(R.string.filter_chip_mime, filters.mimeType), filters.copy(mimeType = null)))
+    filters.mimeType?.let { mimeType ->
+        activeChips.add(Pair(stringResource(R.string.filter_chip_mime, mimeType), filters.copy(mimeType = null)))
     }
-    if (filters.savedPresetName != null) {
-        activeChips.add(Pair(stringResource(R.string.filter_chip_preset, filters.savedPresetName), filters.copy(savedPresetName = null)))
+    filters.savedPresetName?.let { savedPresetName ->
+        activeChips.add(Pair(stringResource(R.string.filter_chip_preset, savedPresetName), filters.copy(savedPresetName = null)))
     }
 
     if (activeChips.isNotEmpty()) {

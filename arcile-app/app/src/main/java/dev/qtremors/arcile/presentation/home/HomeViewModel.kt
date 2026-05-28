@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.R
-import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
-import dev.qtremors.arcile.core.storage.data.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository
@@ -94,7 +94,7 @@ enum class HomeRefreshMode {
 class HomeViewModel @Inject constructor(
     private val repository: FileRepository,
     private val classificationRepo: StorageClassificationStore,
-    private val quickAccessRepo: QuickAccessPreferencesRepository
+    private val quickAccessRepo: QuickAccessPreferencesStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())

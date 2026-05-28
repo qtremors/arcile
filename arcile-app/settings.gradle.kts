@@ -25,4 +25,9 @@ dependencyResolutionManagement {
 
 rootProject.name = "Arcile"
 include(":app")
+include(":core:runtime")
+include(":core:operation:api")
+include(":core:operation")
+include(":core:storage:domain")
+include(":core:storage:data")
  

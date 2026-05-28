@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 72
-        versionName = "0.8.8"
+        versionCode = 73
+        versionName = "0.8.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -165,6 +165,12 @@ tasks.register("checkProductionStrings") {
 }
 
 dependencies {
+    implementation(project(":core:runtime"))
+    implementation(project(":core:operation:api"))
+    implementation(project(":core:operation"))
+    implementation(project(":core:storage:domain"))
+    implementation(project(":core:storage:data"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
