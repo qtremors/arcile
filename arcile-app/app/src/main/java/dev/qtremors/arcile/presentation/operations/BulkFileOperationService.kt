@@ -10,7 +10,7 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
@@ -204,13 +204,13 @@ class BulkFileOperationService : Service() {
         val content = progress?.let(::progressContent)
             ?: getString(R.string.file_operation_processing_background, request.sourcePaths.size)
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(dev.qtremors.arcile.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(
-                R.drawable.ic_notification,
+                dev.qtremors.arcile.R.drawable.ic_notification,
                 getString(R.string.notification_action_cancel),
                 cancelPendingIntent(request)
             )

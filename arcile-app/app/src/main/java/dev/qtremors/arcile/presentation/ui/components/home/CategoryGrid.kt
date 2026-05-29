@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.utils.formatFileSize
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 
 @Composable
 fun CategoryGrid(

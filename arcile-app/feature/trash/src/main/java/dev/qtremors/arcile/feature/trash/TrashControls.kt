@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.feature.trash.R
+import dev.qtremors.arcile.core.ui.R
 
 @Composable
 internal fun TrashFilterRow(

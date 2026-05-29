@@ -35,7 +35,7 @@ import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
 import dev.qtremors.arcile.shared.ui.ArcileListSurface
 
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 
 /**
  * Settings screen for theme and appearance preferences.

@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 0.8.0 | **Last Updated:** 2026-05-24
+**Version:** 0.9.0 | **Last Updated:** 2026-05-28
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -34,7 +34,7 @@
 
 ## Architecture Overview
 
-Arcile is a **single-module Android app** with package-level architecture boundaries. It uses MVVM, feature-scoped ViewModels, Hilt dependency injection, StateFlow-backed UI state, and repository/data-source separation.
+Arcile is a **modular multi-module Android app** with Gradle-enforced architecture boundaries. It uses MVVM, feature-scoped ViewModels, Hilt dependency injection, StateFlow-backed UI state, and repository/data-source separation.
 
 ```mermaid
 graph TD
@@ -53,7 +53,7 @@ graph TD
 
 | Decision | Rationale |
 |----------|-----------|
-| **Single app module** | Keeps iteration fast while the project is still evolving; package boundaries preserve structure without Gradle-module overhead. |
+| **Modular Gradle architecture** | Enforces clean boundaries between features and core services, isolates compilation units, speeds up incremental builds, and prevents architectural degradation as features expand. |
 | **Feature-scoped ViewModels** | Browser, Home, Recent Files, Trash, Quick Access, Archive Viewer, Onboarding, and Settings each own their own state and actions. |
 | **Repository facade** | `LocalFileRepository` coordinates volume lookup, MediaStore queries, filesystem mutations, trash, folder stats, and archive operations. |
 | **Typed navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings. |
@@ -67,61 +67,33 @@ graph TD
 ```text
 arcile/
 ├── arcile-app/
-│   ├── app/
-│   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml
-│   │   │   ├── java/dev/qtremors/arcile/
-│   │   │   │   ├── ArcileApp.kt                 # Hilt app + Coil image loader
-│   │   │   │   ├── MainActivity.kt              # Splash, theme, permissions, onboarding, app shell
-│   │   │   │   ├── data/
-│   │   │   │   │   ├── BrowserPreferencesRepository.kt
-│   │   │   │   │   ├── FolderStatsCalculator.kt
-│   │   │   │   │   ├── FolderStatsStore.kt
-│   │   │   │   │   ├── LocalFileRepository.kt
-│   │   │   │   │   ├── MutationFinalizer.kt
-│   │   │   │   │   ├── MutationJournal.kt
-│   │   │   │   │   ├── OnboardingPreferencesRepository.kt
-│   │   │   │   │   ├── QuickAccessPreferencesRepository.kt
-│   │   │   │   │   ├── StorageClassificationRepository.kt
-│   │   │   │   │   ├── StorageCleanerScanner.kt
-│   │   │   │   │   ├── StorageUsageScanner.kt
-│   │   │   │   │   ├── StorageWorkCoordinator.kt
-│   │   │   │   │   ├── manager/                 # Trash + archive managers
-│   │   │   │   │   ├── provider/                # Storage volumes
-│   │   │   │   │   ├── source/                  # FileSystem, MediaStore, transfer/conflict helpers
-│   │   │   │   │   └── util/                    # Path and volume utilities
-│   │   │   │   ├── di/                          # Hilt module and app scope
-│   │   │   │   ├── domain/                      # Repository contracts and domain models
-│   │   │   │   ├── image/                       # Coil fetchers for APK/audio/PDF/video
-│   │   │   │   ├── navigation/                  # Typed route definitions
-│   │   │   │   ├── presentation/
-│   │   │   │   │   ├── archive/                 # Archive viewer state
-│   │   │   │   │   ├── browser/                 # Browser VM + delegates
-│   │   │   │   │   ├── delegate/                # Shared delete flow
-│   │   │   │   │   ├── home/                    # Dashboard VM
-│   │   │   │   │   ├── onboarding/              # First-run flow VM
-│   │   │   │   │   ├── operations/              # Foreground operation coordinator/service
-│   │   │   │   │   ├── quickaccess/             # Quick Access VM
-│   │   │   │   │   ├── recentfiles/             # Recent Files VM + presentation
-│   │   │   │   │   ├── storagecleaner/          # Storage cleaner VM
-│   │   │   │   │   ├── storageusage/            # Storage usage VM
-│   │   │   │   │   ├── trash/                   # Trash VM
-│   │   │   │   │   ├── ui/                      # Screens and Compose components
-│   │   │   │   │   └── utils/                   # Share/open helpers, date/local search helpers
-│   │   │   │   ├── ui/theme/                    # Material theme, dynamic colors, preferences
-│   │   │   │   └── utils/                       # App logging and formatting utilities
-│   │   │   ├── res/                             # 611 string resources and 12 plurals plus drawables/fonts/XML
-│   │   │   ├── test/                            # 74 JVM/Robolectric test files
-│   │   │   └── androidTest/                     # 3 instrumented test files
-│   │   └── build.gradle.kts
-│   └── gradle/libs.versions.toml
-├── docs/                                        # GitHub Pages landing site
-├── CHANGELOG.md
-├── DEVELOPMENT.md
-├── LICENSE.md
-├── PRIVACY.md
-├── TASKS.md
-└── README.md
+│   ├── app/                                     # App entry point, Hilt composition, and shell UI
+│   │   ├── src/main/java/dev/qtremors/arcile/
+│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
+│   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
+│   │   │   ├── feature/                         # App-specific UI features (onboarding, storage stats, cleaner)
+│   │   │   ├── navigation/                      # Serializable typed routes & navigation graph
+│   │   │   └── di/                              # Dagger Hilt dependency injection modules
+│   ├── core/                                    # Shared business logic and UI frameworks
+│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers
+│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose nodes
+│   │   ├── operation/                           # Foreground services and operation journal tracking
+│   │   │   ├── api/                             # Task progress events and operations interfaces
+│   │   │   └── src/                             # Concrete operation coordinator and background service
+│   │   └── storage/                             # File system data orchestrator
+│   │       ├── domain/                          # Domain models, volume references, and repository interfaces
+│   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
+│   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
+│       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
+│       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
+│       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
+│       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
+├── docs/                                        # Promotional landing page website
+├── CHANGELOG.md                                 # Release logs and history
+├── DEVELOPMENT.md                               # Architecture & development guide
+├── Releases.md                                  # Structured release notes
+├── TASKS.md                                     # Roadmap, tracker of issues and features
+└── README.md                                    # Main entry point overview
 ```
 
 ---
@@ -384,8 +356,8 @@ Prioritize self-documenting names. A file, function, or component should reveal 
 | `compileSdk` | 37 |
 | `targetSdk` | 36 |
 | `minSdk` | 30 |
-| `versionCode` | 64 |
-| `versionName` | `0.8.0` |
+| `versionCode` | 74 |
+| `versionName` | `0.9.0` |
 | Java / Kotlin target | JVM 11 |
 | Android Gradle Plugin | 9.1.1 |
 | Kotlin | 2.2.10 |
@@ -520,13 +492,13 @@ Robolectric-backed Compose tests are pinned to SDK 35 with `@Config(sdk = [35])`
 Debug APK naming is normalized to:
 
 ```text
-app/build/outputs/apk/debug/Arcile-0.8.0-debug.apk
+app/build/outputs/apk/debug/Arcile-0.9.0-debug.apk
 ```
 
 Release APK naming is normalized to:
 
 ```text
-app/build/outputs/apk/release/Arcile-0.8.0.apk
+app/build/outputs/apk/release/Arcile-0.9.0.apk
 ```
 
 ---

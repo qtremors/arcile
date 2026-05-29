@@ -64,7 +64,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessState

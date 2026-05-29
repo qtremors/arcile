@@ -11,7 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.feature.trash.R
+import dev.qtremors.arcile.core.ui.R
 
 @Composable
 fun EmptyTrashDialog(

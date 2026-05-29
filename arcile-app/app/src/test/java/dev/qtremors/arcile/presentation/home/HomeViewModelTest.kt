@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.presentation.home
 
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.StorageClassification
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.FileModel

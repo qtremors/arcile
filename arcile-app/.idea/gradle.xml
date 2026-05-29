@@ -22,6 +22,19 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/build-logic" />
+            <option value="$PROJECT_DIR$/core" />
+            <option value="$PROJECT_DIR$/core/operation" />
+            <option value="$PROJECT_DIR$/core/operation/api" />
+            <option value="$PROJECT_DIR$/core/runtime" />
+            <option value="$PROJECT_DIR$/core/storage" />
+            <option value="$PROJECT_DIR$/core/storage/data" />
+            <option value="$PROJECT_DIR$/core/storage/domain" />
+            <option value="$PROJECT_DIR$/core/ui" />
+            <option value="$PROJECT_DIR$/feature" />
+            <option value="$PROJECT_DIR$/feature/archive" />
+            <option value="$PROJECT_DIR$/feature/browser" />
+            <option value="$PROJECT_DIR$/feature/recentfiles" />
+            <option value="$PROJECT_DIR$/feature/trash" />
           </set>
         </option>
       </GradleProjectSettings>

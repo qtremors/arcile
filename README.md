@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.8.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-0.9.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
@@ -81,7 +81,7 @@ Release builds enable R8 minification and resource shrinking.
 | **Language** | Kotlin 2.2.10 |
 | **Android Gradle Plugin** | 9.1.1 |
 | **UI** | Jetpack Compose BOM 2026.05.00, Material 3 1.5.0-alpha19, Material 3 Adaptive |
-| **Architecture** | Single-module MVVM with package boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
+| **Architecture** | Modular MVVM with Gradle boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
 | **Navigation** | Navigation Compose with `kotlinx.serialization` typed routes |
 | **Storage** | `java.io.File`, `StatFs`, MediaStore, FileProvider, foreground service operations |
 | **Persistence** | DataStore Preferences for theme, browser presentation, storage classification, quick access, and onboarding |
@@ -96,34 +96,33 @@ Release builds enable R8 minification and resource shrinking.
 ```text
 arcile/
 ├── arcile-app/
-│   ├── app/
-│   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml
-│   │   │   ├── java/dev/qtremors/arcile/
-│   │   │   │   ├── ArcileApp.kt                 # Hilt app + Coil image loader
-│   │   │   │   ├── MainActivity.kt              # Splash, permissions, onboarding, app shell
-│   │   │   │   ├── data/                        # Repositories, stores, managers, data sources
-│   │   │   │   │   ├── manager/                 # Trash and archive managers
-│   │   │   │   │   ├── provider/                # Storage volume provider
-│   │   │   │   │   └── source/                  # FileSystem, MediaStore, transfer/conflict engines
-│   │   │   │   ├── di/                          # Hilt providers
-│   │   │   │   ├── domain/                      # Models, repository contracts, use cases
-│   │   │   │   ├── image/                       # Coil fetchers
-│   │   │   │   ├── navigation/                  # Serializable route definitions
-│   │   │   │   ├── presentation/                # ViewModels, delegates, operation service, UI
-│   │   │   │   ├── ui/theme/                    # Theme state, MaterialKolor integration, tokens
-│   │   │   │   └── utils/                       # Logging and formatting helpers
-│   │   │   ├── test/                            # JVM + Robolectric tests
-│   │   │   └── androidTest/                     # Device/emulator tests
-│   │   └── build.gradle.kts
-│   └── gradle/libs.versions.toml
-├── docs/                                        # GitHub Pages landing site
-├── CHANGELOG.md
-├── DEVELOPMENT.md
-├── LICENSE.md
-├── PRIVACY.md
-├── TASKS.md
-└── README.md
+│   ├── app/                                     # App entry point, Hilt composition, and shell UI
+│   │   ├── src/main/java/dev/qtremors/arcile/
+│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
+│   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
+│   │   │   ├── feature/                         # App-specific UI features (onboarding, storage stats, cleaner)
+│   │   │   ├── navigation/                      # Serializable typed routes & navigation graph
+│   │   │   └── di/                              # Dagger Hilt dependency injection modules
+│   ├── core/                                    # Shared business logic and UI frameworks
+│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers
+│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose nodes
+│   │   ├── operation/                           # Foreground services and operation journal tracking
+│   │   │   ├── api/                             # Task progress events and operations interfaces
+│   │   │   └── src/                             # Concrete operation coordinator and background service
+│   │   └── storage/                             # File system data orchestrator
+│   │       ├── domain/                          # Domain models, volume references, and repository interfaces
+│   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
+│   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
+│       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
+│       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
+│       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
+│       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
+├── docs/                                        # Promotional landing page website
+├── CHANGELOG.md                                 # Release logs and history
+├── DEVELOPMENT.md                               # Architecture & development guide
+├── Releases.md                                  # Structured release notes
+├── TASKS.md                                     # Roadmap, tracker of issues and features
+└── README.md                                    # Main entry point overview
 ```
 
 ---

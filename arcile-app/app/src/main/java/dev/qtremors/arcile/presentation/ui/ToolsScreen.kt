@@ -21,7 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment

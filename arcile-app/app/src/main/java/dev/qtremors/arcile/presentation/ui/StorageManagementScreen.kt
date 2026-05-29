@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.clickable

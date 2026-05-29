@@ -26,7 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.spacing

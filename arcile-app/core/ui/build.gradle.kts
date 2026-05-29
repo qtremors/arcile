@@ -49,6 +49,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.material.kolor)
 
+    testImplementation(project(":core:testing"))
+    testImplementation(project(":core:ui:testing"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)

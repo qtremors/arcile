@@ -17,6 +17,47 @@
 
 ---
 
+# v0.9.0 Beta
+
+**Release Date:** May 28, 2026  
+**Previous release:** v0.8.0 Beta
+
+Welcome to **Arcile v0.9.0 Beta**! This release marks a major architectural milestone by transitioning the codebase from a single monolithic application module to a highly optimized, modular Gradle architecture. Over the course of the 0.8.x cycle (versions 0.8.1 through 0.8.9), the project was systematically split into 11 specialized submodules to enforce strict code separation, simplify maintenance, isolate compilation, and accelerate incremental builds.
+
+Here is a comprehensive summary of everything new, improved, and polished in this release:
+
+## 🚀 What's New & Improved
+
+### 🏗️ Modular Gradle Architecture
+Decomposed the app into clean functional layers with strict Dagger/Hilt composition and interface-driven dependency boundaries:
+- **Core UI Module (`:core:ui`):** Consolidates all reusable Compose primitives, Material 3 design systems, typography tokens, custom layouts (list/grid rows), visual transitions, and the unified thumbnail loading engine.
+- **Storage Subsystems (`:core:storage`):** Separated into `:core:storage:domain` (containing typed entities, directory models, and interfaces) and `:core:storage:data` (managing physical storage, disk scanning, media indexing, and mutations).
+- **Operation Services (`:core:operation`):** Separated into `:core:operation:api` (progress contracts) and `:core:operation` (foreground service plumbing, state tracking, and operation journals).
+- **Feature Modules:** Decoupled major features into independent, isolated Gradle modules:
+  - `:feature:browser` for directory listing and clipboard operations.
+  - `:feature:trash` for restoration lifecycle and local metadata tracking.
+  - `:feature:archive` for ZIP and 7z creation and extraction.
+  - `:feature:recentfiles` for the interactive chronological files timeline.
+- **App Module (`:app`):** Acts as the navigation router, Hilt composer, and launch shell.
+
+### ⚡ Performance & Directory Optimization
+- **Paged Directory Listing:** Replaced blocking directory reads with a paged listing mechanism. Huge folders now load incrementally and render page-by-page, delivering an instant visual overview and keeping scroll performance buttery smooth.
+- **Compose Stability:** Rebuilt all UI list representations (Browser, Home, and Recents) to use immutable collection types (`kotlinx.collections.immutable`), eliminating redundant recomposition cycles.
+
+### 🛡️ Safety & API Hardening
+- **Typed Storage Node Identifiers:** Introduced invariant value classes for Volume IDs, paths, and metadata keys. Standardized validation on critical file operations to prevent path traversal and guarantee integrity.
+- **Automatic Destructive Validation:** Routed all file delete, trash, and extraction workflows through strict pre-flight canonicalization logic.
+
+### 🎨 Visual Motion & UX Polish
+- **Choreographed Motion System:** Implemented a system-wide motion easing curve and duration specifier, supporting standard Material 3 deceleration, acceleration, and Emphasized styles, with a global toggle to honor system-wide reduced motion.
+- **Dialog Focus Polish:** Overhauled file/folder creation dialogs to automatically gain focus and request the IME keyboard upon opening, minimizing friction for quick operations.
+
+## 🐛 Known Issues (Beta)
+- **Background operation resilience:** Foreground file operation coordinates are fully journaled, but recovery of interrupted tasks across unexpected process terminations is still under refinement.
+- **Integrity verification overhead:** Heavy directories may take longer to transfer or empty due to mandatory recursive SHA-256 validation checks.
+
+---
+
 # v0.8.0 Beta
 
 **Release Date:** May 24, 2026  

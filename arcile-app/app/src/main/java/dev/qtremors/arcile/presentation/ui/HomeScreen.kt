@@ -121,7 +121,7 @@ import dev.qtremors.arcile.presentation.ui.components.home.StorageSummaryCard
 import dev.qtremors.arcile.presentation.ui.components.home.CategoryGrid
 import dev.qtremors.arcile.presentation.ui.components.home.QuickAccessGrid
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date

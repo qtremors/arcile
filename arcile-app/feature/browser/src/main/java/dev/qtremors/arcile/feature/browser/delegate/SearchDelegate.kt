@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
-import dev.qtremors.arcile.feature.browser.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope

@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.feature.browser.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository

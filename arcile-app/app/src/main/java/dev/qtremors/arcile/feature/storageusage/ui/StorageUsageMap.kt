@@ -48,7 +48,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState

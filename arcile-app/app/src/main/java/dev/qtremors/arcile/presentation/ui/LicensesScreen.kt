@@ -37,7 +37,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ArcileSectionHeader

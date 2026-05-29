@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.0
-> **Last Updated:** 2026-05-28
+> **Version:** 0.9.1
+> **Last Updated:** 2026-05-29
 
 ---
+
+## [0.9.1] - 2026-05-29
+
+### Architecture
+- **Resource Consolidation:** Centralized all shared string resources into `:core:ui` module, deleting duplicate copies across `:app`, `:feature:archive`, `:feature:browser`, `:feature:recentfiles`, and `:feature:trash`. Updated all referencing Kotlin files to import the centralized resource class.
 
 ## [0.9.0] - 2026-05-28
 
@@ -12,6 +17,10 @@
 - **Shared UI Module:** Extracted reusable Compose components, shared presentation helpers, theme primitives, formatting helpers, haptics, dialogs, snackbars, list/grid primitives, and thumbnail policy types into `:core:ui`.
 - **Feature Module Extraction:** Moved Browser, Trash, Archive Viewer, and Recent Files into dedicated Gradle modules while keeping `:app` responsible for navigation, Hilt composition, shell lifecycle, and cross-feature orchestration.
 - **Module Boundary Cleanup:** Replaced feature dependencies on app navigation routes with direct `SavedStateHandle` argument reads and updated architecture checks to scan extracted module roots.
+
+### Documentation
+- **Version and Reference Synchronization:** Updated the project version to `0.9.0` (with corresponding `versionCode` 74) across all documentation, the promotional landing page, and release indexes.
+- **Architecture and Project Structure Guides:** Redesigned the project structure diagrams and architectural documentation to reflect the newly modularized multi-module Gradle layout (incorporating `:core` and `:feature` submodules).
 
 ## [0.8.9] - 2026-05-28
 

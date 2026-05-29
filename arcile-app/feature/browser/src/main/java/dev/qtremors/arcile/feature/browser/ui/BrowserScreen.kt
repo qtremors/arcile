@@ -38,7 +38,7 @@ import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
-import dev.qtremors.arcile.feature.browser.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.feature.browser.ui.BrowserContent

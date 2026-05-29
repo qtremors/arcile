@@ -54,7 +54,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.feature.archive.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
 import dev.qtremors.arcile.feature.archive.ArchiveOperationUiState
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState

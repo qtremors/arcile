@@ -3,7 +3,7 @@ package dev.qtremors.arcile.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage

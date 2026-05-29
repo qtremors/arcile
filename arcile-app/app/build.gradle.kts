@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 74
-        versionName = "0.9.0"
+        versionCode = 75
+        versionName = "0.9.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -198,6 +198,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
     implementation(libs.kotlinx.serialization.json)
+
     implementation(libs.material.kolor)
     implementation(libs.apache.commons.compress)
     implementation(libs.tukaani.xz)
@@ -209,6 +210,8 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
 
+    testImplementation(project(":core:testing"))
+    testImplementation(project(":core:ui:testing"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)

@@ -42,7 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.ui.theme.spacing

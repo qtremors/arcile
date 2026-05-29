@@ -54,7 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
@@ -134,7 +134,7 @@ internal fun OnboardingWelcomeAndFeatures() {
     OnboardingPage(
         customIcon = {
             AsyncImage(
-                model = R.mipmap.ic_launcher,
+                model = dev.qtremors.arcile.R.mipmap.ic_launcher,
                 contentDescription = stringResource(R.string.app_name),
                 modifier = Modifier.fillMaxSize()
             )

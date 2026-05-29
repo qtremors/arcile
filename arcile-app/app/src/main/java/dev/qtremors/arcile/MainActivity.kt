@@ -32,6 +32,7 @@ import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject

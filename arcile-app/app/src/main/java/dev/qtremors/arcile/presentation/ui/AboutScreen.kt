@@ -56,7 +56,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
@@ -120,7 +120,7 @@ fun AboutScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
-                        model = R.mipmap.ic_launcher,
+                        model = dev.qtremors.arcile.R.mipmap.ic_launcher,
                         contentDescription = stringResource(R.string.app_name),
                         modifier = Modifier.size(96.dp)
                     )

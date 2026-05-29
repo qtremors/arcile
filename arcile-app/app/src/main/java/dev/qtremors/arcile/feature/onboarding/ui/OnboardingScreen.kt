@@ -81,7 +81,7 @@ import androidx.compose.material3.FilledTonalButton
 import coil.compose.AsyncImage
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet

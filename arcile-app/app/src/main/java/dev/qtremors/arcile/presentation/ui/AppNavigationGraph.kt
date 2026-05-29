@@ -31,7 +31,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.ArchiveViewerScreen
 import dev.qtremors.arcile.feature.archive.ArchiveViewerViewModel
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen

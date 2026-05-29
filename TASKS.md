@@ -1,42 +1,10 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.9.0
-> **Last Updated:** 2026-05-28
+> **Version:** 0.9.1
+> **Last Updated:** 2026-05-29
 
 ---
-
-## Consolidated Tasks
-
-### Architecture / Maintainability Tasks
-
-- [x] **ARCH-0046 - Extract Core Operation And Storage Domain Modules** `[High]`
-  - **Location:** `arcile-app/settings.gradle.kts`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/operation/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/domain/**`
-  - **Problem:** Core operation and storage domain models are package-isolated but still compiled inside `:app`.
-  - **Impact:** Data, presentation, and feature code can still grow accidental compile-time coupling unless the stable domain API becomes its own module boundary.
-  - **Fix:** Extract core operation and storage domain code into Gradle modules first, keeping dependencies Android-light where possible and preserving current public types.
-  - **Verification:** `:app` compiles against the new modules, existing unit tests pass, and no extracted core module depends on app, presentation, feature, Android UI, or concrete data packages.
-
-- [x] **ARCH-0047 - Extract Storage Data Module Behind Domain Interfaces** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/core/storage/data/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/di/**`
-  - **Problem:** Storage data implementation is already package-scoped but still directly reachable from feature and presentation code through the single app module.
-  - **Impact:** Future providers, SAF/VFS work, operation recovery, and scanner changes can leak concrete implementation details into UI layers.
-  - **Fix:** Extract storage data into a Gradle module that implements storage domain interfaces, expose only stable repository/service contracts, and keep Hilt bindings in the app shell or a dedicated wiring module.
-  - **Verification:** Feature and presentation code depend on domain/shared contracts only; architecture tests and Gradle dependencies prevent direct concrete data imports.
-
-- [x] **ARCH-0048 - Extract Shared UI Module** `[Medium]`
-  - **Location:** `arcile-app/core/ui/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/shared/**`, `arcile-app/app/src/main/java/dev/qtremors/arcile/ui/theme/**`
-  - **Problem:** Shared UI primitives and UI text contracts are needed across features but currently live inside the app module's presentation tree.
-  - **Impact:** Feature modules cannot be cleanly extracted while depending on app-owned presentation components.
-  - **Fix:** Extract the shared UI boundary created by `MAINT-0043` into a Gradle module containing reusable Compose components, UI text helpers, haptics, list/grid primitives, dialogs, snackbars, and formatting helpers that are intentionally feature-neutral.
-  - **Verification:** Feature packages/modules compile against shared UI without importing app shell or unrelated feature code, and Compose UI tests still pass.
-
-- [x] **ARCH-0049 - Extract Browser, Trash, Archive, And Recent Feature Modules** `[Medium]`
-  - **Location:** `arcile-app/feature/browser/**`, `arcile-app/feature/trash/**`, `arcile-app/feature/archive/**`, `arcile-app/feature/recentfiles/**`
-  - **Problem:** Browser, trash, archive, and recent files have feature-shaped packages but are still compiled inside `:app`.
-  - **Impact:** Feature boundaries remain soft, and future browser/trash/archive/recent changes can still accidentally depend on app shell internals.
-  - **Fix:** Extract feature modules after core and shared UI modules exist. Keep `:app` responsible for navigation graph, Hilt composition, activity/shell lifecycle, and cross-feature orchestration.
-  - **Verification:** Each feature module compiles with only core/shared dependencies plus explicit app-provided entry points, and `:app` remains the only module that wires navigation between features.
 
 ### Bugs / Fixes From Field Notes
 
@@ -67,6 +35,50 @@
   - **Impact:** Users cannot reliably understand what changed or quickly recover from mistakes.
   - **Fix:** Use one app-level feedback model with icons, success/error/warning states, action labels, and operation-aware undo hooks. Provide undo for rename, move, trash, restore, create folder/file, and cleaner actions where rollback is safe; clearly omit undo for irreversible permanent deletes.
   - **Verification:** Add UI/state tests for feedback icon selection, action labels, undo dispatch, and non-undoable operation messaging.
+
+### Architecture
+
+- [x] **ARCH-0042 - Consolidate Test Fixtures and Create `:core:testing` Module** `[High]`
+  - **Location:** Gradle modules (`settings.gradle.kts`, module build scripts), test packages.
+  - **Problem:** Core test fakes (`FakeFileRepository.kt`, `FakeBrowserPreferencesStore.kt`), test rules, and themes are duplicated across 7 separate modules, causing severe code redundancy and huge maintenance friction when the repository API shifts.
+  - **Fix:** Create a new Gradle module `:core:testing`. Centralize all shared test fakes, fixtures, dispatcher rules, and themes into this module. Clean up the duplicate files in all other module test suites and declare `testImplementation(project(":core:testing"))` dependencies.
+  - **Verification:** Run all tests across the app and modules via `./gradlew test` to ensure all tests compile and pass using the shared testing module.
+
+- [x] **ARCH-0043 - Centralize Shared Strings and Eliminate XML Resource Duplication** `[Medium]`
+  - **Location:** `strings.xml` in `:app`, `:core:ui`, `:feature:archive`, `:feature:browser`, `:feature:recentfiles`, and `:feature:trash`.
+  - **Problem:** The entire 648-line `strings.xml` file containing all application strings is duplicated across 6 modules, requiring redundant manual synchronization and increasing merge conflict risks.
+  - **Fix:** Centralize all shared string resources into `:core:ui` (or a dedicated `:core:resources` module) and remove the duplicate string resource files. Feature modules should only declare strings unique to their features.
+  - **Verification:** Run `./gradlew checkDebugAndroidTest` / `./gradlew assembleDebug` and verify that all string resources resolve successfully and no keys collide.
+
+- [ ] **ARCH-0044 - Decouple Core Domain from Compose Runtime Framework** `[Medium]`
+  - **Location:** `:core:storage:domain` module, `FileModel.kt`, `ArchiveModels.kt`, `FolderStats.kt`, `ListingPage.kt`, `SelectionProperties.kt`, `StorageCleanerModels.kt`, `StorageNodeTypes.kt`, `StorageUsageModels.kt`.
+  - **Problem:** The core storage domain module depends directly on the Jetpack Compose Runtime and BOM purely for the `@Immutable` annotation used on domain models, violating clean architecture boundary isolation.
+  - **Fix:** Create a custom JVM-neutral `@Immutable` annotation in `:core:runtime` or remove Compose `@Immutable` from the domain models. Remove the Compose runtime and BOM dependencies from `:core:storage:domain/build.gradle.kts`.
+  - **Verification:** Verify that `:core:storage:domain` builds successfully as a pure Kotlin/JVM library without any Compose or Android dependencies.
+
+- [ ] **ARCH-0045 - Segment `FileRepository` Facade into Segregated ViewModel Dependencies** `[Medium]`
+  - **Location:** ViewModels in `:app` and `:feature:*` (e.g. `TrashViewModel.kt`, `ArchiveViewerViewModel.kt`, `BrowserViewModel.kt`), `FileRepository.kt` facade.
+  - **Problem:** All ViewModels depend directly on the fat `FileRepository` compatibility facade, coupling feature modules to the entire capabilities surface.
+  - **Fix:** Update ViewModels to inject only the specific sub-interfaces they require (e.g. `TrashViewModel` should inject `TrashRepository`; `ArchiveViewerViewModel` should inject `ArchiveRepository`).
+  - **Verification:** Compile the codebase and run unit tests for all ViewModels, ensuring correct behavior and narrower bindings.
+
+- [ ] **ARCH-0046 - Decentralize Monolithic Dependency Injection Module** `[Low]`
+  - **Location:** `RepositoryModule.kt` in `:app` module, core/data modules.
+  - **Problem:** A single giant Hilt module `RepositoryModule.kt` under the `:app` module configures all core and data bindings, preventing other modules from declaring their own DI modules and slowing incremental builds.
+  - **Fix:** Split `RepositoryModule.kt` into module-specific Hilt modules (e.g. define `StorageDataModule` inside `:core:storage:data`, `OperationModule` inside `:core:operation`, and `BrowserPrefsModule` in `:core:storage:data`).
+  - **Verification:** Compile and run Hilt-dependent instrumentation tests to confirm all bindings resolve.
+
+- [ ] **ARCH-0047 - Expand Architecture Boundary Test Coverage** `[Low]`
+  - **Location:** `ArchitectureBoundaryTest.kt` in `:app` module test source set.
+  - **Problem:** The architecture budget check (700 LOC) only scans a limited set of directories and ignores build files (`.gradle.kts`), configuration XMLs, and other core source folders.
+  - **Fix:** Update `ArchitectureBoundaryTest.kt` to scan all modules (`core/*` and `feature/*`) for line size limits, include `.xml`, `.gradle.kts`, and `.gradle` files in the line budget check, and guard `:core:storage:domain` against importing any `androidx.compose` or `android` classes.
+  - **Verification:** Run `ArchitectureBoundaryTest` to confirm it passes and fails appropriately if violations are introduced.
+
+- [ ] **ARCH-0048 - Extract Remaining Features from `:app` Module** `[Low]`
+  - **Location:** `:app` module (`dev.qtremors.arcile.feature.*`), settings.gradle.kts.
+  - **Problem:** Features like Onboarding, Quick Access, Storage Cleaner, and Storage Usage still reside in the `:app` module, preventing the app module from being a pure shell.
+  - **Fix:** Migrate each of these 4 features into their own isolated Gradle modules (e.g. `:feature:onboarding`, `:feature:quickaccess`, `:feature:storagecleaner`, `:feature:storageusage`).
+  - **Verification:** Assemble and verify the app compiles and navigates correctly across the newly extracted modules.
 
 ---
 ## Backlog / Future Ideas

@@ -66,7 +66,7 @@ class BrowserViewModelNavigationSearchTest {
         advanceUntilIdle()
 
         assertTrue(viewModel.state.value.isVolumeRootScreen)
-        assertEquals(UiText.StringResource(dev.qtremors.arcile.feature.browser.R.string.error_storage_for_path_unavailable), viewModel.state.value.error)
+        assertEquals(UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_storage_for_path_unavailable), viewModel.state.value.error)
         assertEquals("", viewModel.state.value.currentPath)
     }
 

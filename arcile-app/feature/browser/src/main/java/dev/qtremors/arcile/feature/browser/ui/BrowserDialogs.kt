@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.browser.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.feature.browser.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.shared.ui.PasteConflictDialog

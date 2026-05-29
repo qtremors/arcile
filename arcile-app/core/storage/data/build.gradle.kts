@@ -40,6 +40,7 @@ dependencies {
     implementation(libs.tukaani.xz)
     implementation(libs.zip4j)
 
+    testImplementation(project(":core:testing"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
