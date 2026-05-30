@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.feature.browser.BrowserDialogEvent
@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 class ClipboardDelegate(
     private val state: MutableStateFlow<BrowserState>,
     private val viewModelScope: CoroutineScope,
-    private val repository: FileRepository,
+    private val clipboardRepository: ClipboardRepository,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val refreshAction: () -> Unit
 ) {
@@ -90,7 +90,7 @@ class ClipboardDelegate(
             state.update { it.copy(isLoading = true, error = null) }
 
             val sourcePaths = clipboard.files.map { it.absolutePath }
-            repository.detectCopyConflicts(sourcePaths, currentPath).onSuccess { conflicts ->
+            clipboardRepository.detectCopyConflicts(sourcePaths, currentPath).onSuccess { conflicts ->
                 if (conflicts.isNotEmpty()) {
                     state.update {
                         it.reduce(BrowserDialogEvent.ConflictDialogShown(conflicts)).copy(isLoading = false)

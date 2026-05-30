@@ -7,20 +7,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 
-sealed interface UiText {
-    data class StringResource(
-        @StringRes val resId: Int,
-        val args: List<Any> = emptyList()
-    ) : UiText
-
-    data class PluralResource(
-        @PluralsRes val resId: Int,
-        val quantity: Int,
-        val args: List<Any> = emptyList()
-    ) : UiText
-
-    data class Dynamic(val value: String) : UiText
-}
 
 @Composable
 fun UiText.asString(): String =

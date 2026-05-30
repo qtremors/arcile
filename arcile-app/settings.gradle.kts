@@ -37,4 +37,8 @@ include(":feature:browser")
 include(":feature:trash")
 include(":feature:archive")
 include(":feature:recentfiles")
+include(":feature:onboarding")
+include(":feature:quickaccess")
+include(":feature:storagecleaner")
+include(":feature:storageusage")
  

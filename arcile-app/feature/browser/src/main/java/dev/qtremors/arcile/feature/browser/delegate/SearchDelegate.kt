@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.feature.browser.BrowserSearchEvent
@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 class SearchDelegate(
     private val state: MutableStateFlow<BrowserState>,
     private val viewModelScope: CoroutineScope,
-    private val repository: FileRepository
+    private val repository: SearchRepository
 ) {
     private var searchJob: Job? = null
 

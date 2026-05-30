@@ -5,7 +5,7 @@ sealed class DeletePolicyResult {
     data object PermanentDelete : DeletePolicyResult()
     data object Trash : DeletePolicyResult()
 }
-suspend fun evaluateDeletePolicy(paths: List<String>, repository: FileRepository): DeletePolicyResult {
+suspend fun evaluateDeletePolicy(paths: List<String>, repository: VolumeRepository): DeletePolicyResult {
     var supportsTrashCount = 0
     var permanentDeleteCount = 0
     var errorCount = 0

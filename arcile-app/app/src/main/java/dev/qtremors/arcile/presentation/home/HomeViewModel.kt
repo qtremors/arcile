@@ -8,7 +8,9 @@ import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
@@ -92,7 +94,9 @@ enum class HomeRefreshMode {
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: FileRepository,
+    private val volumeRepository: VolumeRepository,
+    private val storageAnalyticsRepository: StorageAnalyticsRepository,
+    private val searchRepository: SearchRepository,
     private val classificationRepo: StorageClassificationStore,
     private val quickAccessRepo: QuickAccessPreferencesStore
 ) : ViewModel() {
@@ -115,7 +119,7 @@ class HomeViewModel @Inject constructor(
 
         viewModelScope.launch {
             @OptIn(FlowPreview::class)
-            repository.observeStorageVolumes()
+            volumeRepository.observeStorageVolumes()
                 .debounce(1000L)
                 .collectLatest { volumes ->
                     val currentState = _state.value
@@ -158,16 +162,16 @@ class HomeViewModel @Inject constructor(
 
             supervisorScope {
                 val recentResultDef = async {
-                    repository.getRecentFiles(
+                    storageAnalyticsRepository.getRecentFiles(
                         scope = StorageScope.AllStorage,
                         limit = recentsPreviewLimit,
                         minTimestamp = oneWeekAgo
                     )
                 }
-                val allVolumesResultDef = async { repository.getStorageVolumes() }
-                val storageResultDef = if (shouldRefreshAnalytics) async { repository.getStorageInfo(StorageScope.AllStorage) } else null
-                val categoryResultDef = if (shouldRefreshAnalytics) async { repository.getCategoryStorageSizes(StorageScope.AllStorage) } else null
-                val trashUsageResultDef = if (shouldRefreshAnalytics) async { repository.getTrashStorageUsage() } else null
+                val allVolumesResultDef = async { volumeRepository.getStorageVolumes() }
+                val storageResultDef = if (shouldRefreshAnalytics) async { storageAnalyticsRepository.getStorageInfo(StorageScope.AllStorage) } else null
+                val categoryResultDef = if (shouldRefreshAnalytics) async { storageAnalyticsRepository.getCategoryStorageSizes(StorageScope.AllStorage) } else null
+                val trashUsageResultDef = if (shouldRefreshAnalytics) async { storageAnalyticsRepository.getTrashStorageUsage() } else null
 
                 var recentResult: Result<List<FileModel>>? = null
                 var allVolumesResult: Result<List<StorageVolume>>? = null
@@ -189,7 +193,7 @@ class HomeViewModel @Inject constructor(
                             ?.filter { it.kind.isIndexed }
                             ?.map { volume ->
                                 async {
-                                    volume.id to (repository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
+                                    volume.id to (storageAnalyticsRepository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
                                 }
                             }
                             ?.map { it.await() }
@@ -316,7 +320,7 @@ class HomeViewModel @Inject constructor(
             _state.update { it.copy(isSearching = true, error = null) }
 
             val filters = _state.value.activeSearchFilters
-            val result = repository.searchFiles(query, StorageScope.AllStorage, filters)
+            val result = searchRepository.searchFiles(query, StorageScope.AllStorage, filters)
 
             result.onSuccess { files ->
                 _state.update { it.copy(isSearching = false, searchResults = files.toPersistentList()) }

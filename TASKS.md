@@ -1,26 +1,58 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.9.1
-> **Last Updated:** 2026-05-29
+> **Version:** 0.9.2
+> **Last Updated:** 2026-05-30
 
 ---
 
-### Bugs / Fixes From Field Notes
+### Architecture / Maintainability Tasks
 
-- [ ] **BUG-0038 - Refresh Storage Usage After Large Deletes** `[High]`
-  - **Location:** `StorageUsageViewModel.kt`, `StorageUsageScanner.kt`, `FolderStatsStore.kt`, delete/trash operation finalization paths.
-  - **Problem:** Storage size can remain stale after deleting a large chunk of files and may only correct itself after a force restart.
-  - **Impact:** Users lose trust in cleanup results because Arcile reports old storage totals after a major delete operation.
-  - **Fix:** Invalidate storage usage, folder stats, and affected volume summaries after permanent delete, trash, restore, move, and cleaner operations. Ensure operation completion events trigger a fresh scan or targeted recomputation without requiring app restart.
-  - **Verification:** Add regression coverage for large delete/trash completion refreshing storage cards, storage dashboard totals, and folder aggregate sizes.
+- [ ] **ARCH-0001 - Decouple BulkFileOperationService from FileRepository Facade** `[Medium]`
+  - **Location:** `BulkFileOperationService.kt`, `StorageDataModule.kt`.
+  - **Problem:** `BulkFileOperationService` injects the monolithic `FileRepository` facade, coupling background operations to browser, search, and analytics methods it never uses.
+  - **Impact:** Inhibits deprecation of the large repository facade and makes the service harder to isolate and test.
+  - **Fix:** Inject only the required narrow interfaces (`ClipboardRepository`, `TrashRepository`, `FileMutationRepository`, `ArchiveRepository`) into `BulkFileOperationService`. Update constructor injection bindings accordingly.
+  - **Verification:** Run `ArchitectureBoundaryTest` to confirm no boundary leakage, and compile/run unit tests for the operation service.
 
-- [ ] **BUG-0039 - Support Case-Only Rename Operations** `[High]`
-  - **Location:** `FileSystemDataSource.kt`, rename flow, conflict detection/name generation.
-  - **Problem:** Renaming a file or folder by only changing letter casing can fail or be treated as a conflict, for example `file.txt` to `File.txt`.
-  - **Impact:** Basic rename behavior feels broken on case-insensitive or case-preserving storage providers.
-  - **Fix:** Detect case-only renames and route them through a safe temporary-name hop when required by the filesystem/provider. Make conflict detection compare normalized paths without blocking the selected item's own target.
-  - **Verification:** Add unit tests for case-only file and folder renames, including mixed-case extensions and same-directory conflict checks.
+- [ ] **ARCH-0002 - Split Monolithic Test Fakes** `[Medium]`
+  - **Location:** `FakeFileRepository.kt`, and related test files.
+  - **Problem:** `FakeFileRepository` is a single massive 342-line test fake that implements the entire `FileRepository` facade interface, making unit tests dependent on a bloated stub.
+  - **Impact:** Decreases test readability and cohesion. Changes to any domain contract force updates to the large fake class.
+  - **Fix:** Create separate focused test fakes (e.g., `FakeFileBrowserRepository`, `FakeFileMutationRepository`) and replace references to `FakeFileRepository` in ViewModels and delegates.
+  - **Verification:** Verify that all unit test suites in app and feature modules compile and pass.
+
+- [ ] **ARCH-0003 - Extract Presentation Logic from core:ui Module** `[High]`
+  - **Location:** `:core:ui` module, `DeleteFlowDelegate.kt`, `FolderTabs.kt`, `LocalSearchHelper.kt`.
+  - **Problem:** Logic delegates like `DeleteFlowDelegate` reside inside `:core:ui`, mixing pure UI widget/theme concerns with controller logic.
+  - **Impact:** Weakens modularity boundaries and makes it harder to reuse logic on non-Compose surfaces or in platform-neutral unit tests.
+  - **Fix:** Create a new module `:core:presentation:api` or move logic-only delegate classes out of `:core:ui` into a non-UI package/module.
+  - **Verification:** Run unit tests for the extracted delegates and ensure compilation of the UI components depending on them.
+
+- [ ] **ARCH-0004 - Decouple Monolithic Navigation Graph** `[Medium]`
+  - **Location:** `AppNavigationGraph.kt`, feature modules.
+  - **Problem:** `AppNavigationGraph.kt` is a composition root that directly constructs the screens of every feature module, creating a single file with 596 LOC and coupling the `:app` shell to all UI layouts.
+  - **Impact:** Screen additions or routing tweaks require editing a single monolithic composition graph, increasing code conflicts.
+  - **Fix:** Define feature-specific `NavGraphBuilder` extensions (e.g. `NavGraphBuilder.browserScreen(...)`) inside feature modules, and have `AppNavigationGraph` dynamically link them together.
+  - **Verification:** Compile and test all navigation paths across screens, ensuring back stack and arguments are correctly passed.
+
+- [ ] **ARCH-0005 - Migrate Architecture Boundary Tests to ArchUnit** `[Low]`
+  - **Location:** `ArchitectureBoundaryTest.kt`.
+  - **Problem:** Modularity boundary tests use custom file parsing and regex scanning, which are brittle and hard to extend for complex dependency rules.
+  - **Impact:** Limits enforcement to line imports only, without structural or class-level validation capabilities.
+  - **Fix:** Integrate ArchUnit library and rewrite regex checks as declarative architectural rule tests. Add programmatically enforced LOC limits and ViewModel dependency rules (e.g., ViewModels must not exceed 500 LOC).
+  - **Verification:** Run the updated boundary test suite and ensure it catches violations correctly.
+
+- [ ] **ARCH-0006 - Remove Duplicate Resource Files From Feature Modules** `[High]`
+  - **Location:** `:feature:archive`, `:feature:browser`, `:feature:recentfiles`, `:feature:trash` (specifically `src/main/res/values/plurals.xml` in these modules).
+  - **Problem:** Redundant duplicate `plurals.xml` files mirror `:core:ui/src/main/res/values/plurals.xml`. All feature screens use the centralized `dev.qtremors.arcile.core.ui.R` class, making local resource definitions unused.
+  - **Impact:** Unnecessary duplication increases maintenance overhead, file count, and potential for inconsistent layouts or strings across features.
+  - **Fix:** Remove the duplicate `plurals.xml` files from `:feature:archive`, `:feature:browser`, `:feature:recentfiles`, and `:feature:trash`. Ensure the app still builds and all screens resolve strings correctly via `:core:ui`.
+  - **Verification:** Compile and run unit/UI tests, verifying the build is clean and feature modules correctly resolve the shared resources.
+
+---
+
+### UI / UX Tasks
 
 - [ ] **BUG-0040 - Audit Properties Accuracy For Files And Folders** `[High]`
   - **Location:** `PropertiesUiModel.kt`, `PropertiesDialog.kt`, selection properties and folder stats code.
@@ -31,56 +63,35 @@
 
 - [ ] **BUG-0041 - Standardize Toasts/Snackbars With Icons And Undo** `[High]`
   - **Location:** `ArcileSnackbarHost.kt`, browser/recent/trash/cleaner operation feedback paths, `DeleteFlowDelegate.kt`, operation coordinator events.
-  - **Problem:** Toast/snackbar feedback is inconsistent, and undo is not available for every operation where it is technically safe.
+  - **Problem:** Toast/snackbar feedback is inconsistent, and undo is not available for every operation where it is technically safe. Sometimes appears on another screenglitched or duplicated when user changes screen after a toast.
   - **Impact:** Users cannot reliably understand what changed or quickly recover from mistakes.
   - **Fix:** Use one app-level feedback model with icons, success/error/warning states, action labels, and operation-aware undo hooks. Provide undo for rename, move, trash, restore, create folder/file, and cleaner actions where rollback is safe; clearly omit undo for irreversible permanent deletes.
   - **Verification:** Add UI/state tests for feedback icon selection, action labels, undo dispatch, and non-undoable operation messaging.
 
-### Architecture
+---
 
-- [x] **ARCH-0042 - Consolidate Test Fixtures and Create `:core:testing` Module** `[High]`
-  - **Location:** Gradle modules (`settings.gradle.kts`, module build scripts), test packages.
-  - **Problem:** Core test fakes (`FakeFileRepository.kt`, `FakeBrowserPreferencesStore.kt`), test rules, and themes are duplicated across 7 separate modules, causing severe code redundancy and huge maintenance friction when the repository API shifts.
-  - **Fix:** Create a new Gradle module `:core:testing`. Centralize all shared test fakes, fixtures, dispatcher rules, and themes into this module. Clean up the duplicate files in all other module test suites and declare `testImplementation(project(":core:testing"))` dependencies.
-  - **Verification:** Run all tests across the app and modules via `./gradlew test` to ensure all tests compile and pass using the shared testing module.
+### Reliability Tasks
 
-- [x] **ARCH-0043 - Centralize Shared Strings and Eliminate XML Resource Duplication** `[Medium]`
-  - **Location:** `strings.xml` in `:app`, `:core:ui`, `:feature:archive`, `:feature:browser`, `:feature:recentfiles`, and `:feature:trash`.
-  - **Problem:** The entire 648-line `strings.xml` file containing all application strings is duplicated across 6 modules, requiring redundant manual synchronization and increasing merge conflict risks.
-  - **Fix:** Centralize all shared string resources into `:core:ui` (or a dedicated `:core:resources` module) and remove the duplicate string resource files. Feature modules should only declare strings unique to their features.
-  - **Verification:** Run `./gradlew checkDebugAndroidTest` / `./gradlew assembleDebug` and verify that all string resources resolve successfully and no keys collide.
-
-- [ ] **ARCH-0044 - Decouple Core Domain from Compose Runtime Framework** `[Medium]`
-  - **Location:** `:core:storage:domain` module, `FileModel.kt`, `ArchiveModels.kt`, `FolderStats.kt`, `ListingPage.kt`, `SelectionProperties.kt`, `StorageCleanerModels.kt`, `StorageNodeTypes.kt`, `StorageUsageModels.kt`.
-  - **Problem:** The core storage domain module depends directly on the Jetpack Compose Runtime and BOM purely for the `@Immutable` annotation used on domain models, violating clean architecture boundary isolation.
-  - **Fix:** Create a custom JVM-neutral `@Immutable` annotation in `:core:runtime` or remove Compose `@Immutable` from the domain models. Remove the Compose runtime and BOM dependencies from `:core:storage:domain/build.gradle.kts`.
-  - **Verification:** Verify that `:core:storage:domain` builds successfully as a pure Kotlin/JVM library without any Compose or Android dependencies.
-
-- [ ] **ARCH-0045 - Segment `FileRepository` Facade into Segregated ViewModel Dependencies** `[Medium]`
-  - **Location:** ViewModels in `:app` and `:feature:*` (e.g. `TrashViewModel.kt`, `ArchiveViewerViewModel.kt`, `BrowserViewModel.kt`), `FileRepository.kt` facade.
-  - **Problem:** All ViewModels depend directly on the fat `FileRepository` compatibility facade, coupling feature modules to the entire capabilities surface.
-  - **Fix:** Update ViewModels to inject only the specific sub-interfaces they require (e.g. `TrashViewModel` should inject `TrashRepository`; `ArchiveViewerViewModel` should inject `ArchiveRepository`).
-  - **Verification:** Compile the codebase and run unit tests for all ViewModels, ensuring correct behavior and narrower bindings.
-
-- [ ] **ARCH-0046 - Decentralize Monolithic Dependency Injection Module** `[Low]`
-  - **Location:** `RepositoryModule.kt` in `:app` module, core/data modules.
-  - **Problem:** A single giant Hilt module `RepositoryModule.kt` under the `:app` module configures all core and data bindings, preventing other modules from declaring their own DI modules and slowing incremental builds.
-  - **Fix:** Split `RepositoryModule.kt` into module-specific Hilt modules (e.g. define `StorageDataModule` inside `:core:storage:data`, `OperationModule` inside `:core:operation`, and `BrowserPrefsModule` in `:core:storage:data`).
-  - **Verification:** Compile and run Hilt-dependent instrumentation tests to confirm all bindings resolve.
-
-- [ ] **ARCH-0047 - Expand Architecture Boundary Test Coverage** `[Low]`
-  - **Location:** `ArchitectureBoundaryTest.kt` in `:app` module test source set.
-  - **Problem:** The architecture budget check (700 LOC) only scans a limited set of directories and ignores build files (`.gradle.kts`), configuration XMLs, and other core source folders.
-  - **Fix:** Update `ArchitectureBoundaryTest.kt` to scan all modules (`core/*` and `feature/*`) for line size limits, include `.xml`, `.gradle.kts`, and `.gradle` files in the line budget check, and guard `:core:storage:domain` against importing any `androidx.compose` or `android` classes.
-  - **Verification:** Run `ArchitectureBoundaryTest` to confirm it passes and fails appropriately if violations are introduced.
-
-- [ ] **ARCH-0048 - Extract Remaining Features from `:app` Module** `[Low]`
-  - **Location:** `:app` module (`dev.qtremors.arcile.feature.*`), settings.gradle.kts.
-  - **Problem:** Features like Onboarding, Quick Access, Storage Cleaner, and Storage Usage still reside in the `:app` module, preventing the app module from being a pure shell.
-  - **Fix:** Migrate each of these 4 features into their own isolated Gradle modules (e.g. `:feature:onboarding`, `:feature:quickaccess`, `:feature:storagecleaner`, `:feature:storageusage`).
-  - **Verification:** Assemble and verify the app compiles and navigates correctly across the newly extracted modules.
+- [ ] **BUG-0038 - Refresh Storage Usage After Large Deletes** `[High]`
+  - **Location:** `StorageUsageViewModel.kt`, `StorageUsageScanner.kt`, `FolderStatsStore.kt`, delete/trash operation finalization paths.
+  - **Problem:** Storage size can remain stale after deleting a large chunk of files and may only correct itself after a force restart.
+  - **Impact:** Users lose trust in cleanup results because Arcile reports old storage totals after a major delete operation.
+  - **Fix:** Invalidate storage usage, folder stats, and affected volume summaries after permanent delete, trash, restore, move, and cleaner operations. Ensure operation completion events trigger a fresh scan or targeted recomputation without requiring app restart.
+  - **Verification:** Add regression coverage for large delete/trash completion refreshing storage cards, storage dashboard totals, and folder aggregate sizes.
 
 ---
+
+### Data / Storage / Platform Tasks
+
+- [ ] **BUG-0039 - Support Case-Only Rename Operations** `[High]`
+  - **Location:** `FileSystemDataSource.kt`, rename flow, conflict detection/name generation.
+  - **Problem:** Renaming a file or folder by only changing letter casing can fail or be treated as a conflict, for example `file.txt` to `File.txt`.
+  - **Impact:** Basic rename behavior feels broken on case-insensitive or case-preserving storage providers.
+  - **Fix:** Detect case-only renames and route them through a safe temporary-name hop when required by the filesystem/provider. Make conflict detection compare normalized paths without blocking the selected item's own target.
+  - **Verification:** Add unit tests for case-only file and folder renames, including mixed-case extensions and same-directory conflict checks.
+
+---
+
 ## Backlog / Future Ideas
 
 > A parking lot for future ideas, enhancements, and unprioritized Android file-manager features.

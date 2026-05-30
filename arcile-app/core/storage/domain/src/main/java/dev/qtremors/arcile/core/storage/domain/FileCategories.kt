@@ -1,7 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import android.webkit.MimeTypeMap
-
 // storage breakdown by category
 data class CategoryStorage(
     val name: String,
@@ -55,7 +53,15 @@ object FileCategories {
         val normalizedExt = extension.lowercase()
 
         if (normalizedMime == null && normalizedExt.isNotEmpty()) {
-            normalizedMime = runCatching { MimeTypeMap.getSingleton().getMimeTypeFromExtension(normalizedExt) }.getOrNull()?.lowercase()
+            normalizedMime = when (normalizedExt) {
+                "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico", "tiff", "tif" -> "image/$normalizedExt"
+                "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "ts" -> "video/$normalizedExt"
+                "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus", "amr" -> "audio/$normalizedExt"
+                "pdf" -> "application/pdf"
+                "zip" -> "application/zip"
+                "apk" -> "application/vnd.android.package-archive"
+                else -> java.net.URLConnection.guessContentTypeFromName("file.$normalizedExt")?.lowercase()
+            }
         }
 
 

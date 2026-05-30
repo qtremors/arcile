@@ -54,7 +54,7 @@ class ClipboardDelegateTest {
         delegate = ClipboardDelegate(
             state = state,
             viewModelScope = testScope,
-            repository = repository,
+            clipboardRepository = repository,
             bulkFileOperationCoordinator = bulkFileOperationCoordinator,
             refreshAction = { refreshActionCalled = true }
         )

@@ -4,6 +4,7 @@ import android.content.Context
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.storage.domain.toArcileError
+import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.Serializable

@@ -13,7 +13,13 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
@@ -35,6 +41,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.toArcileError
+import dev.qtremors.arcile.core.storage.domain.userMessage
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -139,7 +146,13 @@ fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
 
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
-    private val repository: FileRepository,
+    private val fileBrowserRepository: FileBrowserRepository,
+    private val fileMutationRepository: FileMutationRepository,
+    private val searchRepository: SearchRepository,
+    private val clipboardRepository: ClipboardRepository,
+    private val trashRepository: TrashRepository,
+    private val archiveRepository: ArchiveRepository,
+    private val volumeRepository: VolumeRepository,
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
@@ -174,11 +187,12 @@ class BrowserViewModel @Inject constructor(
     )
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
-    private val searchDelegate = SearchDelegate(_state, viewModelScope, repository)
+    private val searchDelegate = SearchDelegate(_state, viewModelScope, searchRepository)
     private val navigationDelegate = NavigationDelegate(
         state = _state,
         viewModelScope = viewModelScope,
-        repository = repository,
+        fileBrowserRepository = fileBrowserRepository,
+        searchRepository = searchRepository,
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
         onClearSearch = { searchDelegate.updateBrowserSearchQuery("") }
@@ -186,14 +200,14 @@ class BrowserViewModel @Inject constructor(
     private val clipboardDelegate = ClipboardDelegate(
         state = _state,
         viewModelScope = viewModelScope,
-        repository = repository,
+        clipboardRepository = clipboardRepository,
         bulkFileOperationCoordinator = bulkFileCoordinator,
         refreshAction = { navigationDelegate.refresh() }
     )
     private val operationDelegate = BrowserOperationDelegate(
         state = _state,
         viewModelScope = viewModelScope,
-        repository = repository,
+        trashRepository = trashRepository,
         bulkFileOperationCoordinator = bulkFileCoordinator,
         refreshAction = { navigationDelegate.refresh() }
     )
@@ -205,11 +219,13 @@ class BrowserViewModel @Inject constructor(
     private val propertiesDelegate = PropertiesDelegate(
         state = _state,
         viewModelScope = viewModelScope,
-        repository = repository
+        fileBrowserRepository = fileBrowserRepository,
+        archiveRepository = archiveRepository
     )
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
-        repository = repository,
+        volumeRepository = volumeRepository,
+        fileBrowserRepository = fileBrowserRepository,
         callbacks = object : DeleteStateCallbacks {
             override fun getSelectedFiles(): List<String> = _state.value.selectedFiles.toList()
             override fun isPermanentDeleteChecked(): Boolean = _state.value.isPermanentDeleteChecked
@@ -330,7 +346,7 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            repository.observeFolderStatUpdates().collectLatest { update ->
+            fileBrowserRepository.observeFolderStatUpdates().collectLatest { update ->
                 _state.update { currentState ->
                     if (currentState.isVolumeRootScreen || currentState.isCategoryScreen) {
                         return@update currentState
@@ -494,7 +510,7 @@ class BrowserViewModel @Inject constructor(
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
 
         viewModelScope.launch {
-            repository.createDirectory(currentPath, name).onSuccess {
+            fileMutationRepository.createDirectory(currentPath, name).onSuccess {
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_create_folder_failed)) }
@@ -507,7 +523,7 @@ class BrowserViewModel @Inject constructor(
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
 
         viewModelScope.launch {
-            repository.createFile(currentPath, name).onSuccess {
+            fileMutationRepository.createFile(currentPath, name).onSuccess {
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_create_file_failed)) }
@@ -562,7 +578,7 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            repository.renameFile(path, newName).onSuccess {
+            fileMutationRepository.renameFile(path, newName).onSuccess {
                 clearSelection()
                 refresh()
             }.onFailure { error ->
@@ -582,7 +598,7 @@ class BrowserViewModel @Inject constructor(
         if (trashIds.isEmpty()) return
         _state.update { it.copy(pendingTrashUndoIds = persistentListOf()) }
         viewModelScope.launch {
-            repository.restoreFromTrash(trashIds).onSuccess {
+            trashRepository.restoreFromTrash(trashIds).onSuccess {
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.toArcileError().userMessage) }

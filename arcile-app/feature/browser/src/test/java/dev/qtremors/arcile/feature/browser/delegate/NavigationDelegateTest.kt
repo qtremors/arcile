@@ -77,7 +77,8 @@ class NavigationDelegateTest {
         delegate = NavigationDelegate(
             state = state,
             viewModelScope = testScope,
-            repository = repository,
+            fileBrowserRepository = repository,
+            searchRepository = repository,
             browserPreferencesRepository = browserPreferencesRepository,
             savedStateHandle = savedStateHandle,
             onClearSearch = { onClearSearchCalled = true }

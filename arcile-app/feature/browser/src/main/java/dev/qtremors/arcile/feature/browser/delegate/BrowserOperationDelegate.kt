@@ -3,12 +3,13 @@ package dev.qtremors.arcile.feature.browser.delegate
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.core.storage.domain.userMessage
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +21,7 @@ import kotlinx.coroutines.launch
 class BrowserOperationDelegate(
     private val state: MutableStateFlow<BrowserState>,
     private val viewModelScope: CoroutineScope,
-    private val repository: FileRepository,
+    private val trashRepository: TrashRepository,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val refreshAction: () -> Unit
 ) {
@@ -169,7 +170,7 @@ class BrowserOperationDelegate(
 
     private suspend fun trashUndoIdsFor(sourcePaths: List<String>): List<String> {
         val sourceSet = sourcePaths.toSet()
-        return repository.getTrashFiles().getOrNull()
+        return trashRepository.getTrashFiles().getOrNull()
             ?.filter { it.originalPath in sourceSet }
             ?.sortedByDescending { it.deletionTime }
             ?.map { it.id }

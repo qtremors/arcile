@@ -41,7 +41,10 @@ class TrashViewModelTest {
         val repository = FakeFileRepository().apply {
             trashFilesResult = Result.success(items)
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.toggleSelection("keep-1")
@@ -62,7 +65,10 @@ class TrashViewModelTest {
                 trashItem("3", "photo-backup.png")
             ))
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.updateSearchQuery("PHOTO")
@@ -87,7 +93,10 @@ class TrashViewModelTest {
                 else Result.success(Unit)
             }
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -110,7 +119,10 @@ class TrashViewModelTest {
                 else Result.success(Unit)
             }
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.toggleSelection("1")
@@ -135,7 +147,10 @@ class TrashViewModelTest {
                 )
             )
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.updateFilter(TrashFilter.CAN_RESTORE)
@@ -158,7 +173,10 @@ class TrashViewModelTest {
                 )
             )
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.updateSortOption(TrashSortOption.NAME_ASC)
@@ -178,7 +196,10 @@ class TrashViewModelTest {
                 )
             )
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.toggleSelection("1")
@@ -196,7 +217,10 @@ class TrashViewModelTest {
         val repository = FakeFileRepository().apply {
             trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(
+            trashRepository = repository,
+            volumeRepository = repository
+        )
 
         advanceUntilIdle()
         viewModel.toggleSelection("1")

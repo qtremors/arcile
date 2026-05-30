@@ -4,7 +4,8 @@ import android.content.IntentSender
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.DeleteDestination
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.evaluateDeletePolicy
 import dev.qtremors.arcile.core.storage.domain.DeletePolicyResult
 import dev.qtremors.arcile.core.ui.UiText
@@ -37,7 +38,8 @@ interface DeleteStateCallbacks {
 
 class DeleteFlowDelegate(
     private val coroutineScope: CoroutineScope,
-    private val repository: FileRepository,
+    private val volumeRepository: VolumeRepository,
+    private val fileBrowserRepository: FileBrowserRepository,
     private val callbacks: DeleteStateCallbacks,
     private val startBulkDeleteOperation: (BulkFileOperationType, List<String>) -> Boolean,
     private val emitNativeRequest: suspend (IntentSender) -> Unit,
@@ -50,8 +52,8 @@ class DeleteFlowDelegate(
 
         coroutineScope.launch {
             callbacks.setLoading(true)
-            val policyResult = evaluateDeletePolicy(selected, repository)
-            val properties = repository.getSelectionProperties(selected).getOrNull()
+            val policyResult = evaluateDeletePolicy(selected, volumeRepository)
+            val properties = fileBrowserRepository.getSelectionProperties(selected).getOrNull()
 
             when (policyResult) {
                 is DeletePolicyResult.MixedSelection -> {

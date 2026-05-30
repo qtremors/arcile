@@ -29,11 +29,17 @@
             <option value="$PROJECT_DIR$/core/storage" />
             <option value="$PROJECT_DIR$/core/storage/data" />
             <option value="$PROJECT_DIR$/core/storage/domain" />
+            <option value="$PROJECT_DIR$/core/testing" />
             <option value="$PROJECT_DIR$/core/ui" />
+            <option value="$PROJECT_DIR$/core/ui/testing" />
             <option value="$PROJECT_DIR$/feature" />
             <option value="$PROJECT_DIR$/feature/archive" />
             <option value="$PROJECT_DIR$/feature/browser" />
+            <option value="$PROJECT_DIR$/feature/onboarding" />
+            <option value="$PROJECT_DIR$/feature/quickaccess" />
             <option value="$PROJECT_DIR$/feature/recentfiles" />
+            <option value="$PROJECT_DIR$/feature/storagecleaner" />
+            <option value="$PROJECT_DIR$/feature/storageusage" />
             <option value="$PROJECT_DIR$/feature/trash" />
           </set>
         </option>

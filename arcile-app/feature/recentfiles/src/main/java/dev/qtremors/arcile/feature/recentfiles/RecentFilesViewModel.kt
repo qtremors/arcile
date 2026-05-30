@@ -9,7 +9,10 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -69,7 +72,10 @@ data class RecentFilesState(
 
 @HiltViewModel
 class RecentFilesViewModel @Inject constructor(
-    private val repository: FileRepository,
+    private val volumeRepository: VolumeRepository,
+    private val storageAnalyticsRepository: StorageAnalyticsRepository,
+    private val fileBrowserRepository: FileBrowserRepository,
+    private val searchRepository: SearchRepository,
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val savedStateHandle: SavedStateHandle
@@ -85,7 +91,8 @@ class RecentFilesViewModel @Inject constructor(
 
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
-        repository = repository,
+        volumeRepository = volumeRepository,
+        fileBrowserRepository = fileBrowserRepository,
         callbacks = object : DeleteStateCallbacks {
             override fun getSelectedFiles(): List<String> = _state.value.selectedFiles.toList()
             override fun isPermanentDeleteChecked(): Boolean = _state.value.isPermanentDeleteChecked
@@ -183,7 +190,7 @@ class RecentFilesViewModel @Inject constructor(
         }
         viewModelScope.launch {
             @OptIn(kotlinx.coroutines.FlowPreview::class)
-            repository.observeStorageVolumes()
+            volumeRepository.observeStorageVolumes()
                 .debounce(1000L)
                 .distinctUntilChanged()
                 .collectLatest {
@@ -224,7 +231,7 @@ class RecentFilesViewModel @Inject constructor(
         }
         viewModelScope.launch {
             val scope = capturedState.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
-            val result = repository.getRecentFiles(scope = scope, limit = 50, offset = offset)
+            val result = storageAnalyticsRepository.getRecentFiles(scope = scope, limit = 50, offset = offset)
             result.onSuccess { files ->
                 _state.update {
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
@@ -364,7 +371,7 @@ class RecentFilesViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+            fileBrowserRepository.getSelectionProperties(selectedPaths).onSuccess { properties ->
                 _state.update {
                     it.copy(
                         isPropertiesVisible = true,
@@ -405,7 +412,7 @@ class RecentFilesViewModel @Inject constructor(
             delay(400)
             _state.update { it.copy(isSearching = true, error = null) }
             val stateValue = _state.value
-            repository.searchFiles(query, stateValue.searchScope(), stateValue.activeSearchFilters)
+            searchRepository.searchFiles(query, stateValue.searchScope(), stateValue.activeSearchFilters)
                 .onSuccess { files ->
                     _state.update {
                         it.copy(

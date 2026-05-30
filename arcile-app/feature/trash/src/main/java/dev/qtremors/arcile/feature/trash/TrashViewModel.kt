@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import android.content.IntentSender
@@ -57,7 +58,8 @@ data class TrashState(
 
 @HiltViewModel
 class TrashViewModel @Inject constructor(
-    private val repository: FileRepository
+    private val trashRepository: TrashRepository,
+    private val volumeRepository: VolumeRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TrashState())
@@ -80,7 +82,7 @@ class TrashViewModel @Inject constructor(
     init {
         loadTrashFiles()
         viewModelScope.launch {
-            repository.observeStorageVolumes().collect { volumes ->
+            volumeRepository.observeStorageVolumes().collect { volumes ->
                 _state.update { it.copy(availableVolumes = volumes) }
             }
         }
@@ -89,7 +91,7 @@ class TrashViewModel @Inject constructor(
     fun loadTrashFiles() {
         _state.update { it.copy(isLoading = true) }
         viewModelScope.launch {
-            val result = repository.getTrashFiles()
+            val result = trashRepository.getTrashFiles()
             result.onSuccess { trashItems ->
                 _state.update { currentState -> 
                     currentState.copy(
@@ -152,7 +154,7 @@ class TrashViewModel @Inject constructor(
 
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            repository.restoreFromTrash(selectedTrashIds).onSuccess {
+            trashRepository.restoreFromTrash(selectedTrashIds).onSuccess {
                 val message = restoreSummaryMessage(selectedTrashIds.size, conflictCount)
                 clearSelection()
                 _state.update { it.copy(snackbarMessage = message) }
@@ -170,7 +172,7 @@ class TrashViewModel @Inject constructor(
                     }
                     is NativeConfirmationRequiredException -> {
                         _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.RESTORE) }
-                        viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
+                        viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender as IntentSender) }
                     }
                     else -> {
                         _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
@@ -190,7 +192,7 @@ class TrashViewModel @Inject constructor(
 
         _state.update { it.copy(isLoading = true, error = null, showDestinationPicker = false) }
         viewModelScope.launch {
-            repository.restoreFromTrash(trashIds, destinationPath).onSuccess {
+            trashRepository.restoreFromTrash(trashIds, destinationPath).onSuccess {
                 val normalizedIds = trashIds.map { it.removePrefix("legacy:") }.toSet()
                 _state.update {
                     it.copy(
@@ -212,7 +214,7 @@ class TrashViewModel @Inject constructor(
                             pendingRestoreIds = trashIds
                         ) 
                     }
-                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender as IntentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                     loadTrashFiles()
@@ -224,13 +226,13 @@ class TrashViewModel @Inject constructor(
     fun emptyTrash() {
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
-            repository.emptyTrash().onSuccess {
+            trashRepository.emptyTrash().onSuccess {
                 clearSelection()
                 loadTrashFiles()
             }.onFailure { error ->
                 if (error is NativeConfirmationRequiredException) {
                     _state.update { it.copy(isLoading = false, pendingNativeAction = NativeAction.EMPTY) }
-                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender) }
+                    viewModelScope.launch { _nativeRequestFlow.emit(error.intentSender as IntentSender) }
                 } else {
                     _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_empty_trash_failed)) }
                     loadTrashFiles()
@@ -262,7 +264,7 @@ class TrashViewModel @Inject constructor(
         // operations move into BulkFileOperationService later, this VM should observe coordinator events.
         _state.update { it.copy(isLoading = true, error = null, showPermanentDeleteConfirmation = false) }
         viewModelScope.launch {
-            repository.deletePermanentlyFromTrash(selectedIds).onSuccess {
+            trashRepository.deletePermanentlyFromTrash(selectedIds).onSuccess {
                 clearSelection()
                 loadTrashFiles()
             }.onFailure { error ->

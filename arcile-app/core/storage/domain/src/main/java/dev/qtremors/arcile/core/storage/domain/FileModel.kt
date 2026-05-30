@@ -1,7 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import androidx.compose.runtime.Immutable
-
 /**
  * Core domain model representing a single file or directory entry.
  *

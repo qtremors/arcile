@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import androidx.compose.runtime.Immutable
 import java.io.File
 
 @JvmInline

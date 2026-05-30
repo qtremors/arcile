@@ -70,7 +70,7 @@ class StorageScopeViewModelTest {
         )
 
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, FakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, FakeStorageClassificationStore(), quickAccessRepo)
         advanceUntilIdle()
 
         assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
@@ -89,7 +89,10 @@ class StorageScopeViewModelTest {
         )
 
         val viewModel = RecentFilesViewModel(
-            repository = repository,
+            volumeRepository = repository,
+            storageAnalyticsRepository = repository,
+            fileBrowserRepository = repository,
+            searchRepository = repository,
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             bulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
             savedStateHandle = SavedStateHandle(mapOf("volumeId" to "sd"))
@@ -109,7 +112,10 @@ class StorageScopeViewModelTest {
         )
 
         val viewModel = RecentFilesViewModel(
-            repository = repository,
+            volumeRepository = repository,
+            storageAnalyticsRepository = repository,
+            fileBrowserRepository = repository,
+            searchRepository = repository,
             browserPreferencesRepository = FakeBrowserPreferencesStore(),
             bulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
             savedStateHandle = SavedStateHandle(mapOf("volumeId" to ""))
@@ -133,7 +139,7 @@ class StorageScopeViewModelTest {
         val repository = FakeFileRepository(volumes = listOf(otg))
 
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, store, quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, store, quickAccessRepo)
         advanceUntilIdle()
 
         viewModel.setVolumeClassification(otg.storageKey, StorageKind.OTG)
@@ -158,7 +164,7 @@ class StorageScopeViewModelTest {
         val repository = FakeFileRepository(volumes = listOf(otg))
 
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, store, quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, store, quickAccessRepo)
         advanceUntilIdle()
 
         // Initially shown
@@ -185,7 +191,7 @@ class StorageScopeViewModelTest {
                 Result.failure(DestinationRequiredException(listOf("trash-1")))
             }
         }
-        val viewModel = TrashViewModel(repository)
+        val viewModel = TrashViewModel(repository, repository)
 
         advanceUntilIdle()
         viewModel.toggleSelection("trash-1")

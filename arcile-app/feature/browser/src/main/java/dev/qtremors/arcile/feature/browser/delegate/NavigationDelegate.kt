@@ -3,8 +3,9 @@ package dev.qtremors.arcile.feature.browser.delegate
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
@@ -31,7 +32,8 @@ import java.util.ArrayDeque
 class NavigationDelegate(
     private val state: MutableStateFlow<BrowserState>,
     private val viewModelScope: CoroutineScope,
-    private val repository: FileRepository,
+    private val fileBrowserRepository: FileBrowserRepository,
+    private val searchRepository: SearchRepository,
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
     private val onClearSearch: () -> Unit
@@ -277,7 +279,7 @@ class NavigationDelegate(
             val prefs = browserPreferencesRepository.preferencesFlow.first()
             applyPresentation(prefs.getPresentationForPath(path))
 
-            repository.listFilePages(path).collect { page ->
+            fileBrowserRepository.listFilePages(path).collect { page ->
                 page.error?.let { error ->
                     state.update {
                         it.copy(
@@ -295,7 +297,7 @@ class NavigationDelegate(
                     state.value.files + page.files
                 }
                 val folderPaths = page.files.filter { it.isDirectory }.map { it.absolutePath }
-                val cachedStats = repository.getCachedFolderStats(folderPaths)
+                val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
                 val now = System.currentTimeMillis()
                 val pathsToQueue = folderPaths.filter { folderPath ->
                     val cached = cachedStats[folderPath] ?: return@filter true
@@ -315,7 +317,7 @@ class NavigationDelegate(
                         folderStatsLoadingPaths = (it.folderStatsLoadingPaths + pathsToQueue).toPersistentSet()
                     ).withUpdatedDisplayState()
                 }
-                repository.queueFolderStats(pathsToQueue)
+                fileBrowserRepository.queueFolderStats(pathsToQueue)
                 if (page.isComplete) saveNavState()
             }
         }
@@ -334,7 +336,7 @@ class NavigationDelegate(
             val categoryPresentation = prefs.getPresentationForCategory(categoryName)
 
             val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
-            repository.getFilesByCategory(scope, categoryName).onSuccess { files ->
+            searchRepository.getFilesByCategory(scope, categoryName).onSuccess { files ->
                 state.update {
                     it.copy(
                         isLoading = false,

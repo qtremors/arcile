@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.1
-> **Last Updated:** 2026-05-29
+> **Version:** 0.9.2
+> **Last Updated:** 2026-05-30
 
 ---
+
+## [0.9.2] - 2026-05-30
+
+### Architecture
+- **Domain Decoupling:** Converted `:core:storage:domain` and `:core:operation:api` to pure Kotlin/JVM libraries. Replaced Compose `@Immutable` with a JVM-neutral annotation, decoupled `FileCategories` from Android `MimeTypeMap`, decoupled `FileRepository` from `android.content.IntentSender`, and moved `ArcileError` resource mapping to extension properties in `:core:runtime`.
+- **ViewModel Interface Segregation (ARCH-0045):** Segmented the fat `FileRepository` compatibility facade into narrow interface dependencies (`FileBrowserRepository`, `FileMutationRepository`, `SearchRepository`, `ClipboardRepository`, `TrashRepository`, `ArchiveRepository`, `VolumeRepository`). Updated all ViewModels across `:app` and `:feature:*` modules, along with their unit tests and delegate classes, to inject and depend only on the specific sub-interfaces they require.
+- **Decentralized Hilt Modules (ARCH-0046):** Decentralized the monolithic Hilt DI module `RepositoryModule.kt` under the `:app` module. Created module-specific Hilt modules, defining `StorageDataModule` and `BrowserPrefsModule` inside the `:core:storage:data` module, `OperationModule` inside the `:app` module, and `AppModule` inside the `:app` module. Configured Hilt/KSP annotation processing plugins for the `:core:storage:data` library module.
+- **Expanded Architecture Boundary Coverage (ARCH-0047):** Updated `ArchitectureBoundaryTest.kt` in the `:app` module to scan all repository directories (excluding `build`, `.gradle`, `.git`, `.idea`, `.kotlin`, and `assets` folders) for the 700-line size limit, including `.xml`, `.gradle.kts`, and `.gradle` files. Added a strict test guard ensuring the pure Kotlin `:core:storage:domain` module does not import any `android.*` or `androidx.compose.*` classes.
+- **Feature Module Extraction (ARCH-0048):** Extracted the remaining four features (Onboarding, Quick Access, Storage Cleaner, Storage Usage) from the `:app` module into their own isolated Gradle library modules under `:feature:*`. Re-routed dependencies, resolved dynamic context references, and migrated all related unit tests.
 
 ## [0.9.1] - 2026-05-29
 

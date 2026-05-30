@@ -2,7 +2,8 @@ package dev.qtremors.arcile.shared.presentation.delegate
 
 import android.content.IntentSender
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.ui.UiText
@@ -27,7 +28,8 @@ import org.robolectric.annotation.Config
 @OptIn(ExperimentalCoroutinesApi::class)
 class DeleteFlowDelegateTest {
 
-    private lateinit var repository: FileRepository
+    private lateinit var volumeRepository: VolumeRepository
+    private lateinit var fileBrowserRepository: FileBrowserRepository
     private lateinit var callbacks: DeleteStateCallbacks
     private lateinit var testScope: TestScope
     private lateinit var delegate: DeleteFlowDelegate
@@ -38,19 +40,21 @@ class DeleteFlowDelegateTest {
     @Before
     fun setup() {
         testScope = TestScope(UnconfinedTestDispatcher())
-        repository = mockk(relaxed = true)
+        volumeRepository = mockk(relaxed = true)
+        fileBrowserRepository = mockk(relaxed = true)
         callbacks = mockk(relaxed = true)
         startBulkFileOperationResult = true
         onSuccessCalled = false
         onFailureCalled = false
-        coEvery { repository.getSelectionProperties(any()) } answers {
+        coEvery { fileBrowserRepository.getSelectionProperties(any()) } answers {
             val paths = firstArg<List<String>>()
             Result.success(selectionProperties(paths.size))
         }
 
         delegate = DeleteFlowDelegate(
             coroutineScope = testScope,
-            repository = repository,
+            volumeRepository = volumeRepository,
+            fileBrowserRepository = fileBrowserRepository,
             callbacks = callbacks,
             startBulkDeleteOperation = { _, _ -> startBulkFileOperationResult },
             emitNativeRequest = {},
@@ -66,7 +70,7 @@ class DeleteFlowDelegateTest {
         val volume = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
             every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.INTERNAL
         }
-        coEvery { repository.getVolumeForPath("/path/to/file.txt") } returns Result.success(volume)
+        coEvery { volumeRepository.getVolumeForPath("/path/to/file.txt") } returns Result.success(volume)
 
         delegate.requestDeleteSelected()
 
@@ -83,7 +87,7 @@ class DeleteFlowDelegateTest {
         val volume = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
             every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.OTG
         }
-        coEvery { repository.getVolumeForPath("/path/to/file.txt") } returns Result.success(volume)
+        coEvery { volumeRepository.getVolumeForPath("/path/to/file.txt") } returns Result.success(volume)
 
         delegate.requestDeleteSelected()
 
@@ -101,8 +105,8 @@ class DeleteFlowDelegateTest {
         val volumePerm = mockk<dev.qtremors.arcile.core.storage.domain.StorageVolume> {
             every { kind } returns dev.qtremors.arcile.core.storage.domain.StorageKind.OTG
         }
-        coEvery { repository.getVolumeForPath("/path/to/file1.txt") } returns Result.success(volumeTrash)
-        coEvery { repository.getVolumeForPath("/path/to/file2.txt") } returns Result.success(volumePerm)
+        coEvery { volumeRepository.getVolumeForPath("/path/to/file1.txt") } returns Result.success(volumeTrash)
+        coEvery { volumeRepository.getVolumeForPath("/path/to/file2.txt") } returns Result.success(volumePerm)
 
         delegate.requestDeleteSelected()
         

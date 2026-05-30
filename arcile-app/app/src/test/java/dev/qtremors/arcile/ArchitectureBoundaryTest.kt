@@ -176,6 +176,23 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `core storage domain does not import android or compose classes`() {
+        val sourceRoot = File(projectRoot(), "core/storage/domain/src/main/java")
+        val forbiddenImport = Regex("""import (android\..+|androidx\.compose\..+)""")
+        val offenders = sourceRoot.kotlinFiles()
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbiddenImport.matches(line.trim())) moduleViolation(file, index, line) else null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Core storage domain must not depend on Android or Compose classes:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
     fun `extracted core modules do not import app feature presentation or concrete data from contracts`() {
         val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(presentation|feature|core\.storage\.data)\..+""")
         val moduleSourceRoots = listOf(
@@ -220,42 +237,32 @@ class ArchitectureBoundaryTest {
     @Test
     fun `large files stay within the architecture budget`() {
         val projectRoot = projectRoot()
-        // Keep in-module feature/core boundaries enforceable by preventing catch-all files.
+        val repoRoot = projectRoot.parentFile ?: projectRoot
         val allowedLargeFiles = emptySet<String>()
-        val roots = listOf(
-            File(projectRoot, "app/src/main/java"),
-            File(projectRoot, "app/src/test/java"),
-            File(projectRoot, "core/ui/src/main/java"),
-            File(projectRoot, "core/ui/src/test/java"),
-            File(projectRoot, "feature/browser/src/main/java"),
-            File(projectRoot, "feature/browser/src/test/java"),
-            File(projectRoot, "feature/trash/src/main/java"),
-            File(projectRoot, "feature/trash/src/test/java"),
-            File(projectRoot, "feature/archive/src/main/java"),
-            File(projectRoot, "feature/archive/src/test/java"),
-            File(projectRoot, "feature/recentfiles/src/main/java"),
-            File(projectRoot, "feature/recentfiles/src/test/java"),
-            File(projectRoot.parentFile ?: projectRoot, "docs")
-        )
-        val offenders = roots
-            .filter { it.exists() }
-            .flatMap { root ->
-                root.walkTopDown()
-                    .filter { it.isFile && (it.extension == "kt" || it.extension == "html") }
-                    .mapNotNull { file ->
-                        val relativePath = if (file.absolutePath.startsWith(projectRoot.absolutePath)) {
-                            file.relativeTo(projectRoot).invariantSeparatorsPath
-                        } else {
-                            file.relativeTo(projectRoot.parentFile ?: projectRoot).invariantSeparatorsPath
-                        }
-                        val lineCount = file.readLines().size
-                        if (lineCount > MAX_FILE_LINES && relativePath !in allowedLargeFiles) {
-                            "$relativePath: $lineCount lines"
-                        } else {
-                            null
-                        }
-                    }
+
+        val offenders = repoRoot.walkTopDown()
+            .onEnter { dir ->
+                val name = dir.name
+                name != "build" && name != ".gradle" && name != ".git" &&
+                name != ".idea" && name != ".kotlin" && name != "assets"
             }
+            .filter { file ->
+                file.isFile && when (file.extension) {
+                    "kt", "html", "xml", "gradle" -> true
+                    "kts" -> file.name.endsWith(".gradle.kts")
+                    else -> false
+                }
+            }
+            .mapNotNull { file ->
+                val relativePath = file.relativeTo(repoRoot).invariantSeparatorsPath
+                val lineCount = file.readLines().size
+                if (lineCount > MAX_FILE_LINES && relativePath !in allowedLargeFiles) {
+                    "$relativePath: $lineCount lines"
+                } else {
+                    null
+                }
+            }
+            .toList()
 
         if (offenders.isNotEmpty()) {
             fail("Files above $MAX_FILE_LINES lines must be split or explicitly allowlisted:\n${offenders.joinToString("\n")}")
@@ -267,11 +274,14 @@ class ArchitectureBoundaryTest {
 
     private fun featureSourceRoots(): List<File> =
         listOf(
-            sourceRoot("feature"),
             File(projectRoot(), "feature/browser/src/main/java/dev/qtremors/arcile/feature"),
             File(projectRoot(), "feature/trash/src/main/java/dev/qtremors/arcile/feature"),
             File(projectRoot(), "feature/archive/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/recentfiles/src/main/java/dev/qtremors/arcile/feature")
+            File(projectRoot(), "feature/recentfiles/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/onboarding/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/quickaccess/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature"),
+            File(projectRoot(), "feature/storageusage/src/main/java/dev/qtremors/arcile/feature")
         )
 
     private fun projectRoot(): File =

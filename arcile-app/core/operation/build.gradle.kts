@@ -1,20 +1,11 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
 }
 
-android {
-    namespace = "dev.qtremors.arcile.core.operation"
-    compileSdk = 37
-
-    defaultConfig {
-        minSdk = 30
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 kotlin {
@@ -26,6 +17,6 @@ kotlin {
 dependencies {
     api(project(":core:operation:api"))
     implementation(project(":core:storage:domain"))
-    implementation(libs.kotlinx.coroutines.android)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.coroutines.get()}")
     implementation(libs.kotlinx.serialization.json)
 }

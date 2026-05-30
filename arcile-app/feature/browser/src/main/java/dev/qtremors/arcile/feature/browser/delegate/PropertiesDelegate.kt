@@ -2,7 +2,8 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.shared.presentation.toUiModel
@@ -14,7 +15,8 @@ import kotlinx.coroutines.launch
 class PropertiesDelegate(
     private val state: MutableStateFlow<BrowserState>,
     private val viewModelScope: CoroutineScope,
-    private val repository: FileRepository
+    private val fileBrowserRepository: FileBrowserRepository,
+    private val archiveRepository: ArchiveRepository
 ) {
     fun openPropertiesForSelection() {
         val selectedPaths = state.value.selectedFiles.toList()
@@ -29,10 +31,10 @@ class PropertiesDelegate(
         }
 
         viewModelScope.launch {
-            repository.getSelectionProperties(selectedPaths).onSuccess { properties ->
+            fileBrowserRepository.getSelectionProperties(selectedPaths).onSuccess { properties ->
                 val archiveSummary = selectedPaths.singleOrNull()
                     ?.takeIf { ArchiveFormat.isSupported(it) }
-                    ?.let { repository.getArchiveMetadata(it).getOrNull() }
+                    ?.let { archiveRepository.getArchiveMetadata(it).getOrNull() }
                 state.update {
                     it.copy(
                         isPropertiesVisible = true,

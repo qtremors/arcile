@@ -9,6 +9,13 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
@@ -33,7 +40,13 @@ fun createViewModel(
     savedStateHandle: SavedStateHandle,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
 ): BrowserViewModel = BrowserViewModel(
-    repository = repository,
+    fileBrowserRepository = repository,
+    fileMutationRepository = repository,
+    searchRepository = repository,
+    clipboardRepository = repository,
+    trashRepository = repository,
+    archiveRepository = repository,
+    volumeRepository = repository,
     browserPreferencesRepository = browserPreferencesRepository,
     savedStateHandle = savedStateHandle,
     getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),

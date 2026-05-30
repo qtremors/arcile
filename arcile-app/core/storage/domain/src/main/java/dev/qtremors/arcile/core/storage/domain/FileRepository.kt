@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
@@ -11,15 +10,13 @@ import kotlinx.coroutines.flow.Flow
  * Thrown when a file operation (like trash or restore) requires native OS confirmation.
  * The caller should launch [intentSender] to proceed.
  */
-class NativeConfirmationRequiredException(val intentSender: android.content.IntentSender) : Exception("Native confirmation required")
+class NativeConfirmationRequiredException(val intentSender: Any) : Exception("Native confirmation required")
 
 /**
  * Thrown when restoring files from trash requires a destination directory to be selected
  * (e.g., if the original parent directory was deleted).
  */
 class DestinationRequiredException(val trashIds: List<String>) : Exception("Destination directory required for restoration")
-
-
 
 /**
  * Repository abstraction for all file system operations.

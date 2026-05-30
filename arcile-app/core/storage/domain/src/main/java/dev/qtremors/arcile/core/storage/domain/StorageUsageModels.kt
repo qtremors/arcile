@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import androidx.compose.runtime.Immutable
 
 @Immutable
 data class StorageUsageScanLimits(

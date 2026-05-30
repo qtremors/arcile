@@ -7,7 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -59,7 +59,7 @@ data class ArchiveViewerState(
 @HiltViewModel
 class ArchiveViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val repository: FileRepository,
+    private val repository: ArchiveRepository,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
     private val archivePath = savedStateHandle.get<String>("archivePath").orEmpty()

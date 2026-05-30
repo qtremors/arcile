@@ -362,7 +362,10 @@ private fun recentViewModel(
     coordinator: FakeBulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
     preferences: FakeBrowserPreferencesStore = FakeBrowserPreferencesStore()
 ) = RecentFilesViewModel(
-    repository = repository,
+    volumeRepository = repository,
+    storageAnalyticsRepository = repository,
+    fileBrowserRepository = repository,
+    searchRepository = repository,
     browserPreferencesRepository = preferences,
     bulkFileOperationCoordinator = coordinator,
     savedStateHandle = SavedStateHandle()

@@ -29,6 +29,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":core:storage:domain"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.hilt.android)

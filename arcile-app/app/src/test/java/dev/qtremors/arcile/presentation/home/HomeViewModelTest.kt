@@ -39,7 +39,7 @@ class HomeViewModelTest {
             storageInfoResultProvider = { Result.failure(IllegalStateException("storage failed")) }
         }
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         viewModel.loadHomeData()
         advanceUntilIdle()
@@ -58,7 +58,7 @@ class HomeViewModelTest {
             searchFilesResultProvider = { _, _, _ -> Result.success(expectedResults) }
         }
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         advanceTimeBy(1_000)
         advanceUntilIdle()
@@ -81,7 +81,7 @@ class HomeViewModelTest {
     fun `blank home search clears current search state immediately`() = runTest(mainDispatcherRule.dispatcher) {
         val repository = FakeFileRepository()
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         advanceTimeBy(1_000)
         advanceUntilIdle()
@@ -110,7 +110,7 @@ class HomeViewModelTest {
         val repository = FakeFileRepository(volumes = listOf(volume))
         val store = HomeFakeStorageClassificationStore(setFailure = IllegalStateException("disk full"))
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, store, quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, store, quickAccessRepo)
 
         advanceTimeBy(1_000)
         advanceUntilIdle()
@@ -147,8 +147,11 @@ class HomeViewModelTest {
             isRemovable = true
         )
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val repo = FakeFileRepository(volumes = listOf(first, second))
         val viewModel = HomeViewModel(
-            FakeFileRepository(volumes = listOf(first, second)),
+            repo,
+            repo,
+            repo,
             HomeFakeStorageClassificationStore(),
             quickAccessRepo
         )
@@ -171,7 +174,7 @@ class HomeViewModelTest {
             storageInfoResultProvider = { Result.success(StorageInfo(emptyList())) }
         }
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         advanceTimeBy(1_000)
         advanceUntilIdle()
@@ -205,7 +208,7 @@ class HomeViewModelTest {
             }
         }
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         viewModel.loadHomeData()
         advanceTimeBy(15_000)
@@ -224,7 +227,7 @@ class HomeViewModelTest {
             trashStorageUsageResult = Result.success(TrashStorageUsage(42L, mapOf("primary" to 42L)))
         }
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         viewModel.loadHomeData()
         advanceUntilIdle()
@@ -239,7 +242,7 @@ class HomeViewModelTest {
             trashStorageUsageResult = Result.success(TrashStorageUsage(24L, mapOf("primary" to 24L)))
         }
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val viewModel = HomeViewModel(repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        val viewModel = HomeViewModel(repository, repository, repository, HomeFakeStorageClassificationStore(), quickAccessRepo)
 
         viewModel.loadHomeData()
         advanceUntilIdle()
