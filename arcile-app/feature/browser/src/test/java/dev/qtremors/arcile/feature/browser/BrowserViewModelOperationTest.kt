@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
@@ -94,7 +95,7 @@ class BrowserViewModelOperationTest {
 
         viewModel.clearActiveFileOperation()
         assertNull(viewModel.state.value.activeFileOperation)
-        assertEquals(UiText.PluralResource(dev.qtremors.arcile.feature.browser.R.plurals.file_operation_moved_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
+        assertEquals(UiText.PluralResource(R.plurals.file_operation_moved_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
 
         viewModel.clearFileOperationStatusMessage()
         assertNull(viewModel.state.value.fileOperationStatusMessage)
@@ -133,7 +134,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
 
         assertEquals(listOf("after.txt"), viewModel.state.value.files.map { it.name })
-        assertEquals(UiText.PluralResource(dev.qtremors.arcile.feature.browser.R.plurals.file_operation_created_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
+        assertEquals(UiText.PluralResource(R.plurals.file_operation_created_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
     }
 
     @Test

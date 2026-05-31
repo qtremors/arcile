@@ -18,7 +18,7 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
@@ -44,7 +44,7 @@ class RecentFilesViewModelTest {
             recentFile("Holiday.jpg", lastModified = 300L),
             recentFile("holiday-plan.pdf", lastModified = 200L)
         )
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("notes.txt")))
         ).apply {
             searchFilesResultProvider = { query, scope, _ ->
@@ -74,7 +74,7 @@ class RecentFilesViewModelTest {
             recentFile("new.txt", lastModified = 300L),
             recentFile("middle.txt", lastModified = 200L)
         )
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
         )
         val viewModel = recentViewModel(repository)
@@ -92,7 +92,7 @@ class RecentFilesViewModelTest {
             recentFile("alpha.txt"),
             recentFile("gamma.txt")
         )
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
         )
         val viewModel = recentViewModel(repository)
@@ -113,7 +113,7 @@ class RecentFilesViewModelTest {
             recentFile("old.jpg", size = 30L, lastModified = 100L, mimeType = "image/jpeg"),
             recentFile("doc.pdf", size = 40L, lastModified = 450L, mimeType = "application/pdf")
         )
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
         )
         val viewModel = recentViewModel(repository)
@@ -137,7 +137,7 @@ class RecentFilesViewModelTest {
             recentFile("holiday-small.jpg", size = 10L),
             recentFile("holiday-large.jpg", size = 30L)
         )
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             searchFilesResultProvider = { _, _, filters ->
                 assertEquals(SearchFilters(fileType = "Images"), filters)
                 Result.success(searchFiles)
@@ -157,7 +157,7 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `blank search query clears recent file search state immediately`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("Holiday.jpg")))
         )
         val viewModel = recentViewModel(repository)
@@ -175,7 +175,7 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `pull to refresh reloads files and resets refresh flag`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("Holiday.jpg")))
         )
         val viewModel = recentViewModel(repository)
@@ -193,7 +193,7 @@ class RecentFilesViewModelTest {
     @Test
     fun `requestDeleteSelected shows trash confirmation for trash-capable volume`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = recentVolume("primary", "/storage/emulated/0", StorageKind.INTERNAL)
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(internal),
             initialRecentFilesByScope = mapOf(
                 StorageScope.AllStorage to listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg"))
@@ -214,7 +214,7 @@ class RecentFilesViewModelTest {
     @Test
     fun `moveSelectedToTrash starts foreground trash operation`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = recentVolume("primary", "/storage/emulated/0", StorageKind.INTERNAL)
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(internal),
             initialRecentFilesByScope = mapOf(
                 StorageScope.AllStorage to listOf(recentFile("Holiday.jpg", "/storage/emulated/0/Holiday.jpg"))
@@ -239,7 +239,7 @@ class RecentFilesViewModelTest {
             recentFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg", mimeType = "image/jpeg"),
             recentFile("two.pdf", "/storage/emulated/0/Download/two.pdf", mimeType = "application/pdf")
         )
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
         )
         val viewModel = recentViewModel(repository)
@@ -256,7 +256,7 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `select all uses repository search results in search mode`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             searchFilesResultProvider = { _, _, _ ->
                 Result.success(listOf(recentFile("found.jpg", "/storage/emulated/0/DCIM/found.jpg")))
             }
@@ -275,7 +275,7 @@ class RecentFilesViewModelTest {
     @Test
     fun `presentation updates are persisted for recent files`() = runTest(mainDispatcherRule.dispatcher) {
         val preferences = FakeBrowserPreferencesStore()
-        val viewModel = recentViewModel(FakeFileRepository(), preferences = preferences)
+        val viewModel = recentViewModel(FakeStorageRepositoryBundle(), preferences = preferences)
         val presentation = BrowserPresentationPreferences(
             sortOption = FileSortOption.NAME_ASC,
             viewMode = dev.qtremors.arcile.core.storage.domain.BrowserViewMode.GRID
@@ -294,7 +294,7 @@ class RecentFilesViewModelTest {
             recentFile("image_$index.jpg", "/storage/emulated/0/DCIM/image_$index.jpg", lastModified = 1_000L - index, mimeType = "image/jpeg")
         }
         val secondPage = listOf(recentFile("download.jpg", "/storage/emulated/0/Download/download.jpg", lastModified = 2_000L, mimeType = "image/jpeg"))
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             recentFilesResultProvider = { _, _, offset, _ ->
                 Result.success(if (offset == 0) firstPage else secondPage)
             }
@@ -326,7 +326,7 @@ class RecentFilesViewModelTest {
             recentFile("image_2.jpg", "/storage/emulated/0/DCIM/image_2.jpg"), // Duplicate
             recentFile("image_3.jpg", "/storage/emulated/0/DCIM/image_3.jpg")
         )
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             recentFilesResultProvider = { _, _, offset, _ ->
                 Result.success(if (offset == 0) firstPage else secondPage)
             }
@@ -358,14 +358,14 @@ private fun recentFile(
 )
 
 private fun recentViewModel(
-    repository: FakeFileRepository,
+    repository: FakeStorageRepositoryBundle,
     coordinator: FakeBulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
     preferences: FakeBrowserPreferencesStore = FakeBrowserPreferencesStore()
 ) = RecentFilesViewModel(
-    volumeRepository = repository,
-    storageAnalyticsRepository = repository,
-    fileBrowserRepository = repository,
-    searchRepository = repository,
+    volumeRepository = repository.volumeRepository,
+    storageAnalyticsRepository = repository.storageAnalyticsRepository,
+    fileBrowserRepository = repository.fileBrowserRepository,
+    searchRepository = repository.searchRepository,
     browserPreferencesRepository = preferences,
     bulkFileOperationCoordinator = coordinator,
     savedStateHandle = SavedStateHandle()

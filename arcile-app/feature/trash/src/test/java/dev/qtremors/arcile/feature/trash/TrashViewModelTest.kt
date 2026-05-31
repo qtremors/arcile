@@ -16,7 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import io.mockk.mockk
 import dev.qtremors.arcile.testutil.MainDispatcherRule
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testFile
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -38,12 +38,12 @@ class TrashViewModelTest {
     @Test
     fun `loadTrashFiles drops stale selections that no longer exist`() = runTest(mainDispatcherRule.dispatcher) {
         val items = listOf(trashItem("keep-1", "keep.txt"))
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(items)
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -58,7 +58,7 @@ class TrashViewModelTest {
 
     @Test
     fun `updateSearchQuery filters trash items after debounce and clears on blank`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(listOf(
                 trashItem("1", "Photo.jpg"),
                 trashItem("2", "notes.txt"),
@@ -66,8 +66,8 @@ class TrashViewModelTest {
             ))
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -86,7 +86,7 @@ class TrashViewModelTest {
 
     @Test
     fun `restoreToDestination stores pending native confirmation context`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
             restoreFromTrashResultProvider = { _, destinationPath ->
                 if (destinationPath != null) Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
@@ -94,8 +94,8 @@ class TrashViewModelTest {
             }
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -112,7 +112,7 @@ class TrashViewModelTest {
     @Test
     fun `restoreSelectedTrash shows destination picker when DestinationRequiredException is thrown`() = runTest(mainDispatcherRule.dispatcher) {
         val trashIds = listOf("1")
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
             restoreFromTrashResultProvider = { _, destinationPath ->
                 if (destinationPath == null) Result.failure(dev.qtremors.arcile.core.storage.domain.DestinationRequiredException(trashIds))
@@ -120,8 +120,8 @@ class TrashViewModelTest {
             }
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -137,7 +137,7 @@ class TrashViewModelTest {
 
     @Test
     fun `filter exposes restore status groups`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(
                 listOf(
                     trashItem("1", "ready.txt", TrashRestoreStatus.ORIGINAL_AVAILABLE),
@@ -148,8 +148,8 @@ class TrashViewModelTest {
             )
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -165,7 +165,7 @@ class TrashViewModelTest {
 
     @Test
     fun `sort reorders visible trash files`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(
                 listOf(
                     trashItem("1", "b.txt").copy(deletionTime = 2L, fileModel = testFile(name = "b.txt", path = "/trash/b.txt", size = 10L)),
@@ -174,8 +174,8 @@ class TrashViewModelTest {
             )
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -188,7 +188,7 @@ class TrashViewModelTest {
 
     @Test
     fun `restoreSelectedTrash opens destination picker with full selection when any item needs destination`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(
                 listOf(
                     trashItem("1", "Recovered Item (1)", TrashRestoreStatus.RECOVERED_ITEM),
@@ -197,8 +197,8 @@ class TrashViewModelTest {
             )
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
@@ -214,12 +214,12 @@ class TrashViewModelTest {
 
     @Test
     fun `openPropertiesForSelection exposes trash-specific properties`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeFileRepository().apply {
+        val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
         }
         val viewModel = TrashViewModel(
-            trashRepository = repository,
-            volumeRepository = repository
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()

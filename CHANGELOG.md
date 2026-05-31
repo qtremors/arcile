@@ -1,10 +1,23 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.2
-> **Last Updated:** 2026-05-30
+> **Version:** 0.9.3
+> **Last Updated:** 2026-05-31
 
 ---
+
+## [0.9.3] - 2026-05-31
+
+### Architecture
+- **Resource Deduplication (ARCH-0006):** Removed duplicate feature-module plural resources from archive, browser, recent files, and trash while keeping shared plural strings centralized in `:core:ui`.
+- **Narrow Operation Dependencies (ARCH-0001):** Decoupled `BulkFileOperationService` from the monolithic `FileRepository` facade by injecting only `ClipboardRepository`, `TrashRepository`, `FileMutationRepository`, and `ArchiveRepository`.
+- **Focused Test Fakes (ARCH-0002):** Replaced the monolithic `FakeFileRepository` with focused storage test fakes and migrated app, feature, browser, trash, recent-files, storage, and domain tests to narrow contracts.
+- **Presentation API Extraction (ARCH-0003):** Added `:core:presentation:api` and moved logic-only presentation helpers such as delete flow, folder tabs, local search, file presentation, and properties models out of `:core:ui`.
+- **Feature Navigation Extensions (ARCH-0004):** Added `:core:navigation:api`, moved `AppRoutes` into it, and extracted feature-owned navigation graph extensions for standalone destinations.
+- **ArchUnit Boundary Tests (ARCH-0005):** Added ArchUnit rules for package/module boundaries while retaining LOC budgets, including the 700-line ViewModel limit.
+
+### Verification
+- **Regression Coverage:** Verified with `:app:assembleDebug`, `:app:testDebugUnitTest`, `:core:testing:compileKotlin`, `:core:storage:domain:test`, and focused feature debug unit tests for browser, trash, recent files, storage usage, and storage cleaner.
 
 ## [0.9.2] - 2026-05-30
 

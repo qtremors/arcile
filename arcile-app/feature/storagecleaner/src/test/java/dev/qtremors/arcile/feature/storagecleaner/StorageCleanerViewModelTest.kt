@@ -7,7 +7,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -52,7 +52,7 @@ class StorageCleanerViewModelTest {
 
     @Test
     fun `scan uses indexed volumes and populates groups`() = runTest(dispatcher) {
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(
                 volume("internal", File("internal"), StorageKind.INTERNAL),
                 volume("usb", File("usb"), StorageKind.OTG)
@@ -77,7 +77,7 @@ class StorageCleanerViewModelTest {
             isPartial = false
         )
 
-        val viewModel = StorageCleanerViewModel(repository, repository, fakeScanner)
+        val viewModel = StorageCleanerViewModel(repository.volumeRepository, repository.trashRepository, fakeScanner)
         advanceUntilIdle()
 
         val apks = viewModel.state.value.group(CleanerGroupType.Apks).candidates
@@ -89,9 +89,9 @@ class StorageCleanerViewModelTest {
     fun `clean moves selected files to trash and exposes success`() = runTest(dispatcher) {
         val root = File("internal")
         val apkPath = File(root, "remove.apk").absolutePath
-        val repository = FakeFileRepository(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
 
-        val viewModel = StorageCleanerViewModel(repository, repository, fakeScanner)
+        val viewModel = StorageCleanerViewModel(repository.volumeRepository, repository.trashRepository, fakeScanner)
         advanceUntilIdle()
 
         viewModel.clean(listOf(apkPath))
@@ -105,8 +105,8 @@ class StorageCleanerViewModelTest {
     fun `clean failure preserves candidates and exposes error`() = runTest(dispatcher) {
         val root = File("internal")
         val apkPath = File(root, "remove.apk").absolutePath
-        val repository = FakeFileRepository(volumes = listOf(volume("internal", root, StorageKind.INTERNAL))).apply {
-            moveToTrashResultProvider = { Result.failure(IllegalStateException("blocked")) }
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL))).apply {
+            moveToTrashResultProvider = { _, _ -> Result.failure(IllegalStateException("blocked")) }
         }
         fakeScanner.result = StorageCleanerResult(
             groups = listOf(
@@ -127,7 +127,7 @@ class StorageCleanerViewModelTest {
             isPartial = false
         )
 
-        val viewModel = StorageCleanerViewModel(repository, repository, fakeScanner)
+        val viewModel = StorageCleanerViewModel(repository.volumeRepository, repository.trashRepository, fakeScanner)
         advanceUntilIdle()
 
         viewModel.clean(listOf(apkPath))

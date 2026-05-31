@@ -27,6 +27,7 @@ turbine = "1.2.1"
 commonsCompress = "1.28.0"
 xz = "1.12"
 zip4j = "2.11.6"
+archUnit = "1.4.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -69,6 +70,7 @@ app-cash-turbine = { group = "app.cash.turbine", name = "turbine", version.ref =
 apache-commons-compress = { group = "org.apache.commons", name = "commons-compress", version.ref = "commonsCompress" }
 tukaani-xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
+archunit-junit4 = { group = "com.tngtech.archunit", name = "archunit-junit4", version.ref = "archUnit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

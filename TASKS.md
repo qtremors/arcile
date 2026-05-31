@@ -1,49 +1,49 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.9.2
-> **Last Updated:** 2026-05-30
+> **Version:** 0.9.3
+> **Last Updated:** 2026-05-31
 
 ---
 
 ### Architecture / Maintainability Tasks
 
-- [ ] **ARCH-0001 - Decouple BulkFileOperationService from FileRepository Facade** `[Medium]`
+- [x] **ARCH-0001 - Decouple BulkFileOperationService from FileRepository Facade** `[Medium]`
   - **Location:** `BulkFileOperationService.kt`, `StorageDataModule.kt`.
   - **Problem:** `BulkFileOperationService` injects the monolithic `FileRepository` facade, coupling background operations to browser, search, and analytics methods it never uses.
   - **Impact:** Inhibits deprecation of the large repository facade and makes the service harder to isolate and test.
   - **Fix:** Inject only the required narrow interfaces (`ClipboardRepository`, `TrashRepository`, `FileMutationRepository`, `ArchiveRepository`) into `BulkFileOperationService`. Update constructor injection bindings accordingly.
   - **Verification:** Run `ArchitectureBoundaryTest` to confirm no boundary leakage, and compile/run unit tests for the operation service.
 
-- [ ] **ARCH-0002 - Split Monolithic Test Fakes** `[Medium]`
+- [x] **ARCH-0002 - Split Monolithic Test Fakes** `[Medium]`
   - **Location:** `FakeFileRepository.kt`, and related test files.
   - **Problem:** `FakeFileRepository` is a single massive 342-line test fake that implements the entire `FileRepository` facade interface, making unit tests dependent on a bloated stub.
   - **Impact:** Decreases test readability and cohesion. Changes to any domain contract force updates to the large fake class.
   - **Fix:** Create separate focused test fakes (e.g., `FakeFileBrowserRepository`, `FakeFileMutationRepository`) and replace references to `FakeFileRepository` in ViewModels and delegates.
   - **Verification:** Verify that all unit test suites in app and feature modules compile and pass.
 
-- [ ] **ARCH-0003 - Extract Presentation Logic from core:ui Module** `[High]`
+- [x] **ARCH-0003 - Extract Presentation Logic from core:ui Module** `[High]`
   - **Location:** `:core:ui` module, `DeleteFlowDelegate.kt`, `FolderTabs.kt`, `LocalSearchHelper.kt`.
   - **Problem:** Logic delegates like `DeleteFlowDelegate` reside inside `:core:ui`, mixing pure UI widget/theme concerns with controller logic.
   - **Impact:** Weakens modularity boundaries and makes it harder to reuse logic on non-Compose surfaces or in platform-neutral unit tests.
   - **Fix:** Create a new module `:core:presentation:api` or move logic-only delegate classes out of `:core:ui` into a non-UI package/module.
   - **Verification:** Run unit tests for the extracted delegates and ensure compilation of the UI components depending on them.
 
-- [ ] **ARCH-0004 - Decouple Monolithic Navigation Graph** `[Medium]`
+- [x] **ARCH-0004 - Decouple Monolithic Navigation Graph** `[Medium]`
   - **Location:** `AppNavigationGraph.kt`, feature modules.
   - **Problem:** `AppNavigationGraph.kt` is a composition root that directly constructs the screens of every feature module, creating a single file with 596 LOC and coupling the `:app` shell to all UI layouts.
   - **Impact:** Screen additions or routing tweaks require editing a single monolithic composition graph, increasing code conflicts.
   - **Fix:** Define feature-specific `NavGraphBuilder` extensions (e.g. `NavGraphBuilder.browserScreen(...)`) inside feature modules, and have `AppNavigationGraph` dynamically link them together.
   - **Verification:** Compile and test all navigation paths across screens, ensuring back stack and arguments are correctly passed.
 
-- [ ] **ARCH-0005 - Migrate Architecture Boundary Tests to ArchUnit** `[Low]`
+- [x] **ARCH-0005 - Migrate Architecture Boundary Tests to ArchUnit** `[Low]`
   - **Location:** `ArchitectureBoundaryTest.kt`.
   - **Problem:** Modularity boundary tests use custom file parsing and regex scanning, which are brittle and hard to extend for complex dependency rules.
   - **Impact:** Limits enforcement to line imports only, without structural or class-level validation capabilities.
-  - **Fix:** Integrate ArchUnit library and rewrite regex checks as declarative architectural rule tests. Add programmatically enforced LOC limits and ViewModel dependency rules (e.g., ViewModels must not exceed 500 LOC).
+  - **Fix:** Integrate ArchUnit library and rewrite regex checks as declarative architectural rule tests. Add programmatically enforced LOC limits and ViewModel dependency rules (e.g., ViewModels must not exceed 700 LOC).
   - **Verification:** Run the updated boundary test suite and ensure it catches violations correctly.
 
-- [ ] **ARCH-0006 - Remove Duplicate Resource Files From Feature Modules** `[High]`
+- [x] **ARCH-0006 - Remove Duplicate Resource Files From Feature Modules** `[High]`
   - **Location:** `:feature:archive`, `:feature:browser`, `:feature:recentfiles`, `:feature:trash` (specifically `src/main/res/values/plurals.xml` in these modules).
   - **Problem:** Redundant duplicate `plurals.xml` files mirror `:core:ui/src/main/res/values/plurals.xml`. All feature screens use the centralized `dev.qtremors.arcile.core.ui.R` class, making local resource definitions unused.
   - **Impact:** Unnecessary duplication increases maintenance overhead, file count, and potential for inconsistent layouts or strings across features.

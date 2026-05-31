@@ -332,7 +332,6 @@
     <string name="error_load_directory_failed">Failed to load directory</string>
     <string name="error_load_category_failed">Failed to load category</string>
     <string name="error_check_conflicts_failed">Failed to check for conflicts</string>
-    <string name="error_operation_already_running">Another file operation is already running</string>
     <string name="error_create_folder_failed">Failed to create folder</string>
     <string name="error_create_file_failed">Failed to create file</string>
     <string name="error_unsupported_archive">Selected file is not a supported archive</string>

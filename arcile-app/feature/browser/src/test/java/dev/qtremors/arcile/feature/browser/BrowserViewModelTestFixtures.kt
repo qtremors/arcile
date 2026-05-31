@@ -8,7 +8,6 @@ import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
@@ -31,25 +30,25 @@ import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import io.mockk.mockk
 
 fun createViewModel(
-    repository: FileRepository,
+    repository: BrowserFakeFileRepository,
     browserPreferencesRepository: BrowserPreferencesStore = FakeBrowserPreferencesStore(),
     savedStateHandle: SavedStateHandle,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
 ): BrowserViewModel = BrowserViewModel(
-    fileBrowserRepository = repository,
-    fileMutationRepository = repository,
-    searchRepository = repository,
-    clipboardRepository = repository,
-    trashRepository = repository,
-    archiveRepository = repository,
-    volumeRepository = repository,
+    fileBrowserRepository = repository.fileBrowserRepository,
+    fileMutationRepository = repository.fileMutationRepository,
+    searchRepository = repository.searchRepository,
+    clipboardRepository = repository.clipboardRepository,
+    trashRepository = repository.trashRepository,
+    archiveRepository = repository.archiveRepository,
+    volumeRepository = repository.volumeRepository,
     browserPreferencesRepository = browserPreferencesRepository,
     savedStateHandle = savedStateHandle,
-    getStorageVolumesUseCase = GetStorageVolumesUseCase(repository),
+    getStorageVolumesUseCase = GetStorageVolumesUseCase(repository.volumeRepository),
     bulkFileCoordinator = bulkFileOperationCoordinator
 )
 
@@ -63,8 +62,8 @@ class BrowserFakeFileRepository(
     moveToTrashResult: Result<Unit> = Result.success(Unit),
     renameResult: Result<FileModel> = Result.failure(NotImplementedError()),
     selectionPropertiesResult: Result<SelectionProperties> = Result.failure(NotImplementedError())
-) : FileRepository {
-    private val delegate = FakeFileRepository(
+) {
+    private val delegate = FakeStorageRepositoryBundle(
         volumes = volumes,
         initialFilesByPath = filesByPath,
         initialFilesByCategory = filesByCategory
@@ -72,10 +71,18 @@ class BrowserFakeFileRepository(
         this.cachedFolderStats = cachedFolderStats
         searchFilesResultProvider = { _, _, _ -> searchResult }
         detectCopyConflictsResultProvider = { _, _ -> conflictsResult }
-        moveToTrashResultProvider = { moveToTrashResult }
+        moveToTrashResultProvider = { _, _ -> moveToTrashResult }
         renameFileResultProvider = { _, _ -> renameResult }
         selectionPropertiesResultProvider = { selectionPropertiesResult }
     }
+
+    val fileBrowserRepository = delegate.fileBrowserRepository
+    val fileMutationRepository = delegate.fileMutationRepository
+    val searchRepository = delegate.searchRepository
+    val clipboardRepository = delegate.clipboardRepository
+    val trashRepository = delegate.trashRepository
+    val archiveRepository = delegate.archiveRepository
+    val volumeRepository = delegate.volumeRepository
 
     val lastSearchQuery: String?
         get() = delegate.searchRequests.lastOrNull()?.query
@@ -99,58 +106,58 @@ class BrowserFakeFileRepository(
             delegate.filesByPath = value
         }
 
-    override suspend fun listFiles(path: String) = delegate.listFiles(path)
-    override fun listFilePages(path: String, pageSize: Int) = delegate.listFilePages(path, pageSize)
-    override suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.getCachedFolderStats(paths)
-    override fun queueFolderStats(paths: List<String>) = delegate.queueFolderStats(paths)
-    override fun observeFolderStatUpdates() = delegate.observeFolderStatUpdates()
-    override suspend fun getSelectionProperties(paths: List<String>) = delegate.getSelectionProperties(paths)
-    override suspend fun createDirectory(parentPath: String, name: String) = delegate.createDirectory(parentPath, name)
-    override suspend fun createFile(parentPath: String, name: String) = delegate.createFile(parentPath, name)
-    override suspend fun deleteFile(path: String) = delegate.deleteFile(path)
-    override suspend fun deletePermanently(paths: List<String>) = delegate.deletePermanently(paths)
-    override suspend fun renameFile(path: String, newName: String) = delegate.renameFile(path, newName)
-    override fun observeStorageVolumes() = delegate.observeStorageVolumes()
-    override suspend fun getStorageVolumes() = delegate.getStorageVolumes()
-    override suspend fun getVolumeForPath(path: String) = delegate.getVolumeForPath(path)
-    override fun getStandardFolders() = delegate.getStandardFolders()
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long) =
-        delegate.getRecentFiles(scope, limit, offset, minTimestamp)
-    override suspend fun getStorageInfo(scope: StorageScope) = delegate.getStorageInfo(scope)
-    override suspend fun getCategoryStorageSizes(scope: StorageScope) = delegate.getCategoryStorageSizes(scope)
-    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
-    override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String) =
-        delegate.getFilesByCategory(scope, categoryName)
-    override suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?) =
-        delegate.searchFiles(query, scope, filters)
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String) =
-        delegate.detectCopyConflicts(sourcePaths, destinationPath)
-    override suspend fun copyFiles(
+    suspend fun listFiles(path: String) = delegate.fileBrowserRepository.listFiles(path)
+    fun listFilePages(path: String, pageSize: Int) = delegate.fileBrowserRepository.listFilePages(path, pageSize)
+    suspend fun getCachedFolderStats(paths: Collection<String>) = delegate.fileBrowserRepository.getCachedFolderStats(paths)
+    fun queueFolderStats(paths: List<String>) = delegate.fileBrowserRepository.queueFolderStats(paths)
+    fun observeFolderStatUpdates() = delegate.fileBrowserRepository.observeFolderStatUpdates()
+    suspend fun getSelectionProperties(paths: List<String>) = delegate.fileBrowserRepository.getSelectionProperties(paths)
+    suspend fun createDirectory(parentPath: String, name: String) = delegate.fileMutationRepository.createDirectory(parentPath, name)
+    suspend fun createFile(parentPath: String, name: String) = delegate.fileMutationRepository.createFile(parentPath, name)
+    suspend fun deleteFile(path: String) = delegate.fileMutationRepository.deleteFile(path)
+    suspend fun deletePermanently(paths: List<String>) = delegate.fileMutationRepository.deletePermanently(paths)
+    suspend fun renameFile(path: String, newName: String) = delegate.fileMutationRepository.renameFile(path, newName)
+    fun observeStorageVolumes() = delegate.volumeRepository.observeStorageVolumes()
+    suspend fun getStorageVolumes() = delegate.volumeRepository.getStorageVolumes()
+    suspend fun getVolumeForPath(path: String) = delegate.volumeRepository.getVolumeForPath(path)
+    fun getStandardFolders() = delegate.volumeRepository.getStandardFolders()
+    suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long) =
+        delegate.storageAnalyticsRepository.getRecentFiles(scope, limit, offset, minTimestamp)
+    suspend fun getStorageInfo(scope: StorageScope) = delegate.storageAnalyticsRepository.getStorageInfo(scope)
+    suspend fun getCategoryStorageSizes(scope: StorageScope) = delegate.storageAnalyticsRepository.getCategoryStorageSizes(scope)
+    suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
+    suspend fun getFilesByCategory(scope: StorageScope, categoryName: String) =
+        delegate.searchRepository.getFilesByCategory(scope, categoryName)
+    suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?) =
+        delegate.searchRepository.searchFiles(query, scope, filters)
+    suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String) =
+        delegate.clipboardRepository.detectCopyConflicts(sourcePaths, destinationPath)
+    suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ) = delegate.copyFiles(sourcePaths, destinationPath, resolutions, onProgress)
-    override suspend fun moveFiles(
+    ) = delegate.clipboardRepository.copyFiles(sourcePaths, destinationPath, resolutions, onProgress)
+    suspend fun moveFiles(
         sourcePaths: List<String>,
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ) = delegate.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
-    override suspend fun moveToTrash(paths: List<String>, onProgress: ((BulkFileOperationProgress) -> Unit)?) =
-        delegate.moveToTrash(paths, onProgress)
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?) =
-        delegate.restoreFromTrash(trashIds, destinationPath)
-    override suspend fun emptyTrash() = delegate.emptyTrash()
-    override suspend fun getTrashFiles() = delegate.getTrashFiles()
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
-        delegate.deletePermanentlyFromTrash(trashIds)
-    override suspend fun createFakeFile(
+    ) = delegate.clipboardRepository.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
+    suspend fun moveToTrash(paths: List<String>, onProgress: ((BulkFileOperationProgress) -> Unit)?) =
+        delegate.trashRepository.moveToTrash(paths, onProgress)
+    suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?) =
+        delegate.trashRepository.restoreFromTrash(trashIds, destinationPath)
+    suspend fun emptyTrash() = delegate.trashRepository.emptyTrash()
+    suspend fun getTrashFiles() = delegate.trashRepository.getTrashFiles()
+    suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
+        delegate.trashRepository.deletePermanentlyFromTrash(trashIds)
+    suspend fun createFakeFile(
         parentPath: String,
         name: String,
         size: Long,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<FileModel> = delegate.createFakeFile(parentPath, name, size, onProgress)
+    ): Result<FileModel> = delegate.fileMutationRepository.createFakeFile(parentPath, name, size, onProgress)
 
     fun emitFolderStatUpdate(update: FolderStatUpdate) {
         delegate.emitFolderStatUpdate(update)

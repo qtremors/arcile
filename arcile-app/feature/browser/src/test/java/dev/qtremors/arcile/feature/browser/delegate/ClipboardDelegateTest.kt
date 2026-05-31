@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
-import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.runtime.R
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel

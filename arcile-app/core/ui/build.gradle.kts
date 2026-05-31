@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation"))
+    implementation(project(":core:presentation:api"))
     implementation(project(":core:storage:domain"))
 
     implementation(libs.androidx.core.ktx)

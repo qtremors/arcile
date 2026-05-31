@@ -3,14 +3,14 @@ package dev.qtremors.arcile.core.storage.domain
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 
 class DeletePolicyTest {
 
     @Test
     fun `returns trash when all selected files are on trash-enabled storage`() = runTest {
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(
                 volume("primary", "/storage/emulated/0", StorageKind.INTERNAL),
                 volume("sd", "/storage/1234-5678", StorageKind.SD_CARD)
@@ -19,7 +19,7 @@ class DeletePolicyTest {
 
         val result = evaluateDeletePolicy(
             listOf("/storage/emulated/0/file.txt", "/storage/1234-5678/movie.mp4"),
-            repository
+            repository.volumeRepository
         )
 
         assertEquals(DeletePolicyResult.Trash, result)
@@ -27,18 +27,18 @@ class DeletePolicyTest {
 
     @Test
     fun `returns permanent delete when all selected files are on temporary storage`() = runTest {
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(volume("otg", "/storage/ABCD-1234", StorageKind.OTG))
         )
 
-        val result = evaluateDeletePolicy(listOf("/storage/ABCD-1234/file.txt"), repository)
+        val result = evaluateDeletePolicy(listOf("/storage/ABCD-1234/file.txt"), repository.volumeRepository)
 
         assertEquals(DeletePolicyResult.PermanentDelete, result)
     }
 
     @Test
     fun `returns mixed selection when selection spans permanent and temporary storage`() = runTest {
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(
                 volume("primary", "/storage/emulated/0", StorageKind.INTERNAL),
                 volume("otg", "/storage/ABCD-1234", StorageKind.EXTERNAL_UNCLASSIFIED)
@@ -47,7 +47,7 @@ class DeletePolicyTest {
 
         val result = evaluateDeletePolicy(
             listOf("/storage/emulated/0/file.txt", "/storage/ABCD-1234/file.txt"),
-            repository
+            repository.volumeRepository
         )
 
         assertEquals(DeletePolicyResult.MixedSelection, result)

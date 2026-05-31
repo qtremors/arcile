@@ -7,6 +7,7 @@
     <string name="error_unsupported_provider">This storage provider does not support that action.</string>
     <string name="error_partial_success">Some files were changed before the operation stopped.</string>
     <string name="error_operation_cancelled_safe">File operation cancelled.</string>
+    <string name="error_operation_already_running">Another file operation is already running</string>
     <string name="error_corrupted_metadata">Trash metadata is damaged or incomplete.</string>
     <string name="error_unsafe_path">Arcile blocked this action because the path is unsafe.</string>
     <string name="error_recovery_check_permissions">Check storage permissions and try again.</string>

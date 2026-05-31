@@ -54,13 +54,15 @@ fun PropertiesDialog(
                     PropertiesRow(stringResource(R.string.properties_folders), model.folderCount.toString())
                     PropertiesRow(stringResource(R.string.properties_size), formatFileSize(model.totalBytes))
 
-                    if (model.isSingleItem && model.isDirectory == true && model.folderFileCount != null && model.folderTotalBytes != null) {
+                    val folderFileCount = model.folderFileCount
+                    val folderTotalBytes = model.folderTotalBytes
+                    if (model.isSingleItem && model.isDirectory == true && folderFileCount != null && folderTotalBytes != null) {
                         PropertiesRow(
                             stringResource(R.string.properties_contains),
                             stringResource(
                                 R.string.properties_contains_value,
-                                model.folderFileCount.toInt(),
-                                formatFileSize(model.folderTotalBytes)
+                                folderFileCount.toInt(),
+                                formatFileSize(folderTotalBytes)
                             )
                         )
                     }

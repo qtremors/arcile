@@ -10,8 +10,10 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
-import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeArchiveRepository
+import dev.qtremors.arcile.testutil.FakeClipboardRepository
+import dev.qtremors.arcile.testutil.FakeFileMutationRepository
+import dev.qtremors.arcile.testutil.FakeTrashRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -41,7 +43,10 @@ class BulkFileOperationServiceTest {
 
     private lateinit var context: Context
     private lateinit var coordinator: BulkFileOperationCoordinator
-    private lateinit var repository: FakeFileRepository
+    private lateinit var clipboardRepository: FakeClipboardRepository
+    private lateinit var trashRepository: FakeTrashRepository
+    private lateinit var fileMutationRepository: FakeFileMutationRepository
+    private lateinit var archiveRepository: FakeArchiveRepository
     private lateinit var storageWorkCoordinator: DefaultStorageWorkCoordinator
     private lateinit var serviceController: ServiceController<BulkFileOperationService>
     private lateinit var service: BulkFileOperationService
@@ -51,13 +56,19 @@ class BulkFileOperationServiceTest {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
         coordinator = mockk(relaxed = true)
-        repository = FakeFileRepository()
+        clipboardRepository = FakeClipboardRepository()
+        trashRepository = FakeTrashRepository()
+        fileMutationRepository = FakeFileMutationRepository()
+        archiveRepository = FakeArchiveRepository()
         storageWorkCoordinator = DefaultStorageWorkCoordinator()
 
         serviceController = Robolectric.buildService(BulkFileOperationService::class.java)
         service = serviceController.get()
         service.coordinator = coordinator
-        service.repository = repository
+        service.clipboardRepository = clipboardRepository
+        service.trashRepository = trashRepository
+        service.fileMutationRepository = fileMutationRepository
+        service.archiveRepository = archiveRepository
         service.storageWorkCoordinator = storageWorkCoordinator
         service.operationJournal = DefaultOperationJournal(context)
     }
@@ -83,7 +94,7 @@ class BulkFileOperationServiceTest {
         serviceController.withIntent(intent).startCommand(0, 1)
 
         verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
-        assertEquals(listOf(listOf("/test.txt")), repository.moveToTrashRequests)
+        assertEquals(listOf(listOf("/test.txt")), trashRepository.moveToTrashRequests)
         awaitInactiveMutation()
         assertEquals(null, DefaultOperationJournal(context).activeRecord())
     }
@@ -131,7 +142,7 @@ class BulkFileOperationServiceTest {
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         val progressSent = CountDownLatch(1)
         val finishOperation = CountDownLatch(1)
-        repository.copyFilesResultProvider = { _, _, _, onProgress ->
+        clipboardRepository.copyFilesResultProvider = { _, _, _, onProgress ->
             onProgress?.invoke(
                 BulkFileOperationProgress(
                     completedItems = 1,
@@ -180,7 +191,7 @@ class BulkFileOperationServiceTest {
             fakeFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
-        repository.copyFilesResultProvider = { _, _, _, _ ->
+        clipboardRepository.copyFilesResultProvider = { _, _, _, _ ->
             assertTrue(storageWorkCoordinator.isMutationActive.value)
             Result.success(Unit)
         }

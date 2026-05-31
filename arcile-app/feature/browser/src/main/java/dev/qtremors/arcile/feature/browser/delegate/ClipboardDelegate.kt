@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
@@ -144,7 +145,7 @@ class ClipboardDelegate(
         if (started) {
             state.update { it.copy(isLoading = false) }
         } else {
-            state.update { it.copy(isLoading = false, error = UiText.StringResource(R.string.error_operation_already_running)) }
+            state.update { it.copy(isLoading = false, error = UiText.StringResource(RuntimeR.string.error_operation_already_running)) }
         }
     }
 }

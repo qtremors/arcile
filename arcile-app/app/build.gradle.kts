@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 36
-        versionCode = 76
-        versionName = "0.9.2"
+        versionCode = 77
+        versionName = "0.9.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -166,8 +166,10 @@ tasks.register("checkProductionStrings") {
 
 dependencies {
     implementation(project(":core:runtime"))
+    implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation"))
+    implementation(project(":core:presentation:api"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:storage:data"))
     implementation(project(":core:ui"))
@@ -219,6 +221,7 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
+    testImplementation(libs.archunit.junit4)
     testImplementation(libs.app.cash.turbine)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)

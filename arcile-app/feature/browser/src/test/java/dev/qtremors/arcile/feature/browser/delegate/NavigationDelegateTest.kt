@@ -32,7 +32,7 @@ import org.robolectric.annotation.Config
 
 import kotlinx.coroutines.test.advanceUntilIdle
 
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -40,7 +40,7 @@ import dev.qtremors.arcile.testutil.FakeFileRepository
 class NavigationDelegateTest {
 
     private lateinit var testScope: TestScope
-    private lateinit var repository: FakeFileRepository
+    private lateinit var repository: FakeStorageRepositoryBundle
     private lateinit var browserPreferencesRepository: BrowserPreferencesStore
     private lateinit var savedStateHandle: SavedStateHandle
     private lateinit var state: MutableStateFlow<BrowserState>
@@ -63,7 +63,7 @@ class NavigationDelegateTest {
             kind = dev.qtremors.arcile.core.storage.domain.StorageKind.INTERNAL
         )
 
-        repository = FakeFileRepository(volumes = listOf(testVolume))
+        repository = FakeStorageRepositoryBundle(volumes = listOf(testVolume))
         
         browserPreferencesRepository = mockk(relaxed = true) {
             every { preferencesFlow } returns kotlinx.coroutines.flow.flowOf(dev.qtremors.arcile.core.storage.domain.BrowserPreferences())
@@ -77,8 +77,8 @@ class NavigationDelegateTest {
         delegate = NavigationDelegate(
             state = state,
             viewModelScope = testScope,
-            fileBrowserRepository = repository,
-            searchRepository = repository,
+            fileBrowserRepository = repository.fileBrowserRepository,
+            searchRepository = repository.searchRepository,
             browserPreferencesRepository = browserPreferencesRepository,
             savedStateHandle = savedStateHandle,
             onClearSearch = { onClearSearchCalled = true }

@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -53,8 +53,8 @@ class StorageUsageViewModelTest {
     @Test
     fun `load scans selected indexed volume and selects root`() = runTest(dispatcher) {
         val root = File("storage")
-        val repository = FakeFileRepository(volumes = listOf(indexedVolume("primary", root)))
-        val viewModel = StorageUsageViewModel(repository, fakeScanner)
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(indexedVolume("primary", root)))
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner)
 
         viewModel.load("primary")
         advanceUntilIdle()
@@ -88,8 +88,8 @@ class StorageUsageViewModelTest {
     fun `selecting and drilling into node updates detail state without navigating`() = runTest(dispatcher) {
         val root = File("storage")
         val folder = File(root, "Downloads")
-        val repository = FakeFileRepository(volumes = listOf(indexedVolume("primary", root)))
-        val viewModel = StorageUsageViewModel(repository, fakeScanner)
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(indexedVolume("primary", root)))
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner)
 
         viewModel.load("primary")
         advanceUntilIdle()
@@ -135,7 +135,7 @@ class StorageUsageViewModelTest {
     @Test
     fun `temporary volume is unavailable and does not scan`() = runTest(dispatcher) {
         val root = File("usb")
-        val repository = FakeFileRepository(
+        val repository = FakeStorageRepositoryBundle(
             volumes = listOf(
                 testVolume(
                     id = "usb",
@@ -150,7 +150,7 @@ class StorageUsageViewModelTest {
                 )
             )
         )
-        val viewModel = StorageUsageViewModel(repository, fakeScanner)
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner)
 
         viewModel.load("usb")
         advanceUntilIdle()

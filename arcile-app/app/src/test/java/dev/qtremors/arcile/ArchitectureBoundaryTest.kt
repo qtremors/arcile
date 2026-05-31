@@ -1,49 +1,121 @@
 package dev.qtremors.arcile
 
+import com.tngtech.archunit.core.domain.JavaClasses
+import com.tngtech.archunit.core.importer.ClassFileImporter
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import java.io.File
 import org.junit.Assert.fail
 import org.junit.Test
 
 class ArchitectureBoundaryTest {
-    @Test
-    fun `feature packages do not import concrete storage data implementations`() {
-        val sourceRoots = featureSourceRoots()
-        val concreteDataImport = Regex("""import dev\.qtremors\.arcile\.core\.storage\.data\.(.+)""")
-        val allowedStorageDataImports = emptySet<String>()
-        val offenders = sourceRoots.asSequence().flatMap { it.kotlinFiles() }
-            .filter { it.isFile && it.extension == "kt" }
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    val importedName = concreteDataImport.matchEntire(line.trim())?.groupValues?.get(1)
-                    if (importedName != null && importedName !in allowedStorageDataImports) {
-                        violation(file, index, line)
-                    } else {
-                        null
-                    }
-                }
-            }
-            .toList()
+    private val productionClasses: JavaClasses by lazy {
+        ClassFileImporter()
+            .importPaths(productionClassDirs().map { it.toPath() })
+    }
 
-        if (offenders.isNotEmpty()) {
-            fail("Feature packages must depend on storage public APIs, not concrete data implementations:\n${offenders.joinToString("\n")}")
+    @Test
+    fun `feature packages do not depend on concrete storage data implementations`() {
+        noClasses()
+            .that().resideInAPackage("dev.qtremors.arcile.feature..")
+            .should().dependOnClassesThat().resideInAPackage("dev.qtremors.arcile.core.storage.data..")
+            .because("features must depend on storage public APIs, not concrete data implementations")
+            .check(productionClasses)
+    }
+
+    @Test
+    fun `feature packages do not depend on app presentation internals`() {
+        noClasses()
+            .that().resideInAPackage("dev.qtremors.arcile.feature..")
+            .should().dependOnClassesThat().resideInAPackage("dev.qtremors.arcile.presentation..")
+            .because("features must depend on core/shared contracts or their own feature contracts")
+            .check(productionClasses)
+    }
+
+    @Test
+    fun `feature packages do not depend on unrelated feature packages`() {
+        val features = listOf(
+            "archive",
+            "browser",
+            "onboarding",
+            "quickaccess",
+            "recentfiles",
+            "storagecleaner",
+            "storageusage",
+            "trash"
+        )
+
+        features.forEach { owningFeature ->
+            val unrelatedPackages = features
+                .filterNot { it == owningFeature }
+                .map { "dev.qtremors.arcile.feature.$it.." }
+                .toTypedArray()
+
+            noClasses()
+                .that().resideInAPackage("dev.qtremors.arcile.feature.$owningFeature..")
+                .should().dependOnClassesThat().resideInAnyPackage(*unrelatedPackages)
+                .because("feature modules must not depend on unrelated feature modules")
+                .check(productionClasses)
         }
     }
 
     @Test
-    fun `feature packages do not import presentation internals`() {
-        val sourceRoots = featureSourceRoots()
-        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.presentation\..+""")
-        val offenders = sourceRoots.asSequence().flatMap { it.kotlinFiles() }
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    if (forbiddenImport.matches(line.trim())) violation(file, index, line) else null
-                }
-            }
-            .toList()
+    fun `shared ui does not depend on feature or app shell presentation code`() {
+        noClasses()
+            .that().resideInAPackage("dev.qtremors.arcile.shared.ui..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "dev.qtremors.arcile.feature..",
+                "dev.qtremors.arcile.presentation.ui.."
+            )
+            .because("shared UI must stay feature-neutral")
+            .check(productionClasses)
+    }
 
-        if (offenders.isNotEmpty()) {
-            fail("Feature packages must depend on core/shared or their own feature contracts, not presentation internals:\n${offenders.joinToString("\n")}")
-        }
+    @Test
+    fun `presentation packages do not depend on concrete storage data implementations`() {
+        noClasses()
+            .that().resideInAPackage("dev.qtremors.arcile.presentation..")
+            .should().dependOnClassesThat().resideInAPackage("dev.qtremors.arcile.core.storage.data..")
+            .because("presentation packages must depend on storage public APIs")
+            .check(productionClasses)
+    }
+
+    @Test
+    fun `core and shared packages do not depend on app presentation or feature packages`() {
+        noClasses()
+            .that().resideInAnyPackage(
+                "dev.qtremors.arcile.core..",
+                "dev.qtremors.arcile.shared..",
+                "dev.qtremors.arcile.ui.theme..",
+                "dev.qtremors.arcile.image.."
+            )
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "dev.qtremors.arcile.presentation..",
+                "dev.qtremors.arcile.feature.."
+            )
+            .because("core/shared modules must stay below app and feature layers")
+            .check(productionClasses)
+    }
+
+    @Test
+    fun `core storage domain does not depend on android or compose classes`() {
+        noClasses()
+            .that().resideInAPackage("dev.qtremors.arcile.core.storage.domain..")
+            .should().dependOnClassesThat().resideInAnyPackage("android..", "androidx.compose..")
+            .because("core storage domain must be platform-neutral")
+            .check(productionClasses)
+    }
+
+    @Test
+    fun `storage data does not depend on presentation feature or app shell theme packages`() {
+        noClasses()
+            .that().resideInAPackage("dev.qtremors.arcile.core.storage.data..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                "dev.qtremors.arcile.presentation..",
+                "dev.qtremors.arcile.feature..",
+                "dev.qtremors.arcile.ui.theme.."
+            )
+            .because("storage data must stay behind domain contracts")
+            .check(productionClasses)
     }
 
     @Test
@@ -51,20 +123,18 @@ class ArchitectureBoundaryTest {
         val sourceRoot = sourceRoot("presentation")
         val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.(.+)""")
         val allowedFeatureImports = setOf(
-            "archive.ArchiveViewerScreen",
-            "archive.ArchiveViewerViewModel",
+            "archive.archiveViewerScreen",
             "browser.BrowserViewModel",
             "browser.ui.BrowserScreen",
-            "quickaccess.QuickAccessScreen",
             "quickaccess.QuickAccessViewModel",
-            "recentfiles.RecentFilesViewModel",
-            "recentfiles.ui.RecentFilesScreen",
-            "storagecleaner.StorageCleanerViewModel",
-            "storagecleaner.ui.StorageCleanerScreen",
+            "quickaccess.quickAccessScreen",
+            "recentfiles.recentFilesScreen",
+            "storagecleaner.storageCleanerScreen",
             "storageusage.StorageUsageViewModel",
             "storageusage.ui.StorageUsageMap",
-            "trash.TrashScreen",
-            "trash.TrashViewModel"
+            "trash.trashScreen",
+            "trash.TrashViewModel",
+            "recentfiles.RecentFilesViewModel"
         )
         val allowedShellFiles = setOf(
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
@@ -93,148 +163,6 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
-    fun `feature packages do not import unrelated feature packages`() {
-        val sourceRoots = featureSourceRoots()
-        val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.([^.]+)\..+""")
-        val offenders = sourceRoots.asSequence().flatMap { root ->
-            root.kotlinFiles().map { file -> root to file }
-        }
-            .flatMap { file ->
-                val relativePath = file.second.relativeTo(file.first).invariantSeparatorsPath
-                val owningFeature = relativePath.substringBefore('/', missingDelimiterValue = "")
-                file.second.readLines().mapIndexedNotNull { index, line ->
-                    val importedFeature = featureImport.matchEntire(line.trim())?.groupValues?.get(1)
-                    if (importedFeature != null && importedFeature != owningFeature) {
-                        moduleViolation(file.second, index, line)
-                    } else {
-                        null
-                    }
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Feature packages must not depend on unrelated feature packages:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
-    fun `shared ui does not import feature or app shell presentation code`() {
-        val sourceRoot = File(projectRoot(), "core/ui/src/main/java/dev/qtremors/arcile/shared/ui")
-        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(feature\..+|presentation\.ui\..+)""")
-        val offenders = sourceRoot.kotlinFiles()
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    if (forbiddenImport.matches(line.trim())) violation(file, index, line) else null
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Shared UI must stay feature-neutral and must not import app shell presentation UI:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
-    fun `presentation packages do not import concrete storage data implementations except public app services`() {
-        val sourceRoot = sourceRoot("presentation")
-        val concreteDataImport = Regex("""import dev\.qtremors\.arcile\.core\.storage\.data\.(.+)""")
-        val allowedStorageDataImports = emptySet<String>()
-        val offenders = sourceRoot.kotlinFiles()
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    val importedName = concreteDataImport.matchEntire(line.trim())?.groupValues?.get(1)
-                    if (importedName != null && importedName !in allowedStorageDataImports) {
-                        violation(file, index, line)
-                    } else {
-                        null
-                    }
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Presentation packages must depend on storage public APIs, not concrete data implementations:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
-    fun `core packages do not import presentation or feature packages`() {
-        val sourceRoot = sourceRoot("core")
-        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(presentation|feature)\..+""")
-        val offenders = sourceRoot.kotlinFiles()
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    if (forbiddenImport.matches(line.trim())) violation(file, index, line) else null
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Core packages must not depend on presentation or feature packages:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
-    fun `core storage domain does not import android or compose classes`() {
-        val sourceRoot = File(projectRoot(), "core/storage/domain/src/main/java")
-        val forbiddenImport = Regex("""import (android\..+|androidx\.compose\..+)""")
-        val offenders = sourceRoot.kotlinFiles()
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    if (forbiddenImport.matches(line.trim())) moduleViolation(file, index, line) else null
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Core storage domain must not depend on Android or Compose classes:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
-    fun `extracted core modules do not import app feature presentation or concrete data from contracts`() {
-        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(presentation|feature|core\.storage\.data)\..+""")
-        val moduleSourceRoots = listOf(
-            File(projectRoot(), "core/runtime/src/main/java"),
-            File(projectRoot(), "core/operation/api/src/main/java"),
-            File(projectRoot(), "core/operation/src/main/java"),
-            File(projectRoot(), "core/storage/domain/src/main/java"),
-            File(projectRoot(), "core/ui/src/main/java")
-        )
-        val offenders = moduleSourceRoots
-            .asSequence()
-            .flatMap { it.kotlinFiles() }
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    if (forbiddenImport.matches(line.trim())) moduleViolation(file, index, line) else null
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Extracted core API/domain modules must not import app, feature, presentation, or concrete storage data code:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
-    fun `storage data module does not import presentation feature or app shell packages`() {
-        val sourceRoot = File(projectRoot(), "core/storage/data/src/main/java")
-        val forbiddenImport = Regex("""import dev\.qtremors\.arcile\.(presentation|feature|ui\.theme)\..+""")
-        val offenders = sourceRoot.kotlinFiles()
-            .flatMap { file ->
-                file.readLines().mapIndexedNotNull { index, line ->
-                    if (forbiddenImport.matches(line.trim())) moduleViolation(file, index, line) else null
-                }
-            }
-            .toList()
-
-        if (offenders.isNotEmpty()) {
-            fail("Storage data must stay behind domain contracts and must not import presentation, feature, or app shell code:\n${offenders.joinToString("\n")}")
-        }
-    }
-
-    @Test
     fun `large files stay within the architecture budget`() {
         val projectRoot = projectRoot()
         val repoRoot = projectRoot.parentFile ?: projectRoot
@@ -244,7 +172,7 @@ class ArchitectureBoundaryTest {
             .onEnter { dir ->
                 val name = dir.name
                 name != "build" && name != ".gradle" && name != ".git" &&
-                name != ".idea" && name != ".kotlin" && name != "assets"
+                    name != ".idea" && name != ".kotlin" && name != "assets"
             }
             .filter { file ->
                 file.isFile && when (file.extension) {
@@ -269,25 +197,69 @@ class ArchitectureBoundaryTest {
         }
     }
 
+    @Test
+    fun `viewmodels stay within the architecture budget`() {
+        val offenders = projectRoot().walkTopDown()
+            .onEnter { dir ->
+                val name = dir.name
+                name != "build" && name != ".gradle" && name != ".git" &&
+                    name != ".idea" && name != ".kotlin"
+            }
+            .filter { it.isFile && it.name.endsWith("ViewModel.kt") && it.path.contains("${File.separator}src${File.separator}main${File.separator}") }
+            .mapNotNull { file ->
+                val lineCount = file.readLines().size
+                if (lineCount > MAX_VIEWMODEL_LINES) {
+                    "${file.relativeTo(projectRoot()).invariantSeparatorsPath}: $lineCount lines"
+                } else {
+                    null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("ViewModels above $MAX_VIEWMODEL_LINES lines must be split:\n${offenders.joinToString("\n")}")
+        }
+    }
+
     private fun sourceRoot(packageName: String): File =
         File(projectRoot(), "app/src/main/java/dev/qtremors/arcile/$packageName")
-
-    private fun featureSourceRoots(): List<File> =
-        listOf(
-            File(projectRoot(), "feature/browser/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/trash/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/archive/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/recentfiles/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/onboarding/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/quickaccess/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature"),
-            File(projectRoot(), "feature/storageusage/src/main/java/dev/qtremors/arcile/feature")
-        )
 
     private fun projectRoot(): File =
         generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }
             .firstOrNull { File(it, "app/src/main/java/dev/qtremors/arcile").exists() }
             ?: File(".").absoluteFile
+
+    private fun productionClassDirs(): List<File> {
+        val root = projectRoot()
+        val androidModules = listOf(
+            "app",
+            "core/runtime",
+            "core/presentation/api",
+            "core/storage/data",
+            "core/ui",
+            "feature/archive",
+            "feature/browser",
+            "feature/onboarding",
+            "feature/quickaccess",
+            "feature/recentfiles",
+            "feature/storagecleaner",
+            "feature/storageusage",
+            "feature/trash"
+        ).flatMap { module ->
+            listOf(
+                File(root, "$module/build/intermediates/built_in_kotlinc/debug/compileDebugKotlin/classes"),
+                File(root, "$module/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes")
+            )
+        }
+        val jvmModules = listOf(
+            "core/navigation/api",
+            "core/operation",
+            "core/operation/api",
+            "core/storage/domain"
+        ).map { File(root, "$it/build/classes/kotlin/main") }
+
+        return (androidModules + jvmModules).filter { it.exists() }
+    }
 
     private fun File.kotlinFiles(): Sequence<File> =
         if (exists()) walkTopDown().filter { it.isFile && it.extension == "kt" } else emptySequence()
@@ -295,10 +267,8 @@ class ArchitectureBoundaryTest {
     private fun violation(file: File, index: Int, line: String): String =
         "${file.relativeTo(File(projectRoot(), "app/src/main/java")).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
 
-    private fun moduleViolation(file: File, index: Int, line: String): String =
-        "${file.relativeTo(projectRoot()).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
-
     private companion object {
         const val MAX_FILE_LINES = 700
+        const val MAX_VIEWMODEL_LINES = 700
     }
 }

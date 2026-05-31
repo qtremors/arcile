@@ -32,21 +32,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.feature.archive.ArchiveViewerScreen
-import dev.qtremors.arcile.feature.archive.ArchiveViewerViewModel
+import dev.qtremors.arcile.feature.archive.archiveViewerScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
-import dev.qtremors.arcile.feature.trash.TrashScreen
-import dev.qtremors.arcile.feature.trash.TrashViewModel
+import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
-import dev.qtremors.arcile.feature.quickaccess.QuickAccessScreen
-import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
-import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerViewModel
-import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
+import dev.qtremors.arcile.feature.quickaccess.quickAccessScreen
+import dev.qtremors.arcile.feature.recentfiles.recentFilesScreen
+import dev.qtremors.arcile.feature.storagecleaner.storageCleanerScreen
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -147,12 +143,14 @@ fun AppNavigationGraph(
                     androidx.compose.runtime.LaunchedEffect(mainArgs) {
                         if (mainArgs.initialPage == 1) {
                             pendingExplicitBrowserEntry = true
+                            val path = mainArgs.path
+                            val category = mainArgs.category
                             when {
-                                !mainArgs.path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
-                                    mainArgs.path,
+                                !path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
+                                    path,
                                     seedInitialPathHistory = mainArgs.seedInitialPathHistory
                                 )
-                                !mainArgs.category.isNullOrEmpty() -> browserViewModel.navigateToCategory(mainArgs.category, mainArgs.volumeId)
+                                !category.isNullOrEmpty() -> browserViewModel.navigateToCategory(category, mainArgs.volumeId)
                                 else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
                             }
                             pagerState.scrollToPage(1)
@@ -367,87 +365,29 @@ fun AppNavigationGraph(
                         popUpTo<AppRoutes.Main> { inclusive = true }
                     }
                 }
-                composable<AppRoutes.Trash>(
+                trashScreen(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) {
-                    val viewModel = hiltViewModel<TrashViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    TrashScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onToggleSelection = { viewModel.toggleSelection(it) },
-                        onClearSelection = { viewModel.clearSelection() },
-                        onRestoreSelected = { viewModel.restoreSelectedTrash() },
-                        onEmptyTrash = { viewModel.emptyTrash() },
-                        onClearError = { viewModel.clearError() },
-                        onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
-                        onRestoreToDestination = { ids, path -> viewModel.restoreToDestination(ids, path) },
-                        onPermanentlyDeleteSelected = { viewModel.deletePermanentlySelected() },
-                        onDismissPermanentDelete = { viewModel.dismissPermanentDeleteConfirmation() },
-                        onSelectAll = { viewModel.selectAll() },
-                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                        onClearSearch = { viewModel.updateSearchQuery("") },
-                        onSortChange = { viewModel.updateSortOption(it) },
-                        onFilterChange = { viewModel.updateFilter(it) },
-                        onOpenProperties = { viewModel.openPropertiesForSelection() },
-                        onDismissProperties = { viewModel.dismissProperties() },
-                        onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
-                        nativeRequestFlow = viewModel.nativeRequestFlow
-                    )
-
-                }
-                composable<AppRoutes.RecentFiles>(
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+                recentFilesScreen(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) { backStackEntry ->
-                    val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry<AppRoutes.Main>()
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenFile = openPath,
+                    onShareSelected = { paths ->
+                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    },
+                    onOpenContainingFolder = { path ->
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
+                            popUpTo<AppRoutes.Main> { inclusive = true }
+                        }
                     }
-                    val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
-                    val viewModel = hiltViewModel<RecentFilesViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    val recentFilesCoroutineScope = rememberCoroutineScope()
-                    RecentFilesScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onOpenFile = openPath,
-                        onToggleSelection = { viewModel.toggleSelection(it) },
-                        onClearSelection = { viewModel.clearSelection() },
-                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
-                        onConfirmDelete = { viewModel.confirmDeleteSelected() },
-                        onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
-                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
-                        onShareSelected = {
-                            recentFilesCoroutineScope.launch {
-                                if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
-                                    viewModel.clearSelection()
-                                }
-                            }
-                        },
-                        onSelectAll = { viewModel.selectAll() },
-                        onRefresh = { viewModel.loadRecentFiles() },
-                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                        onClearSearch = { viewModel.updateSearchQuery("") },
-                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onPresentationChange = { viewModel.updatePresentation(it) },
-                        onSelectMultiple = { viewModel.selectMultiple(it) },
-                        onLoadMore = { viewModel.loadMore() },
-                        onClearError = { viewModel.clearError() },
-                        onOpenProperties = { viewModel.openPropertiesForSelection() },
-                        onDismissProperties = { viewModel.dismissProperties() },
-                        onOpenContainingFolder = { path ->
-                            browserViewModel.navigateToSpecificFolder(path, seedInitialPathHistory = false)
-                            parentEntry.savedStateHandle["showBrowserPage"] = true
-                            navController.popBackStack<AppRoutes.Main>(inclusive = false)
-                        },
-                        nativeRequestFlow = viewModel.nativeRequestFlow
-                    )
-                }
+                )
                 composable<AppRoutes.Tools>(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
@@ -459,22 +399,13 @@ fun AppNavigationGraph(
                         onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) }
                     )
                 }
-                composable<AppRoutes.StorageCleaner>(
+                storageCleanerScreen(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) {
-                    val viewModel = hiltViewModel<StorageCleanerViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    StorageCleanerScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onRefresh = { viewModel.scan() },
-                        onCleanFiles = { viewModel.clean(it) },
-                        onClearMessages = { viewModel.clearMessages() }
-                    )
-                }
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() }
+                )
                 composable<AppRoutes.Settings>(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
@@ -534,62 +465,27 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable<AppRoutes.QuickAccess>(
+                quickAccessScreen(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) { backStackEntry ->
-                    val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry<AppRoutes.Main>()
-                    }
-                    val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
-                    val viewModel = hiltViewModel<QuickAccessViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    QuickAccessScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onNavigateToPath = { path ->
-                            browserViewModel.navigateToSpecificFolder(path, seedInitialPathHistory = false)
-                            parentEntry.savedStateHandle["showBrowserPage"] = true
-                            navController.popBackStack<AppRoutes.Main>(inclusive = false)
-                        },
-                        onNavigateToSaf = { uriString ->
-                            ExternalFileAccessHelper.openInFilesApp(context, uriString)
-                        },
-                        onTogglePin = { viewModel.togglePin(it) },
-                        onRemoveItem = { viewModel.removeCustomItem(it) },
-                        onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
-                        onAddSafFolder = { uri, label ->
-                            if (label == "Android/data" || label == "Android/obb") {
-                                viewModel.addExternalHandoffFolder(uri, label)
-                            } else {
-                                viewModel.addSafFolder(uri, label)
-                            }
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToPath = { path ->
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
+                            popUpTo<AppRoutes.Main> { inclusive = true }
                         }
-                    )
-                }
-                composable<AppRoutes.ArchiveViewer>(
+                    },
+                    onNavigateToSaf = { uriString ->
+                        ExternalFileAccessHelper.openInFilesApp(context, uriString)
+                    }
+                )
+                archiveViewerScreen(
                     enterTransition = detailEnterTransition,
                     exitTransition = detailExitTransition,
                     popEnterTransition = detailPopEnterTransition,
-                    popExitTransition = detailPopExitTransition
-                ) {
-                    val viewModel = hiltViewModel<ArchiveViewerViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    ArchiveViewerScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onNavigateUpInArchive = { viewModel.navigateBack() },
-                        onOpenFolder = { viewModel.openFolder(it) },
-                        onExtractAll = { password -> viewModel.extractAll(password) },
-                        onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
-                        onSubmitPassword = { viewModel.submitPassword(it) },
-                        onClearError = { viewModel.clearError() },
-                        onCancelExtraction = { viewModel.cancelExtraction() },
-                        onClearOperationStatusMessage = { viewModel.clearOperationStatusMessage() },
-                        onClearActiveOperation = { viewModel.clearActiveOperation() }
-                    )
-                }
+                    popExitTransition = detailPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
 }

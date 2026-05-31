@@ -16,8 +16,11 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.core.ui.asString
@@ -36,7 +39,16 @@ import javax.inject.Inject
 class BulkFileOperationService : Service() {
 
     @Inject
-    lateinit var repository: FileRepository
+    lateinit var clipboardRepository: ClipboardRepository
+
+    @Inject
+    lateinit var trashRepository: TrashRepository
+
+    @Inject
+    lateinit var fileMutationRepository: FileMutationRepository
+
+    @Inject
+    lateinit var archiveRepository: ArchiveRepository
 
     @Inject
     lateinit var coordinator: BulkFileOperationCoordinator
@@ -99,7 +111,7 @@ class BulkFileOperationService : Service() {
                 currentOperationJob = serviceScope.launch {
                     try {
                         val result = when (request.type) {
-                            BulkFileOperationType.COPY -> repository.copyFiles(
+                            BulkFileOperationType.COPY -> clipboardRepository.copyFiles(
                                 request.sourcePaths,
                                 requireNotNull(request.destinationPath) { "Destination path is required for copy" },
                                 request.resolutions
@@ -107,7 +119,7 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.MOVE -> repository.moveFiles(
+                            BulkFileOperationType.MOVE -> clipboardRepository.moveFiles(
                                 request.sourcePaths,
                                 requireNotNull(request.destinationPath) { "Destination path is required for move" },
                                 request.resolutions
@@ -115,12 +127,12 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths) { progress ->
+                            BulkFileOperationType.TRASH -> trashRepository.moveToTrash(request.sourcePaths) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.DELETE -> repository.deletePermanently(request.sourcePaths)
-                            BulkFileOperationType.CREATE_FAKE -> repository.createFakeFile(
+                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanently(request.sourcePaths)
+                            BulkFileOperationType.CREATE_FAKE -> fileMutationRepository.createFakeFile(
                                 requireNotNull(request.destinationPath),
                                 request.sourcePaths.first(),
                                 requireNotNull(request.fakeFileSize)
@@ -128,7 +140,7 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.EXTRACT_ARCHIVE -> repository.extractArchive(
+                            BulkFileOperationType.EXTRACT_ARCHIVE -> archiveRepository.extractArchive(
                                 archivePath = request.sourcePaths.first(),
                                 destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
                                 entryPrefix = request.archiveEntryPrefix,
@@ -137,7 +149,7 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.CREATE_ARCHIVE -> repository.createArchive(
+                            BulkFileOperationType.CREATE_ARCHIVE -> archiveRepository.createArchive(
                                 sourcePaths = request.sourcePaths,
                                 destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
                                 format = requireNotNull(request.archiveFormat) { "Archive format is required" },
