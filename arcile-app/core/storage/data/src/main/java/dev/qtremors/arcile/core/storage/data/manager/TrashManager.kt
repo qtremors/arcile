@@ -368,6 +368,7 @@ class DefaultTrashManager(
     override suspend fun emptyTrash(): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
+            val changedPaths = mutableListOf<String>()
 
             for (volume in trashEnabledVolumes(volumes)) {
                 val trashDir = getTrashDirForVolume(volume)
@@ -377,6 +378,7 @@ class DefaultTrashManager(
                     trashDir.listFiles()?.forEach { file ->
                         if (file.name != ".metadata" && file.name != ".nomedia") {
                             validateDestructivePath(file).onFailure { return@withContext Result.failure(it) }
+                            changedPaths.add(file.absolutePath)
                             file.deleteRecursively()
                         }
                     }
@@ -384,8 +386,9 @@ class DefaultTrashManager(
                 if (metadataDir.exists()) {
                     metadataDir.listFiles()?.forEach { it.delete() }
                 }
+                changedPaths.add(volume.path)
             }
-            finalizeMutation()
+            finalizeMutation(*changedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -486,6 +489,7 @@ class DefaultTrashManager(
     override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
+            val changedPaths = mutableListOf<String>()
             for (trashId in trashIds) {
                 var found = false
                 for (volume in trashEnabledVolumes(volumes)) {
@@ -498,9 +502,11 @@ class DefaultTrashManager(
                     if (trashedFile.exists() || metadataFile.exists()) {
                         if (trashedFile.exists()) {
                             validateDestructivePath(trashedFile).onFailure { return@withContext Result.failure(it) }
+                            changedPaths.add(trashedFile.absolutePath)
                         }
                         if (trashedFile.isDirectory) trashedFile.deleteRecursively() else trashedFile.delete()
                         metadataFile.delete()
+                        changedPaths.add(volume.path)
                         found = true
                         break
                     }
@@ -509,7 +515,7 @@ class DefaultTrashManager(
                     AppLogger.w("TrashManager", "Trash item not found for deletion")
                 }
             }
-            finalizeMutation()
+            finalizeMutation(*changedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e

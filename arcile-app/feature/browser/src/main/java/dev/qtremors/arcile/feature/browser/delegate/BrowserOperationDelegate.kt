@@ -6,10 +6,13 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
+import dev.qtremors.arcile.feature.browser.MoveUndoEntry
 import dev.qtremors.arcile.feature.browser.BrowserState
+import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.userMessage
+import java.io.File
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
@@ -108,6 +111,20 @@ class BrowserOperationDelegate(
                 } else {
                     persistentListOf()
                 }
+                val undoAction = when (event.request.type) {
+                    BulkFileOperationType.TRASH -> undoIds.takeIf { ids -> ids.isNotEmpty() }
+                        ?.let { ids -> BrowserUndoAction.Trash(ids.toPersistentList()) }
+                    BulkFileOperationType.MOVE -> moveUndoActionFor(
+                        sourcePaths = event.request.sourcePaths,
+                        destinationPath = event.request.destinationPath,
+                        hasConflictResolutions = event.request.resolutions.isNotEmpty()
+                    )
+                    BulkFileOperationType.CREATE_FAKE -> createdUndoActionFor(
+                        name = event.request.sourcePaths.singleOrNull(),
+                        destinationPath = event.request.destinationPath
+                    )
+                    else -> null
+                }
                 state.update {
                     it.copy(
                         isLoading = false,
@@ -119,7 +136,8 @@ class BrowserOperationDelegate(
                             type = event.request.type,
                             itemCount = event.request.sourcePaths.size
                         ),
-                        pendingTrashUndoIds = undoIds.toPersistentList()
+                        pendingTrashUndoIds = undoIds.toPersistentList(),
+                        pendingUndoAction = undoAction
                     )
                 }
                 refreshAction()
@@ -177,4 +195,30 @@ class BrowserOperationDelegate(
             ?.take(sourcePaths.size)
             .orEmpty()
     }
+
+    private fun moveUndoActionFor(
+        sourcePaths: List<String>,
+        destinationPath: String?,
+        hasConflictResolutions: Boolean
+    ): BrowserUndoAction.Moved? {
+        if (destinationPath.isNullOrBlank() || sourcePaths.isEmpty() || hasConflictResolutions) return null
+        val entries = sourcePaths.map { sourcePath ->
+            MoveUndoEntry(
+                originalPath = sourcePath,
+                movedPath = joinStoragePath(destinationPath, File(sourcePath).name)
+            )
+        }
+        return BrowserUndoAction.Moved(entries.toPersistentList())
+    }
+
+    private fun createdUndoActionFor(
+        name: String?,
+        destinationPath: String?
+    ): BrowserUndoAction.Created? {
+        if (name.isNullOrBlank() || destinationPath.isNullOrBlank()) return null
+        return BrowserUndoAction.Created(joinStoragePath(destinationPath, name))
+    }
+
+    private fun joinStoragePath(parent: String, name: String): String =
+        parent.trimEnd('/', '\\') + "/" + name
 }

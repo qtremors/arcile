@@ -11,6 +11,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.ListingPage
+import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -32,8 +33,13 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class LocalFileRepositoryTest {
 
     @Test
@@ -124,6 +130,87 @@ class LocalFileRepositoryTest {
 
         assertEquals(TransferCall(listOf("/from/a.txt"), "/to", resolutions), dataSource.copyRequests.single())
         assertEquals(TransferCall(listOf("/from/a.txt"), "/to", resolutions), dataSource.moveRequests.single())
+    }
+
+    @Test
+    fun `selection properties include thumbnails descendants excluded from folder stats`() = runTest {
+        val root = createTempStorageRoot("repo-properties-thumbnails")
+        try {
+            val folder = File(root, "Pictures").apply { mkdirs() }
+            File(folder, "photo.jpg").writeText("photo")
+            val thumbnails = File(folder, ".thumbnails").apply { mkdirs() }
+            File(thumbnails, "thumb.jpg").writeText("thumbnail")
+            val repository = LocalFileRepository(
+                RecordingVolumeProvider(listOf(testVolume("primary", root.absolutePath, kind = StorageKind.INTERNAL))),
+                RecordingMediaStoreClient(),
+                RecordingTrashManager(),
+                RecordingFileSystemDataSource(),
+                RecordingFolderStatsStore()
+            )
+
+            val properties = repository.getSelectionProperties(listOf(folder.absolutePath)).getOrThrow()
+
+            assertEquals(2, properties.fileCount)
+            assertEquals(2, properties.folderCount)
+            assertEquals("photothumbnail".length.toLong(), properties.totalBytes)
+            assertEquals(1, properties.hiddenCount)
+            assertEquals(PropertiesAccessStatus.Full, properties.accessStatus)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `selection properties aggregate mixed file and folder descendants`() = runTest {
+        val root = createTempStorageRoot("repo-properties-mixed")
+        try {
+            val selectedFile = File(root, ".note.txt").apply { writeText("note") }
+            val folder = File(root, "Folder").apply { mkdirs() }
+            File(folder, "child.txt").writeText("child")
+            File(folder, ".hidden").writeText("hidden")
+            val repository = LocalFileRepository(
+                RecordingVolumeProvider(listOf(testVolume("primary", root.absolutePath, kind = StorageKind.INTERNAL))),
+                RecordingMediaStoreClient(),
+                RecordingTrashManager(),
+                RecordingFileSystemDataSource(),
+                RecordingFolderStatsStore()
+            )
+
+            val properties = repository.getSelectionProperties(listOf(selectedFile.absolutePath, folder.absolutePath)).getOrThrow()
+
+            assertEquals(2, properties.itemCount)
+            assertEquals(3, properties.fileCount)
+            assertEquals(1, properties.folderCount)
+            assertEquals("notechildhidden".length.toLong(), properties.totalBytes)
+            assertEquals(2, properties.hiddenCount)
+            assertEquals(PropertiesAccessStatus.Full, properties.accessStatus)
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `selection properties report partial when selected path disappears`() = runTest {
+        val root = createTempStorageRoot("repo-properties-partial")
+        try {
+            val file = File(root, "available.txt").apply { writeText("available") }
+            val missing = File(root, "missing.txt")
+            val repository = LocalFileRepository(
+                RecordingVolumeProvider(listOf(testVolume("primary", root.absolutePath, kind = StorageKind.INTERNAL))),
+                RecordingMediaStoreClient(),
+                RecordingTrashManager(),
+                RecordingFileSystemDataSource(),
+                RecordingFolderStatsStore()
+            )
+
+            val properties = repository.getSelectionProperties(listOf(file.absolutePath, missing.absolutePath)).getOrThrow()
+
+            assertEquals(1, properties.itemCount)
+            assertEquals(1, properties.fileCount)
+            assertEquals(PropertiesAccessStatus.Partial, properties.accessStatus)
+        } finally {
+            root.deleteRecursively()
+        }
     }
 }
 

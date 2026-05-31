@@ -56,6 +56,8 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 
 @Composable
 fun AppNavigationGraph(
@@ -63,7 +65,8 @@ fun AppNavigationGraph(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
-    onRestartApp: () -> Unit
+    onRestartApp: () -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
     val openPath: (String) -> Unit = { path ->
@@ -243,7 +246,12 @@ fun AppNavigationGraph(
                                     },
                                     onNavigateToSaf = { uriString ->
                                         if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
-                                            android.widget.Toast.makeText(context, context.getString(R.string.could_not_open_folder_files_app), android.widget.Toast.LENGTH_LONG).show()
+                                            onFeedback(
+                                                ArcileFeedbackEvent(
+                                                    message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.could_not_open_folder_files_app),
+                                                    severity = ArcileFeedbackSeverity.Error
+                                                )
+                                            )
                                         }
                                     },
                                     onNavigateToQuickAccess = {
@@ -321,6 +329,9 @@ fun AppNavigationGraph(
                                     },
                                     onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
                                     onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
+                                    onUndoLastOperation = { browserViewModel.undoLastOperation() },
+                                    onClearPendingUndo = { browserViewModel.clearPendingUndo() },
+                                    onFeedback = onFeedback,
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )
                             }
@@ -370,7 +381,8 @@ fun AppNavigationGraph(
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onFeedback = onFeedback
                 )
                 recentFilesScreen(
                     enterTransition = utilityEnterTransition,
@@ -386,7 +398,8 @@ fun AppNavigationGraph(
                         navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
                             popUpTo<AppRoutes.Main> { inclusive = true }
                         }
-                    }
+                    },
+                    onFeedback = onFeedback
                 )
                 composable<AppRoutes.Tools>(
                     enterTransition = utilityEnterTransition,
@@ -404,7 +417,8 @@ fun AppNavigationGraph(
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onFeedback = onFeedback
                 )
                 composable<AppRoutes.Settings>(
                     enterTransition = utilityEnterTransition,

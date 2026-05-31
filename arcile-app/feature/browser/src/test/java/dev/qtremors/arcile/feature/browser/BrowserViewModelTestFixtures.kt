@@ -100,6 +100,10 @@ class BrowserFakeFileRepository(
         get() = delegate.renameRequests.lastOrNull()?.first
     val lastRenameNewName: String?
         get() = delegate.renameRequests.lastOrNull()?.second
+    val moveRequests
+        get() = delegate.moveRequests
+    val deletePermanentlyRequests
+        get() = delegate.deletePermanentlyRequests
     var filesByPath: Map<String, List<FileModel>>
         get() = delegate.filesByPath
         set(value) {

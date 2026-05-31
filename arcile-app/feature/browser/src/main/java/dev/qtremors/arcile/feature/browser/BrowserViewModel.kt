@@ -65,6 +65,7 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import javax.inject.Inject
+import java.io.File
 
 enum class BrowserNativeAction { TRASH }
 
@@ -83,6 +84,19 @@ data class BrowserFileOperationUiState(
     val isIndeterminate: Boolean
         get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
 }
+
+sealed interface BrowserUndoAction {
+    data class Trash(val trashIds: PersistentList<String>) : BrowserUndoAction
+    data class Rename(val originalPath: String, val renamedPath: String) : BrowserUndoAction
+    data class Created(val path: String) : BrowserUndoAction
+    data class Moved(val entries: PersistentList<MoveUndoEntry>) : BrowserUndoAction
+}
+
+@androidx.compose.runtime.Immutable
+data class MoveUndoEntry(
+    val originalPath: String,
+    val movedPath: String
+)
 
 @androidx.compose.runtime.Immutable
 data class BrowserState(
@@ -126,6 +140,7 @@ data class BrowserState(
     val activeFileOperation: BrowserFileOperationUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
     val pendingTrashUndoIds: PersistentList<String> = persistentListOf(),
+    val pendingUndoAction: BrowserUndoAction? = null,
     val selectedFilesTotalSize: Long = 0L,
     val displayState: BrowserDisplayState = BrowserDisplayState()
 )
@@ -511,6 +526,12 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             fileMutationRepository.createDirectory(currentPath, name).onSuccess {
+                _state.update { state ->
+                    state.copy(
+                        fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_folder_created),
+                        pendingUndoAction = BrowserUndoAction.Created(it.absolutePath)
+                    )
+                }
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_create_folder_failed)) }
@@ -524,6 +545,12 @@ class BrowserViewModel @Inject constructor(
 
         viewModelScope.launch {
             fileMutationRepository.createFile(currentPath, name).onSuccess {
+                _state.update { state ->
+                    state.copy(
+                        fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_file_created),
+                        pendingUndoAction = BrowserUndoAction.Created(it.absolutePath)
+                    )
+                }
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_create_file_failed)) }
@@ -578,8 +605,17 @@ class BrowserViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            fileMutationRepository.renameFile(path, newName).onSuccess {
+            fileMutationRepository.renameFile(path, newName).onSuccess { renamed ->
                 clearSelection()
+                _state.update { state ->
+                    state.copy(
+                        fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_renamed),
+                        pendingUndoAction = BrowserUndoAction.Rename(
+                            originalPath = path,
+                            renamedPath = renamed.absolutePath
+                        )
+                    )
+                }
                 refresh()
             }.onFailure { error ->
                 _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_rename_file_failed)) }
@@ -596,7 +632,7 @@ class BrowserViewModel @Inject constructor(
     fun undoLastTrashMove() {
         val trashIds = _state.value.pendingTrashUndoIds
         if (trashIds.isEmpty()) return
-        _state.update { it.copy(pendingTrashUndoIds = persistentListOf()) }
+        _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
         viewModelScope.launch {
             trashRepository.restoreFromTrash(trashIds).onSuccess {
                 refresh()
@@ -607,7 +643,71 @@ class BrowserViewModel @Inject constructor(
     }
 
     fun clearPendingTrashUndo() {
-        _state.update { it.copy(pendingTrashUndoIds = persistentListOf()) }
+        _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
+    }
+
+    fun undoLastOperation() {
+        when (val undo = _state.value.pendingUndoAction) {
+            is BrowserUndoAction.Trash -> undoLastTrashMove()
+            is BrowserUndoAction.Rename -> undoRename(undo)
+            is BrowserUndoAction.Created -> undoCreated(undo)
+            is BrowserUndoAction.Moved -> undoMove(undo)
+            null -> Unit
+        }
+    }
+
+    fun clearPendingUndo() {
+        _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
+    }
+
+    private fun undoRename(undo: BrowserUndoAction.Rename) {
+        _state.update { it.copy(pendingUndoAction = null) }
+        val originalName = File(undo.originalPath).name
+        viewModelScope.launch {
+            fileMutationRepository.renameFile(undo.renamedPath, originalName).onSuccess {
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.toArcileError().userMessage) }
+            }
+        }
+    }
+
+    private fun undoCreated(undo: BrowserUndoAction.Created) {
+        _state.update { it.copy(pendingUndoAction = null) }
+        viewModelScope.launch {
+            fileMutationRepository.deletePermanently(listOf(undo.path)).onSuccess {
+                refresh()
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.toArcileError().userMessage) }
+            }
+        }
+    }
+
+    private fun undoMove(undo: BrowserUndoAction.Moved) {
+        _state.update { it.copy(pendingUndoAction = null) }
+        viewModelScope.launch {
+            val groupedByOriginalParent = undo.entries.groupBy { parentStoragePath(it.originalPath) }
+            for ((originalParent, entries) in groupedByOriginalParent) {
+                if (originalParent.isBlank()) {
+                    _state.update { it.copy(error = UiText.StringResource(R.string.file_operation_undo_failed)) }
+                    return@launch
+                }
+                clipboardRepository.moveFiles(
+                    sourcePaths = entries.map { it.movedPath },
+                    destinationPath = originalParent
+                ).onFailure { error ->
+                    _state.update { it.copy(error = error.toArcileError().userMessage) }
+                    return@launch
+                }
+            }
+            refresh()
+        }
+    }
+
+    private fun parentStoragePath(path: String): String {
+        val normalized = path.replace('\\', '/').trimEnd('/')
+        val index = normalized.lastIndexOf('/')
+        return if (index > 0) normalized.substring(0, index) else ""
     }
 
     fun clearActiveFileOperation() = operationDelegate.clearActiveOperation()

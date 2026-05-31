@@ -132,42 +132,36 @@ class LocalFileRepository(
                 return@withContext Result.failure(IllegalArgumentException("Selected items are no longer available"))
             }
 
-            val statsByPath = existingFiles
-                .filter(File::isDirectory)
-                .associate { file -> file.absolutePath to FolderStatsCalculator.calculate(file) }
+            val scansByPath = existingFiles.associate { file -> file.absolutePath to PropertiesScanner.scan(file) }
 
-            val fileCount = existingFiles.count { it.isFile }
-            val folderCount = existingFiles.count { it.isDirectory }
-            val hiddenCount = existingFiles.count { it.name.startsWith(".") }
-            val totalBytes = existingFiles.sumOf { file ->
-                if (file.isFile) {
-                    file.length()
-                } else {
-                    statsByPath[file.absolutePath]?.totalBytes ?: 0L
-                }
-            }
-            val newestModifiedAt = existingFiles.maxOfOrNull(File::lastModified)
-            val oldestModifiedAt = existingFiles.minOfOrNull(File::lastModified)
-            val hasUnavailableDirectory = statsByPath.values.any { it.status == FolderStatsStatus.Unavailable }
-            val hasPartialDirectory = statsByPath.values.any { it.status == FolderStatsStatus.Partial }
+            val fileCount = scansByPath.values.sumOf { it.fileCount }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val folderCount = scansByPath.values.sumOf { it.folderCount }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val hiddenCount = scansByPath.values.sumOf { it.hiddenCount }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            val totalBytes = scansByPath.values.sumOf { it.totalBytes }
+            val newestModifiedAt = scansByPath.values.mapNotNull { it.newestModifiedAt }.maxOrNull()
+            val oldestModifiedAt = scansByPath.values.mapNotNull { it.oldestModifiedAt }.minOrNull()
+            val hasMissingSelection = existingFiles.size != selectedFiles.distinctBy { it.absolutePath }.size
+            val hasUnavailableDirectory = scansByPath.values.any { it.selectedDirectoryUnavailable }
+            val hasPartialDirectory = scansByPath.values.any { it.descendantReadFailed }
             val accessStatus = when {
                 hasUnavailableDirectory -> PropertiesAccessStatus.Limited
-                hasPartialDirectory -> PropertiesAccessStatus.Partial
+                hasPartialDirectory || hasMissingSelection -> PropertiesAccessStatus.Partial
                 else -> PropertiesAccessStatus.Full
             }
 
             val result = if (existingFiles.size == 1) {
                 val file = existingFiles.first()
                 val extension = file.extension.lowercase()
+                val scan = scansByPath.getValue(file.absolutePath)
                 SelectionProperties(
                     displayName = file.name,
                     pathSummary = file.absolutePath,
                     itemCount = 1,
-                    fileCount = if (file.isFile) 1 else 0,
-                    folderCount = if (file.isDirectory) 1 else 0,
-                    totalBytes = if (file.isFile) file.length() else statsByPath[file.absolutePath]?.totalBytes ?: 0L,
-                    newestModifiedAt = file.lastModified(),
-                    oldestModifiedAt = file.lastModified(),
+                    fileCount = scan.fileCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                    folderCount = scan.folderCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                    totalBytes = scan.totalBytes,
+                    newestModifiedAt = scan.newestModifiedAt,
+                    oldestModifiedAt = scan.oldestModifiedAt,
                     mimeTypeSummary = if (file.isFile) {
                         android.webkit.MimeTypeMap.getSingleton()
                             .getMimeTypeFromExtension(extension.ifEmpty { "" })
@@ -177,8 +171,21 @@ class LocalFileRepository(
                     },
                     extensionSummary = extension.ifEmpty { null },
                     hiddenCount = hiddenCount,
-                    accessStatus = if (file.isDirectory) accessStatus else PropertiesAccessStatus.Full,
-                    folderStats = statsByPath[file.absolutePath],
+                    accessStatus = if (file.isDirectory || hasMissingSelection) accessStatus else PropertiesAccessStatus.Full,
+                    folderStats = if (file.isDirectory) {
+                        FolderStats(
+                            fileCount = scan.fileCount,
+                            totalBytes = scan.totalBytes,
+                            cachedAt = System.currentTimeMillis(),
+                            status = when (accessStatus) {
+                                PropertiesAccessStatus.Full -> FolderStatsStatus.Ready
+                                PropertiesAccessStatus.Partial -> FolderStatsStatus.Partial
+                                PropertiesAccessStatus.Limited -> FolderStatsStatus.Unavailable
+                            }
+                        )
+                    } else {
+                        null
+                    },
                     isSingleItem = true,
                     isDirectory = file.isDirectory
                 )

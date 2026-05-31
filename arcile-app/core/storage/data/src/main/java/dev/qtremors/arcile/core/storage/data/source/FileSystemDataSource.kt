@@ -88,6 +88,18 @@ class DefaultFileSystemDataSource(
         return Result.success(Unit)
     }
 
+    private fun File.normalizedPath(): String =
+        absoluteFile.normalize().absolutePath.trimEnd(File.separatorChar).lowercase()
+
+    private fun temporaryCaseRenameTarget(parent: File, originalName: String): File {
+        repeat(100) { index ->
+            val suffix = if (index == 0) "" else "-$index"
+            val candidate = File(parent, ".$originalName.arcile-case-rename$suffix.tmp")
+            if (!candidate.exists()) return candidate
+        }
+        throw IllegalStateException("Unable to reserve temporary rename target")
+    }
+
     private fun File.toFileModel(): FileModel {
         val ext = extension
         val mime = if (ext.isNotEmpty()) {
@@ -294,13 +306,32 @@ class DefaultFileSystemDataSource(
              if (!file.exists()) {
                  return@withContext Result.failure(IllegalArgumentException("File does not exist"))
              }
-             if (newFile.exists()) {
+             val isSamePathTarget = file.normalizedPath() == newFile.normalizedPath()
+             val isCaseOnlyRename = isSamePathTarget && file.name != newName && file.name.equals(newName, ignoreCase = true)
+             if (newFile.exists() && !isSamePathTarget) {
                  return@withContext Result.failure(IllegalArgumentException("File with that name already exists"))
+             }
+
+             if (file.name == newName) {
+                 return@withContext Result.success(file.toFileModel())
              }
 
              if (file.renameTo(newFile)) {
                  finalizeMutation(file.absolutePath, newFile.absolutePath)
                  Result.success(newFile.toFileModel())
+             } else if (isCaseOnlyRename) {
+                 val tempFile = temporaryCaseRenameTarget(file.parentFile ?: return@withContext Result.failure(Exception("Failed to rename file")), file.name)
+                 validatedDestructiveRef(tempFile).onFailure { return@withContext Result.failure(it) }
+                 if (!file.renameTo(tempFile)) {
+                     return@withContext Result.failure(Exception("Failed to rename file"))
+                 }
+                 if (tempFile.renameTo(newFile)) {
+                     finalizeMutation(file.absolutePath, tempFile.absolutePath, newFile.absolutePath)
+                     Result.success(newFile.toFileModel())
+                 } else {
+                     tempFile.renameTo(file)
+                     Result.failure(Exception("Failed to rename file"))
+                 }
              } else {
                  Result.failure(Exception("Failed to rename file"))
              }

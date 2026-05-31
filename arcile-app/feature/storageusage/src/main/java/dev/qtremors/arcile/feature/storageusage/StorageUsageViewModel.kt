@@ -3,8 +3,14 @@ package dev.qtremors.arcile.feature.storageusage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.NoOpBulkFileOperationCoordinator
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
@@ -33,13 +39,31 @@ data class StorageUsageUiState(
 @HiltViewModel
 class StorageUsageViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
-    private val scanner: StorageUsageScanner
+    private val scanner: StorageUsageScanner,
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StorageUsageUiState())
     val state: StateFlow<StorageUsageUiState> = _state.asStateFlow()
 
     private var scanJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.events.collect { event ->
+                val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
+                if (request.type.refreshesStorageUsage()) {
+                    refresh()
+                }
+            }
+        }
+        viewModelScope.launch {
+            storageMutationNotifier.events.collect {
+                refresh()
+            }
+        }
+    }
 
     fun load(selectedVolumeId: String?) {
         if (_state.value.selectedVolumeId == selectedVolumeId && _state.value.scanState !is StorageUsageScanState.Idle) {
@@ -169,3 +193,14 @@ class StorageUsageViewModel @Inject constructor(
         }
     }
 }
+
+private fun BulkFileOperationType.refreshesStorageUsage(): Boolean =
+    when (this) {
+        BulkFileOperationType.MOVE,
+        BulkFileOperationType.TRASH,
+        BulkFileOperationType.DELETE,
+        BulkFileOperationType.CREATE_FAKE,
+        BulkFileOperationType.EXTRACT_ARCHIVE,
+        BulkFileOperationType.CREATE_ARCHIVE -> true
+        BulkFileOperationType.COPY -> false
+    }

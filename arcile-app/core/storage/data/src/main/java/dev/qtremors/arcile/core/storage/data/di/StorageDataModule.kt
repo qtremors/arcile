@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.core.storage.data.DefaultStorageCleanerScanner
+import dev.qtremors.arcile.core.storage.data.DefaultStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.data.DefaultStorageUsageScanner
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
@@ -35,6 +36,7 @@ import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
@@ -159,10 +161,17 @@ object StorageDataModule {
         @ApplicationContext context: Context,
         mediaStoreClient: MediaStoreClient,
         volumeProvider: VolumeProvider,
-        folderStatsStore: FolderStatsStore
+        folderStatsStore: FolderStatsStore,
+        storageMutationNotifier: StorageMutationNotifier
     ): MutationFinalizer {
-        return MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+        return MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore, storageMutationNotifier)
     }
+
+    @Provides
+    @Singleton
+    fun provideStorageMutationNotifier(
+        notifier: DefaultStorageMutationNotifier
+    ): StorageMutationNotifier = notifier
 
     @Provides
     @Singleton

@@ -162,6 +162,56 @@ class FileSystemDataSourceTest {
     }
 
     @Test
+    fun `renameFile supports case-only file rename`() = runTest {
+        val file = File(root, "file.txt").apply {
+            createNewFile()
+            writeText("case")
+        }
+
+        val result = dataSource.renameFile(file.absolutePath, "File.txt")
+
+        assertTrue(result.isSuccess)
+        assertEquals("File.txt", result.getOrThrow().name)
+        assertTrue(File(root, "File.txt").exists())
+        assertEquals("case", File(root, "File.txt").readText())
+    }
+
+    @Test
+    fun `renameFile supports case-only folder rename`() = runTest {
+        val folder = File(root, "folder").apply { mkdirs() }
+        File(folder, "child.txt").writeText("child")
+
+        val result = dataSource.renameFile(folder.absolutePath, "Folder")
+
+        assertTrue(result.isSuccess)
+        assertEquals("Folder", result.getOrThrow().name)
+        assertTrue(File(root, "Folder/child.txt").exists())
+    }
+
+    @Test
+    fun `renameFile supports case-only extension rename`() = runTest {
+        val file = File(root, "photo.jpg").apply { createNewFile() }
+
+        val result = dataSource.renameFile(file.absolutePath, "photo.JPG")
+
+        assertTrue(result.isSuccess)
+        assertEquals("photo.JPG", result.getOrThrow().name)
+        assertTrue(File(root, "photo.JPG").exists())
+    }
+
+    @Test
+    fun `renameFile rejects different existing sibling`() = runTest {
+        val file = File(root, "source.txt").apply { createNewFile() }
+        File(root, "target.txt").createNewFile()
+
+        val result = dataSource.renameFile(file.absolutePath, "target.txt")
+
+        assertTrue(result.isFailure)
+        assertTrue(file.exists())
+        assertTrue(File(root, "target.txt").exists())
+    }
+
+    @Test
     fun `copyFiles copies files and directories correctly`() = runTest {
         val srcDir = File(root, "src").apply { mkdirs() }
         val destDir = File(root, "dest").apply { mkdirs() }

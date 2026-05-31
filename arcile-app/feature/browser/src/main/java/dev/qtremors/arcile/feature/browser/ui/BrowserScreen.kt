@@ -10,20 +10,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -33,7 +29,8 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
-import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -41,6 +38,7 @@ import kotlinx.coroutines.flow.collect
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.ui.asString
+import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.ui.BrowserContent
 import dev.qtremors.arcile.feature.browser.ui.BrowserCreateFab
 import dev.qtremors.arcile.feature.browser.ui.BrowserDialogs
@@ -105,6 +103,9 @@ fun BrowserScreen(
     onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit = { _, _, _ -> },
     onUndoLastTrashMove: () -> Unit = {},
     onClearPendingTrashUndo: () -> Unit = {},
+    onUndoLastOperation: () -> Unit = onUndoLastTrashMove,
+    onClearPendingUndo: () -> Unit = onClearPendingTrashUndo,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val haptics = rememberArcileHaptics()
@@ -129,8 +130,6 @@ fun BrowserScreen(
         }
     }
 
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     var showLoading by remember(state.isLoading) { mutableStateOf(false) }
@@ -285,9 +284,12 @@ fun BrowserScreen(
         state.clipboardState?.let { clipboard ->
             val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
             val count = clipboard.files.size
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar(context.getString(R.string.clipboard_feedback, count, action))
-            }
+            onFeedback(
+                ArcileFeedbackEvent(
+                    message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
+                    severity = ArcileFeedbackSeverity.Info
+                )
+            )
         }
     }
 
@@ -295,27 +297,21 @@ fun BrowserScreen(
         state.error?.let { errorMsg ->
             onClearError()
             haptics.error()
-            coroutineScope.launch {
-                snackbarHostState.showSnackbar(errorMsg.asString(context))
-            }
+            onFeedback(ArcileFeedbackEvent(message = errorMsg, severity = ArcileFeedbackSeverity.Error))
         }
     }
     LaunchedEffect(state.fileOperationStatusMessage) {
         state.fileOperationStatusMessage?.let { message ->
-            val snackbarMessage = message.asString(context)
             onClearFileOperationStatusMessage()
-            coroutineScope.launch {
-                val result = snackbarHostState.showSnackbar(
-                    message = snackbarMessage,
-                    actionLabel = if (state.pendingTrashUndoIds.isNotEmpty()) context.getString(R.string.undo) else null,
-                    withDismissAction = state.pendingTrashUndoIds.isNotEmpty()
+            onFeedback(
+                ArcileFeedbackEvent(
+                    message = message,
+                    severity = ArcileFeedbackSeverity.Success,
+                    actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
+                    onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
+                    onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }
                 )
-                if (result == SnackbarResult.ActionPerformed) {
-                    onUndoLastTrashMove()
-                } else if (state.pendingTrashUndoIds.isNotEmpty()) {
-                    onClearPendingTrashUndo()
-                }
-            }
+            )
         }
     }
 
@@ -325,20 +321,12 @@ fun BrowserScreen(
     val isClipboardActive = state.clipboardState != null
     val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 
         (if (isSelectionMode || isClipboardActive) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
-    val snackbarPadding = if (isSelectionMode || isClipboardActive) 80.dp else 0.dp
     val layoutDirection = LocalLayoutDirection.current
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = {
-            ArcileSnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = snackbarPadding)
-            )
-        },
+        snackbarHost = {},
         topBar = {
             BrowserTopBars(
                 state = state,
@@ -351,9 +339,12 @@ fun BrowserScreen(
                 onBackClick = handleBrowserBack,
                 onSelectionChanged = { haptics.selectionChanged() },
                 onShowPinnedSnackbar = { label ->
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(context.getString(R.string.quick_access_pinned, label))
-                    }
+                    onFeedback(
+                        ArcileFeedbackEvent(
+                            message = UiText.StringResource(R.string.quick_access_pinned, listOf(label)),
+                            severity = ArcileFeedbackSeverity.Success
+                        )
+                    )
                 }
             )
         },

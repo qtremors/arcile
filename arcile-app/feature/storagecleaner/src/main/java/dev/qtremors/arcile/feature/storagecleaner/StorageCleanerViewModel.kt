@@ -32,7 +32,8 @@ data class StorageCleanerState(
 }
 
 data class CleanerSuccessMessage(
-    val cleanedCount: Int
+    val cleanedCount: Int,
+    val undoTrashIds: List<String> = emptyList()
 )
 
 @HiltViewModel
@@ -118,15 +119,41 @@ class StorageCleanerViewModel @Inject constructor(
             _state.update { it.copy(isCleaning = true, errorMessage = null, successMessage = null) }
             trashRepository.moveToTrash(uniquePaths)
                 .onSuccess {
+                    val undoIds = trashRepository.getTrashFiles().getOrNull()
+                        ?.filter { it.originalPath in uniquePaths }
+                        ?.sortedByDescending { it.deletionTime }
+                        ?.map { it.id }
+                        ?.take(uniquePaths.size)
+                        .orEmpty()
                     _state.update { current ->
                         current.copy(
                             isCleaning = false,
                             groups = current.groups.map { group ->
                                 group.copy(candidates = group.candidates.filterNot { it.absolutePath in uniquePaths })
                             },
-                            successMessage = CleanerSuccessMessage(uniquePaths.size)
+                            successMessage = CleanerSuccessMessage(uniquePaths.size, undoIds)
                         )
                     }
+                    scan(clearMessages = false)
+                }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            isCleaning = false,
+                            errorMessage = error.message.orEmpty()
+                        )
+                    }
+                }
+        }
+    }
+
+    fun undoClean(trashIds: List<String>) {
+        if (trashIds.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(isCleaning = true, errorMessage = null, successMessage = null) }
+            trashRepository.restoreFromTrash(trashIds)
+                .onSuccess {
+                    _state.update { it.copy(isCleaning = false) }
                     scan(clearMessages = false)
                 }
                 .onFailure { error ->

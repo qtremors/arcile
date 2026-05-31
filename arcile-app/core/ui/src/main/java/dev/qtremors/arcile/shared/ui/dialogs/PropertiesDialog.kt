@@ -52,7 +52,15 @@ fun PropertiesDialog(
                     PropertiesRow(stringResource(R.string.properties_items), model.itemCount.toString())
                     PropertiesRow(stringResource(R.string.properties_files), model.fileCount.toString())
                     PropertiesRow(stringResource(R.string.properties_folders), model.folderCount.toString())
-                    PropertiesRow(stringResource(R.string.properties_size), formatFileSize(model.totalBytes))
+                    val isPartialTotal = model.accessStatus != PropertiesAccessStatus.Full
+                    PropertiesRow(
+                        stringResource(R.string.properties_size),
+                        if (isPartialTotal) {
+                            stringResource(R.string.properties_size_partial, formatFileSize(model.totalBytes))
+                        } else {
+                            formatFileSize(model.totalBytes)
+                        }
+                    )
 
                     val folderFileCount = model.folderFileCount
                     val folderTotalBytes = model.folderTotalBytes
@@ -62,7 +70,11 @@ fun PropertiesDialog(
                             stringResource(
                                 R.string.properties_contains_value,
                                 folderFileCount.toInt(),
-                                formatFileSize(folderTotalBytes)
+                                if (isPartialTotal) {
+                                    stringResource(R.string.properties_size_partial, formatFileSize(folderTotalBytes))
+                                } else {
+                                    formatFileSize(folderTotalBytes)
+                                }
                             )
                         )
                     }

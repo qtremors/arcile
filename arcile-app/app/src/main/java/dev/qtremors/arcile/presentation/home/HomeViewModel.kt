@@ -3,6 +3,11 @@ package dev.qtremors.arcile.presentation.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.NoOpBulkFileOperationCoordinator
+import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
@@ -15,6 +20,7 @@ import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
@@ -98,7 +104,9 @@ class HomeViewModel @Inject constructor(
     private val storageAnalyticsRepository: StorageAnalyticsRepository,
     private val searchRepository: SearchRepository,
     private val classificationRepo: StorageClassificationStore,
-    private val quickAccessRepo: QuickAccessPreferencesStore
+    private val quickAccessRepo: QuickAccessPreferencesStore,
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
@@ -114,6 +122,21 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             quickAccessRepo.quickAccessItems.collectLatest { items ->
                 _state.update { it.copy(quickAccessItems = items.toPersistentList()) }
+            }
+        }
+
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.events.collect { event ->
+                val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
+                if (request.type.refreshesHomeAnalytics()) {
+                    loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            storageMutationNotifier.events.collect {
+                loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
             }
         }
 
@@ -351,3 +374,14 @@ class HomeViewModel @Inject constructor(
         _state.update { it.copy(isSearchFilterMenuVisible = visible) }
     }
 }
+
+private fun BulkFileOperationType.refreshesHomeAnalytics(): Boolean =
+    when (this) {
+        BulkFileOperationType.MOVE,
+        BulkFileOperationType.TRASH,
+        BulkFileOperationType.DELETE,
+        BulkFileOperationType.CREATE_FAKE,
+        BulkFileOperationType.EXTRACT_ARCHIVE,
+        BulkFileOperationType.CREATE_ARCHIVE -> true
+        BulkFileOperationType.COPY -> false
+    }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
@@ -41,7 +40,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -55,7 +53,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
@@ -63,10 +60,10 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
@@ -110,6 +107,7 @@ fun RecentFilesScreen(
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
     onOpenContainingFolder: (String) -> Unit = {},
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val haptics = rememberArcileHaptics()
@@ -118,8 +116,6 @@ fun RecentFilesScreen(
     val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
-    val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -135,7 +131,7 @@ fun RecentFilesScreen(
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             haptics.error()
-            snackbarHostState.showSnackbar(errorMsg.asString(context))
+            onFeedback(ArcileFeedbackEvent(errorMsg, ArcileFeedbackSeverity.Error))
             onClearError()
         }
     }
@@ -160,18 +156,9 @@ fun RecentFilesScreen(
     }
 
     val filesToDisplay = if (showSearchBar) state.searchResults else state.displayedRecentFiles
-    val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
-
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = {
-            ArcileSnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = snackbarPadding)
-            )
-        },
+        snackbarHost = {},
         topBar = {
             when {
                 isSelectionMode -> RecentSelectionTopBar(

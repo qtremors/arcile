@@ -102,6 +102,69 @@ class BrowserViewModelOperationTest {
     }
 
     @Test
+    fun `completed simple move exposes undo that moves files back to original parent`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf("/storage/emulated/0/Download" to listOf(browserFile("source.txt", "/storage/emulated/0/Download/source.txt")))
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/Download/source.txt")
+        viewModel.cutSelectedToClipboard()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Documents")
+        advanceUntilIdle()
+        viewModel.pasteFromClipboard()
+        advanceUntilIdle()
+
+        val request = coordinator.activeRequest.value!!
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+        viewModel.undoLastOperation()
+        advanceUntilIdle()
+
+        val undoRequest = repo.moveRequests.last()
+        assertEquals(listOf("/storage/emulated/0/Documents/source.txt"), undoRequest.sourcePaths)
+        assertEquals("/storage/emulated/0/Download", undoRequest.destinationPath)
+    }
+
+    @Test
+    fun `completed fake file creation exposes undo that permanently deletes created file`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val repo = BrowserFakeFileRepository(volumes = listOf(internal))
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.createFakeFile("payload.bin", 128L)
+        advanceUntilIdle()
+
+        val request = coordinator.activeRequest.value!!
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+        viewModel.undoLastOperation()
+        advanceUntilIdle()
+
+        assertEquals(listOf(listOf("/storage/emulated/0/Download/payload.bin")), repo.deletePermanentlyRequests)
+    }
+
+    @Test
     fun `completed bulk operation refreshes current folder contents`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val coordinator = FakeBulkFileOperationCoordinator()

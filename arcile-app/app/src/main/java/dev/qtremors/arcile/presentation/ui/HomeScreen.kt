@@ -113,6 +113,7 @@ import dev.qtremors.arcile.ui.theme.bodySmallMedium
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.shared.ui.ArcileTopBar
 import dev.qtremors.arcile.shared.ui.ToolCard
@@ -264,6 +265,17 @@ fun StorageClassificationPrompt(
     }
 }
 
+private fun homeRecentPreloadCacheKey(file: FileModel): String =
+    buildString {
+        append("home-recent:")
+        append(file.absolutePath)
+        append(':')
+        append(file.lastModified)
+        append(':')
+        append(file.size)
+        append(':')
+        append(HomeRecentFilesPreloadSizePx)
+    }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
@@ -314,6 +326,8 @@ fun HomeScreen(
                     ImageRequest.Builder(context)
                         .data(File(file.absolutePath))
                         .size(HomeRecentFilesPreloadSizePx)
+                        .memoryCacheKey(homeRecentPreloadCacheKey(file))
+                        .diskCacheKey(homeRecentPreloadCacheKey(file))
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
                         .crossfade(false)

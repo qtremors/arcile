@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.3
+> **Version:** 0.9.4
 > **Last Updated:** 2026-05-31
 
 ---
+
+## [0.9.4] - 2026-05-31
+
+### Fixes
+- **Storage Usage Refresh (BUG-0038):** Added mutation notifications and refresh hooks so storage usage cards, home analytics, trash totals, and folder aggregates update after successful delete, trash, restore, move, archive, cleaner, and fake-file operations.
+- **Case-Only Rename (BUG-0039):** Supported case-only file and folder renames, including mixed-case extensions, with conflict checks that allow the selected item and a temporary-hop fallback for case-preserving providers.
+- **Exact Properties Totals (BUG-0040):** Added a Properties-specific recursive scanner that counts every accessible descendant, including `.thumbnails`, and labels partial or limited-access totals clearly.
+- **Unified Feedback And Undo (BUG-0041):** Routed browser, recent, trash, and cleaner operation feedback through an app-level snackbar model with severity icons, action labels, stable events, and safe undo for supported operations.
+- **Home Thumbnail StrictMode Cleanup:** Added stable Coil cache keys for recent-file thumbnail preloading and carousel rendering to avoid debug StrictMode disk-read noise from `FileKeyer`.
+
+### Verification
+- **Regression Coverage:** Verified with focused storage, browser, trash, cleaner, and storage-usage debug unit tests plus `:app:compileDebugKotlin`.
 
 ## [0.9.3] - 2026-05-31
 

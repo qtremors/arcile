@@ -280,6 +280,7 @@
     <string name="properties_files">Files</string>
     <string name="properties_folders">Folders</string>
     <string name="properties_size">Size</string>
+    <string name="properties_size_partial">%1$s read so far</string>
     <string name="properties_modified">Modified</string>
     <string name="properties_oldest_modified">Oldest modified</string>
     <string name="properties_type">Type</string>
@@ -554,6 +555,10 @@
     <string name="file_operation_cancelling">Cancelling…</string>
     <string name="file_operation_progress">%1$s %2$d/%3$d</string>
     <string name="file_operation_progress_bytes">%1$s %2$s / %3$s</string>
+    <string name="file_operation_folder_created">Folder created</string>
+    <string name="file_operation_file_created">File created</string>
+    <string name="file_operation_renamed">Renamed item</string>
+    <string name="file_operation_undo_failed">Could not undo operation</string>
     <string name="invert_selection">Invert Selection</string>
 
     <string name="new_fake_file">Random Fake File</string>

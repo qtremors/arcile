@@ -10,13 +10,15 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 
 fun NavGraphBuilder.trashScreen(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.Trash>(
         enterTransition = enterTransition,
@@ -46,6 +48,9 @@ fun NavGraphBuilder.trashScreen(
             onOpenProperties = { viewModel.openPropertiesForSelection() },
             onDismissProperties = { viewModel.dismissProperties() },
             onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
+            onUndoLastRestore = { viewModel.undoLastRestore() },
+            onClearPendingRestoreUndo = { viewModel.clearPendingRestoreUndo() },
+            onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )
     }

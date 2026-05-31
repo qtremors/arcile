@@ -105,10 +105,15 @@ fun RecentFileCarouselItem(
     val previewAccent = previewAccentFor(file)
     val previewIcon = dev.qtremors.arcile.shared.ui.getFileIconVector(file)
     val context = LocalContext.current
-    val thumbnailRequest = remember(file.absolutePath, thumbnailSizePx) {
+    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size, thumbnailSizePx) {
+        homeThumbnailCacheKey(file, thumbnailSizePx)
+    }
+    val thumbnailRequest = remember(file.absolutePath, thumbnailSizePx, thumbnailCacheKey) {
         ImageRequest.Builder(context)
             .data(File(file.absolutePath))
             .size(thumbnailSizePx)
+            .memoryCacheKey(thumbnailCacheKey)
+            .diskCacheKey(thumbnailCacheKey)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .crossfade(false)
@@ -315,6 +320,18 @@ private fun FileTypeBadge(
         }
     }
 }
+
+private fun homeThumbnailCacheKey(file: FileModel, thumbnailSizePx: Int): String =
+    buildString {
+        append("home-recent:")
+        append(file.absolutePath)
+        append(':')
+        append(file.lastModified)
+        append(':')
+        append(file.size)
+        append(':')
+        append(thumbnailSizePx)
+    }
 
 @Composable
 private fun previewAccentFor(file: FileModel): Color {

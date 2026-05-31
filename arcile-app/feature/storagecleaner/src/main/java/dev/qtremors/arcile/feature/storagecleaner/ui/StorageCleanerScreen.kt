@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -62,7 +61,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,6 +80,9 @@ import androidx.compose.ui.layout.ContentScale
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.shared.ui.getFileIconVector
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.shared.ui.rememberDateFormatter
 import java.io.File
 import java.util.Date
@@ -94,21 +95,29 @@ fun StorageCleanerScreen(
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
     onCleanFiles: (List<String>) -> Unit,
-    onClearMessages: () -> Unit
+    onUndoClean: (List<String>) -> Unit = {},
+    onClearMessages: () -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var activeCleanerGroup by remember { mutableStateOf<CleanerGroupType?>(null) }
     var selectedCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     LaunchedEffect(state.successMessage) {
         state.successMessage?.let { message ->
-            Toast.makeText(
-                context,
-                context.getString(R.string.clean_success, message.cleanedCount),
-                Toast.LENGTH_SHORT
-            ).show()
+            onFeedback(
+                ArcileFeedbackEvent(
+                    message = UiText.StringResource(R.string.clean_success, listOf(message.cleanedCount)),
+                    severity = ArcileFeedbackSeverity.Success,
+                    actionLabel = message.undoTrashIds.takeIf { it.isNotEmpty() }?.let {
+                        UiText.StringResource(R.string.undo)
+                    },
+                    onAction = message.undoTrashIds.takeIf { it.isNotEmpty() }?.let { ids ->
+                        { onUndoClean(ids) }
+                    }
+                )
+            )
             onClearMessages()
             activeCleanerGroup = null
             selectedCleanerPaths = emptySet()
@@ -116,11 +125,13 @@ fun StorageCleanerScreen(
     }
     LaunchedEffect(state.errorMessage) {
         state.errorMessage?.let { message ->
-            Toast.makeText(
-                context,
-                message.ifBlank { context.getString(R.string.clean_failed) },
-                Toast.LENGTH_SHORT
-            ).show()
+            onFeedback(
+                ArcileFeedbackEvent(
+                    message = message.takeIf { it.isNotBlank() }?.let(UiText::Dynamic)
+                        ?: UiText.StringResource(R.string.clean_failed),
+                    severity = ArcileFeedbackSeverity.Error
+                )
+            )
             onClearMessages()
         }
     }

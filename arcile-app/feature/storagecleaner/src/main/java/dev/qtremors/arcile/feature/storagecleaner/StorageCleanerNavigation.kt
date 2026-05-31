@@ -11,13 +11,15 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 
 fun NavGraphBuilder.storageCleanerScreen(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.StorageCleaner>(
         enterTransition = enterTransition,
@@ -32,7 +34,9 @@ fun NavGraphBuilder.storageCleanerScreen(
             onNavigateBack = onNavigateBack,
             onRefresh = { viewModel.scan() },
             onCleanFiles = { viewModel.clean(it) },
-            onClearMessages = { viewModel.clearMessages() }
+            onUndoClean = { viewModel.undoClean(it) },
+            onClearMessages = { viewModel.clearMessages() },
+            onFeedback = onFeedback
         )
     }
 }

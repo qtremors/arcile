@@ -12,6 +12,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
 
 fun NavGraphBuilder.recentFilesScreen(
@@ -22,7 +23,8 @@ fun NavGraphBuilder.recentFilesScreen(
     onNavigateBack: () -> Unit,
     onOpenFile: (String) -> Unit,
     onShareSelected: suspend (List<String>) -> Boolean,
-    onOpenContainingFolder: (String) -> Unit
+    onOpenContainingFolder: (String) -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.RecentFiles>(
         enterTransition = enterTransition,
@@ -62,6 +64,7 @@ fun NavGraphBuilder.recentFilesScreen(
             onOpenProperties = { viewModel.openPropertiesForSelection() },
             onDismissProperties = { viewModel.dismissProperties() },
             onOpenContainingFolder = onOpenContainingFolder,
+            onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )
     }

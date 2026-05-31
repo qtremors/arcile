@@ -44,6 +44,7 @@ data class TrashState(
     val pendingNativeAction: NativeAction? = null,
     val pendingDestinationPath: String? = null,
     val pendingRestoreIds: List<String> = emptyList(),
+    val pendingRestoreUndoPaths: List<String> = emptyList(),
     val availableVolumes: List<dev.qtremors.arcile.core.storage.domain.StorageVolume> = emptyList(),
     val searchQuery: String = "",
     val searchResults: List<TrashMetadata> = emptyList(),
@@ -136,6 +137,7 @@ class TrashViewModel @Inject constructor(
         val selectedTrashIds = _state.value.selectedFiles.toList()
         if (selectedTrashIds.isEmpty()) return
         val selectedItems = _state.value.trashFiles.filter { it.id in selectedTrashIds }
+        val undoPaths = selectedItems.mapNotNull { it.originalPath.takeIf(String::isNotBlank) }
         val hasDestinationRequiredItems = selectedItems.any {
             it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||
                 it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM
@@ -157,7 +159,7 @@ class TrashViewModel @Inject constructor(
             trashRepository.restoreFromTrash(selectedTrashIds).onSuccess {
                 val message = restoreSummaryMessage(selectedTrashIds.size, conflictCount)
                 clearSelection()
-                _state.update { it.copy(snackbarMessage = message) }
+                _state.update { it.copy(snackbarMessage = message, pendingRestoreUndoPaths = undoPaths) }
                 loadTrashFiles()
             }.onFailure { error ->
                 when (error) {
@@ -194,12 +196,16 @@ class TrashViewModel @Inject constructor(
         viewModelScope.launch {
             trashRepository.restoreFromTrash(trashIds, destinationPath).onSuccess {
                 val normalizedIds = trashIds.map { it.removePrefix("legacy:") }.toSet()
+                val undoPaths = _state.value.trashFiles
+                    .filter { it.id in normalizedIds }
+                    .map { java.io.File(destinationPath, it.fileModel.name).absolutePath }
                 _state.update {
                     it.copy(
                         selectedFiles = it.selectedFiles - normalizedIds,
                         selectedTrashIdsForDestination = emptyList(),
                         pendingDestinationPath = null,
                         pendingRestoreIds = emptyList(),
+                        pendingRestoreUndoPaths = undoPaths,
                         snackbarMessage = restoreSummaryMessage(trashIds.size, 0)
                     )
                 }
@@ -280,6 +286,24 @@ class TrashViewModel @Inject constructor(
 
     fun clearSnackbarMessage() {
         _state.update { it.copy(snackbarMessage = null) }
+    }
+
+    fun undoLastRestore() {
+        val paths = _state.value.pendingRestoreUndoPaths
+        if (paths.isEmpty()) return
+        _state.update { it.copy(pendingRestoreUndoPaths = emptyList(), isLoading = true, error = null) }
+        viewModelScope.launch {
+            trashRepository.moveToTrash(paths).onSuccess {
+                loadTrashFiles()
+            }.onFailure { error ->
+                _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_delete_files_permanently_failed)) }
+                loadTrashFiles()
+            }
+        }
+    }
+
+    fun clearPendingRestoreUndo() {
+        _state.update { it.copy(pendingRestoreUndoPaths = emptyList()) }
     }
 
     fun updateSearchQuery(query: String) {

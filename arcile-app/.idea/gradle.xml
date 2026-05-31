@@ -23,8 +23,12 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/build-logic" />
             <option value="$PROJECT_DIR$/core" />
+            <option value="$PROJECT_DIR$/core/navigation" />
+            <option value="$PROJECT_DIR$/core/navigation/api" />
             <option value="$PROJECT_DIR$/core/operation" />
             <option value="$PROJECT_DIR$/core/operation/api" />
+            <option value="$PROJECT_DIR$/core/presentation" />
+            <option value="$PROJECT_DIR$/core/presentation/api" />
             <option value="$PROJECT_DIR$/core/runtime" />
             <option value="$PROJECT_DIR$/core/storage" />
             <option value="$PROJECT_DIR$/core/storage/data" />

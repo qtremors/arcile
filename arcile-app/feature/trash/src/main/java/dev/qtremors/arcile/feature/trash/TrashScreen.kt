@@ -28,7 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
-import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -50,8 +51,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -106,10 +105,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.asString
+import dev.qtremors.arcile.core.ui.UiText
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -133,6 +131,9 @@ fun TrashScreen(
     onOpenProperties: () -> Unit = {},
     onDismissProperties: () -> Unit = {},
     onClearSnackbarMessage: () -> Unit = {},
+    onUndoLastRestore: () -> Unit = {},
+    onClearPendingRestoreUndo: () -> Unit = {},
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
     val haptics = rememberArcileHaptics()
@@ -172,19 +173,31 @@ fun TrashScreen(
 
     var showEmptyTrashConfirmation by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             haptics.error()
-            snackbarHostState.showSnackbar(errorMsg.asString(context))
+            onFeedback(ArcileFeedbackEvent(errorMsg, ArcileFeedbackSeverity.Error))
             onClearError()
         }
     }
     LaunchedEffect(state.snackbarMessage) {
         state.snackbarMessage?.let { message ->
-            snackbarHostState.showSnackbar(message.asString(context))
+            onFeedback(
+                ArcileFeedbackEvent(
+                    message = message,
+                    severity = ArcileFeedbackSeverity.Success,
+                    actionLabel = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                        UiText.StringResource(R.string.undo)
+                    },
+                    onAction = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                        { onUndoLastRestore() }
+                    },
+                    onDismiss = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                        { onClearPendingRestoreUndo() }
+                    }
+                )
+            )
             onClearSnackbarMessage()
         }
     }
@@ -200,7 +213,6 @@ fun TrashScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    val snackbarPadding = if (isSelectionMode) 80.dp else 0.dp
     val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
         (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
@@ -208,14 +220,7 @@ fun TrashScreen(
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        snackbarHost = {
-            ArcileSnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = snackbarPadding)
-            )
-        },
+        snackbarHost = {},
         topBar = {
             if (showSearchBar) {
                 SearchTopBar(

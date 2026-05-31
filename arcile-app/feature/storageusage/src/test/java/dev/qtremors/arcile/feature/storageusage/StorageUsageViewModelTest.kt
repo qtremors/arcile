@@ -1,11 +1,13 @@
 package dev.qtremors.arcile.feature.storageusage
 
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
+import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
@@ -28,10 +30,14 @@ import java.io.File
 
 class FakeStorageUsageScanner : StorageUsageScanner {
     val resultFlow = MutableStateFlow<StorageUsageScanState>(StorageUsageScanState.Idle)
+    val scanRequests = mutableListOf<String>()
     override fun scanStorageUsage(
         rootPath: String,
         limits: StorageUsageScanLimits
-    ): Flow<StorageUsageScanState> = resultFlow
+    ): Flow<StorageUsageScanState> {
+        scanRequests += rootPath
+        return resultFlow
+    }
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -39,10 +45,14 @@ class StorageUsageViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
     private val fakeScanner = FakeStorageUsageScanner()
+    private lateinit var operationCoordinator: FakeBulkFileOperationCoordinator
 
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
+        operationCoordinator = FakeBulkFileOperationCoordinator()
+        fakeScanner.scanRequests.clear()
+        fakeScanner.resultFlow.value = StorageUsageScanState.Idle
     }
 
     @After
@@ -54,7 +64,7 @@ class StorageUsageViewModelTest {
     fun `load scans selected indexed volume and selects root`() = runTest(dispatcher) {
         val root = File("storage")
         val repository = FakeStorageRepositoryBundle(volumes = listOf(indexedVolume("primary", root)))
-        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner)
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner, operationCoordinator)
 
         viewModel.load("primary")
         advanceUntilIdle()
@@ -89,7 +99,7 @@ class StorageUsageViewModelTest {
         val root = File("storage")
         val folder = File(root, "Downloads")
         val repository = FakeStorageRepositoryBundle(volumes = listOf(indexedVolume("primary", root)))
-        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner)
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner, operationCoordinator)
 
         viewModel.load("primary")
         advanceUntilIdle()
@@ -150,13 +160,35 @@ class StorageUsageViewModelTest {
                 )
             )
         )
-        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner)
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner, operationCoordinator)
 
         viewModel.load("usb")
         advanceUntilIdle()
 
         assertNotNull(viewModel.state.value.unavailableVolume)
         assertNull(viewModel.state.value.currentRoot)
+    }
+
+    @Test
+    fun `completed mutating operation refreshes selected volume`() = runTest(dispatcher) {
+        val root = File("storage")
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(indexedVolume("primary", root)))
+        val viewModel = StorageUsageViewModel(repository.volumeRepository, fakeScanner, operationCoordinator)
+
+        viewModel.load("primary")
+        advanceUntilIdle()
+        assertEquals(1, fakeScanner.scanRequests.size)
+
+        operationCoordinator.startOperation(
+            type = BulkFileOperationType.DELETE,
+            sourcePaths = listOf(File(root, "large.bin").absolutePath),
+            destinationPath = null,
+            resolutions = emptyMap()
+        )
+        operationCoordinator.onOperationCompleted(operationCoordinator.startedRequests.single())
+        advanceUntilIdle()
+
+        assertEquals(2, fakeScanner.scanRequests.size)
     }
 
     private fun indexedVolume(id: String, root: File) = testVolume(
