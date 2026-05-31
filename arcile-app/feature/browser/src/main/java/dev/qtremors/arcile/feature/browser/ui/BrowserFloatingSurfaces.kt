@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.DropdownMenu
@@ -52,13 +51,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -132,7 +131,6 @@ internal fun BrowserCreateFab(
 @Composable
 internal fun BrowserFloatingSurfaces(
     state: BrowserState,
-    displayedFiles: List<FileModel>,
     scaffoldPadding: PaddingValues,
     isFabExpanded: Boolean,
     onFabExpandedChange: (Boolean) -> Unit,
@@ -141,6 +139,8 @@ internal fun BrowserFloatingSurfaces(
     onOperationSucceeded: () -> Unit,
     onOperationFailed: () -> Unit
 ) {
+    var showDetailedProgressSheet by remember { mutableStateOf(false) }
+
     if (isFabExpanded) {
         Box(
             modifier = Modifier
@@ -162,7 +162,6 @@ internal fun BrowserFloatingSurfaces(
         if (state.selectedFiles.isNotEmpty()) {
             BrowserSelectionToolbar(
                 state = state,
-                displayedFiles = displayedFiles,
                 dialogVisibility = dialogVisibility,
                 actions = actions
             )
@@ -172,16 +171,24 @@ internal fun BrowserFloatingSurfaces(
                 dialogVisibility = dialogVisibility,
                 actions = actions,
                 onOperationSucceeded = onOperationSucceeded,
-                onOperationFailed = onOperationFailed
+                onOperationFailed = onOperationFailed,
+                onProgressClick = { showDetailedProgressSheet = true }
             )
         }
+    }
+
+    if (showDetailedProgressSheet && state.activeFileOperation != null) {
+        OperationProgressDetailsSheet(
+            activeOp = state.activeFileOperation,
+            actions = actions,
+            onDismissRequest = { showDetailedProgressSheet = false }
+        )
     }
 }
 
 @Composable
 private fun BrowserSelectionToolbar(
     state: BrowserState,
-    displayedFiles: List<FileModel>,
     dialogVisibility: BrowserDialogVisibility,
     actions: BrowserUiActions
 ) {
@@ -248,7 +255,7 @@ private fun BrowserSelectionToolbar(
                     expanded = showSelectionMenu,
                     onDismissRequest = { showSelectionMenu = false }
                 ) {
-                    val menuActions = remember(actions.onShareSelected, displayedFiles, state.selectedFiles) {
+                    val menuActions = remember(actions.onShareSelected, state.selectedFiles) {
                         mutableListOf<@Composable () -> Unit>().apply {
                             add {
                                 DropdownMenuItem(
@@ -279,33 +286,6 @@ private fun BrowserSelectionToolbar(
                                     onClick = {
                                         showSelectionMenu = false
                                         actions.onShareSelected()
-                                    }
-                                )
-                            }
-                            add {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.select_all)) },
-                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        actions.onSelectMultiple(displayedFiles.map { it.absolutePath })
-                                    }
-                                )
-                            }
-                            add {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.select_range)) },
-                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        val selectedIndexes = displayedFiles.mapIndexedNotNull { index, file ->
-                                            index.takeIf { state.selectedFiles.contains(file.absolutePath) }
-                                        }
-                                        if (selectedIndexes.isNotEmpty()) {
-                                            val start = selectedIndexes.minOrNull() ?: 0
-                                            val end = selectedIndexes.maxOrNull() ?: start
-                                            actions.onSelectMultiple(displayedFiles.subList(start, end + 1).map { it.absolutePath })
-                                        }
                                     }
                                 )
                             }
@@ -350,7 +330,8 @@ private fun BrowserClipboardOperationToolbar(
     dialogVisibility: BrowserDialogVisibility,
     actions: BrowserUiActions,
     onOperationSucceeded: () -> Unit,
-    onOperationFailed: () -> Unit
+    onOperationFailed: () -> Unit,
+    onProgressClick: () -> Unit
 ) {
     val clipboard = state.clipboardState
     val activeOp = state.activeFileOperation
@@ -440,7 +421,13 @@ private fun BrowserClipboardOperationToolbar(
         actions = toolbarActions,
         startContent = {
             Surface(
-                onClick = { if (activeOp == null) dialogVisibility.showClipboardContents = true },
+                onClick = {
+                    if (activeOp != null) {
+                        onProgressClick()
+                    } else {
+                        dialogVisibility.showClipboardContents = true
+                    }
+                },
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -503,7 +490,7 @@ private fun BrowserClipboardOperationToolbar(
                                 BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
                                 else -> {
                                     val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
-                                    if (itemCount == 1) "1 item" else "$itemCount items"
+                                    pluralStringResource(R.plurals.clipboard_item_count, itemCount, itemCount)
                                 }
                             }
                             Text(
@@ -519,7 +506,11 @@ private fun BrowserClipboardOperationToolbar(
                                     val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
                                     formatFileSize(remaining.coerceAtLeast(0L))
                                 } else {
-                                    "${activeOp.completedItems} / ${activeOp.totalItems}"
+                                    stringResource(
+                                        R.string.transfer_progress_items,
+                                        activeOp.completedItems,
+                                        activeOp.totalItems
+                                    )
                                 }
                             } else {
                                 formatFileSize(clipboard?.totalSize ?: 0L)

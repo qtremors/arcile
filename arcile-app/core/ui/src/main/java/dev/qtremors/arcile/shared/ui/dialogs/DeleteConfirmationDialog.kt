@@ -33,7 +33,9 @@ fun DeleteConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
     onTogglePermanentDelete: () -> Unit,
-    decision: DeleteDecision? = null
+    decision: DeleteDecision? = null,
+    isShredChecked: Boolean = false,
+    onToggleShred: (() -> Unit)? = null
 ) {
     val haptics = dev.qtremors.arcile.shared.ui.rememberArcileHaptics()
     val permanentlyDeleteLabel = stringResource(R.string.permanently_delete_checkbox)
@@ -175,6 +177,49 @@ fun DeleteConfirmationDialog(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
+                }
+
+                if (isPermanentDeleteChecked && onToggleShred != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = MaterialTheme.shapes.large,
+                        color = if (isShredChecked)
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                        else
+                            MaterialTheme.colorScheme.surfaceContainerHighest,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.large)
+                            .clickable {
+                                haptics.selectionChanged()
+                                onToggleShred()
+                            }
+                    ) {
+                        ListItem(
+                            headlineContent = {
+                                Text(
+                                    text = stringResource(R.string.shred_permanently_checkbox),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (isShredChecked) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            supportingContent = {
+                                Text(
+                                    text = stringResource(R.string.shred_permanently_checkbox_description),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (isShredChecked) MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            trailingContent = {
+                                Checkbox(
+                                    checked = isShredChecked,
+                                    onCheckedChange = null
+                                )
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
                 }
             }
         },

@@ -78,6 +78,7 @@ internal data class BrowserUiActions(
     val onRequestDeleteSelected: () -> Unit,
     val onConfirmDelete: () -> Unit,
     val onTogglePermanentDelete: () -> Unit,
+    val onToggleShred: () -> Unit,
     val onDismissDeleteConfirmation: () -> Unit,
     val onRenameFile: (String, String) -> Unit,
     val onSearchQueryChange: (String) -> Unit,

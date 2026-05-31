@@ -298,6 +298,7 @@ fun HomeScreen(
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
+    onShareRecentFile: (String) -> Unit = {},
     onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
     onNavigateToCleaner: () -> Unit = {}
@@ -556,6 +557,7 @@ fun HomeScreen(
                                 files = displayedRecentFiles,
                                 onOpenFile = onOpenFile,
                                 onNavigateToPath = onNavigateToPath,
+                                onShareFile = onShareRecentFile,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }

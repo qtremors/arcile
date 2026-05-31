@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.recentfiles.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.presentation.containingFolderPath
@@ -46,10 +48,24 @@ import dev.qtremors.arcile.ui.theme.menuGroupSingle
 @Composable
 internal fun RecentSelectionTopBar(
     selectedCount: Int,
+    selectedSize: String? = null,
     onClearSelection: () -> Unit
 ) {
     TopAppBar(
-        title = { Text(stringResource(R.string.selected_count, selectedCount)) },
+        title = {
+            Column {
+                Text(stringResource(R.string.selected_count, selectedCount))
+                if (selectedSize != null) {
+                    Text(
+                        text = selectedSize,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(onClick = onClearSelection) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.clear_selection))

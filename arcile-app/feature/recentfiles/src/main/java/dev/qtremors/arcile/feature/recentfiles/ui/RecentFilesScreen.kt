@@ -59,7 +59,6 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
-import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
@@ -94,6 +93,7 @@ fun RecentFilesScreen(
     onConfirmDelete: () -> Unit,
     onTogglePermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
+    onToggleShred: () -> Unit = {},
     onShareSelected: () -> Unit,
     onSelectAll: () -> Unit,
     onRefresh: () -> Unit,
@@ -163,6 +163,7 @@ fun RecentFilesScreen(
             when {
                 isSelectionMode -> RecentSelectionTopBar(
                     selectedCount = state.selectedFiles.size,
+                    selectedSize = dev.qtremors.arcile.utils.formatFileSize(state.selectedFilesTotalSize),
                     onClearSelection = onClearSelection
                 )
                 showSearchBar -> Column {
@@ -288,7 +289,9 @@ fun RecentFilesScreen(
             onConfirm = onConfirmDelete,
             onDismiss = onDismissDeleteConfirmation,
             onTogglePermanentDelete = onTogglePermanentDelete,
-            decision = state.deleteDecision
+            decision = state.deleteDecision,
+            isShredChecked = state.isShredChecked,
+            onToggleShred = onToggleShred
         )
     }
 
@@ -308,7 +311,10 @@ fun RecentFilesScreen(
         PropertiesDialog(
             properties = state.properties,
             isLoading = state.isPropertiesLoading,
-            onDismiss = onDismissProperties
+            onDismiss = {
+                onDismissProperties()
+                onClearSelection()
+            }
         )
     }
 
@@ -330,4 +336,5 @@ fun RecentFilesScreen(
             onApply = { preferences, _ -> onPresentationChange(preferences) }
         )
     }
+
 }

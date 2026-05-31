@@ -132,6 +132,7 @@ class BulkFileOperationService : Service() {
                                 updateNotification(request, progress)
                             }
                             BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanently(request.sourcePaths)
+                            BulkFileOperationType.SHRED -> fileMutationRepository.shred(request.sourcePaths)
                             BulkFileOperationType.CREATE_FAKE -> fileMutationRepository.createFakeFile(
                                 requireNotNull(request.destinationPath),
                                 request.sourcePaths.first(),
@@ -238,6 +239,7 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.MOVE -> getString(R.string.file_operation_moving_files)
             BulkFileOperationType.TRASH -> getString(R.string.file_operation_moving_files_to_trash)
             BulkFileOperationType.DELETE -> getString(R.string.file_operation_deleting_files)
+            BulkFileOperationType.SHRED -> getString(R.string.file_operation_shredding_files)
             BulkFileOperationType.CREATE_FAKE -> getString(R.string.file_operation_creating_fake_file)
             BulkFileOperationType.EXTRACT_ARCHIVE -> getString(R.string.file_operation_extracting_archive)
             BulkFileOperationType.CREATE_ARCHIVE -> getString(R.string.file_operation_creating_archive)

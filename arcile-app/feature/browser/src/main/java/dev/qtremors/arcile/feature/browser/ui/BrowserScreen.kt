@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
@@ -71,6 +72,7 @@ fun BrowserScreen(
     onConfirmDelete: () -> Unit,
     onTogglePermanentDelete: () -> Unit,
     onDismissDeleteConfirmation: () -> Unit,
+    onToggleShred: () -> Unit = {},
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
@@ -171,6 +173,7 @@ fun BrowserScreen(
         onRequestDeleteSelected = onRequestDeleteSelected,
         onConfirmDelete = onConfirmDelete,
         onTogglePermanentDelete = onTogglePermanentDelete,
+        onToggleShred = onToggleShred,
         onDismissDeleteConfirmation = onDismissDeleteConfirmation,
         onRenameFile = onRenameFile,
         onSearchQueryChange = onSearchQueryChange,
@@ -383,7 +386,6 @@ fun BrowserScreen(
 
             BrowserFloatingSurfaces(
                 state = state,
-                displayedFiles = displayedFiles,
                 scaffoldPadding = padding,
                 isFabExpanded = isFabExpanded,
                 onFabExpandedChange = { isFabExpanded = it },

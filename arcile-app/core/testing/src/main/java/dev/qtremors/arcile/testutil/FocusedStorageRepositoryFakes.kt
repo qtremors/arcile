@@ -79,6 +79,7 @@ class FakeFileMutationRepository : FileMutationRepository {
     var createFakeFileResultProvider: (suspend (String, String, Long, ((BulkFileOperationProgress) -> Unit)?) -> Result<FileModel>)? = null
     var deleteFileResultProvider: (suspend (String) -> Result<Unit>)? = null
     var deletePermanentlyResult: Result<Unit> = Result.failure(NotImplementedError())
+    var shredResult: Result<Unit> = Result.success(Unit)
     var renameFileResultProvider: (suspend (String, String) -> Result<FileModel>)? = null
 
     val createDirectoryRequests = mutableListOf<Pair<String, String>>()
@@ -86,6 +87,7 @@ class FakeFileMutationRepository : FileMutationRepository {
     val createFakeFileRequests = mutableListOf<CreateFakeFileRequest>()
     val deleteFileRequests = mutableListOf<String>()
     val deletePermanentlyRequests = mutableListOf<List<String>>()
+    val shredRequests = mutableListOf<List<String>>()
     val renameRequests = mutableListOf<Pair<String, String>>()
 
     data class CreateFakeFileRequest(val parentPath: String, val name: String, val size: Long)
@@ -121,6 +123,11 @@ class FakeFileMutationRepository : FileMutationRepository {
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> {
         deletePermanentlyRequests += paths
         return deletePermanentlyResult
+    }
+
+    override suspend fun shred(paths: List<String>): Result<Unit> {
+        shredRequests += paths
+        return shredResult
     }
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> {
@@ -449,6 +456,11 @@ class FakeStorageRepositoryBundle(
         set(value) {
             fileMutationRepository.deletePermanentlyResult = value
         }
+    var shredResult: Result<Unit>
+        get() = fileMutationRepository.shredResult
+        set(value) {
+            fileMutationRepository.shredResult = value
+        }
     var renameFileResultProvider: (suspend (String, String) -> Result<FileModel>)?
         get() = fileMutationRepository.renameFileResultProvider
         set(value) {
@@ -520,6 +532,8 @@ class FakeStorageRepositoryBundle(
         get() = fileMutationRepository.deleteFileRequests
     val deletePermanentlyRequests: MutableList<List<String>>
         get() = fileMutationRepository.deletePermanentlyRequests
+    val shredRequests: MutableList<List<String>>
+        get() = fileMutationRepository.shredRequests
     val renameRequests: MutableList<Pair<String, String>>
         get() = fileMutationRepository.renameRequests
     val copyRequests: MutableList<FakeClipboardRepository.TransferRequest>

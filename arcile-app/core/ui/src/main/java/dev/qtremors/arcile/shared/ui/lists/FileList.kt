@@ -300,7 +300,10 @@ fun FileItemRow(
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .build(),
-                        onSuccess = { thumbnailPolicy.clearFailure(row.thumbnailKey) },
+                        onSuccess = {
+                            thumbnailPolicy.clearFailure(row.thumbnailKey)
+                            thumbnailPolicy.recordLoaded(row.thumbnailKey)
+                        },
                         onError = { thumbnailPolicy.recordFailure(row.thumbnailKey) },
                         contentDescription = null,
                         modifier = Modifier

@@ -43,6 +43,7 @@ data class RecentFilesState(
     val recentFiles: List<FileModel> = emptyList(),
     val displayedRecentFiles: List<FileModel> = emptyList(),
     val selectedFiles: Set<String> = emptySet(),
+    val selectedFilesTotalSize: Long = 0L,
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val isLoadingMore: Boolean = false,
@@ -54,6 +55,7 @@ data class RecentFilesState(
     val showMixedDeleteExplanation: Boolean = false,
     val deleteDecision: DeleteDecision? = null,
     val isPermanentDeleteChecked: Boolean = false,
+    val isShredChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
     val pendingNativeAction: RecentNativeAction? = null,
     val searchQuery: String = "",
@@ -124,13 +126,18 @@ class RecentFilesViewModel @Inject constructor(
             override fun togglePermanentDeleteChecked() {
                 _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
             }
+            override fun isShredChecked(): Boolean = _state.value.isShredChecked
+            override fun toggleShredChecked() {
+                _state.update { it.copy(isShredChecked = !it.isShredChecked) }
+            }
             override fun dismissDeleteConfirmation() {
                 _state.update {
                     it.copy(
                         showTrashConfirmation = false,
                         showPermanentDeleteConfirmation = false,
                         showMixedDeleteExplanation = false,
-                        deleteDecision = null
+                        deleteDecision = null,
+                        isShredChecked = false
                     )
                 }
             }
@@ -278,8 +285,12 @@ class RecentFilesViewModel @Inject constructor(
             } else {
                 currentState.selectedFiles + path
             }
+            val totalSize = currentState.recentFiles
+                .filter { updatedSelection.contains(it.absolutePath) }
+                .sumOf { it.size }
             currentState.copy(
                 selectedFiles = updatedSelection,
+                selectedFilesTotalSize = totalSize,
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -291,6 +302,7 @@ class RecentFilesViewModel @Inject constructor(
         _state.update {
             it.copy(
                 selectedFiles = emptySet(),
+                selectedFilesTotalSize = 0L,
                 isPropertiesVisible = false,
                 isPropertiesLoading = false,
                 properties = null
@@ -300,6 +312,7 @@ class RecentFilesViewModel @Inject constructor(
 
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
+    fun toggleShred() = deleteFlowDelegate.toggleShred()
     fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
     fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
     fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
@@ -312,13 +325,27 @@ class RecentFilesViewModel @Inject constructor(
             } else {
                 currentState.displayedRecentFiles.map { it.absolutePath }
             }
-            currentState.copy(selectedFiles = allPaths.toSet())
+            val allPathsSet = allPaths.toSet()
+            val totalSize = currentState.recentFiles
+                .filter { allPathsSet.contains(it.absolutePath) }
+                .sumOf { it.size }
+            currentState.copy(
+                selectedFiles = allPathsSet,
+                selectedFilesTotalSize = totalSize
+            )
         }
     }
 
     fun selectMultiple(paths: List<String>) {
         _state.update { currentState ->
-            currentState.copy(selectedFiles = currentState.selectedFiles + paths)
+            val updatedSelection = currentState.selectedFiles + paths
+            val totalSize = currentState.recentFiles
+                .filter { updatedSelection.contains(it.absolutePath) }
+                .sumOf { it.size }
+            currentState.copy(
+                selectedFiles = updatedSelection,
+                selectedFilesTotalSize = totalSize
+            )
         }
     }
 

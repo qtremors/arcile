@@ -1,5 +1,4 @@
 package dev.qtremors.arcile.feature.browser
-
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,9 +65,7 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import javax.inject.Inject
 import java.io.File
-
 enum class BrowserNativeAction { TRASH }
-
 @androidx.compose.runtime.Immutable
 data class BrowserFileOperationUiState(
     val type: BulkFileOperationType,
@@ -79,25 +76,23 @@ data class BrowserFileOperationUiState(
     val bytesCopied: Long? = null,
     val totalBytes: Long? = null,
     val startTimeMillis: Long = System.currentTimeMillis(),
-    val terminalStatus: OperationCompletionStatus? = null
+    val terminalStatus: OperationCompletionStatus? = null,
+    val sourcePaths: List<String> = emptyList()
 ) {
     val isIndeterminate: Boolean
         get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
 }
-
 sealed interface BrowserUndoAction {
     data class Trash(val trashIds: PersistentList<String>) : BrowserUndoAction
     data class Rename(val originalPath: String, val renamedPath: String) : BrowserUndoAction
     data class Created(val path: String) : BrowserUndoAction
     data class Moved(val entries: PersistentList<MoveUndoEntry>) : BrowserUndoAction
 }
-
 @androidx.compose.runtime.Immutable
 data class MoveUndoEntry(
     val originalPath: String,
     val movedPath: String
 )
-
 @androidx.compose.runtime.Immutable
 data class BrowserState(
     val currentPath: String = "",
@@ -132,6 +127,7 @@ data class BrowserState(
     val showMixedDeleteExplanation: Boolean = false,
     val deleteDecision: DeleteDecision? = null,
     val isPermanentDeleteChecked: Boolean = false,
+    val isShredChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
     val pendingNativeAction: BrowserNativeAction? = null,
     val isPropertiesVisible: Boolean = false,
@@ -144,9 +140,7 @@ data class BrowserState(
     val selectedFilesTotalSize: Long = 0L,
     val displayState: BrowserDisplayState = BrowserDisplayState()
 )
-
 private const val ALL_FILES_LABEL = "All files"
-
 fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
     displayState = buildBrowserDisplayState(
         files = files,
@@ -158,7 +152,6 @@ fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
         allFilesLabel = ALL_FILES_LABEL
     )
 )
-
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val fileBrowserRepository: FileBrowserRepository,
@@ -173,7 +166,6 @@ class BrowserViewModel @Inject constructor(
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
     private val bulkFileCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
-
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
     val navigationState: StateFlow<BrowserNavigationState> = _state
@@ -194,14 +186,12 @@ class BrowserViewModel @Inject constructor(
     val operationUiState: StateFlow<OperationUiState> = _state
         .map { it.operationUiState() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.operationUiState())
-
     private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>(
         replay = 0,
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
-
     private val searchDelegate = SearchDelegate(_state, viewModelScope, searchRepository)
     private val navigationDelegate = NavigationDelegate(
         state = _state,
@@ -272,13 +262,18 @@ class BrowserViewModel @Inject constructor(
             override fun togglePermanentDeleteChecked() {
                 _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
             }
+            override fun isShredChecked(): Boolean = _state.value.isShredChecked
+            override fun toggleShredChecked() {
+                _state.update { it.copy(isShredChecked = !it.isShredChecked) }
+            }
             override fun dismissDeleteConfirmation() {
                 _state.update {
                     it.copy(
                         showTrashConfirmation = false,
                         showPermanentDeleteConfirmation = false,
                         showMixedDeleteExplanation = false,
-                        deleteDecision = null
+                        deleteDecision = null,
+                        isShredChecked = false
                     )
                 }
             }
@@ -309,16 +304,12 @@ class BrowserViewModel @Inject constructor(
         emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
         onSuccess = { navigationDelegate.refresh() }
     )
-
     private var isInitialized = false
-
     init {
         operationDelegate.hydrateActiveOperation()
-
         viewModelScope.launch {
             getStorageVolumesUseCase().collectLatest { volumes ->
                 _state.update { it.copy(storageVolumes = volumes.toPersistentList()).withUpdatedDisplayState() }
-
                 if (!isInitialized) {
                     isInitialized = true
                     when (val location = navigationDelegate.restoreLocationFromState()) {
@@ -359,14 +350,12 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
-
         viewModelScope.launch {
             fileBrowserRepository.observeFolderStatUpdates().collectLatest { update ->
                 _state.update { currentState ->
                     if (currentState.isVolumeRootScreen || currentState.isCategoryScreen) {
                         return@update currentState
                     }
-
                     val visiblePaths = currentState.files
                         .asSequence()
                         .filter { it.isDirectory }
@@ -375,7 +364,6 @@ class BrowserViewModel @Inject constructor(
                     if (update.path !in visiblePaths) {
                         return@update currentState
                     }
-
                     currentState.copy(
                         folderStatsByPath = (currentState.folderStatsByPath + (update.path to update.stats)).toPersistentMap(),
                         folderStatsLoadingPaths = (currentState.folderStatsLoadingPaths - update.path).toPersistentSet()
@@ -383,7 +371,6 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
-
         viewModelScope.launch {
             browserPreferencesRepository.preferencesFlow.collectLatest { prefs ->
                 _state.update { currentState ->
@@ -404,10 +391,8 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
-
         operationDelegate.observeOperationEvents()
     }
-
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
         navigationDelegate.openFileBrowser(restorePersistentLocation, errorMessage?.let(UiText::Dynamic))
     fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
@@ -416,7 +401,6 @@ class BrowserViewModel @Inject constructor(
     fun navigateToFolder(path: String) = navigationDelegate.navigateToFolder(path)
     fun navigateBack(): Boolean = navigationDelegate.navigateBack()
     fun refresh(pullToRefresh: Boolean = false) = navigationDelegate.refresh(pullToRefresh)
-
     fun toggleSelection(path: String) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
@@ -429,7 +413,6 @@ class BrowserViewModel @Inject constructor(
             )
         }
     }
-
     fun selectAll(paths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
@@ -442,7 +425,6 @@ class BrowserViewModel @Inject constructor(
             )
         }
     }
-
     fun invertSelection(allPaths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
@@ -455,11 +437,9 @@ class BrowserViewModel @Inject constructor(
             )
         }
     }
-
     private fun calculateSelectionSize(selectedPaths: Set<String>, currentFiles: List<FileModel>, folderStats: Map<String, FolderStats>): Long {
         return calculateBrowserSelectionSize(selectedPaths, currentFiles, folderStats)
     }
-
     fun selectMultiple(paths: List<String>) {
         if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
@@ -473,19 +453,15 @@ class BrowserViewModel @Inject constructor(
             )
         }
     }
-
     fun clearSelection() {
         _state.update { it.reduce(BrowserSelectionEvent.Clear) }
     }
-
     fun selectFolderTab(path: String?) {
         _state.update { currentState -> currentState.reduce(BrowserNavigationEvent.SelectFolderTab(path)) }
     }
-
     fun updateBrowserSearchQuery(query: String) = searchDelegate.updateBrowserSearchQuery(query)
     fun updateSearchFilters(filters: SearchFilters) = searchDelegate.updateSearchFilters(filters)
     fun toggleSearchFilterMenu(visible: Boolean) = searchDelegate.toggleSearchFilterMenu(visible)
-
     fun updateBrowserPresentation(
         presentation: BrowserPresentationPreferences,
         applyToSubfolders: Boolean
@@ -517,13 +493,10 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
-
     }
-
     fun createFolder(name: String) {
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
-
         viewModelScope.launch {
             fileMutationRepository.createDirectory(currentPath, name).onSuccess {
                 _state.update { state ->
@@ -538,11 +511,9 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     fun createFile(name: String) {
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
-
         viewModelScope.launch {
             fileMutationRepository.createFile(currentPath, name).onSuccess {
                 _state.update { state ->
@@ -557,11 +528,9 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     fun createFakeFile(name: String, size: Long) {
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
-
         bulkFileCoordinator.startOperation(
             type = BulkFileOperationType.CREATE_FAKE,
             sourcePaths = listOf(name),
@@ -570,7 +539,6 @@ class BrowserViewModel @Inject constructor(
             fakeFileSize = size
         )
     }
-
     fun extractSelectedArchiveHere(password: String? = null) = archiveActionDelegate.extractSelectedArchiveHere(password)
     fun extractSelectedArchiveToFolder(password: String? = null) = archiveActionDelegate.extractSelectedArchiveToFolder(password)
     fun createArchiveFromSelection(
@@ -579,31 +547,27 @@ class BrowserViewModel @Inject constructor(
         password: String? = null
     ) = archiveActionDelegate.createArchiveFromSelection(archiveName, format, password)
     fun createZipFromSelection() = archiveActionDelegate.createZipFromSelection()
-
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
+    fun toggleShred() = deleteFlowDelegate.toggleShred()
     fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
     fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
     fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
     fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
-
     fun handleNativeActionResult(confirmed: Boolean) {
         val pendingAction = _state.value.pendingNativeAction ?: return
         _state.update { it.copy(pendingNativeAction = null) }
         if (!confirmed) return
-
         when (pendingAction) {
             BrowserNativeAction.TRASH -> confirmDeleteSelected()
         }
     }
-
     fun renameFile(path: String, newName: String) {
         val invalidChars = listOf('/', '\\', '\u0000')
         if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
             _state.update { it.copy(error = UiText.StringResource(R.string.error_invalid_name)) }
             return
         }
-
         viewModelScope.launch {
             fileMutationRepository.renameFile(path, newName).onSuccess { renamed ->
                 clearSelection()
@@ -622,13 +586,10 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
-
     fun clearFileOperationStatusMessage() = operationDelegate.clearStatusMessage()
-
     fun undoLastTrashMove() {
         val trashIds = _state.value.pendingTrashUndoIds
         if (trashIds.isEmpty()) return
@@ -641,11 +602,9 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     fun clearPendingTrashUndo() {
         _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
     }
-
     fun undoLastOperation() {
         when (val undo = _state.value.pendingUndoAction) {
             is BrowserUndoAction.Trash -> undoLastTrashMove()
@@ -655,11 +614,9 @@ class BrowserViewModel @Inject constructor(
             null -> Unit
         }
     }
-
     fun clearPendingUndo() {
         _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
     }
-
     private fun undoRename(undo: BrowserUndoAction.Rename) {
         _state.update { it.copy(pendingUndoAction = null) }
         val originalName = File(undo.originalPath).name
@@ -671,7 +628,6 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     private fun undoCreated(undo: BrowserUndoAction.Created) {
         _state.update { it.copy(pendingUndoAction = null) }
         viewModelScope.launch {
@@ -682,7 +638,6 @@ class BrowserViewModel @Inject constructor(
             }
         }
     }
-
     private fun undoMove(undo: BrowserUndoAction.Moved) {
         _state.update { it.copy(pendingUndoAction = null) }
         viewModelScope.launch {
@@ -703,18 +658,14 @@ class BrowserViewModel @Inject constructor(
             refresh()
         }
     }
-
     private fun parentStoragePath(path: String): String {
         val normalized = path.replace('\\', '/').trimEnd('/')
         val index = normalized.lastIndexOf('/')
         return if (index > 0) normalized.substring(0, index) else ""
     }
-
     fun clearActiveFileOperation() = operationDelegate.clearActiveOperation()
-
     fun openPropertiesForSelection() = propertiesDelegate.openPropertiesForSelection()
     fun dismissProperties() = propertiesDelegate.dismissProperties()
-
     fun copySelectedToClipboard() = clipboardDelegate.copySelectedToClipboard()
     fun cutSelectedToClipboard() = clipboardDelegate.cutSelectedToClipboard()
     fun cancelClipboard() = clipboardDelegate.cancelClipboard()
@@ -722,5 +673,4 @@ class BrowserViewModel @Inject constructor(
     fun removeFromClipboard(path: String) = clipboardDelegate.removeFromClipboard(path)
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
-
 }

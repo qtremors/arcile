@@ -278,6 +278,9 @@ class LocalFileRepository(
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> =
         fileSystemDataSource.deletePermanently(paths)
 
+    override suspend fun shred(paths: List<String>): Result<Unit> =
+        fileSystemDataSource.shred(paths)
+
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> =
         fileSystemDataSource.renameFile(path, newName)
 

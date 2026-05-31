@@ -35,7 +35,8 @@ class BrowserOperationDelegate(
                     activeFileOperation = BrowserFileOperationUiState(
                         type = activeReq.type,
                         totalItems = activeReq.sourcePaths.size,
-                        currentPath = activeReq.sourcePaths.firstOrNull()
+                        currentPath = activeReq.sourcePaths.firstOrNull(),
+                        sourcePaths = activeReq.sourcePaths
                     )
                 )
             }
@@ -68,7 +69,8 @@ class BrowserOperationDelegate(
                         activeFileOperation = BrowserFileOperationUiState(
                             type = event.request.type,
                             totalItems = event.request.sourcePaths.size,
-                            currentPath = event.request.sourcePaths.firstOrNull()
+                            currentPath = event.request.sourcePaths.firstOrNull(),
+                            sourcePaths = event.request.sourcePaths
                         ),
                         fileOperationStatusMessage = null
                     )
@@ -87,7 +89,8 @@ class BrowserOperationDelegate(
                             bytesCopied = event.progress.bytesCopied,
                             totalBytes = event.progress.totalBytes,
                             startTimeMillis = it.activeFileOperation?.startTimeMillis
-                                ?: System.currentTimeMillis()
+                                ?: System.currentTimeMillis(),
+                            sourcePaths = event.request.sourcePaths
                         )
                     )
                 }
@@ -100,7 +103,8 @@ class BrowserOperationDelegate(
                             ?: BrowserFileOperationUiState(
                                 type = event.request.type,
                                 totalItems = event.request.sourcePaths.size,
-                                isCancelling = true
+                                isCancelling = true,
+                                sourcePaths = event.request.sourcePaths
                             )
                     )
                 }
@@ -179,6 +183,7 @@ class BrowserOperationDelegate(
             BulkFileOperationType.MOVE -> R.plurals.file_operation_moved_items
             BulkFileOperationType.TRASH -> R.plurals.file_operation_trashed_items
             BulkFileOperationType.DELETE -> R.plurals.file_operation_deleted_items
+            BulkFileOperationType.SHRED -> R.plurals.file_operation_shredded_items
             BulkFileOperationType.CREATE_FAKE -> R.plurals.file_operation_created_items
             BulkFileOperationType.EXTRACT_ARCHIVE -> R.plurals.file_operation_extracted_items
             BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items

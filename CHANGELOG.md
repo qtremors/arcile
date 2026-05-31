@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.4
+> **Version:** 0.9.5
 > **Last Updated:** 2026-05-31
 
 ---
+
+## [0.9.5] - 2026-05-31
+
+### UI/UX Refinements
+- **Tokyo Night, Dracula, and Custom Theme (FEAT-0006):** Implemented predefined visual presets (Dracula and Tokyo Night) for Light, Dark, and OLED modes. Added a Custom Theme Creator allowing custom HEX Primary/Background inputs with validation warning for low contrast colors.
+- **Progress Pill Detailed Modal (FEAT-0012):** Enhanced file operations toolbar with interactive progress pill triggering a detailed bottom sheet displaying files in queue, live speeds, ETAs, and direct cancel buttons.
+- **Coil Cache & Viewport Bypass (FEAT-0005):** Modified `ThumbnailPolicy` and file lists/grids to keep track of successfully loaded thumbnails, bypassing visible budget checks on scroll to prevent image flashing.
+
+### Verification
+- **Build Checks:** Verified with full `:app:compileDebugKotlin` and Gradle task outputs.
 
 ## [0.9.4] - 2026-05-31
 

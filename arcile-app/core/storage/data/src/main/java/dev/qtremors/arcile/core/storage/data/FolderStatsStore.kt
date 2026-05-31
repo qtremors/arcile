@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -71,7 +72,7 @@ class DefaultFolderStatsStore @Inject constructor(
     }
 
     private val json = Json { ignoreUnknownKeys = true }
-    private val cacheDir = File(context.cacheDir, "folder_stats").apply { mkdirs() }
+    private val cacheDir by lazy { File(context.cacheDir, "folder_stats").apply { mkdirs() } }
     private val memoryCache = ConcurrentHashMap<String, FolderStats>()
     private val queuedPaths = ConcurrentHashMap.newKeySet<String>()
     private val activeJobs = ConcurrentHashMap<String, Job>()
@@ -83,8 +84,8 @@ class DefaultFolderStatsStore @Inject constructor(
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
 
-    override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> {
-        if (paths.isEmpty()) return emptyMap()
+    override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = withContext(dispatchers.io) {
+        if (paths.isEmpty()) return@withContext emptyMap()
         val result = LinkedHashMap<String, FolderStats>(paths.size)
         paths.forEach { rawPath ->
             val path = normalizePath(rawPath)
@@ -97,7 +98,7 @@ class DefaultFolderStatsStore @Inject constructor(
             memoryCache[path] = stats
             result[path] = stats
         }
-        return result
+        result
     }
 
     override fun observeUpdates(): Flow<FolderStatUpdate> = updates.asSharedFlow()

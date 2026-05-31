@@ -380,6 +380,7 @@ private fun BulkFileOperationType.refreshesHomeAnalytics(): Boolean =
         BulkFileOperationType.MOVE,
         BulkFileOperationType.TRASH,
         BulkFileOperationType.DELETE,
+        BulkFileOperationType.SHRED,
         BulkFileOperationType.CREATE_FAKE,
         BulkFileOperationType.EXTRACT_ARCHIVE,
         BulkFileOperationType.CREATE_ARCHIVE -> true

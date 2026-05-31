@@ -23,6 +23,8 @@ interface DeleteStateCallbacks {
     fun showPermanentDeleteConfirmation()
     fun showTrashConfirmation()
     fun togglePermanentDeleteChecked()
+    fun isShredChecked(): Boolean = false
+    fun toggleShredChecked() = Unit
     fun dismissDeleteConfirmation()
     fun setError(error: String)
     fun setError(error: UiText) = setError(
@@ -108,9 +110,17 @@ class DeleteFlowDelegate(
         }
     }
 
+    fun toggleShred() {
+        callbacks.toggleShredChecked()
+    }
+
     fun confirmDeleteSelected() {
         if (callbacks.isPermanentDeleteChecked()) {
-            deleteSelectedPermanently()
+            if (callbacks.isShredChecked()) {
+                shredSelected()
+            } else {
+                deleteSelectedPermanently()
+            }
         } else {
             moveSelectedToTrash()
         }
@@ -148,6 +158,25 @@ class DeleteFlowDelegate(
             callbacks.dismissDeleteConfirmation()
 
             if (startBulkDeleteOperation(BulkFileOperationType.DELETE, selected)) {
+                callbacks.setLoading(false)
+                callbacks.clearSelection()
+            } else {
+                callbacks.setLoading(false)
+                callbacks.setError(UiText.StringResource(R.string.error_operation_already_running))
+                onFailure()
+            }
+        }
+    }
+
+    fun shredSelected() {
+        val selected = callbacks.getSelectedFiles()
+        if (selected.isEmpty()) return
+
+        coroutineScope.launch {
+            callbacks.setLoading(true)
+            callbacks.dismissDeleteConfirmation()
+
+            if (startBulkDeleteOperation(BulkFileOperationType.SHRED, selected)) {
                 callbacks.setLoading(false)
                 callbacks.clearSelection()
             } else {

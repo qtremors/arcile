@@ -18,8 +18,11 @@ import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -51,6 +54,10 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.ui.theme.menuGroupLast
+import dev.qtremors.arcile.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +66,7 @@ fun RecentFilesCarousel(
     files: List<FileModel>,
     onOpenFile: (String) -> Unit,
     onNavigateToPath: (String) -> Unit,
+    onShareFile: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val configuration = androidx.compose.ui.platform.LocalConfiguration.current
@@ -81,6 +89,7 @@ fun RecentFilesCarousel(
             file = file,
             onClick = { onOpenFile(file.absolutePath) },
             onNavigateToPath = onNavigateToPath,
+            onShareFile = onShareFile,
             itemHeight = itemHeight,
             thumbnailSizePx = thumbnailSizePx,
             modifier = Modifier.maskClip(RoundedCornerShape(24.dp))
@@ -93,6 +102,7 @@ fun RecentFileCarouselItem(
     file: FileModel,
     onClick: () -> Unit,
     onNavigateToPath: (String) -> Unit,
+    onShareFile: (String) -> Unit,
     itemHeight: androidx.compose.ui.unit.Dp,
     thumbnailSizePx: Int,
     modifier: Modifier = Modifier
@@ -254,25 +264,60 @@ fun RecentFileCarouselItem(
                 DropdownMenu(
                     expanded = showMenu,
                     onDismissRequest = { showMenu = false },
-                    shape = MaterialTheme.shapes.medium,
+                    shape = MaterialTheme.shapes.extraLarge,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.open)) },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                        onClick = {
-                            showMenu = false
-                            onClick()
+                    val menuActions = remember(onClick, file, onNavigateToPath, onShareFile) {
+                        mutableListOf<@Composable () -> Unit>().apply {
+                            add {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.open)) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onClick()
+                                    }
+                                )
+                            }
+                            add {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.open_containing_folder)) },
+                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        File(file.absolutePath).parentFile?.absolutePath?.let { onNavigateToPath(it) }
+                                    }
+                                )
+                            }
+                            add {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.share)) },
+                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onShareFile(file.absolutePath)
+                                    }
+                                )
+                            }
                         }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.open_containing_folder)) },
-                        leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
-                        onClick = {
-                            showMenu = false
-                            File(file.absolutePath).parentFile?.absolutePath?.let { onNavigateToPath(it) }
+                    }
+
+                    menuActions.forEachIndexed { index, action ->
+                        val shape = when {
+                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                            else -> MaterialTheme.shapes.menuGroupMiddle
                         }
-                    )
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .clip(shape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        ) {
+                            action()
+                        }
+                    }
                 }
             }
         }

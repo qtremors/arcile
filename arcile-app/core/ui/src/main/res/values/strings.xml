@@ -32,6 +32,7 @@
     <string name="action_cut">Cut</string>
     <string name="action_rename">Rename</string>
     <string name="action_delete_selected">Delete selected</string>
+    <string name="action_shred">Shred</string>
     <string name="action_properties">Properties</string>
     <string name="action_navigate_to">Navigate to</string>
     <string name="action_keep_both">Keep Both</string>
@@ -571,6 +572,17 @@
     <string name="unit_mb">MB</string>
     <string name="unit_gb">GB</string>
     <string name="file_operation_creating_fake">Creating fake file</string>
+    <string name="transfer_details_title">Transfer details</string>
+    <string name="transfer_speed">Speed</string>
+    <string name="transfer_estimated_time">Estimated time</string>
+    <string name="transfer_calculating">Calculating…</string>
+    <string name="transfer_speed_value">%1$s/s</string>
+    <string name="transfer_eta_minutes">%1$dm %2$ds remaining</string>
+    <string name="transfer_eta_seconds">%1$ds remaining</string>
+    <string name="transfer_progress_bytes">%1$s / %2$s</string>
+    <string name="transfer_progress_items">%1$d / %2$d items</string>
+    <string name="transfer_cancel_operation">Cancel operation</string>
+    <string name="transfer_file_queue">File queue</string>
     <string name="onboarding_skip">Skip</string>
     <string name="onboarding_continue">Continue</string>
     <string name="onboarding_finish">Finish</string>
@@ -649,4 +661,16 @@
     <string name="notification_action_cancel">Cancel</string>
     <string name="notification_channel_file_operations">File operations</string>
     <string name="notification_channel_file_operations_description">Background copy and move operations</string>
+
+    <string name="file_operation_shredding_files">Shredding files</string>
+    <string name="shred_permanently_checkbox">Securely shred files</string>
+    <string name="shred_permanently_checkbox_description">Overwrite files with zeroes before deleting them</string>
+    <string name="file_operation_shredding">Shredding</string>
+    <string name="theme_preset_none">None</string>
+    <string name="theme_preset_dracula">Dracula</string>
+    <string name="theme_preset_tokyo_night">Tokyo Night</string>
+    <string name="theme_preset_custom">Custom</string>
+    <string name="custom_theme_primary_label">Custom Primary Color (HEX)</string>
+    <string name="custom_theme_bg_label">Custom Background Color (HEX)</string>
+    <string name="custom_theme_similarity_warning">Primary and Background colors are too similar! Readability issues may occur.</string>
 </resources>

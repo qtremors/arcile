@@ -54,7 +54,9 @@ internal fun BrowserDialogs(
             onConfirm = actions.onConfirmDelete,
             onDismiss = actions.onDismissDeleteConfirmation,
             onTogglePermanentDelete = actions.onTogglePermanentDelete,
-            decision = state.deleteDecision
+            decision = state.deleteDecision,
+            isShredChecked = state.isShredChecked,
+            onToggleShred = actions.onToggleShred
         )
     }
 
@@ -132,7 +134,10 @@ internal fun BrowserDialogs(
         val currentName = selectedPath.substringAfterLast('/')
         RenameDialog(
             currentName = currentName,
-            onDismiss = { dialogVisibility.showRenameDialog = false },
+            onDismiss = {
+                dialogVisibility.showRenameDialog = false
+                actions.onClearSelection()
+            },
             onConfirm = { newName ->
                 actions.onRenameFile(selectedPath, newName)
                 dialogVisibility.showRenameDialog = false
@@ -166,7 +171,10 @@ internal fun BrowserDialogs(
         PropertiesDialog(
             properties = state.properties,
             isLoading = state.isPropertiesLoading,
-            onDismiss = actions.onDismissProperties
+            onDismiss = {
+                actions.onDismissProperties()
+                actions.onClearSelection()
+            }
         )
     }
 

@@ -27,6 +27,10 @@
         <item quantity="one">Deleted %d item</item>
         <item quantity="other">Deleted %d items</item>
     </plurals>
+    <plurals name="file_operation_shredded_items">
+        <item quantity="one">Securely shredded %d item</item>
+        <item quantity="other">Securely shredded %d items</item>
+    </plurals>
     <plurals name="file_operation_created_items">
         <item quantity="one">Created %d item</item>
         <item quantity="other">Created %d items</item>

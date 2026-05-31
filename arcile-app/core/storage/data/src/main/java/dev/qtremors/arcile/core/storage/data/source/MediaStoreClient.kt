@@ -66,7 +66,7 @@ class DefaultMediaStoreClient(
 
     private val appContext = context.applicationContext
     private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
-    private val cacheDir = File(appContext.cacheDir, "analytics")
+    private val cacheDir by lazy { File(appContext.cacheDir, "analytics") }
 
     private fun File.toFileModel(mime: String? = null): FileModel {
         val ext = extension
@@ -148,11 +148,11 @@ class DefaultMediaStoreClient(
         }
     }
 
-    override suspend fun invalidateCache(vararg paths: String) {
+    override suspend fun invalidateCache(vararg paths: String) = withContext(dispatchers.io) {
         try {
             if (paths.isEmpty()) {
                 cacheDir.listFiles()?.forEach { if (it.name.endsWith(".json")) it.delete() }
-                return
+                return@withContext
             }
             
             val volumes = volumeProvider.currentVolumes()

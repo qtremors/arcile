@@ -36,6 +36,7 @@ interface FileSystemDataSource : DirectoryListingDataSource {
     suspend fun createDirectory(parentPath: String, name: String): Result<FileModel>
     suspend fun createFile(parentPath: String, name: String): Result<FileModel>
     suspend fun deletePermanently(paths: List<String>): Result<Unit>
+    suspend fun shred(paths: List<String>): Result<Unit>
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>>
     suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
@@ -290,6 +291,68 @@ class DefaultFileSystemDataSource(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(FileOperationException.Unknown(cause = e))
+        }
+    }
+
+    override suspend fun shred(paths: List<String>): Result<Unit> = withContext(dispatchers.io) {
+        try {
+            val scannedPaths = mutableListOf<String>()
+            for (path in paths) {
+                val file = File(path)
+                validatedDestructiveRef(file).onFailure { return@withContext Result.failure(it) }
+
+                if (!file.exists()) continue
+
+                shredRecursively(file)
+
+                val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
+                if (!success) {
+                    if (scannedPaths.isNotEmpty()) {
+                        finalizeMutation(*scannedPaths.toTypedArray())
+                    }
+                    return@withContext Result.failure(Exception("Failed to securely shred file: ${file.name}"))
+                }
+                scannedPaths.add(path)
+            }
+            finalizeMutation(*scannedPaths.toTypedArray())
+            Result.success(Unit)
+        } catch (e: SecurityException) {
+            Result.failure(FileOperationException.AccessDenied(cause = e))
+        } catch (e: java.io.IOException) {
+            Result.failure(FileOperationException.IOError(cause = e))
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(FileOperationException.Unknown(cause = e))
+        }
+    }
+
+    private fun shredRecursively(file: File) {
+        if (file.isDirectory) {
+            file.listFiles()?.forEach { shredRecursively(it) }
+        } else if (file.isFile) {
+            overwriteSecurely(file)
+        }
+    }
+
+    private fun overwriteSecurely(file: File) {
+        if (!file.canWrite()) return
+        val length = file.length()
+        if (length <= 0) return
+
+        val bufferSize = 64 * 1024
+        val buffer = ByteArray(bufferSize)
+        try {
+            file.outputStream().use { output ->
+                var remaining = length
+                while (remaining > 0) {
+                    val toWrite = remaining.coerceAtMost(bufferSize.toLong()).toInt()
+                    output.write(buffer, 0, toWrite)
+                    remaining -= toWrite
+                }
+                output.flush()
+            }
+        } catch (e: Exception) {
+            // Ignore error
         }
     }
 

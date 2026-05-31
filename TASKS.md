@@ -1,7 +1,7 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.9.4
+> **Version:** 0.9.5
 > **Last Updated:** 2026-05-31
 
 ---
@@ -90,7 +90,7 @@
   - **Fix:** Add a conditional 3-dot vertical context menu icon on file/folder list and grid items when selection mode is inactive. Tapping the menu launches a bottom action sheet containing all options (Copy, Cut, Delete, Shred, Rename, Archive, Share, Properties).
   - **Verification:** Verify that 3-dot icons render correctly on all item surfaces and successfully invoke the respective file actions when tapped.
 
-- [ ] **FEAT-0003 - Secure Shredding Option** `[High]`
+- [x] **FEAT-0003 - Secure Shredding Option** `[High]`
   - **Location:** `arcile-app/core/operation/src/main/java/dev/qtremors/arcile/core/operation/BulkFileOperationModels.kt` `arcile-app/core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/FileRepository.kt` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/LocalFileRepository.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`
   - **Problem:** Normal file deletions leave underlying data recoverable on storage volumes until overwritten by newer files.
   - **Impact:** Users lack reassurance when disposing of confidential files from internal storage, older SD cards, or OTG USB flash drives.
@@ -104,14 +104,14 @@
   - **Fix:** Add a preference setting `trash_private_storage`. Modify `TrashManager` to conditionally write to the private app directories (e.g., `context.filesDir` or private external folders) instead of the root directory `.arcile/.trash` when enabled.
   - **Verification:** Enable private trash in Settings, trash files/folders, and confirm files are relocated to the secure app-private directory.
 
-- [ ] **FEAT-0005 - Thumbnail Cache & Viewport Lifecycle Fixes** `[High]`
+- [x] **FEAT-0005 - Thumbnail Cache & Viewport Lifecycle Fixes** `[High]`
   - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/image/ThumbnailPolicy.kt` `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt` `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt`
   - **Problem:** The `ThumbnailPolicy.isInVisibleBudget()` check completely removes `AsyncImage` composables when they scroll out of a narrow list index threshold. When scrolling back, recompositions cause annoying reloads/flashes even if memory cached.
   - **Impact:** Poor scrolling performance and micro-stutters when navigating image folders.
   - **Fix:** Redesign the budget check to only gate new concurrent image fetch requests, but preserve successfully loaded thumbnails in the visible/reusable view hierarchy. Validate Coil disk and memory cache policies are respected.
   - **Verification:** Scroll rapidly through folders containing high-res photos and verify thumbnails remain visible without reload flashes when scrolling back.
 
-- [ ] **FEAT-0006 - Custom Theme Presets and Custom Color Picker** `[High]`
+- [x] **FEAT-0006 - Custom Theme Presets and Custom Color Picker** `[High]`
   - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/ui/theme/Theme.kt` `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/ui/theme/ThemeState.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt`
   - **Problem:** Appearance options are limited to basic light/dark/OLED modes and accent colors seeded from Material3 standard palettes or wallpapers. Custom color presets or user-defined color overrides do not exist.
   - **Impact:** Limited personalization.
@@ -153,7 +153,7 @@
   - **Fix:** Audit component icons, apply standard sizes (e.g., 24dp for generic icons, 48dp for container icons), and use uniform icon packages (e.g. Outlined).
   - **Verification:** Visually inspect icon layouts across multiple device models and screen densities.
 
-- [ ] **FEAT-0012 - Tap Progress Pill for Detailed Context** `[High]`
+- [x] **FEAT-0012 - Tap Progress Pill for Detailed Context** `[High]`
   - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserFloatingSurfaces.kt`
   - **Problem:** The progress pill click listener is disabled when an operation is active, meaning users cannot drill down into operation details.
   - **Impact:** Users cannot view detailed info (such as the current file, queue, speed, or detailed progress log) of background operations.

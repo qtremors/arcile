@@ -136,6 +136,13 @@ interface FileMutationRepository {
     suspend fun deletePermanently(paths: List<String>): Result<Unit>
 
     /**
+     * Securely shreds the files or directories at [paths].
+     *
+     * This overwrites the target file sectors with zero-fills before deleting them.
+     */
+    suspend fun shred(paths: List<String>): Result<Unit>
+
+    /**
      * Renames the file or directory at [path] to [newName].
      *
      * [newName] should be a bare name without path separators.

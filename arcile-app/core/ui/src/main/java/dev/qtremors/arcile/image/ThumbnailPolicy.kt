@@ -16,12 +16,21 @@ class ThumbnailPolicy(
     private val failureCache: ThumbnailFailureCache = GlobalThumbnailFailureCache,
     private val bufferItems: Int = DEFAULT_BUFFER_ITEMS
 ) {
+    private val loadedKeys = java.util.concurrent.ConcurrentHashMap.newKeySet<ThumbnailKey>()
+
     fun shouldLoad(input: ThumbnailPolicyInput): Boolean {
         if (!input.userEnabled || input.isOperationActive) return false
         if (failureCache.hasFailure(input.key)) return false
         if (input.key.type == ThumbnailType.Unsupported) return false
+        if (loadedKeys.contains(input.key)) {
+            return isSafeForType(input.key, input.thumbnailSizePx)
+        }
         if (!isInVisibleBudget(input.itemIndex, input.visibleRange, input.viewMode)) return false
         return isSafeForType(input.key, input.thumbnailSizePx)
+    }
+
+    fun recordLoaded(key: ThumbnailKey) {
+        loadedKeys.add(key)
     }
 
     fun recordFailure(key: ThumbnailKey) {

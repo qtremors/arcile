@@ -55,17 +55,23 @@ internal fun CreateArchiveDialog(
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    val archiveBase = remember(archiveName, format) {
+    val archiveBase = remember(archiveName) {
         archiveBaseName(archiveName)
     }
-    val existingArchiveBaseNames = remember(existingNames, format) {
-        existingNames.map { archiveBaseName(it) }.toSet()
+    val outputValidationName = remember(archiveBase, format) {
+        "${archiveBase.trim()}.${format.extension}"
     }
-    val nameValidation = remember(archiveBase, existingArchiveBaseNames) {
-        validateFileName(archiveBase, existingArchiveBaseNames)
+    val validationValue = remember(archiveBase, outputValidationName) {
+        archiveBase.takeIf { it.trim().isBlank() } ?: outputValidationName
+    }
+    val nameValidation = remember(validationValue, existingNames) {
+        validateFileName(validationValue, existingNames)
     }
     val passwordError = usePassword && password != confirmPassword
-    val outputFileName = "${nameValidation.sanitizedName}.${format.extension}"
+    val outputFileName = nameValidation.sanitizedName
+    val sanitizedArchiveBase = remember(outputFileName, format) {
+        outputFileName.substringBeforeLast(".${format.extension}", outputFileName)
+    }
     val destinationPreview = remember(destinationPath, outputFileName) {
         destinationPath.trimEnd('/', '\\') + "/" + outputFileName
     }
@@ -85,11 +91,11 @@ internal fun CreateArchiveDialog(
                     value = archiveName,
                     onValueChange = { archiveName = it },
                     label = stringResource(R.string.archive_name),
-                    existingNames = existingArchiveBaseNames,
-                    validationValue = archiveBase,
+                    existingNames = existingNames,
+                    validationValue = validationValue,
                     onDone = {
                         if (canCreate) {
-                            onConfirm(nameValidation.sanitizedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                            onConfirm(sanitizedArchiveBase, format, password.takeIf { usePassword && it.isNotEmpty() })
                         }
                     }
                 )
@@ -144,7 +150,7 @@ internal fun CreateArchiveDialog(
             TextButton(
                 enabled = canCreate,
                 onClick = {
-                    onConfirm(nameValidation.sanitizedName, format, password.takeIf { usePassword && it.isNotEmpty() })
+                    onConfirm(sanitizedArchiveBase, format, password.takeIf { usePassword && it.isNotEmpty() })
                 }
             ) {
                 Text(stringResource(R.string.archive_create_action))

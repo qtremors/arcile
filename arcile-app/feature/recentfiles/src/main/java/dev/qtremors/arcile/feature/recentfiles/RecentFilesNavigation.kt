@@ -44,6 +44,7 @@ fun NavGraphBuilder.recentFilesScreen(
             onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
             onConfirmDelete = { viewModel.confirmDeleteSelected() },
             onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
+            onToggleShred = { viewModel.toggleShred() },
             onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
             onShareSelected = {
                 coroutineScope.launch {

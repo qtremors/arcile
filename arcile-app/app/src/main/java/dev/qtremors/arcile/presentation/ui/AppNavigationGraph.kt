@@ -267,6 +267,11 @@ fun AppNavigationGraph(
                                     onToggleSearchFilterMenu = { homeViewModel.toggleSearchFilterMenu(it) },
                                     onRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.MANUAL) },
                                     onResumeRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.SILENT) },
+                                    onShareRecentFile = { path ->
+                                        coroutineScope.launch {
+                                            dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                                        }
+                                    },
                                     onSetVolumeClassification = { storageKey, kind -> homeViewModel.setVolumeClassification(storageKey, kind) },
                                     onHideClassificationPrompt = { storageKey -> homeViewModel.hideClassificationPrompt(storageKey) }
                                 )
@@ -286,6 +291,7 @@ fun AppNavigationGraph(
                                     onRequestDeleteSelected = { browserViewModel.requestDeleteSelected() },
                                     onConfirmDelete = { browserViewModel.confirmDeleteSelected() },
                                     onTogglePermanentDelete = { browserViewModel.togglePermanentDelete() },
+                                    onToggleShred = { browserViewModel.toggleShred() },
                                     onDismissDeleteConfirmation = { browserViewModel.dismissDeleteConfirmation() },
                                     onRenameFile = { path, newName -> browserViewModel.renameFile(path, newName) },
                                     onSearchQueryChange = { browserViewModel.updateBrowserSearchQuery(it) },

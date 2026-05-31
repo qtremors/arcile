@@ -1,6 +1,10 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -24,6 +28,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.ui.theme.ThemePreset
+import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
@@ -159,12 +165,30 @@ fun SettingsScreen(
                         )
                     }
                     ArcileListSurface {
-                        AccentColorSelector(
-                            currentAccent = currentThemeState.accentColor,
-                            onAccentSelected = {
-                                onThemeChange(currentThemeState.copy(accentColor = it))
+                        ThemePresetSelector(
+                            currentPreset = currentThemeState.themePreset,
+                            onPresetSelected = {
+                                onThemeChange(currentThemeState.copy(themePreset = it))
                             }
                         )
+                    }
+                    if (currentThemeState.themePreset == ThemePreset.CUSTOM) {
+                        ArcileListSurface {
+                            CustomThemeCreatorPanel(
+                                themeState = currentThemeState,
+                                onThemeChange = onThemeChange
+                            )
+                        }
+                    }
+                    if (currentThemeState.themePreset == ThemePreset.NONE) {
+                        ArcileListSurface {
+                            AccentColorSelector(
+                                currentAccent = currentThemeState.accentColor,
+                                onAccentSelected = {
+                                    onThemeChange(currentThemeState.copy(accentColor = it))
+                                }
+                            )
+                        }
                     }
                     ArcileListSurface {
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -409,6 +433,152 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ThemePresetSelector(
+    currentPreset: ThemePreset,
+    onPresetSelected: (ThemePreset) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Text(
+            text = "Theme Preset",
+            style = MaterialTheme.typography.titleMediumBold,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ThemePreset.values().forEach { preset ->
+                val isSelected = currentPreset == preset
+                val label = when (preset) {
+                    ThemePreset.NONE -> stringResource(R.string.theme_preset_none)
+                    ThemePreset.DRACULA -> stringResource(R.string.theme_preset_dracula)
+                    ThemePreset.TOKYO_NIGHT -> stringResource(R.string.theme_preset_tokyo_night)
+                    ThemePreset.CUSTOM -> stringResource(R.string.theme_preset_custom)
+                }
+
+                val colors = if (isSelected) {
+                    ButtonDefaults.filledTonalButtonColors()
+                } else {
+                    ButtonDefaults.outlinedButtonColors()
+                }
+
+                val border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+
+                OutlinedButton(
+                    onClick = { onPresetSelected(preset) },
+                    colors = colors,
+                    border = border,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    Text(text = label, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomThemeCreatorPanel(
+    themeState: ThemeState,
+    onThemeChange: (ThemeState) -> Unit
+) {
+    var primaryInput by remember(themeState.customPrimaryColorHex) {
+        mutableStateOf(themeState.customPrimaryColorHex)
+    }
+    var bgInput by remember(themeState.customBackgroundColorHex) {
+        mutableStateOf(themeState.customBackgroundColorHex)
+    }
+
+    val primaryParsed = remember(primaryInput) {
+        try { Color(android.graphics.Color.parseColor(primaryInput)) } catch (e: Exception) { null }
+    }
+    val bgParsed = remember(bgInput) {
+        try { Color(android.graphics.Color.parseColor(bgInput)) } catch (e: Exception) { null }
+    }
+
+    val colorsTooSimilar = remember(primaryParsed, bgParsed) {
+        if (primaryParsed != null && bgParsed != null) {
+            val bgLuminance = bgParsed.red * 0.299f + bgParsed.green * 0.587f + bgParsed.blue * 0.114f
+            val priLuminance = primaryParsed.red * 0.299f + primaryParsed.green * 0.587f + primaryParsed.blue * 0.114f
+            kotlin.math.abs(bgLuminance - priLuminance) < 0.25f
+        } else false
+    }
+
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Text(
+            text = "Custom Theme Settings",
+            style = MaterialTheme.typography.titleMediumBold,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        // Primary Color Input & Preview
+        OutlinedTextField(
+            value = primaryInput,
+            onValueChange = { input ->
+                primaryInput = input
+                if (input.startsWith("#") && (input.length == 7 || input.length == 9)) {
+                    try {
+                        android.graphics.Color.parseColor(input)
+                        onThemeChange(themeState.copy(customPrimaryColorHex = input))
+                    } catch (e: Exception) { }
+                }
+            },
+            label = { Text(stringResource(R.string.custom_theme_primary_label)) },
+            trailingIcon = {
+                primaryParsed?.let {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(it)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+
+        // Background Color Input & Preview
+        OutlinedTextField(
+            value = bgInput,
+            onValueChange = { input ->
+                bgInput = input
+                if (input.startsWith("#") && (input.length == 7 || input.length == 9)) {
+                    try {
+                        android.graphics.Color.parseColor(input)
+                        onThemeChange(themeState.copy(customBackgroundColorHex = input))
+                    } catch (e: Exception) { }
+                }
+            },
+            label = { Text(stringResource(R.string.custom_theme_bg_label)) },
+            trailingIcon = {
+                bgParsed?.let {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(it)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        )
+
+        if (colorsTooSimilar) {
+            Text(
+                text = stringResource(R.string.custom_theme_similarity_warning),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
         }
     }
 }

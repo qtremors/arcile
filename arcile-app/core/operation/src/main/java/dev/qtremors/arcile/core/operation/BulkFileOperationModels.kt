@@ -12,6 +12,7 @@ enum class BulkFileOperationType {
     MOVE,
     TRASH,
     DELETE,
+    SHRED,
     CREATE_FAKE,
     EXTRACT_ARCHIVE,
     CREATE_ARCHIVE

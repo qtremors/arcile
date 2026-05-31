@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -45,46 +46,83 @@ fun ArcileTheme(
         ThemeMode.OLED -> true
     }
 
-    val colorScheme = when {
-        // 1. Dynamic Wallpaper Colors (Android 12+)
-        themeState.accentColor == AccentColor.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+    val colorScheme = when (themeState.themePreset) {
+        ThemePreset.DRACULA -> {
             if (effectivelyDark) {
-                if (themeState.themeMode == ThemeMode.OLED) {
-                     dynamicDarkColorScheme(context).copy(
-                         background = Color.Black,
-                         surface = Color.Black,
-                         surfaceVariant = OledSurfaceVariant
-                     )
-                } else {
-                    dynamicDarkColorScheme(context)
-                }
+                if (themeState.themeMode == ThemeMode.OLED) DraculaOledColorScheme else DraculaDarkColorScheme
             } else {
-                dynamicLightColorScheme(context)
+                DraculaLightColorScheme
             }
         }
-        
-        // 2. Custom Seed Color chosen
-        themeState.accentColor != AccentColor.DYNAMIC -> {
-            val primaryColor = themeState.accentColor.color ?: AccentBlue
+        ThemePreset.TOKYO_NIGHT -> {
+            if (effectivelyDark) {
+                if (themeState.themeMode == ThemeMode.OLED) TokyoNightOledColorScheme else TokyoNightDarkColorScheme
+            } else {
+                TokyoNightLightColorScheme
+            }
+        }
+        ThemePreset.CUSTOM -> {
+            val primaryColor = parseColor(themeState.customPrimaryColorHex, Color(0xFFBD93F9))
+            val rawBg = parseColor(themeState.customBackgroundColorHex, Color(0xFF282A36))
+            val bg = if (themeState.themeMode == ThemeMode.OLED) Color.Black else rawBg
+            val fg = getContrastColor(bg)
             val scheme = buildScheme(primaryColor, effectivelyDark)
-
-             if (themeState.themeMode == ThemeMode.OLED) {
-                  scheme.copy(
-                      background = Color.Black,
-                      surface = Color.Black,
-                      surfaceVariant = OledSurfaceVariant,
-                      surfaceContainerLowest = OledContainerLowest,
-                      surfaceContainerLow = OledContainerLow
-                  )
-             } else {
-                scheme
+            val surfaceVar = if (fg == Color.White) {
+                Color.White.copy(alpha = 0.08f).compositeOver(bg)
+            } else {
+                Color.Black.copy(alpha = 0.08f).compositeOver(bg)
             }
+            scheme.copy(
+                primary = primaryColor,
+                background = bg,
+                surface = bg,
+                onBackground = fg,
+                onSurface = fg,
+                surfaceVariant = surfaceVar,
+                onSurfaceVariant = fg
+            )
         }
-        
-        // 3. Fallback standard themes
-        themeState.themeMode == ThemeMode.OLED -> OledColorScheme
-        effectivelyDark -> DarkColorScheme
-        else -> LightColorScheme
+        ThemePreset.NONE -> when {
+            // 1. Dynamic Wallpaper Colors (Android 12+)
+            themeState.accentColor == AccentColor.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                if (effectivelyDark) {
+                    if (themeState.themeMode == ThemeMode.OLED) {
+                         dynamicDarkColorScheme(context).copy(
+                             background = Color.Black,
+                             surface = Color.Black,
+                             surfaceVariant = OledSurfaceVariant
+                         )
+                    } else {
+                        dynamicDarkColorScheme(context)
+                    }
+                } else {
+                    dynamicLightColorScheme(context)
+                }
+            }
+            
+            // 2. Custom Seed Color chosen
+            themeState.accentColor != AccentColor.DYNAMIC -> {
+                val primaryColor = themeState.accentColor.color ?: AccentBlue
+                val scheme = buildScheme(primaryColor, effectivelyDark)
+
+                 if (themeState.themeMode == ThemeMode.OLED) {
+                      scheme.copy(
+                          background = Color.Black,
+                          surface = Color.Black,
+                          surfaceVariant = OledSurfaceVariant,
+                          surfaceContainerLowest = OledContainerLowest,
+                          surfaceContainerLow = OledContainerLow
+                      )
+                 } else {
+                    scheme
+                }
+            }
+            
+            // 3. Fallback standard themes
+            themeState.themeMode == ThemeMode.OLED -> OledColorScheme
+            effectivelyDark -> DarkColorScheme
+            else -> LightColorScheme
+        }
     }
 
     val baseCategoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
@@ -151,4 +189,17 @@ fun ArcileTheme(
             content = content
         )
     }
+}
+
+private fun parseColor(hex: String, fallback: Color): Color {
+    return try {
+        Color(android.graphics.Color.parseColor(hex))
+    } catch (e: Exception) {
+        fallback
+    }
+}
+
+private fun getContrastColor(backgroundColor: Color): Color {
+    val luminance = backgroundColor.red * 0.299f + backgroundColor.green * 0.587f + backgroundColor.blue * 0.114f
+    return if (luminance > 0.5f) Color.Black else Color.White
 }
