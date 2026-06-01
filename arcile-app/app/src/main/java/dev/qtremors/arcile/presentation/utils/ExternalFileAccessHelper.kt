@@ -15,7 +15,6 @@ import java.security.MessageDigest
 
 object ExternalFileAccessHelper {
     private const val STAGING_ROOT = "external_access"
-    private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
     private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
     private const val MAX_CACHE_AGE_MS = 6L * 60 * 60 * 1000 // 6 hours
@@ -33,6 +32,12 @@ object ExternalFileAccessHelper {
         val displayName: String,
         val sizeBytes: Long
     )
+
+    internal var directOpenUriFactory: (Context, File) -> Uri = ::createFileProviderUri
+
+    internal fun resetDirectOpenUriFactoryForTest() {
+        directOpenUriFactory = ::createFileProviderUri
+    }
 
     fun cleanupStagingArea(context: Context): StagingCacheStats {
         val baseStagingDir = File(context.cacheDir, STAGING_ROOT)
@@ -115,6 +120,10 @@ object ExternalFileAccessHelper {
 
     fun isAllowedUserFile(context: Context, file: File): Boolean {
         val canonicalPath = file.canonicalPath
+        val normalizedSegments = canonicalPath
+            .split(File.separatorChar, '/', '\\')
+            .map { it.lowercase() }
+            .filter { it.isNotBlank() }
         val disallowedRoots = listOfNotNull(
             context.cacheDir.canonicalPath,
             context.filesDir?.canonicalPath,
@@ -126,6 +135,12 @@ object ExternalFileAccessHelper {
         if (canonicalPath.contains("${File.separator}.arcile${File.separator}") || canonicalPath.endsWith("${File.separator}.arcile")) {    
             return false
         }
+        if (normalizedSegments.zipWithNext().any { (first, second) ->
+                first == "android" && (second == "data" || second == "obb")
+            }
+        ) {
+            return false
+        }
         return allowedStorageRoots(context).any { root ->
             canonicalPath == root || canonicalPath.startsWith("$root${File.separator}")
         }
@@ -135,6 +150,9 @@ object ExternalFileAccessHelper {
         MimeTypeMap.getSingleton()
             .getMimeTypeFromExtension(file.extension.lowercase())
             ?: "*/*"
+
+    private fun createFileProviderUri(context: Context, file: File): Uri =
+        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
     private suspend fun stageFile(context: Context, file: File, purpose: String): File = withContext(Dispatchers.IO) {
         require(file.exists() && file.isFile) { "Source file does not exist" }
@@ -170,8 +188,14 @@ object ExternalFileAccessHelper {
 
     suspend fun createOpenIntent(context: Context, path: String): Intent {
         val sourceFile = File(path)
-        val stagedFile = stageFile(context, sourceFile, OPEN_STAGING)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile)
+        require(sourceFile.exists() && sourceFile.isFile) { "Source file does not exist" }
+        require(isAllowedUserFile(context, sourceFile)) { "Unsupported file path" }
+
+        val uri = runCatching {
+            directOpenUriFactory(context, sourceFile)
+        }.getOrElse { error ->
+            throw IllegalArgumentException("Unable to create file access grant", error)
+        }
         return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mimeTypeFor(sourceFile))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

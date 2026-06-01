@@ -33,7 +33,7 @@ fun NavGraphBuilder.storageCleanerScreen(
             state = state,
             onNavigateBack = onNavigateBack,
             onRefresh = { viewModel.scan() },
-            onCleanFiles = { viewModel.clean(it) },
+            onCleanFiles = { paths, acknowledgedHighRisk -> viewModel.clean(paths, acknowledgedHighRisk) },
             onUndoClean = { viewModel.undoClean(it) },
             onClearMessages = { viewModel.clearMessages() },
             onFeedback = onFeedback

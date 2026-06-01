@@ -66,6 +66,30 @@ class MutationJournalTest {
     }
 
     @Test
+    fun `cleanup removes abandoned archive temporary files`() = runTest {
+        val temp = File(root, ".bundle.zip.arcile-archive-123.tmp").apply { writeText("partial archive") }
+
+        journal.recordTemporaryPath(temp.absolutePath)
+        journal.cleanupAbandonedMutations()
+
+        assertFalse(temp.exists())
+    }
+
+    @Test
+    fun `cleanup preserves archive temporary files outside active roots`() = runTest {
+        val outside = createTempDir(prefix = "mutation-journal-outside").canonicalFile
+        val temp = File(outside, ".bundle.zip.arcile-archive-123.tmp").apply { writeText("partial archive") }
+        try {
+            journal.recordTemporaryPath(temp.absolutePath)
+            journal.cleanupAbandonedMutations()
+
+            assertTrue(temp.exists())
+        } finally {
+            outside.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `cleanup removes incomplete trash fallback when original source still exists`() = runTest {
         val source = File(root, "source.txt").apply { writeText("original") }
         val arcileDir = File(root, ".arcile").apply { mkdirs() }

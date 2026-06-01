@@ -3,6 +3,8 @@ package dev.qtremors.arcile.feature.storagecleaner
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
@@ -135,6 +137,75 @@ class StorageCleanerViewModelTest {
 
         assertEquals("blocked", viewModel.state.value.errorMessage)
         assertTrue(viewModel.state.value.group(CleanerGroupType.Apks).candidates.any { it.absolutePath == apkPath })
+    }
+
+    @Test
+    fun `clean blocks high risk candidates without acknowledgement`() = runTest(dispatcher) {
+        val root = File("internal")
+        val logPath = File(root, "Android/data/com.example/cache/debug.log").absolutePath
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
+        fakeScanner.result = StorageCleanerResult(
+            groups = listOf(
+                CleanerGroup(
+                    type = CleanerGroupType.Junk,
+                    candidates = listOf(
+                        CleanerCandidate(
+                            name = "debug.log",
+                            absolutePath = logPath,
+                            size = 1L,
+                            lastModified = 0L,
+                            groupTypes = setOf(CleanerGroupType.Junk),
+                            riskLevel = CleanerRiskLevel.High,
+                            riskReasons = setOf(CleanerRiskReason.SystemOwnedPath)
+                        )
+                    )
+                )
+            ),
+            scannedFiles = 1,
+            isPartial = false
+        )
+        val viewModel = StorageCleanerViewModel(repository.volumeRepository, repository.trashRepository, fakeScanner)
+        advanceUntilIdle()
+
+        viewModel.clean(listOf(logPath), acknowledgedHighRisk = false)
+        advanceUntilIdle()
+
+        assertTrue(repository.moveToTrashRequests.isEmpty())
+        assertEquals("Review high-risk files before cleanup.", viewModel.state.value.errorMessage)
+    }
+
+    @Test
+    fun `clean allows high risk candidates after acknowledgement`() = runTest(dispatcher) {
+        val root = File("internal")
+        val logPath = File(root, "Android/data/com.example/cache/debug.log").absolutePath
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
+        fakeScanner.result = StorageCleanerResult(
+            groups = listOf(
+                CleanerGroup(
+                    type = CleanerGroupType.Junk,
+                    candidates = listOf(
+                        CleanerCandidate(
+                            name = "debug.log",
+                            absolutePath = logPath,
+                            size = 1L,
+                            lastModified = 0L,
+                            groupTypes = setOf(CleanerGroupType.Junk),
+                            riskLevel = CleanerRiskLevel.High,
+                            riskReasons = setOf(CleanerRiskReason.SystemOwnedPath)
+                        )
+                    )
+                )
+            ),
+            scannedFiles = 1,
+            isPartial = false
+        )
+        val viewModel = StorageCleanerViewModel(repository.volumeRepository, repository.trashRepository, fakeScanner)
+        advanceUntilIdle()
+
+        viewModel.clean(listOf(logPath), acknowledgedHighRisk = true)
+        advanceUntilIdle()
+
+        assertEquals(listOf(listOf(logPath)), repository.moveToTrashRequests)
     }
 
     private fun volume(id: String, root: File, kind: StorageKind) = testVolume(

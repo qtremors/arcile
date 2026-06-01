@@ -10,13 +10,33 @@ enum class CleanerGroupType {
     Junk
 }
 
+enum class CleanerRiskLevel {
+    Low,
+    Review,
+    High
+}
+
+enum class CleanerRiskReason {
+    TemporaryOrCache,
+    LogFile,
+    BackupFile,
+    DumpFile,
+    UserFolder,
+    MediaFolder,
+    AppLikeFolder,
+    ArcileInternal,
+    SystemOwnedPath
+}
+
 @Immutable
 data class CleanerCandidate(
     val name: String,
     val absolutePath: String,
     val size: Long,
     val lastModified: Long,
-    val groupTypes: Set<CleanerGroupType>
+    val groupTypes: Set<CleanerGroupType>,
+    val riskLevel: CleanerRiskLevel = CleanerRiskLevel.Low,
+    val riskReasons: Set<CleanerRiskReason> = emptySet()
 )
 
 @Immutable

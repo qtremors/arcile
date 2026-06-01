@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 
 @Composable
 internal fun cleanerTitle(type: CleanerGroupType): String = when (type) {
@@ -52,4 +54,31 @@ internal fun cleanerIcon(type: CleanerGroupType): ImageVector = when (type) {
     CleanerGroupType.Apks -> Icons.Default.Android
     CleanerGroupType.Videos -> Icons.Default.VideoFile
     CleanerGroupType.Junk -> Icons.Default.DeleteSweep
+}
+
+@Composable
+internal fun cleanerRiskLabel(level: CleanerRiskLevel): String = when (level) {
+    CleanerRiskLevel.Low -> stringResource(R.string.cleaner_risk_low)
+    CleanerRiskLevel.Review -> stringResource(R.string.cleaner_risk_review)
+    CleanerRiskLevel.High -> stringResource(R.string.cleaner_risk_high)
+}
+
+@Composable
+internal fun cleanerRiskReason(reason: CleanerRiskReason): String = when (reason) {
+    CleanerRiskReason.TemporaryOrCache -> stringResource(R.string.cleaner_reason_temporary_cache)
+    CleanerRiskReason.LogFile -> stringResource(R.string.cleaner_reason_log)
+    CleanerRiskReason.BackupFile -> stringResource(R.string.cleaner_reason_backup)
+    CleanerRiskReason.DumpFile -> stringResource(R.string.cleaner_reason_dump)
+    CleanerRiskReason.UserFolder -> stringResource(R.string.cleaner_reason_user_folder)
+    CleanerRiskReason.MediaFolder -> stringResource(R.string.cleaner_reason_media_folder)
+    CleanerRiskReason.AppLikeFolder -> stringResource(R.string.cleaner_reason_app_like)
+    CleanerRiskReason.ArcileInternal -> stringResource(R.string.cleaner_reason_arcile_internal)
+    CleanerRiskReason.SystemOwnedPath -> stringResource(R.string.cleaner_reason_system_owned)
+}
+
+@Composable
+internal fun cleanerRiskColor(level: CleanerRiskLevel): Color = when (level) {
+    CleanerRiskLevel.Low -> MaterialTheme.colorScheme.primary
+    CleanerRiskLevel.Review -> MaterialTheme.colorScheme.tertiary
+    CleanerRiskLevel.High -> MaterialTheme.colorScheme.error
 }

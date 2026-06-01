@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
+import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -24,6 +25,7 @@ class ArchiveManagerTest {
     private lateinit var manager: DefaultArchiveManager
     private lateinit var volumeProvider: VolumeProvider
     private lateinit var finalizer: MutationFinalizer
+    private lateinit var mutationJournal: RecordingMutationJournal
 
     @Before
     fun setup() {
@@ -37,7 +39,8 @@ class ArchiveManagerTest {
         }
         finalizer = mockk<MutationFinalizer>(relaxed = true)
         coEvery { finalizer.finalize(*anyVararg()) } returns Unit
-        manager = DefaultArchiveManager(volumeProvider, finalizer)
+        mutationJournal = RecordingMutationJournal()
+        manager = DefaultArchiveManager(volumeProvider, finalizer, mutationJournal = mutationJournal)
     }
 
     @After
@@ -149,6 +152,40 @@ class ArchiveManagerTest {
     }
 
     @Test
+    fun `archive creation records unique staging path and forgets after promotion`() = runTest {
+        val source = File(root, "unique.txt").apply { writeText("unique") }
+        val archive = File(root, "unique.zip")
+
+        assertTrue(manager.createArchive(listOf(source.absolutePath), archive.absolutePath, ArchiveFormat.ZIP).isSuccess)
+
+        val stagingPath = mutationJournal.recordedTemporaryPaths.single()
+        assertTrue(stagingPath.contains(".unique.zip.arcile-archive-"))
+        assertFalse(stagingPath.endsWith(".unique.zip.arcile-archive.tmp"))
+        assertEquals(mutationJournal.recordedTemporaryPaths, mutationJournal.forgottenTemporaryPaths)
+        assertTrue(root.listFiles().orEmpty().none { it.name.contains(".arcile-archive-") })
+    }
+
+    @Test
+    fun `archive creation failure before promotion journals and deletes staging file`() = runTest {
+        val source = File(root, "failure.txt").apply { writeText("failure") }
+        val archive = File(root, "failure.zip")
+        val failingManager = DefaultArchiveManager(
+            volumeProvider = volumeProvider,
+            mutationFinalizer = finalizer,
+            mutationJournal = mutationJournal,
+            rename = { _, _ -> false }
+        )
+
+        val result = failingManager.createArchive(listOf(source.absolutePath), archive.absolutePath, ArchiveFormat.ZIP)
+
+        assertTrue(result.isFailure)
+        val stagingPath = mutationJournal.recordedTemporaryPaths.single()
+        assertTrue(stagingPath.contains(".failure.zip.arcile-archive-"))
+        assertFalse(File(stagingPath).exists())
+        assertEquals(mutationJournal.recordedTemporaryPaths, mutationJournal.forgottenTemporaryPaths)
+    }
+
+    @Test
     fun `zip extraction rejects traversal entries`() = runTest {
         val archive = File(root, "unsafe.zip")
         ZipArchiveOutputStream(archive).use { zip ->
@@ -246,7 +283,7 @@ class ArchiveManagerTest {
     }
 
     private fun managerWith(policy: ArchiveSafetyPolicy): DefaultArchiveManager {
-        return DefaultArchiveManager(volumeProvider, finalizer, policy)
+        return DefaultArchiveManager(volumeProvider, finalizer, policy, mutationJournal = mutationJournal)
     }
 
     private fun zipWithEntry(name: String, entryName: String, body: String): File {
@@ -257,5 +294,22 @@ class ArchiveManagerTest {
             zip.closeArchiveEntry()
         }
         return archive
+    }
+
+    private class RecordingMutationJournal : MutationJournal {
+        val recordedTemporaryPaths = mutableListOf<String>()
+        val forgottenTemporaryPaths = mutableListOf<String>()
+
+        override fun recordTemporaryPath(path: String) {
+            recordedTemporaryPaths += path
+        }
+
+        override fun forgetTemporaryPath(path: String) {
+            forgottenTemporaryPaths += path
+        }
+
+        override fun recordTrashFallback(sourcePath: String, payloadPath: String, metadataPath: String) = Unit
+        override fun forgetTrashFallback(payloadPath: String, metadataPath: String) = Unit
+        override suspend fun cleanupAbandonedMutations() = Unit
     }
 }

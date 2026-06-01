@@ -107,6 +107,9 @@ fun BrowserScreen(
     onClearPendingTrashUndo: () -> Unit = {},
     onUndoLastOperation: () -> Unit = onUndoLastTrashMove,
     onClearPendingUndo: () -> Unit = onClearPendingTrashUndo,
+    onRetryRecoveredOperation: (String) -> Unit = {},
+    onCleanupRecoveredOperation: (String) -> Unit = {},
+    onDismissRecoveredOperation: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
@@ -205,7 +208,10 @@ fun BrowserScreen(
         onCreateZipFromSelection = onCreateZipFromSelection,
         onCreateArchiveFromSelection = onCreateArchiveFromSelection,
         onUndoLastTrashMove = onUndoLastTrashMove,
-        onClearPendingTrashUndo = onClearPendingTrashUndo
+        onClearPendingTrashUndo = onClearPendingTrashUndo,
+        onRetryRecoveredOperation = onRetryRecoveredOperation,
+        onCleanupRecoveredOperation = onCleanupRecoveredOperation,
+        onDismissRecoveredOperation = onDismissRecoveredOperation
     )
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
@@ -322,8 +328,9 @@ fun BrowserScreen(
 
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val isClipboardActive = state.clipboardState != null
-    val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 
-        (if (isSelectionMode || isClipboardActive) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
+    val isRecoveryVisible = state.activeRecoveryOperation != null
+    val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+        (if (isSelectionMode || isClipboardActive || isRecoveryVisible) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     val layoutDirection = LocalLayoutDirection.current
 
     Scaffold(

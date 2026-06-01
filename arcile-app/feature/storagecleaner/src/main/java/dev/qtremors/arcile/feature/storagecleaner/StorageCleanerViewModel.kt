@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +30,9 @@ data class StorageCleanerState(
     val totalBytes: Long get() = groups.sumOf { it.totalBytes }
     fun group(type: CleanerGroupType): CleanerGroup =
         groups.firstOrNull { it.type == type } ?: CleanerGroup(type, emptyList())
+
+    fun candidatesFor(paths: Set<String>) =
+        groups.flatMap { it.candidates }.distinctBy { it.absolutePath }.filter { it.absolutePath in paths }
 }
 
 data class CleanerSuccessMessage(
@@ -112,9 +116,17 @@ class StorageCleanerViewModel @Inject constructor(
         }
     }
 
-    fun clean(paths: List<String>) {
+    fun clean(paths: List<String>, acknowledgedHighRisk: Boolean = false) {
         val uniquePaths = paths.distinct()
         if (uniquePaths.isEmpty()) return
+        val selectedCandidates = _state.value.candidatesFor(uniquePaths.toSet())
+        val hasHighRisk = selectedCandidates.any { it.riskLevel == CleanerRiskLevel.High }
+        if (hasHighRisk && !acknowledgedHighRisk) {
+            _state.update {
+                it.copy(errorMessage = "Review high-risk files before cleanup.")
+            }
+            return
+        }
         viewModelScope.launch {
             _state.update { it.copy(isCleaning = true, errorMessage = null, successMessage = null) }
             trashRepository.moveToTrash(uniquePaths)

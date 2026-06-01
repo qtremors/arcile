@@ -3,7 +3,9 @@ package dev.qtremors.arcile.feature.browser
 import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.UiText
@@ -271,6 +273,51 @@ class BrowserViewModelOperationTest {
             assertNull(viewModel.state.value.pendingNativeAction)
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun `seeded recovery record is exposed and cleanup action clears it`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val request = BulkFileOperationRequest(
+            operationId = "op-recovery",
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf("/storage/emulated/0/Download/archive.zip"),
+            destinationPath = "/storage/emulated/0/Download/archive"
+        )
+        coordinator.seedRecovery(
+            OperationRecoveryRecord(
+                request = request,
+                phase = "CLEANUP_REQUIRED",
+                startedAtMillis = 1L,
+                updatedAtMillis = 2L,
+                progress = BulkFileOperationProgress(
+                    completedItems = 1,
+                    totalItems = 3,
+                    currentPath = "/storage/emulated/0/Download/archive.zip"
+                ),
+                error = "File operation was interrupted and needs cleanup."
+            )
+        )
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(volumes = listOf(internal)),
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+
+        val recovery = viewModel.state.value.activeRecoveryOperation
+        assertEquals("op-recovery", recovery?.operationId)
+        assertEquals(BulkFileOperationType.EXTRACT_ARCHIVE, recovery?.type)
+        assertEquals(1, recovery?.completedItems)
+
+        viewModel.cleanupRecoveredOperation("op-recovery")
+        advanceUntilIdle()
+
+        assertEquals(listOf("op-recovery"), coordinator.cleanupRequests)
+        assertNull(viewModel.state.value.activeRecoveryOperation)
     }
 
     @Test

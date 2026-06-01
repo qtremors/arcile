@@ -69,6 +69,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerState
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
@@ -94,7 +95,7 @@ fun StorageCleanerScreen(
     state: StorageCleanerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
-    onCleanFiles: (List<String>) -> Unit,
+    onCleanFiles: (List<String>, Boolean) -> Unit,
     onUndoClean: (List<String>) -> Unit = {},
     onClearMessages: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
@@ -103,6 +104,7 @@ fun StorageCleanerScreen(
     var activeCleanerGroup by remember { mutableStateOf<CleanerGroupType?>(null) }
     var selectedCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var highRiskAcknowledged by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.successMessage) {
         state.successMessage?.let { message ->
@@ -205,24 +207,36 @@ fun StorageCleanerScreen(
             onDismiss = {
                 activeCleanerGroup = null
                 selectedCleanerPaths = emptySet()
+                highRiskAcknowledged = false
             },
-            onRequestClean = { showDeleteConfirm = true }
+            onRequestClean = {
+                highRiskAcknowledged = false
+                showDeleteConfirm = true
+            }
         )
     }
 
     if (showDeleteConfirm && activeGroup != null) {
+        val selectedCandidates = activeGroup.candidates.filter { it.absolutePath in selectedCleanerPaths }
+        val hasHighRisk = selectedCandidates.any { it.riskLevel == CleanerRiskLevel.High }
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(stringResource(R.string.clean_confirm_title)) },
             text = {
-                Text(stringResource(R.string.clean_confirm_message, selectedCleanerPaths.size))
+                CleanerConfirmContent(
+                    selectedCandidates = selectedCandidates,
+                    hasHighRisk = hasHighRisk,
+                    highRiskAcknowledged = highRiskAcknowledged,
+                    onHighRiskAcknowledgedChange = { highRiskAcknowledged = it }
+                )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDeleteConfirm = false
-                        onCleanFiles(selectedCleanerPaths.toList())
+                        onCleanFiles(selectedCleanerPaths.toList(), highRiskAcknowledged)
                     },
+                    enabled = !hasHighRisk || highRiskAcknowledged,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.delete))
@@ -234,5 +248,55 @@ fun StorageCleanerScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun CleanerConfirmContent(
+    selectedCandidates: List<CleanerCandidate>,
+    hasHighRisk: Boolean,
+    highRiskAcknowledged: Boolean,
+    onHighRiskAcknowledgedChange: (Boolean) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(stringResource(R.string.clean_confirm_message, selectedCandidates.size))
+        LazyColumn(
+            modifier = Modifier.height(180.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(selectedCandidates, key = { it.absolutePath }) { candidate ->
+                Column {
+                    Text(
+                        text = candidate.absolutePath,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.cleaner_confirm_file_detail,
+                            formatFileSize(candidate.size),
+                            cleanerRiskLabel(candidate.riskLevel)
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = cleanerRiskColor(candidate.riskLevel)
+                    )
+                }
+            }
+        }
+        if (hasHighRisk) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = highRiskAcknowledged,
+                    onCheckedChange = onHighRiskAcknowledgedChange
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.cleaner_high_risk_acknowledge),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
     }
 }

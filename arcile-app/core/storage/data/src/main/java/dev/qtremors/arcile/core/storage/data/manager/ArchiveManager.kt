@@ -2,6 +2,8 @@ package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
+import dev.qtremors.arcile.core.storage.data.MutationJournal
+import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
@@ -11,6 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.di.ArcileDispatchers
 import java.io.File
 import java.io.IOException
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -31,7 +34,9 @@ class DefaultArchiveManager(
         default = Dispatchers.Default,
         main = Dispatchers.Main,
         storage = Dispatchers.IO
-    )
+    ),
+    private val mutationJournal: MutationJournal = NoOpMutationJournal(),
+    private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) }
 ) : ArchiveManager {
     private val zipHandler by lazy { ZipArchiveHandler(safetyPolicy, ::validateMutationPath) }
     private val sevenZipHandler by lazy { SevenZipHandler(safetyPolicy, ::validateMutationPath) }
@@ -110,21 +115,34 @@ class DefaultArchiveManager(
             target.parentFile?.mkdirs()
             if (target.exists()) throw IOException("Archive already exists")
 
-            val staging = File(target.parentFile, ".${target.name}.arcile-archive.tmp")
+            val staging = createArchiveStagingTarget(target)
             validateMutationPath(staging).getOrThrow()
-            if (staging.exists()) staging.delete()
+            mutationJournal.recordTemporaryPath(staging.absolutePath)
             try {
                 when (format) {
                     ArchiveFormat.ZIP -> zipHandler.create(sources, staging, password, onProgress)
                     ArchiveFormat.SEVEN_Z -> sevenZipHandler.create(sources, staging, password, onProgress)
                 }
-                if (!staging.renameTo(target)) throw IOException("Failed to create archive")
+                if (!rename(staging, target)) throw IOException("Failed to create archive")
+                mutationJournal.forgetTemporaryPath(staging.absolutePath)
             } catch (e: Exception) {
-                if (staging.exists()) staging.delete()
+                if (staging.exists()) {
+                    if (staging.isDirectory) staging.deleteRecursively() else staging.delete()
+                }
+                mutationJournal.forgetTemporaryPath(staging.absolutePath)
                 throw e
             }
             mutationFinalizer.finalize(target.absolutePath)
         }
+    }
+
+    private fun createArchiveStagingTarget(target: File): File {
+        val parent = target.parentFile ?: throw IllegalStateException("Archive target has no parent directory")
+        var candidate: File
+        do {
+            candidate = File(parent, ".${target.name}.arcile-archive-${UUID.randomUUID()}.tmp")
+        } while (candidate.exists())
+        return candidate
     }
 
     private fun validatePath(file: File): Result<Unit> =

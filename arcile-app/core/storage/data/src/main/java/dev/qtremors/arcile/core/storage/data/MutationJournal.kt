@@ -128,7 +128,9 @@ class DefaultMutationJournal(
     }
 
     private fun isKnownTemporaryName(name: String): Boolean {
-        return name.contains(".arcile-transfer-") || name.contains(".arcile-replace-")
+        return name.contains(".arcile-transfer-") ||
+            name.contains(".arcile-replace-") ||
+            name.contains(".arcile-archive-")
     }
 
     private fun isWithinRoots(file: File, roots: List<File>): Boolean {

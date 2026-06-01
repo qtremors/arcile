@@ -104,7 +104,7 @@ class BulkFileOperationService : Service() {
                 val requestJson = intent.getStringExtra(EXTRA_REQUEST_JSON) ?: return START_NOT_STICKY
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
-                serviceOperationJournal.upsert(request.toJournalRecord(OperationPhase.RUNNING))
+                serviceOperationJournal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
                 startForeground(NOTIFICATION_ID, buildNotification(request))
                 storageWorkCoordinator.beginMutation()
                 val capturedStartId = startId

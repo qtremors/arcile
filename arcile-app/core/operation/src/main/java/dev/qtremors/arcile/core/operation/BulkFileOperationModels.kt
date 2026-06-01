@@ -34,6 +34,19 @@ data class BulkFileOperationRequest(
     val destinationRef: StorageNodeRef? get() = destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }
 }
 
+@Serializable
+data class OperationRecoveryRecord(
+    val request: BulkFileOperationRequest,
+    val phase: String,
+    val startedAtMillis: Long,
+    val updatedAtMillis: Long,
+    val progress: BulkFileOperationProgress? = null,
+    val stagedPaths: List<String> = emptyList(),
+    val rollbackHints: List<String> = emptyList(),
+    val trashResultIds: List<String> = emptyList(),
+    val error: String? = null
+)
+
 sealed interface BulkFileOperationEvent {
     data class Started(val request: BulkFileOperationRequest) : BulkFileOperationEvent
     data class Progress(val request: BulkFileOperationRequest, val progress: BulkFileOperationProgress) : BulkFileOperationEvent
@@ -45,4 +58,7 @@ sealed interface BulkFileOperationEvent {
         val error: ArcileError? = null
     ) : BulkFileOperationEvent
     data class Cancelled(val request: BulkFileOperationRequest?) : BulkFileOperationEvent
+    data class RecoveryAvailable(val record: OperationRecoveryRecord) : BulkFileOperationEvent
+    data class RecoveryDismissed(val operationId: String) : BulkFileOperationEvent
+    data class RecoveryCleanupCompleted(val operationId: String) : BulkFileOperationEvent
 }

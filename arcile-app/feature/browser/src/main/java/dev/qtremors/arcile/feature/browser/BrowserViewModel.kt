@@ -39,6 +39,7 @@ import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.storage.domain.userMessage
 import kotlinx.coroutines.channels.BufferOverflow
@@ -82,6 +83,19 @@ data class BrowserFileOperationUiState(
     val isIndeterminate: Boolean
         get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
 }
+
+@androidx.compose.runtime.Immutable
+data class BrowserOperationRecoveryUiState(
+    val operationId: String,
+    val type: BulkFileOperationType,
+    val sourcePaths: List<String>,
+    val destinationPath: String?,
+    val phase: String,
+    val completedItems: Int,
+    val totalItems: Int,
+    val currentPath: String?,
+    val error: String?
+)
 sealed interface BrowserUndoAction {
     data class Trash(val trashIds: PersistentList<String>) : BrowserUndoAction
     data class Rename(val originalPath: String, val renamedPath: String) : BrowserUndoAction
@@ -134,6 +148,7 @@ data class BrowserState(
     val isPropertiesLoading: Boolean = false,
     val properties: PropertiesUiModel? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
+    val activeRecoveryOperation: BrowserOperationRecoveryUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
     val pendingTrashUndoIds: PersistentList<String> = persistentListOf(),
     val pendingUndoAction: BrowserUndoAction? = null,
@@ -307,6 +322,7 @@ class BrowserViewModel @Inject constructor(
     private var isInitialized = false
     init {
         operationDelegate.hydrateActiveOperation()
+        operationDelegate.observeRecoveryRecords()
         viewModelScope.launch {
             getStorageVolumesUseCase().collectLatest { volumes ->
                 _state.update { it.copy(storageVolumes = volumes.toPersistentList()).withUpdatedDisplayState() }
@@ -664,6 +680,9 @@ class BrowserViewModel @Inject constructor(
         return if (index > 0) normalized.substring(0, index) else ""
     }
     fun clearActiveFileOperation() = operationDelegate.clearActiveOperation()
+    fun retryRecoveredOperation(operationId: String) = operationDelegate.retryRecoveredOperation(operationId)
+    fun cleanupRecoveredOperation(operationId: String) = operationDelegate.cleanupRecoveredOperation(operationId)
+    fun dismissRecoveredOperation(operationId: String) = operationDelegate.dismissRecoveredOperation(operationId)
     fun openPropertiesForSelection() = propertiesDelegate.openPropertiesForSelection()
     fun dismissProperties() = propertiesDelegate.dismissProperties()
     fun copySelectedToClipboard() = clipboardDelegate.copySelectedToClipboard()
@@ -674,3 +693,16 @@ class BrowserViewModel @Inject constructor(
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
     fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
 }
+
+fun OperationRecoveryRecord.toBrowserRecoveryUiState(): BrowserOperationRecoveryUiState =
+    BrowserOperationRecoveryUiState(
+        operationId = request.operationId,
+        type = request.type,
+        sourcePaths = request.sourcePaths,
+        destinationPath = request.destinationPath,
+        phase = phase,
+        completedItems = progress?.completedItems ?: 0,
+        totalItems = progress?.totalItems ?: request.sourcePaths.size.coerceAtLeast(1),
+        currentPath = progress?.currentPath ?: request.sourcePaths.firstOrNull(),
+        error = error
+    )

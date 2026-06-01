@@ -337,6 +337,9 @@ fun AppNavigationGraph(
                                     onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
                                     onUndoLastOperation = { browserViewModel.undoLastOperation() },
                                     onClearPendingUndo = { browserViewModel.clearPendingUndo() },
+                                    onRetryRecoveredOperation = { browserViewModel.retryRecoveredOperation(it) },
+                                    onCleanupRecoveredOperation = { browserViewModel.cleanupRecoveredOperation(it) },
+                                    onDismissRecoveredOperation = { browserViewModel.dismissRecoveredOperation(it) },
                                     onFeedback = onFeedback,
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )

@@ -4,6 +4,8 @@ import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
@@ -51,12 +53,15 @@ class DefaultStorageCleanerScanner @Inject constructor(
             }
 
             groups.forEach { group ->
+                val risk = classifyRisk(file)
                 grouped.getValue(group) += CleanerCandidate(
                     name = file.name,
                     absolutePath = file.absolutePath,
                     size = file.size,
                     lastModified = file.lastModified,
-                    groupTypes = groups
+                    groupTypes = groups,
+                    riskLevel = risk.level,
+                    riskReasons = risk.reasons
                 )
             }
         }
@@ -120,13 +125,15 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
     private fun File.toSnapshot(): FileSnapshot {
         val ext = extension.lowercase(Locale.ROOT)
+        val segments = absolutePath.split(File.separatorChar)
         return FileSnapshot(
             name = name,
             absolutePath = absolutePath,
             size = length().coerceAtLeast(0L),
             lastModified = lastModified(),
             extension = ext,
-            isInDownloads = absolutePath.split(File.separatorChar).any { it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true) }
+            pathSegments = segments,
+            isInDownloads = segments.any { it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true) }
         )
     }
 
@@ -147,17 +154,77 @@ class DefaultStorageCleanerScanner @Inject constructor(
             lowerName == "thumbs.db"
     }
 
+    private fun classifyRisk(file: FileSnapshot): RiskClassification {
+        val reasons = linkedSetOf<CleanerRiskReason>()
+        val lowerSegments = file.pathSegments.map { it.lowercase(Locale.ROOT) }
+        val lowerPath = file.absolutePath.lowercase(Locale.ROOT)
+        val parentSegments = lowerSegments.dropLast(1)
+
+        if (".arcile" in lowerSegments) reasons += CleanerRiskReason.ArcileInternal
+        if (isAndroidSensitivePath(lowerSegments)) reasons += CleanerRiskReason.SystemOwnedPath
+        if (parentSegments.any(::isPackageLikeSegment)) reasons += CleanerRiskReason.AppLikeFolder
+        if (parentSegments.any { it in tempOrCacheFolderNames }) reasons += CleanerRiskReason.TemporaryOrCache
+        if (parentSegments.any { it in userFolderNames }) reasons += CleanerRiskReason.UserFolder
+        if (parentSegments.any { it in mediaFolderNames }) reasons += CleanerRiskReason.MediaFolder
+
+        when (file.extension) {
+            "log" -> reasons += CleanerRiskReason.LogFile
+            "bak", "old" -> reasons += CleanerRiskReason.BackupFile
+            "dmp" -> reasons += CleanerRiskReason.DumpFile
+            "tmp", "temp" -> reasons += CleanerRiskReason.TemporaryOrCache
+        }
+        if (file.name.lowercase(Locale.ROOT).endsWith(".tmp") || lowerPath.endsWith(".temp")) {
+            reasons += CleanerRiskReason.TemporaryOrCache
+        }
+
+        val level = when {
+            reasons.any {
+                it == CleanerRiskReason.ArcileInternal ||
+                    it == CleanerRiskReason.SystemOwnedPath ||
+                    it == CleanerRiskReason.AppLikeFolder
+            } -> CleanerRiskLevel.High
+            reasons.any {
+                it == CleanerRiskReason.UserFolder ||
+                    it == CleanerRiskReason.MediaFolder ||
+                    it == CleanerRiskReason.LogFile ||
+                    it == CleanerRiskReason.BackupFile ||
+                    it == CleanerRiskReason.DumpFile
+            } -> CleanerRiskLevel.Review
+            else -> CleanerRiskLevel.Low
+        }
+        return RiskClassification(level, reasons)
+    }
+
+    private fun isAndroidSensitivePath(segments: List<String>): Boolean {
+        val androidIndex = segments.indexOf("android")
+        if (androidIndex < 0 || androidIndex == segments.lastIndex) return false
+        return segments[androidIndex + 1] == "data" || segments[androidIndex + 1] == "obb"
+    }
+
+    private fun isPackageLikeSegment(segment: String): Boolean =
+        packageSegmentRegex.matches(segment)
+
     private data class FileSnapshot(
         val name: String,
         val absolutePath: String,
         val size: Long,
         val lastModified: Long,
         val extension: String,
+        val pathSegments: List<String>,
         val isInDownloads: Boolean
+    )
+
+    private data class RiskClassification(
+        val level: CleanerRiskLevel,
+        val reasons: Set<CleanerRiskReason>
     )
 
     private companion object {
         val videoExtensions = setOf("mp4", "mkv", "webm", "avi", "mov", "3gp", "m4v")
         val junkExtensions = setOf("tmp", "temp", "log", "bak", "old", "dmp")
+        val tempOrCacheFolderNames = setOf("temp", "tmp", "cache", "caches")
+        val userFolderNames = setOf("download", "downloads", "documents", "document")
+        val mediaFolderNames = setOf("dcim", "pictures", "picture", "movies", "movie", "videos", "video")
+        val packageSegmentRegex = Regex("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,}")
     }
 }

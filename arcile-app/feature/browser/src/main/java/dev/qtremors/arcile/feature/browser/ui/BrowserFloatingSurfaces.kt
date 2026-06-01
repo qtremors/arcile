@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -32,10 +33,12 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -88,7 +91,8 @@ internal fun BrowserCreateFab(
         !state.isVolumeRootScreen &&
         !state.isCategoryScreen &&
         state.clipboardState == null &&
-        state.activeFileOperation == null
+        state.activeFileOperation == null &&
+        state.activeRecoveryOperation == null
     ) {
         Box(modifier = Modifier.navigationBarsPadding()) {
             Box(modifier = Modifier.align(Alignment.BottomEnd)) {
@@ -165,6 +169,8 @@ internal fun BrowserFloatingSurfaces(
                 dialogVisibility = dialogVisibility,
                 actions = actions
             )
+        } else if (state.activeRecoveryOperation != null) {
+            BrowserRecoveryToolbar(state = state, actions = actions)
         } else if (state.clipboardState != null || state.activeFileOperation != null) {
             BrowserClipboardOperationToolbar(
                 state = state,
@@ -184,6 +190,92 @@ internal fun BrowserFloatingSurfaces(
             onDismissRequest = { showDetailedProgressSheet = false }
         )
     }
+}
+
+@Composable
+private fun BrowserRecoveryToolbar(
+    state: BrowserState,
+    actions: BrowserUiActions
+) {
+    val recovery = state.activeRecoveryOperation ?: return
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        tonalElevation = 4.dp,
+        shadowElevation = 2.dp,
+        modifier = Modifier
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .widthIn(max = 560.dp)
+            .fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(20.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.file_operation_recovery_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = recoverySummary(state),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.86f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = { actions.onDismissRecoveredOperation(recovery.operationId) }) {
+                    Text(stringResource(R.string.file_operation_recovery_dismiss))
+                }
+                OutlinedButton(onClick = { actions.onCleanupRecoveredOperation(recovery.operationId) }) {
+                    Text(stringResource(R.string.file_operation_recovery_cleanup))
+                }
+                Button(onClick = { actions.onRetryRecoveredOperation(recovery.operationId) }) {
+                    Text(stringResource(R.string.file_operation_recovery_retry))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun recoverySummary(state: BrowserState): String {
+    val recovery = state.activeRecoveryOperation ?: return ""
+    val operationName = when (recovery.type) {
+        BulkFileOperationType.COPY -> stringResource(R.string.file_operation_copying_files)
+        BulkFileOperationType.MOVE -> stringResource(R.string.file_operation_moving_files)
+        BulkFileOperationType.TRASH -> stringResource(R.string.file_operation_moving_files_to_trash)
+        BulkFileOperationType.DELETE -> stringResource(R.string.file_operation_deleting_files)
+        BulkFileOperationType.SHRED -> stringResource(R.string.file_operation_shredding_files)
+        BulkFileOperationType.CREATE_FAKE -> stringResource(R.string.file_operation_creating_fake_file)
+        BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
+        BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
+    }
+    val current = recovery.currentPath?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+    val progress = stringResource(
+        R.string.transfer_progress_items,
+        recovery.completedItems,
+        recovery.totalItems
+    )
+    return listOfNotNull(
+        stringResource(R.string.file_operation_recovery_body, operationName, progress),
+        current?.let { stringResource(R.string.file_operation_recovery_current_file, it) }
+    ).joinToString(" ")
 }
 
 @Composable

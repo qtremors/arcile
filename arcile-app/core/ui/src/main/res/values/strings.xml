@@ -330,6 +330,13 @@
     <string name="file_operation_creating_archive">Creating archive</string>
     <string name="file_operation_extracting_archive">Extracting archive</string>
     <string name="file_operation_cancelled">File operation cancelled</string>
+    <string name="file_operation_recovery_title">Interrupted operation</string>
+    <string name="file_operation_recovery_body">%1$s was interrupted at %2$s. Some files may already have changed.</string>
+    <string name="file_operation_recovery_current_file">Last file: %1$s.</string>
+    <string name="file_operation_recovery_retry">Retry</string>
+    <string name="file_operation_recovery_cleanup">Clean up</string>
+    <string name="file_operation_recovery_dismiss">Dismiss</string>
+    <string name="file_operation_recovery_cleanup_complete">Cleanup complete</string>
     <string name="error_search_failed">Search failed</string>
     <string name="error_load_directory_failed">Failed to load directory</string>
     <string name="error_load_category_failed">Failed to load category</string>
@@ -438,6 +445,20 @@
     <string name="clean_selected_summary">Move %1$d to Trash • %2$s</string>
     <string name="clean_confirm_title">Move selected files to Trash?</string>
     <string name="clean_confirm_message">%1$d selected file(s) will be moved to Arcile Trash. You can restore them later.</string>
+    <string name="cleaner_confirm_file_detail">%1$s • %2$s risk</string>
+    <string name="cleaner_high_risk_acknowledge">I reviewed these high-risk files and still want to move them to Trash.</string>
+    <string name="cleaner_risk_low">Low</string>
+    <string name="cleaner_risk_review">Review</string>
+    <string name="cleaner_risk_high">High</string>
+    <string name="cleaner_reason_temporary_cache">temporary/cache</string>
+    <string name="cleaner_reason_log">log file</string>
+    <string name="cleaner_reason_backup">backup file</string>
+    <string name="cleaner_reason_dump">dump file</string>
+    <string name="cleaner_reason_user_folder">user folder</string>
+    <string name="cleaner_reason_media_folder">media folder</string>
+    <string name="cleaner_reason_app_like">app-like folder</string>
+    <string name="cleaner_reason_arcile_internal">Arcile internal</string>
+    <string name="cleaner_reason_system_owned">system-owned path</string>
     <string name="clean_success">Moved %1$d file(s) to Trash</string>
     <string name="clean_failed">Could not clean selected files</string>
 

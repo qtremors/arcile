@@ -110,5 +110,8 @@ internal data class BrowserUiActions(
     val onCreateZipFromSelection: () -> Unit,
     val onCreateArchiveFromSelection: (String, ArchiveFormat, String?) -> Unit,
     val onUndoLastTrashMove: () -> Unit,
-    val onClearPendingTrashUndo: () -> Unit
+    val onClearPendingTrashUndo: () -> Unit,
+    val onRetryRecoveredOperation: (String) -> Unit,
+    val onCleanupRecoveredOperation: (String) -> Unit,
+    val onDismissRecoveredOperation: (String) -> Unit
 )

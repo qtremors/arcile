@@ -2,6 +2,8 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -93,6 +95,62 @@ class StorageCleanerScannerTest {
         assertEquals(3, result.scannedFiles)
     }
 
+    @Test
+    fun `scanner classifies temp files in cache folders as low risk`() = runTest {
+        val root = temporaryFolder.newFolder("storage")
+        val cache = File(root, "cache").apply { mkdirs() }
+        File(cache, "payload.tmp").writeBytes(ByteArray(1))
+
+        val result = scanner.scan(rootPaths = listOf(root.absolutePath))
+        val candidate = result.candidate(CleanerGroupType.Junk, "payload.tmp")
+
+        assertEquals(CleanerRiskLevel.Low, candidate.riskLevel)
+        assertTrue(candidate.riskReasons.contains(CleanerRiskReason.TemporaryOrCache))
+    }
+
+    @Test
+    fun `scanner marks log backup old and dump files in user folders as review risk`() = runTest {
+        val root = temporaryFolder.newFolder("storage")
+        val folders = listOf("Download", "DCIM", "Documents", "Pictures", "Movies")
+        val names = listOf("trace.log", "copy.bak", "legacy.old", "crash.dmp", "camera.log")
+        folders.zip(names).forEach { (folderName, fileName) ->
+            File(root, folderName).apply { mkdirs() }.resolve(fileName).writeBytes(ByteArray(1))
+        }
+
+        val result = scanner.scan(rootPaths = listOf(root.absolutePath))
+
+        names.forEach { name ->
+            val candidate = result.candidate(CleanerGroupType.Junk, name)
+            assertEquals(name, CleanerRiskLevel.Review, candidate.riskLevel)
+            assertTrue(name, candidate.riskReasons.any {
+                it == CleanerRiskReason.UserFolder || it == CleanerRiskReason.MediaFolder
+            })
+        }
+    }
+
+    @Test
+    fun `scanner marks android and app-like junk paths as high risk and excludes arcile internals`() = runTest {
+        val root = temporaryFolder.newFolder("storage")
+        File(root, "Android/data/dev.qtremors.arcile").apply { mkdirs() }.resolve("debug.log").writeBytes(ByteArray(1))
+        File(root, "com.example.app/cache").apply { mkdirs() }.resolve("trace.log").writeBytes(ByteArray(1))
+        File(root, ".arcile").apply { mkdirs() }.resolve("internal.log").writeBytes(ByteArray(1))
+
+        val result = scanner.scan(rootPaths = listOf(root.absolutePath))
+        val androidCandidate = result.candidate(CleanerGroupType.Junk, "debug.log")
+        val packageCandidate = result.candidate(CleanerGroupType.Junk, "trace.log")
+
+        assertEquals(CleanerRiskLevel.High, androidCandidate.riskLevel)
+        assertTrue(androidCandidate.riskReasons.contains(CleanerRiskReason.SystemOwnedPath))
+        assertEquals(CleanerRiskLevel.High, packageCandidate.riskLevel)
+        assertTrue(packageCandidate.riskReasons.contains(CleanerRiskReason.AppLikeFolder))
+        assertFalse(result.group(CleanerGroupType.Junk).contains("internal.log"))
+    }
+
     private fun dev.qtremors.arcile.core.storage.domain.StorageCleanerResult.group(type: CleanerGroupType): List<String> =
         groups.first { it.type == type }.candidates.map { it.name }
+
+    private fun dev.qtremors.arcile.core.storage.domain.StorageCleanerResult.candidate(
+        type: CleanerGroupType,
+        name: String
+    ) = groups.first { it.type == type }.candidates.first { it.name == name }
 }

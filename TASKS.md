@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.9.5
-> **Last Updated:** 2026-05-31
+> **Version:** 0.9.6
+> **Last Updated:** 2026-06-01
 
 ---
 
@@ -10,14 +10,14 @@
 
 ### Reliability Tasks
 
-- [ ] **REL-0001 - Interrupted Operation Recovery** `[High]`
+- [x] **REL-0001 - Interrupted Operation Recovery** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/OperationJournal.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationCoordinator.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt`
   - **Problem:** `recoverInterrupted()` rewrites any non-terminal active operation to `CLEANUP_REQUIRED`, but `ForegroundBulkFileOperationCoordinator` then drops it from `activeRequest` because `CLEANUP_REQUIRED` is terminal. The service clears completed, failed, and cancelled records, and there is no visible recovery state, retry action, cleanup action, or operation-history surface for a process death during copy, move, trash, archive create, or extraction.
   - **Impact:** A killed process can leave users without an explanation of whether a destructive or long-running operation completed, partially applied, or needs manual cleanup. This undermines trust in high-risk file operations.
   - **Fix:** Model interrupted operations as a surfaced recovery state instead of silently clearing them from active UI state. Persist enough phase data, staged paths, completed outputs, and rollback hints to show a recovery card or operation history item with cleanup, retry, and dismiss actions.
   - **Verification:** Add unit tests for recovering `QUEUED`, `RUNNING`, and `CANCELLING` journal records; add a UI test that seeds a `CLEANUP_REQUIRED` record and verifies the app surfaces recovery; manually kill the app mid-copy and mid-extraction and confirm the next launch explains the interrupted operation.
 
-- [ ] **REL-0002 - Archive Creation Temp Cleanup** `[High]`
+- [x] **REL-0002 - Archive Creation Temp Cleanup** `[High]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/ArchiveManager.kt` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/MutationJournal.kt`
   - **Problem:** Archive creation writes to a deterministic `.${target.name}.arcile-archive.tmp` staging file, but that path is never recorded in `MutationJournal`; startup cleanup only recognizes `.arcile-transfer-` and `.arcile-replace-` names. If the process dies during archive creation, the staging file is left behind until a later archive with the same target happens to delete it.
   - **Impact:** Large abandoned archive temp files can consume user storage, confuse later operations, and make process-death recovery incomplete.
@@ -26,14 +26,14 @@
 
 ### Data / Storage / Platform Tasks
 
-- [ ] **STORAGE-0001 - Open-With Staging For Large Files** `[High]`
+- [x] **STORAGE-0001 - Open-With Staging For Large Files** `[High]`
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ExternalFileAccessHelper.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/MainActivity.kt` `arcile-app/app/src/main/res/xml/file_provider_paths.xml`
   - **Problem:** `openFile()` calls `createOpenIntent()`, which copies the whole source into the app cache via `stageFile()` before launching `ACTION_VIEW`. Share flows enforce per-file and batch size limits, but open-with has no size limit, no progress, no cancellation, and no direct `content://` or platform-provider handoff path.
   - **Impact:** Opening a large video, PDF, or archive can block for a long time, duplicate hundreds of megabytes into cache, fail on low storage, and show no progress or cancel affordance.
   - **Fix:** Prefer direct read grants for supported user files, or route large opens through an explicit progress operation with cancellation and size limits. Keep staging only for targets that truly need FileProvider cache copies, and surface a clear error when a file is too large to stage safely.
   - **Verification:** Add tests for open-with size limits and direct/staged path selection; manually open small and large files and verify large files do not silently copy into cache without progress.
 
-- [ ] **STORAGE-0002 - Cleaner Risk Classification** `[High]`
+- [x] **STORAGE-0002 - Cleaner Risk Classification** `[High]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt` `arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/StorageCleanerViewModel.kt` `arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerScreen.kt`
   - **Problem:** The cleaner labels any `.tmp`, `.temp`, `.log`, `.bak`, `.old`, or `.dmp` file as junk regardless of folder ownership or user context, and the confirmation dialog only shows a selected count before moving paths to trash.
   - **Impact:** Users can be encouraged to remove meaningful logs, backups, dumps, or app/user data that merely matches an extension. The undo path helps only after trash succeeds and remains risky for temporary volumes or permission edge cases.

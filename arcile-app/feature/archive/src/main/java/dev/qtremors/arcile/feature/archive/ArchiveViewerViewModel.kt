@@ -237,6 +237,9 @@ class ArchiveViewerViewModel @Inject constructor(
                             )
                         }
                     }
+                    is BulkFileOperationEvent.RecoveryAvailable,
+                    is BulkFileOperationEvent.RecoveryDismissed,
+                    is BulkFileOperationEvent.RecoveryCleanupCompleted -> Unit
                 }
             }
         }

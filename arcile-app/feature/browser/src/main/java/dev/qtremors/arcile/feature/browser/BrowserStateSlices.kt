@@ -85,6 +85,7 @@ data class BrowserDialogState(
 data class OperationUiState(
     val clipboardState: ClipboardState? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
+    val activeRecoveryOperation: BrowserOperationRecoveryUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
     val pendingTrashUndoIds: PersistentList<String> = persistentListOf()
 )
@@ -190,6 +191,7 @@ fun BrowserState.dialogState() = BrowserDialogState(
 fun BrowserState.operationUiState() = OperationUiState(
     clipboardState = clipboardState,
     activeFileOperation = activeFileOperation,
+    activeRecoveryOperation = activeRecoveryOperation,
     fileOperationStatusMessage = fileOperationStatusMessage,
     pendingTrashUndoIds = pendingTrashUndoIds
 )

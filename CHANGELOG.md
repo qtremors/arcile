@@ -1,10 +1,23 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.5
-> **Last Updated:** 2026-05-31
+> **Version:** 0.9.6
+> **Last Updated:** 2026-06-01
 
 ---
+
+## [0.9.6] - 2026-06-01
+
+### Reliability
+- **Interrupted Operation Recovery (REL-0001):** Persist interrupted copy, move, trash, archive creation, and extraction work as visible recovery records instead of silently clearing them. Added browser recovery actions for retry, cleanup, and dismiss.
+- **Archive Creation Temp Cleanup (REL-0002):** Journal archive staging files, use unique `.arcile-archive-{UUID}.tmp` names, and include archive temps in startup cleanup while preserving active-root safety checks.
+
+### Storage Safety
+- **Open-With Direct Grants (STORAGE-0001):** Open supported user files through direct `content://` read grants instead of silently staging large files in cache. Share handoffs keep their existing staged-copy size limits.
+- **Cleaner Risk Classification (STORAGE-0002):** Added cleaner risk levels and reason codes, safer scanner classification for logs/backups/dumps/user folders/system-like paths, high-risk opt-in cleanup acknowledgement, and review details in the cleaner UI.
+
+### Verification
+- **Regression Coverage:** Verified with focused operation journal/coordinator, browser recovery, mutation journal, archive manager, open-with, storage cleaner scanner, ViewModel, and Compose UI debug unit tests.
 
 ## [0.9.5] - 2026-05-31
 

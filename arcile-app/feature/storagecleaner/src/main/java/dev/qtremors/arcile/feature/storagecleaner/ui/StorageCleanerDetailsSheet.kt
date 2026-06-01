@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -47,6 +48,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.shared.ui.getFileIconVector
@@ -90,10 +92,18 @@ internal fun CleanerDetailsSheet(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val selectableCandidates = remember(group.candidates) {
+                        group.candidates.filterNot { it.riskLevel == CleanerRiskLevel.High }
+                    }
                     Checkbox(
-                        checked = group.candidates.isNotEmpty() && selectedFiles.size == group.candidates.size,
+                        checked = selectableCandidates.isNotEmpty() &&
+                            selectableCandidates.all { it.absolutePath in selectedFiles },
                         onCheckedChange = { checked ->
-                            onSelectedFilesChange(if (checked) group.candidates.map { it.absolutePath }.toSet() else emptySet())
+                            onSelectedFilesChange(if (checked) {
+                                selectedFiles + selectableCandidates.map { it.absolutePath }
+                            } else {
+                                selectedFiles - selectableCandidates.map { it.absolutePath }.toSet()
+                            })
                         }
                     )
                     Text(
@@ -101,10 +111,11 @@ internal fun CleanerDetailsSheet(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.clickable {
-                            onSelectedFilesChange(if (selectedFiles.size == group.candidates.size) {
-                                emptySet()
+                            val selectablePaths = selectableCandidates.map { it.absolutePath }.toSet()
+                            onSelectedFilesChange(if (selectablePaths.isNotEmpty() && selectablePaths.all { it in selectedFiles }) {
+                                selectedFiles - selectablePaths
                             } else {
-                                group.candidates.map { it.absolutePath }.toSet()
+                                selectedFiles + selectablePaths
                             })
                         }
                     )
@@ -217,6 +228,7 @@ internal fun CleanerCandidateRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            RiskSummary(file)
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
@@ -398,6 +410,37 @@ internal fun DuplicateFileRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
+            RiskSummary(file)
+        }
+    }
+}
+
+@Composable
+private fun RiskSummary(file: CleanerCandidate) {
+    val reasonLabels = mutableListOf<String>()
+    for (reason in file.riskReasons.take(2)) {
+        reasonLabels += cleanerRiskReason(reason)
+    }
+    val reasons = reasonLabels.joinToString(", ")
+
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AssistChip(
+            onClick = {},
+            label = { Text(cleanerRiskLabel(file.riskLevel)) },
+            enabled = false
+        )
+        if (reasons.isNotBlank()) {
+            Text(
+                text = reasons,
+                style = MaterialTheme.typography.labelSmall,
+                color = cleanerRiskColor(file.riskLevel),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

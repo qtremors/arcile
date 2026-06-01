@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface BulkFileOperationCoordinator {
     val activeRequest: StateFlow<BulkFileOperationRequest?>
+    val recoveryRecords: StateFlow<List<OperationRecoveryRecord>>
     val events: SharedFlow<BulkFileOperationEvent>
 
     fun startOperation(
@@ -28,10 +29,14 @@ interface BulkFileOperationCoordinator {
     fun onOperationCompleted(request: BulkFileOperationRequest)
     fun onOperationFailed(request: BulkFileOperationRequest, message: String)
     fun onOperationCancelled(request: BulkFileOperationRequest?)
+    fun retryRecoveredOperation(operationId: String): Boolean
+    fun cleanupRecoveredOperation(operationId: String)
+    fun dismissRecoveredOperation(operationId: String)
 }
 
 object NoOpBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = MutableStateFlow(null)
+    override val recoveryRecords: StateFlow<List<OperationRecoveryRecord>> = MutableStateFlow(emptyList())
     override val events: SharedFlow<BulkFileOperationEvent> = MutableSharedFlow()
 
     override fun startOperation(
@@ -51,4 +56,7 @@ object NoOpBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     override fun onOperationCompleted(request: BulkFileOperationRequest) = Unit
     override fun onOperationFailed(request: BulkFileOperationRequest, message: String) = Unit
     override fun onOperationCancelled(request: BulkFileOperationRequest?) = Unit
+    override fun retryRecoveredOperation(operationId: String): Boolean = false
+    override fun cleanupRecoveredOperation(operationId: String) = Unit
+    override fun dismissRecoveredOperation(operationId: String) = Unit
 }

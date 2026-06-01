@@ -9,15 +9,23 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
+import dev.qtremors.arcile.core.storage.data.MutationJournal
+import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.toArcileError
+import dev.qtremors.arcile.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
@@ -27,15 +35,16 @@ import javax.inject.Singleton
 @Singleton
 class ForegroundBulkFileOperationCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val operationJournal: OperationJournal = DefaultOperationJournal(context)
+    private val operationJournal: OperationJournal = DefaultOperationJournal(context),
+    private val mutationJournal: MutationJournal = NoOpMutationJournal(),
+    @ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : BulkFileOperationCoordinator {
     private val json = Json { ignoreUnknownKeys = true }
-    private val _activeRequest = MutableStateFlow(
-        operationJournal.recoverInterrupted()
-            ?.takeUnless { it.phase.isTerminal }
-            ?.request
-    )
+    private val recoveredRecords = operationJournal.recoverInterrupted().map { it.toRecoveryRecord() }
+    private val _activeRequest = MutableStateFlow(operationJournal.activeRecord()?.request)
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
+    private val _recoveryRecords = MutableStateFlow(recoveredRecords)
+    override val recoveryRecords: StateFlow<List<OperationRecoveryRecord>> = _recoveryRecords.asStateFlow()
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
         replay = 1,
@@ -43,6 +52,12 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
     override val events: SharedFlow<BulkFileOperationEvent> = _events.asSharedFlow()
+
+    init {
+        recoveredRecords.forEach { record ->
+            _events.tryEmit(BulkFileOperationEvent.RecoveryAvailable(record))
+        }
+    }
 
     override fun startOperation(
         type: BulkFileOperationType,
@@ -67,32 +82,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             archiveEntryPrefix = archiveEntryPrefix,
             archivePassword = archivePassword?.takeIf { it.isNotEmpty() }
         )
-        _activeRequest.value = request
-        operationJournal.upsert(request.toJournalRecord(OperationPhase.QUEUED))
-        _events.tryEmit(BulkFileOperationEvent.Started(request))
-
-        val intent = Intent(context, BulkFileOperationService::class.java).apply {
-            action = BulkFileOperationService.ACTION_START
-            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, json.encodeToString(request))
-        }
-        return try {
-            ContextCompat.startForegroundService(context, intent)
-            operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.RUNNING) }
-            true
-        } catch (e: Exception) {
-            _activeRequest.value = null
-            operationJournal.update(request.operationId) {
-                it.copy(phase = OperationPhase.FAILED, error = e.message)
-            }
-            _events.tryEmit(
-                BulkFileOperationEvent.Failed(
-                    request,
-                    e.message ?: "Failed to start file operation",
-                    e.toArcileError()
-                )
-            )
-            false
-        }
+        return startRequest(request)
     }
 
     override fun cancelActiveOperation() {
@@ -150,5 +140,59 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             operationJournal.clearActive(it.operationId)
         }
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
+    }
+
+    override fun retryRecoveredOperation(operationId: String): Boolean {
+        if (_activeRequest.value != null) return false
+        val record = _recoveryRecords.value.firstOrNull { it.request.operationId == operationId } ?: return false
+        operationJournal.dismissRecovery(operationId)
+        _recoveryRecords.value = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
+        return startRequest(record.request)
+    }
+
+    override fun cleanupRecoveredOperation(operationId: String) {
+        if (_recoveryRecords.value.none { it.request.operationId == operationId }) return
+        applicationScope.launch {
+            mutationJournal.cleanupAbandonedMutations()
+            operationJournal.dismissRecovery(operationId)
+            _recoveryRecords.value = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
+            _events.tryEmit(BulkFileOperationEvent.RecoveryCleanupCompleted(operationId))
+        }
+    }
+
+    override fun dismissRecoveredOperation(operationId: String) {
+        operationJournal.dismissRecovery(operationId)
+        _recoveryRecords.value = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
+        _events.tryEmit(BulkFileOperationEvent.RecoveryDismissed(operationId))
+    }
+
+    private fun startRequest(request: BulkFileOperationRequest): Boolean {
+        if (_activeRequest.value != null) return false
+        _activeRequest.value = request
+        operationJournal.upsertActive(request.toJournalRecord(OperationPhase.QUEUED))
+        _events.tryEmit(BulkFileOperationEvent.Started(request))
+
+        val intent = Intent(context, BulkFileOperationService::class.java).apply {
+            action = BulkFileOperationService.ACTION_START
+            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, json.encodeToString(request))
+        }
+        return try {
+            ContextCompat.startForegroundService(context, intent)
+            operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.RUNNING) }
+            true
+        } catch (e: Exception) {
+            _activeRequest.value = null
+            operationJournal.update(request.operationId) {
+                it.copy(phase = OperationPhase.FAILED, error = e.message)
+            }
+            _events.tryEmit(
+                BulkFileOperationEvent.Failed(
+                    request,
+                    e.message ?: "Failed to start file operation",
+                    e.toArcileError()
+                )
+            )
+            false
+        }
     }
 }

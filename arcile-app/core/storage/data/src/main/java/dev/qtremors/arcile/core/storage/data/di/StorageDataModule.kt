@@ -132,9 +132,15 @@ object StorageDataModule {
     fun provideArchiveManager(
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
+        mutationJournal: MutationJournal,
         dispatchers: ArcileDispatchers
     ): ArchiveManager {
-        return DefaultArchiveManager(volumeProvider, mutationFinalizer, dispatchers = dispatchers)
+        return DefaultArchiveManager(
+            volumeProvider,
+            mutationFinalizer,
+            dispatchers = dispatchers,
+            mutationJournal = mutationJournal
+        )
     }
 
     @Provides

@@ -12,6 +12,7 @@ import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.userMessage
+import dev.qtremors.arcile.feature.browser.toBrowserRecoveryUiState
 import java.io.File
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -43,6 +44,19 @@ class BrowserOperationDelegate(
         }
     }
 
+    fun observeRecoveryRecords() {
+        state.update {
+            it.copy(activeRecoveryOperation = bulkFileOperationCoordinator.recoveryRecords.value.firstOrNull()?.toBrowserRecoveryUiState())
+        }
+        viewModelScope.launch {
+            bulkFileOperationCoordinator.recoveryRecords.collectLatest { records ->
+                state.update { current ->
+                    current.copy(activeRecoveryOperation = records.firstOrNull()?.toBrowserRecoveryUiState())
+                }
+            }
+        }
+    }
+
     fun observeOperationEvents() {
         viewModelScope.launch {
             bulkFileOperationCoordinator.events.collectLatest { event ->
@@ -57,6 +71,18 @@ class BrowserOperationDelegate(
 
     fun clearActiveOperation() {
         state.update { it.copy(activeFileOperation = null) }
+    }
+
+    fun retryRecoveredOperation(operationId: String) {
+        bulkFileOperationCoordinator.retryRecoveredOperation(operationId)
+    }
+
+    fun cleanupRecoveredOperation(operationId: String) {
+        bulkFileOperationCoordinator.cleanupRecoveredOperation(operationId)
+    }
+
+    fun dismissRecoveredOperation(operationId: String) {
+        bulkFileOperationCoordinator.dismissRecoveredOperation(operationId)
     }
 
     private suspend fun handleEvent(event: BulkFileOperationEvent) {
@@ -170,6 +196,32 @@ class BrowserOperationDelegate(
                         fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_cancelled)
                     )
                 }
+            }
+            is BulkFileOperationEvent.RecoveryAvailable -> {
+                state.update { it.copy(activeRecoveryOperation = event.record.toBrowserRecoveryUiState()) }
+            }
+            is BulkFileOperationEvent.RecoveryDismissed -> {
+                state.update { current ->
+                    if (current.activeRecoveryOperation?.operationId == event.operationId) {
+                        current.copy(activeRecoveryOperation = null)
+                    } else {
+                        current
+                    }
+                }
+            }
+            is BulkFileOperationEvent.RecoveryCleanupCompleted -> {
+                state.update { current ->
+                    val updated = if (current.activeRecoveryOperation?.operationId == event.operationId) {
+                        current.copy(
+                            activeRecoveryOperation = null,
+                            fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_recovery_cleanup_complete)
+                        )
+                    } else {
+                        current.copy(fileOperationStatusMessage = UiText.StringResource(R.string.file_operation_recovery_cleanup_complete))
+                    }
+                    updated
+                }
+                refreshAction()
             }
         }
     }
