@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.data.util.scopedVolumes
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -68,6 +69,7 @@ class LocalFileRepository(
             format: ArchiveFormat,
             password: String?,
             nameEncoding: ArchiveNameEncoding,
+            compressionLevel: ArchiveCompressionLevel,
             onProgress: ((BulkFileOperationProgress) -> Unit)?
         ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
     },
@@ -277,9 +279,10 @@ class LocalFileRepository(
         format: ArchiveFormat,
         password: String?,
         nameEncoding: ArchiveNameEncoding,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> =
-        archiveManager.createArchive(sourcePaths, destinationArchivePath, format, password, nameEncoding, onProgress)
+        archiveManager.createArchive(sourcePaths, destinationArchivePath, format, password, nameEncoding, compressionLevel, onProgress)
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> =
         fileSystemDataSource.createDirectory(parentPath, name)

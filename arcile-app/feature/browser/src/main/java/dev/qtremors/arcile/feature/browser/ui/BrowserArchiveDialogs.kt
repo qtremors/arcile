@@ -48,7 +48,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 import dev.qtremors.arcile.shared.ui.dialogs.FileNameInput
 import dev.qtremors.arcile.shared.ui.dialogs.validateFileName
 
@@ -60,18 +62,16 @@ internal fun CreateArchiveDialog(
     destinationPath: String,
     existingNames: Set<String>,
     onDismiss: () -> Unit,
-    onConfirm: (String, ArchiveFormat, String?, Boolean, Boolean) -> Unit
+    onConfirm: (String, ArchiveFormat, ArchiveCompressionLevel, String?) -> Unit
 ) {
     var archiveName by rememberSaveable(defaultName) { mutableStateOf(defaultName) }
     var format by rememberSaveable { mutableStateOf(ArchiveFormat.ZIP) }
-    var compressionLevel by rememberSaveable { mutableStateOf("Default") }
+    var compressionLevel by rememberSaveable { mutableStateOf(ArchiveCompressionLevel.STORE) }
     var usePassword by rememberSaveable { mutableStateOf(false) }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
-    var deleteSources by rememberSaveable { mutableStateOf(false) }
-    var separateArchives by rememberSaveable { mutableStateOf(false) }
 
     val archiveBase = remember(archiveName) {
         archiveBaseName(archiveName)
@@ -118,7 +118,7 @@ internal fun CreateArchiveDialog(
                     validationValue = validationValue,
                     onDone = {
                         if (canCreate) {
-                            onConfirm(sanitizedArchiveBase, format, effectivePassword, deleteSources, separateArchives)
+                            onConfirm(sanitizedArchiveBase, format, compressionLevel, effectivePassword)
                         }
                     }
                 )
@@ -145,9 +145,11 @@ internal fun CreateArchiveDialog(
                     )
                     ArchiveDropdown(
                         label = "Compression",
-                        selectedOption = compressionLevel,
-                        options = listOf("Store", "Fastest", "Fast", "Default", "Maximum", "Ultra"),
-                        onOptionSelected = { compressionLevel = it },
+                        selectedOption = compressionLevel.displayName,
+                        options = ArchiveCompressionLevel.entries.map { it.displayName },
+                        onOptionSelected = { selected ->
+                            compressionLevel = ArchiveCompressionLevel.entries.first { it.displayName == selected }
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -192,45 +194,6 @@ internal fun CreateArchiveDialog(
                         onToggleVisibility = null
                     )
                 }
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { deleteSources = !deleteSources }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = deleteSources,
-                        onCheckedChange = { deleteSources = it }
-                    )
-                    Text(
-                        text = stringResource(R.string.archive_delete_source),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-
-                if (selectedCount > 1) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { separateArchives = !separateArchives }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Checkbox(
-                            checked = separateArchives,
-                            onCheckedChange = { separateArchives = it }
-                        )
-                        Text(
-                            text = stringResource(R.string.archive_separate_archives),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-
                 Text(
                     text = stringResource(R.string.archive_destination, destinationPreview),
                     style = MaterialTheme.typography.bodySmall,
@@ -244,7 +207,7 @@ internal fun CreateArchiveDialog(
             TextButton(
                 enabled = canCreate,
                 onClick = {
-                    onConfirm(sanitizedArchiveBase, format, effectivePassword, deleteSources, separateArchives)
+                    onConfirm(sanitizedArchiveBase, format, compressionLevel, effectivePassword)
                 }
             ) {
                 Text(stringResource(R.string.archive_create_action))
@@ -280,15 +243,12 @@ private fun ArchiveFormatChoice(
 @Composable
 internal fun ExtractArchiveDialog(
     archiveName: String,
+    defaultDestinationPath: String,
     onDismiss: () -> Unit,
-    onConfirm: (String?, Boolean, Boolean) -> Unit
+    onConfirm: (ArchiveExtractionTarget, String?) -> Unit
 ) {
-    var createSubfolder by rememberSaveable { mutableStateOf(true) }
-    var deleteArchive by rememberSaveable { mutableStateOf(false) }
-    var usePassword by rememberSaveable { mutableStateOf(false) }
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    val archivePassword = password.takeIf { usePassword && it.isNotEmpty() }
+    var target by rememberSaveable { mutableStateOf(ArchiveExtractionTarget.NAMED_FOLDER) }
+    var customDestination by rememberSaveable(defaultDestinationPath) { mutableStateOf(defaultDestinationPath) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -306,79 +266,40 @@ internal fun ExtractArchiveDialog(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { createSubfolder = !createSubfolder }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = createSubfolder,
-                        onCheckedChange = { createSubfolder = it }
-                    )
-                    Text(
-                        text = stringResource(R.string.archive_create_subfolder),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                ArchiveExtractionTarget.entries.forEach { option ->
+                    val label = when (option) {
+                        ArchiveExtractionTarget.NAMED_FOLDER -> stringResource(R.string.archive_create_subfolder)
+                        ArchiveExtractionTarget.SAME_FOLDER -> stringResource(R.string.archive_extract_here)
+                        ArchiveExtractionTarget.CUSTOM_FOLDER -> "Choose folder"
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { target = option }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = target == option, onClick = { target = option })
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
                 }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { deleteArchive = !deleteArchive }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = deleteArchive,
-                        onCheckedChange = { deleteArchive = it }
-                    )
-                    Text(
-                        text = stringResource(R.string.archive_delete_after_extraction),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { usePassword = !usePassword }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Checkbox(
-                        checked = usePassword,
-                        onCheckedChange = { usePassword = it }
-                    )
-                    Text(
-                        text = stringResource(R.string.archive_has_password),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-
-                if (usePassword) {
-                    PasswordInputField(
-                        value = password,
-                        onValueChange = { password = it },
-                        label = stringResource(R.string.archive_password),
-                        supportingText = stringResource(R.string.archive_password_hint),
-                        passwordVisible = passwordVisible,
-                        onToggleVisibility = { passwordVisible = !passwordVisible }
+                if (target == ArchiveExtractionTarget.CUSTOM_FOLDER) {
+                    OutlinedTextField(
+                        value = customDestination,
+                        onValueChange = { customDestination = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Destination folder") }
                     )
                 }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = !usePassword || password.isNotEmpty(),
-                onClick = { onConfirm(archivePassword, createSubfolder, deleteArchive) }
+                enabled = target != ArchiveExtractionTarget.CUSTOM_FOLDER || customDestination.isNotBlank(),
+                onClick = { onConfirm(target, customDestination.takeIf { target == ArchiveExtractionTarget.CUSTOM_FOLDER }) }
             ) {
-                Text("EXTRACT")
+                Text(stringResource(R.string.archive_extract_archive))
             }
         },
         dismissButton = {
@@ -400,6 +321,47 @@ private fun archiveBaseName(name: String): String {
     } else {
         trimmed
     }
+}
+
+@Composable
+internal fun ArchivePasswordPromptDialog(
+    archiveName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var password by rememberSaveable { mutableStateOf("") }
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+        title = { Text(stringResource(R.string.archive_password_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(archiveName, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                PasswordInputField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = stringResource(R.string.archive_password),
+                    supportingText = stringResource(R.string.archive_password_description),
+                    passwordVisible = passwordVisible,
+                    onToggleVisibility = { passwordVisible = !passwordVisible }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = password.isNotEmpty(),
+                onClick = { onConfirm(password) }
+            ) {
+                Text(stringResource(R.string.open))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 @Composable

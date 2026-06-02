@@ -71,7 +71,9 @@ fun AppNavigationGraph(
     val context = LocalContext.current
     val openPath: (String) -> Unit = { path ->
         if (ArchiveFormat.isSupported(path)) {
-            navController.navigate(AppRoutes.ArchiveViewer(path))
+            navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
+                popUpTo<AppRoutes.Main> { inclusive = true }
+            }
         } else {
             onOpenFile(path)
         }
@@ -147,8 +149,10 @@ fun AppNavigationGraph(
                         if (mainArgs.initialPage == 1) {
                             pendingExplicitBrowserEntry = true
                             val path = mainArgs.path
+                            val archivePath = mainArgs.archivePath
                             val category = mainArgs.category
                             when {
+                                !archivePath.isNullOrEmpty() -> browserViewModel.openArchive(archivePath)
                                 !path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
                                     path,
                                     seedInitialPathHistory = mainArgs.seedInitialPathHistory
@@ -281,7 +285,13 @@ fun AppNavigationGraph(
                                     state = browserState,
                                     onNavigateBack = navigateBackFromBrowser,
                                     onNavigateTo = { browserViewModel.navigateToFolder(it) },
-                                    onOpenFile = openPath,
+                                    onOpenFile = { path ->
+                                        if (ArchiveFormat.isSupported(path)) {
+                                            browserViewModel.openArchive(path)
+                                        } else {
+                                            openPath(path)
+                                        }
+                                    },
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
                                     onSelectMultiple = { browserViewModel.selectMultiple(it) },
                                     onClearSelection = { browserViewModel.clearSelection() },
@@ -327,13 +337,21 @@ fun AppNavigationGraph(
                                     onInvertSelection = { browserViewModel.invertSelection(it) },
                                     onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
                                     onSelectFolderTab = { browserViewModel.selectFolderTab(it) },
-                                    onExtractArchive = { password, createSubfolder, deleteArchive ->
-                                        browserViewModel.extractArchive(password, createSubfolder, deleteArchive)
+                                    onExtractArchive = { target, customDestination ->
+                                        browserViewModel.extractArchive(target, customDestination)
                                     },
                                     onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
-                                    onCreateArchiveFromSelection = { name, format, password, deleteSources, separateArchives ->
-                                        browserViewModel.createArchiveFromSelection(name, format, password, deleteSources, separateArchives)
+                                    onCreateArchiveFromSelection = { name, format, compressionLevel, password ->
+                                        browserViewModel.createArchiveFromSelection(name, format, compressionLevel, password)
                                     },
+                                    onSubmitArchivePassword = { password ->
+                                        if (browserState.archiveContext?.pendingPasswordAction == dev.qtremors.arcile.feature.browser.ArchivePasswordAction.EXTRACT) {
+                                            browserViewModel.submitArchiveExtractionPassword(password)
+                                        } else {
+                                            browserViewModel.submitArchivePassword(password)
+                                        }
+                                    },
+                                    onDismissArchivePassword = { browserViewModel.dismissArchivePasswordPrompt() },
                                     onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
                                     onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
                                     onUndoLastOperation = { browserViewModel.undoLastOperation() },
@@ -509,7 +527,12 @@ fun AppNavigationGraph(
                     exitTransition = detailExitTransition,
                     popEnterTransition = detailPopEnterTransition,
                     popExitTransition = detailPopExitTransition,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenArchiveInBrowser = { archivePath ->
+                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false)) {
+                            popUpTo<AppRoutes.Main> { inclusive = true }
+                        }
+                    }
                 )
             }
 }

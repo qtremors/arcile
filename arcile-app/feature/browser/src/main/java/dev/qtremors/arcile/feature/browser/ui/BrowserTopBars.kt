@@ -61,14 +61,18 @@ internal fun BrowserTopBars(
         }
 
         ArcileTopBar(
-            title = if (state.isCategoryScreen) state.activeCategoryName else stringResource(R.string.browse_title),
+            title = when {
+                state.archiveContext != null -> state.archiveContext.archiveName
+                state.isCategoryScreen -> state.activeCategoryName
+                else -> stringResource(R.string.browse_title)
+            },
             selectionCount = state.selectedFiles.size,
             selectedSize = selectedSizeFormatted,
             showBackArrow = true,
             showSearchAction = true,
             showSortAction = !state.isVolumeRootScreen,
-            showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen,
-            showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty(),
+            showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.archiveContext == null,
+            showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty() && state.archiveContext == null,
             isGridView = state.browserViewMode == BrowserViewMode.GRID,
             scrollBehavior = scrollBehavior,
             onBackClick = onBackClick,

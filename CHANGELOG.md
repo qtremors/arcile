@@ -1,10 +1,31 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.7
+> **Version:** 0.9.8
 > **Last Updated:** 2026-06-02
 
 ---
+
+## [0.9.8] - 2026-06-02
+
+### Archive UX
+- **Browser-Native Archive Browsing (FEAT-0013):** Reworked archive navigation so supported archives open directly in the Browser as read-only virtual folders with normal breadcrumbs, back navigation, search, sorting, list/grid rendering, and folder/file presentation.
+- **Simplified Archive Extraction:** Replaced the older extraction dialog with focused destination choices for archive-name folder, same folder, and choose folder. Added password retry prompts for encrypted archives and shared conflict-resolution handling before extraction.
+- **Simplified Archive Creation:** Streamlined archive creation to practical controls for archive name, format, compression level, and supported password encryption while removing source deletion and separate-archive options from the active flow.
+
+### Archive Performance
+- **No Compression Default:** Changed archive creation defaults to `No compression` for faster ZIP creation, with explicit Fast, Balanced, and Maximum compression choices for users who want smaller archives.
+- **ZIP Progress and Speed Improvements:** Routed archive creation progress through the global operation contract, aligned pill progress with the detailed sheet, and improved ZIP store-mode streaming so large video archives avoid unnecessary compression work.
+
+### Operation UI
+- **Progress Pill Behavior:** Reused the global progress pill for archive creation and extraction, removed automatic expansion of the detail sheet, and kept the expanded sheet available only when users tap the pill.
+- **Toast Positioning:** Moved app-level snackbars/toasts above bottom actions so feedback no longer overlaps browser action controls.
+
+### Reliability
+- **Startup Operation Recovery:** Deferred operation-journal recovery off the app startup path while preserving interrupted-operation recovery, reducing debug StrictMode disk-read noise during Browser launch.
+
+### Verification
+- **Regression Coverage:** Verified with focused browser/archive Compose and ViewModel tests, operation coordinator/service tests, storage archive tests, and app/module Kotlin compile checks.
 
 ## [0.9.7] - 2026-06-02
 

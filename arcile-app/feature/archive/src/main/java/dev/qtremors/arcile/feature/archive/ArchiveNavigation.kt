@@ -9,6 +9,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 
 fun NavGraphBuilder.archiveViewerScreen(
@@ -16,7 +17,8 @@ fun NavGraphBuilder.archiveViewerScreen(
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onOpenArchiveInBrowser: (String) -> Unit = {}
 ) {
     composable<AppRoutes.ArchiveViewer>(
         enterTransition = enterTransition,
@@ -24,6 +26,10 @@ fun NavGraphBuilder.archiveViewerScreen(
         popEnterTransition = popEnterTransition,
         popExitTransition = popExitTransition
     ) {
+        val route = it.toRoute<AppRoutes.ArchiveViewer>()
+        androidx.compose.runtime.LaunchedEffect(route.archivePath) {
+            onOpenArchiveInBrowser(route.archivePath)
+        }
         val viewModel = hiltViewModel<ArchiveViewerViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         ArchiveViewerScreen(

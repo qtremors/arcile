@@ -6,6 +6,7 @@ object AppRoutes {
     @Serializable data class Main(
         val initialPage: Int = 0,
         val path: String? = null,
+        val archivePath: String? = null,
         val category: String? = null,
         val volumeId: String? = null,
         val restorePersistentLocation: Boolean = true,

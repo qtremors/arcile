@@ -92,6 +92,7 @@ interface ArchiveRepository {
         format: ArchiveFormat = ArchiveFormat.ZIP,
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
+        compressionLevel: ArchiveCompressionLevel = ArchiveCompressionLevel.STORE,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 }

@@ -33,7 +33,9 @@ class NoOpOperationJournal : OperationJournal {
 }
 
 class DefaultOperationJournal(context: Context) : OperationJournal {
-    private val preferences = context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE)
+    private val preferences by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE)
+    }
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true

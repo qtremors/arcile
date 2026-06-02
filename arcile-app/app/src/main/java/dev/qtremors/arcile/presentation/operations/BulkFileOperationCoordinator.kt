@@ -12,11 +12,13 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.di.ApplicationScope
+import dev.qtremors.arcile.di.DeferOperationJournalRecovery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,16 +37,16 @@ import javax.inject.Singleton
 
 @Singleton
 class ForegroundBulkFileOperationCoordinator @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val operationJournal: OperationJournal = DefaultOperationJournal(context),
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
-    @ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    @param:ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    @param:DeferOperationJournalRecovery private val deferJournalRecovery: Boolean = false
 ) : BulkFileOperationCoordinator {
     private val json = Json { ignoreUnknownKeys = true }
-    private val recoveredRecords = operationJournal.recoverInterrupted().map { it.toRecoveryRecord() }
-    private val _activeRequest = MutableStateFlow(operationJournal.activeRecord()?.request)
+    private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
-    private val _recoveryRecords = MutableStateFlow(recoveredRecords)
+    private val _recoveryRecords = MutableStateFlow<List<OperationRecoveryRecord>>(emptyList())
     override val recoveryRecords: StateFlow<List<OperationRecoveryRecord>> = _recoveryRecords.asStateFlow()
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
@@ -55,6 +57,19 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     override val events: SharedFlow<BulkFileOperationEvent> = _events.asSharedFlow()
 
     init {
+        if (deferJournalRecovery) {
+            applicationScope.launch { hydrateRecoveredOperations() }
+        } else {
+            hydrateRecoveredOperations()
+        }
+    }
+
+    private fun hydrateRecoveredOperations() {
+        val recoveredRecords = operationJournal.recoverInterrupted().map { it.toRecoveryRecord() }
+        if (_activeRequest.value == null) {
+            _activeRequest.value = operationJournal.activeRecord()?.request
+        }
+        _recoveryRecords.value = recoveredRecords
         recoveredRecords.forEach { record ->
             _events.tryEmit(BulkFileOperationEvent.RecoveryAvailable(record))
         }
@@ -69,7 +84,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         archiveFormat: ArchiveFormat?,
         archiveEntryPrefix: String?,
         archivePassword: String?,
-        archiveNameEncoding: ArchiveNameEncoding?
+        archiveNameEncoding: ArchiveNameEncoding?,
+        archiveCompressionLevel: ArchiveCompressionLevel?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -83,7 +99,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             archiveFormat = archiveFormat,
             archiveEntryPrefix = archiveEntryPrefix,
             archivePassword = archivePassword?.takeIf { it.isNotEmpty() },
-            archiveNameEncoding = archiveNameEncoding
+            archiveNameEncoding = archiveNameEncoding,
+            archiveCompressionLevel = archiveCompressionLevel
         )
         return startRequest(request)
     }

@@ -201,6 +201,8 @@ fun BrowserState.reduce(event: BrowserNavigationEvent): BrowserState = when (eve
         storageVolumes = event.volumes.toPersistentList()
     ).withUpdatedDisplayState()
     is BrowserNavigationEvent.OpenVolumeRoots -> copy(
+        archiveContext = null,
+        pendingArchiveExtraction = null,
         currentPath = "",
         currentVolumeId = null,
         isVolumeRootScreen = true,
@@ -219,6 +221,8 @@ fun BrowserState.reduce(event: BrowserNavigationEvent): BrowserState = when (eve
         properties = null
     ).withUpdatedDisplayState()
     is BrowserNavigationEvent.OpenDirectory -> copy(
+        archiveContext = null,
+        pendingArchiveExtraction = null,
         currentPath = event.path,
         currentVolumeId = event.volumeId,
         isVolumeRootScreen = false,
@@ -235,6 +239,8 @@ fun BrowserState.reduce(event: BrowserNavigationEvent): BrowserState = when (eve
         properties = null
     ).withUpdatedDisplayState()
     is BrowserNavigationEvent.OpenCategory -> copy(
+        archiveContext = null,
+        pendingArchiveExtraction = null,
         currentPath = "",
         currentVolumeId = event.volumeId,
         isVolumeRootScreen = false,

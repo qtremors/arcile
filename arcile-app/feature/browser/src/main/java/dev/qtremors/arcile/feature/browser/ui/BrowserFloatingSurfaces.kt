@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -65,7 +66,6 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
-import dev.qtremors.arcile.shared.ui.rememberSmoothedProgress
 import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.menus.ExpandableFabMenu
@@ -76,6 +76,10 @@ import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.utils.formatFileSize
+import kotlinx.coroutines.delay
+
+private const val PROGRESS_PILL_TERMINAL_HOLD_MS = 800L
+private const val PROGRESS_PILL_WIDTH_DP = 192
 
 @Composable
 internal fun BrowserCreateFab(
@@ -90,6 +94,7 @@ internal fun BrowserCreateFab(
         !showSearchBar &&
         !state.isVolumeRootScreen &&
         !state.isCategoryScreen &&
+        state.archiveContext == null &&
         state.clipboardState == null &&
         state.activeFileOperation == null &&
         state.activeRecoveryOperation == null
@@ -144,6 +149,13 @@ internal fun BrowserFloatingSurfaces(
     onOperationFailed: () -> Unit
 ) {
     var showDetailedProgressSheet by remember { mutableStateOf(false) }
+    val activeOperationIdentity = state.activeFileOperation?.let { operation ->
+        listOf(operation.type, operation.startTimeMillis, operation.sourcePaths).joinToString("|")
+    }
+
+    LaunchedEffect(activeOperationIdentity) {
+        showDetailedProgressSheet = false
+    }
 
     if (isFabExpanded) {
         Box(
@@ -169,6 +181,8 @@ internal fun BrowserFloatingSurfaces(
                 dialogVisibility = dialogVisibility,
                 actions = actions
             )
+        } else if (state.archiveContext != null && state.activeFileOperation == null) {
+            BrowserArchiveToolbar(dialogVisibility = dialogVisibility)
         } else if (state.activeRecoveryOperation != null) {
             BrowserRecoveryToolbar(state = state, actions = actions)
         } else if (state.clipboardState != null || state.activeFileOperation != null) {
@@ -190,6 +204,22 @@ internal fun BrowserFloatingSurfaces(
             onDismissRequest = { showDetailedProgressSheet = false }
         )
     }
+}
+
+@Composable
+private fun BrowserArchiveToolbar(
+    dialogVisibility: BrowserDialogVisibility
+) {
+    FloatingSelectionToolbar(
+        isVisible = true,
+        actions = listOf(
+            ToolbarAction(
+                icon = Icons.Default.Unarchive,
+                contentDescription = stringResource(R.string.archive_extract_archive),
+                onClick = { dialogVisibility.showExtractArchiveDialog = true }
+            )
+        )
+    )
 }
 
 @Composable
@@ -427,48 +457,36 @@ private fun BrowserClipboardOperationToolbar(
 ) {
     val clipboard = state.clipboardState
     val activeOp = state.activeFileOperation
-    val smoothedState = rememberSmoothedProgress()
 
-    LaunchedEffect(activeOp) {
-        if (activeOp != null) {
-            val terminal = activeOp.terminalStatus
-            if (terminal != null) {
-                smoothedState.markComplete(terminal)
-                when (terminal) {
-                    OperationCompletionStatus.SUCCESS -> onOperationSucceeded()
-                    OperationCompletionStatus.FAILED,
-                    OperationCompletionStatus.CANCELLED -> onOperationFailed()
-                }
-            } else {
-                if (smoothedState.operationStartTime == 0L) {
-                    smoothedState.reset(activeOp.startTimeMillis)
-                }
-                val byteProgress = activeOp.totalBytes
-                    ?.takeIf { it > 0L }
-                    ?.let { total -> ((activeOp.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
-                val itemProgress = activeOp.totalItems
-                    .takeIf { it > 0 }
-                    ?.let { activeOp.completedItems.toFloat() / it.toFloat() }
-                    ?.coerceIn(0f, 1f)
-                val rawProgress = byteProgress ?: itemProgress
-                if (rawProgress != null) {
-                    smoothedState.updateTarget(rawProgress)
-                }
+    LaunchedEffect(activeOp?.terminalStatus) {
+        when (activeOp?.terminalStatus) {
+            OperationCompletionStatus.SUCCESS -> {
+                onOperationSucceeded()
+                delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
+                actions.onClearActiveFileOperation()
             }
-        } else {
-            smoothedState.reset()
-        }
-    }
-
-    LaunchedEffect(smoothedState.isAnimationFinished) {
-        if (smoothedState.isAnimationFinished) {
-            actions.onClearActiveFileOperation()
-            smoothedState.reset()
+            OperationCompletionStatus.FAILED,
+            OperationCompletionStatus.CANCELLED -> {
+                onOperationFailed()
+                delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
+                actions.onClearActiveFileOperation()
+            }
+            null -> Unit
         }
     }
 
     val hasActiveProgress = activeOp != null
-    val smoothedProgress = smoothedState.displayedProgress
+    val rawProgress = activeOp?.let { operation ->
+        val byteProgress = operation.totalBytes
+            ?.takeIf { it > 0L }
+            ?.let { total -> ((operation.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+        val itemProgress = operation.totalItems
+            .takeIf { it > 0 }
+            ?.let { operation.completedItems.toFloat() / it.toFloat() }
+            ?.coerceIn(0f, 1f)
+        byteProgress ?: itemProgress
+    } ?: 0f
+    val displayedProgress = if (activeOp?.terminalStatus != null) 1f else rawProgress
     val successColor = LocalSemanticColors.current.success.copy(alpha = 0.25f)
     val failureColor = MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
     val inProgressColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
@@ -528,17 +546,17 @@ private fun BrowserClipboardOperationToolbar(
                 modifier = Modifier
                     .height(56.dp)
                     .padding(end = 8.dp)
-                    .widthIn(min = 140.dp)
+                    .width(PROGRESS_PILL_WIDTH_DP.dp)
                     .animateContentSize()
             ) {
                 Box(
                     contentAlignment = Alignment.CenterStart,
                     modifier = Modifier
-                        .fillMaxHeight()
+                        .fillMaxSize()
                         .then(
                             if (hasActiveProgress) {
                                 Modifier.drawBehind {
-                                    val fillWidth = size.width * smoothedProgress
+                                    val fillWidth = size.width * displayedProgress
                                     drawRect(
                                         color = progressFillColor,
                                         size = Size(fillWidth, size.height)

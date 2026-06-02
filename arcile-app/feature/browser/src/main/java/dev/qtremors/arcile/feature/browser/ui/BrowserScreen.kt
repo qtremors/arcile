@@ -37,9 +37,11 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 import dev.qtremors.arcile.feature.browser.ui.BrowserContent
 import dev.qtremors.arcile.feature.browser.ui.BrowserCreateFab
 import dev.qtremors.arcile.feature.browser.ui.BrowserDialogs
@@ -99,9 +101,11 @@ fun BrowserScreen(
     onSelectAll: (List<String>) -> Unit = {},
     onRemoveFromClipboard: (String) -> Unit = {},
     onSelectFolderTab: (String?) -> Unit = {},
-    onExtractArchive: (String?, Boolean, Boolean) -> Unit = { _, _, _ -> },
+    onExtractArchive: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
     onCreateZipFromSelection: () -> Unit = {},
-    onCreateArchiveFromSelection: (String, ArchiveFormat, String?, Boolean, Boolean) -> Unit = { _, _, _, _, _ -> },
+    onCreateArchiveFromSelection: (String, ArchiveFormat, ArchiveCompressionLevel, String?) -> Unit = { _, _, _, _ -> },
+    onSubmitArchivePassword: (String) -> Unit = {},
+    onDismissArchivePassword: () -> Unit = {},
     onUndoLastTrashMove: () -> Unit = {},
     onClearPendingTrashUndo: () -> Unit = {},
     onUndoLastOperation: () -> Unit = onUndoLastTrashMove,
@@ -205,6 +209,8 @@ fun BrowserScreen(
         onExtractArchive = onExtractArchive,
         onCreateZipFromSelection = onCreateZipFromSelection,
         onCreateArchiveFromSelection = onCreateArchiveFromSelection,
+        onSubmitArchivePassword = onSubmitArchivePassword,
+        onDismissArchivePassword = onDismissArchivePassword,
         onUndoLastTrashMove = onUndoLastTrashMove,
         onClearPendingTrashUndo = onClearPendingTrashUndo,
         onRetryRecoveredOperation = onRetryRecoveredOperation,

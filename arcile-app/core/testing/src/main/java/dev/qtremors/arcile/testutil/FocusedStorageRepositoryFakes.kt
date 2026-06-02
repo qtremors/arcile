@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.testutil
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -224,7 +225,7 @@ class FakeArchiveRepository : ArchiveRepository {
     var archiveMetadataResultProvider: (suspend (String, String?, ArchiveNameEncoding) -> Result<ArchiveSummary>)? = null
     var detectArchiveConflictsResultProvider: (suspend (String, String, String?, String?, ArchiveNameEncoding) -> Result<List<FileConflict>>)? = null
     var extractArchiveResultProvider: (suspend (String, String, String?, String?, ArchiveNameEncoding, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
-    var createArchiveResultProvider: (suspend (List<String>, String, ArchiveFormat, String?, ArchiveNameEncoding, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
+    var createArchiveResultProvider: (suspend (List<String>, String, ArchiveFormat, String?, ArchiveNameEncoding, ArchiveCompressionLevel, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
 
     val extractArchiveRequests = mutableListOf<ArchiveExtractRequest>()
     val createArchiveRequests = mutableListOf<ArchiveCreateRequest>()
@@ -242,7 +243,8 @@ class FakeArchiveRepository : ArchiveRepository {
         val destinationArchivePath: String,
         val format: ArchiveFormat,
         val password: String?,
-        val nameEncoding: ArchiveNameEncoding
+        val nameEncoding: ArchiveNameEncoding,
+        val compressionLevel: ArchiveCompressionLevel
     )
 
     override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
@@ -301,10 +303,11 @@ class FakeArchiveRepository : ArchiveRepository {
         format: ArchiveFormat,
         password: String?,
         nameEncoding: ArchiveNameEncoding,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> {
-        createArchiveRequests += ArchiveCreateRequest(sourcePaths, destinationArchivePath, format, password, nameEncoding)
-        return createArchiveResultProvider?.invoke(sourcePaths, destinationArchivePath, format, password, nameEncoding, onProgress)
+        createArchiveRequests += ArchiveCreateRequest(sourcePaths, destinationArchivePath, format, password, nameEncoding, compressionLevel)
+        return createArchiveResultProvider?.invoke(sourcePaths, destinationArchivePath, format, password, nameEncoding, compressionLevel, onProgress)
             ?: Result.success(Unit)
     }
 }

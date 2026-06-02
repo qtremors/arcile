@@ -62,6 +62,8 @@ import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 
+private val FeedbackAboveActionsPadding = 88.dp
+
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
@@ -100,6 +102,7 @@ fun ArcileAppShell(
             snackbarHost = {
                 ArcileSnackbarHost(
                     hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
                     severityFor = { currentFeedbackSeverity }
                 )
             },

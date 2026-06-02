@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import java.io.BufferedOutputStream
@@ -91,6 +92,7 @@ internal class SevenZipHandler(
         sources: List<File>,
         target: File,
         password: String?,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val scan = scanArchiveCreationEntries(sources, validateMutationPath, safetyPolicy)
@@ -101,6 +103,9 @@ internal class SevenZipHandler(
         var completed = 0
         val archivePassword = password?.takeIf { it.isNotEmpty() }?.toCharArray()
         SevenZOutputFile(target, archivePassword).use { sevenZ ->
+            if (compressionLevel == ArchiveCompressionLevel.STORE) {
+                sevenZ.setContentCompression(org.apache.commons.compress.archivers.sevenz.SevenZMethod.COPY)
+            }
             val writeEntry: suspend (ArchiveSourceEntry) -> Boolean = { source ->
                 currentCoroutineContext().ensureActive()
                 val sourceRoot = source.sourceRoot

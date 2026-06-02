@@ -39,6 +39,12 @@ class SearchDelegate(
             state.update { it.reduce(BrowserSearchEvent.SearchingChanged(true)).copy(error = null) }
 
             val stateVal = state.value
+            if (stateVal.archiveContext != null) {
+                val normalized = query.trim().lowercase()
+                val files = stateVal.files.filter { it.name.lowercase().contains(normalized) }
+                state.update { it.reduce(BrowserSearchEvent.ResultsLoaded(files)) }
+                return@launch
+            }
             val scope = when {
                 stateVal.isVolumeRootScreen -> StorageScope.AllStorage
                 stateVal.isCategoryScreen -> StorageScope.Category(stateVal.currentVolumeId, stateVal.activeCategoryName)

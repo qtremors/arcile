@@ -17,6 +17,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
@@ -158,7 +159,8 @@ class BulkFileOperationService : Service() {
                                 destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
                                 format = requireNotNull(request.archiveFormat) { "Archive format is required" },
                                 password = request.archivePassword,
-                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)

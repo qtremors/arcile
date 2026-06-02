@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -116,6 +117,7 @@ internal class TarArchiveHandler(
         sources: List<File>,
         target: File,
         format: ArchiveFormat,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         require(!format.isSingleStreamCompression) { "${format.displayName} creation is not supported for multiple files" }

@@ -46,6 +46,13 @@ enum class ArchiveFormat(
     }
 }
 
+enum class ArchiveCompressionLevel(val displayName: String) {
+    STORE("No compression"),
+    FAST("Fast compression"),
+    DEFAULT("Balanced"),
+    MAXIMUM("Maximum compression")
+}
+
 @Immutable
 data class ArchiveEntryModel(
     val name: String,
@@ -132,6 +139,7 @@ interface ArchiveManager {
         format: ArchiveFormat,
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
+        compressionLevel: ArchiveCompressionLevel = ArchiveCompressionLevel.STORE,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit>
 }

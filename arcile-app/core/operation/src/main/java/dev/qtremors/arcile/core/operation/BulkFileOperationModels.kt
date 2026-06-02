@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.operation
 
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArcileError
@@ -30,7 +31,8 @@ data class BulkFileOperationRequest(
     val archiveFormat: ArchiveFormat? = null,
     val archiveEntryPrefix: String? = null,
     val archivePassword: String? = null,
-    val archiveNameEncoding: ArchiveNameEncoding? = null
+    val archiveNameEncoding: ArchiveNameEncoding? = null,
+    val archiveCompressionLevel: ArchiveCompressionLevel? = null
 ) {
     val sourceRefs: List<StorageNodeRef> get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }
     val destinationRef: StorageNodeRef? get() = destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }

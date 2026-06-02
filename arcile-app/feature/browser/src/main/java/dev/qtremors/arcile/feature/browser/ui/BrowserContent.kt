@@ -1,15 +1,18 @@
 package dev.qtremors.arcile.feature.browser.ui
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -18,6 +21,7 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -104,7 +108,14 @@ internal fun BrowserContent(
                 LoadingIndicator()
             }
         } else {
-            if (!state.isVolumeRootScreen && !state.isCategoryScreen) {
+            if (state.archiveContext != null) {
+                ArchiveBreadcrumbs(
+                    archiveName = state.archiveContext.archiveName,
+                    entryPrefix = state.archiveContext.entryPrefix,
+                    onArchiveRootClick = { actions.onNavigateTo(state.archiveContext.archivePath) },
+                    onEntryClick = { actions.onNavigateTo("arcile-archive-entry://$it") }
+                )
+            } else if (!state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Breadcrumbs(
                     currentPath = state.currentPath,
                     storageVolumes = state.storageVolumes,
@@ -198,6 +209,46 @@ internal fun BrowserContent(
 }
 
 @Composable
+private fun ArchiveBreadcrumbs(
+    archiveName: String,
+    entryPrefix: String?,
+    onArchiveRootClick: () -> Unit,
+    onEntryClick: (String) -> Unit
+) {
+    val segments = entryPrefix
+        ?.trim('/')
+        ?.split('/')
+        ?.filter { it.isNotBlank() }
+        .orEmpty()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = archiveName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable(onClick = onArchiveRootClick)
+        )
+        var running = ""
+        segments.forEach { segment ->
+            Text("/", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            running = if (running.isBlank()) segment else "$running/$segment"
+            val target = running
+            Text(
+                text = segment,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onEntryClick(target) }
+            )
+        }
+    }
+}
+
+@Composable
 private fun BrowserSearchResults(
     state: BrowserState,
     currentPresentation: BrowserPresentationPreferences,
@@ -236,7 +287,7 @@ private fun BrowserSearchResults(
                         actions.onClearSearch()
                         if (file.isDirectory) {
                             actions.onNavigateTo(file.absolutePath)
-                        } else {
+                        } else if (state.archiveContext == null) {
                             actions.onOpenFile(file.absolutePath)
                         }
                     },
@@ -297,7 +348,7 @@ private fun BrowserListingContent(
             files = displayedFiles,
             selectedFiles = state.selectedFiles,
             onNavigateTo = actions.onNavigateTo,
-            onOpenFile = actions.onOpenFile,
+            onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
             onToggleSelection = actions.onToggleSelection,
             onSelectMultiple = actions.onSelectMultiple,
             showThumbnails = currentPresentation.showThumbnails,
@@ -319,7 +370,7 @@ private fun BrowserListingContent(
             files = displayedFiles,
             selectedFiles = state.selectedFiles,
             onNavigateTo = actions.onNavigateTo,
-            onOpenFile = actions.onOpenFile,
+            onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
             onToggleSelection = actions.onToggleSelection,
             onSelectMultiple = actions.onSelectMultiple,
             showThumbnails = currentPresentation.showThumbnails,

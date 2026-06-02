@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -184,6 +185,7 @@ class DefaultArchiveManager(
         format: ArchiveFormat,
         password: String?,
         nameEncoding: ArchiveNameEncoding,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(dispatchers.io) {
         runArchiveCatching {
@@ -199,15 +201,15 @@ class DefaultArchiveManager(
             mutationJournal.recordTemporaryPath(staging.absolutePath)
             try {
                 when (format) {
-                    ArchiveFormat.ZIP -> zipHandler.create(sources, staging, password, nameEncoding, onProgress)
-                    ArchiveFormat.SEVEN_Z -> sevenZipHandler.create(sources, staging, password, onProgress)
+                    ArchiveFormat.ZIP -> zipHandler.create(sources, staging, password, nameEncoding, compressionLevel, onProgress)
+                    ArchiveFormat.SEVEN_Z -> sevenZipHandler.create(sources, staging, password, compressionLevel, onProgress)
                     ArchiveFormat.TAR,
                     ArchiveFormat.TAR_GZIP,
                     ArchiveFormat.TGZ,
                     ArchiveFormat.TAR_BZIP2,
                     ArchiveFormat.TBZ2,
                     ArchiveFormat.TAR_XZ,
-                    ArchiveFormat.TXZ -> tarHandler.create(sources, staging, format, onProgress)
+                    ArchiveFormat.TXZ -> tarHandler.create(sources, staging, format, compressionLevel, onProgress)
                     ArchiveFormat.GZIP,
                     ArchiveFormat.BZIP2,
                     ArchiveFormat.XZ,

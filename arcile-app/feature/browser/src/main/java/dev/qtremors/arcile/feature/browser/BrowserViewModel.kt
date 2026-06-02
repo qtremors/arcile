@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -67,6 +70,40 @@ import kotlinx.collections.immutable.toPersistentSet
 import javax.inject.Inject
 import java.io.File
 enum class BrowserNativeAction { TRASH }
+enum class ArchiveExtractionTarget {
+    NAMED_FOLDER,
+    SAME_FOLDER,
+    CUSTOM_FOLDER
+}
+
+@androidx.compose.runtime.Immutable
+data class BrowserArchiveContext(
+    val archivePath: String,
+    val entryPrefix: String? = null,
+    val password: String? = null,
+    val nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
+    val entries: List<ArchiveEntryModel> = emptyList(),
+    val passwordRequired: Boolean = false,
+    val pendingPasswordAction: ArchivePasswordAction = ArchivePasswordAction.OPEN
+) {
+    val archiveName: String get() = File(archivePath).name
+    val parentPath: String get() = File(archivePath).parent.orEmpty()
+}
+
+enum class ArchivePasswordAction {
+    OPEN,
+    EXTRACT
+}
+
+@androidx.compose.runtime.Immutable
+data class PendingArchiveExtraction(
+    val archivePath: String,
+    val destinationPath: String,
+    val entryPrefix: String? = null,
+    val password: String? = null,
+    val nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
+)
+
 @androidx.compose.runtime.Immutable
 data class BrowserFileOperationUiState(
     val type: BulkFileOperationType,
@@ -153,6 +190,8 @@ data class BrowserState(
     val pendingTrashUndoIds: PersistentList<String> = persistentListOf(),
     val pendingUndoAction: BrowserUndoAction? = null,
     val selectedFilesTotalSize: Long = 0L,
+    val archiveContext: BrowserArchiveContext? = null,
+    val pendingArchiveExtraction: PendingArchiveExtraction? = null,
     val displayState: BrowserDisplayState = BrowserDisplayState()
 )
 private const val ALL_FILES_LABEL = "All files"
@@ -212,6 +251,7 @@ class BrowserViewModel @Inject constructor(
         state = _state,
         viewModelScope = viewModelScope,
         fileBrowserRepository = fileBrowserRepository,
+        archiveRepository = archiveRepository,
         searchRepository = searchRepository,
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
@@ -234,6 +274,7 @@ class BrowserViewModel @Inject constructor(
     private val archiveActionDelegate = ArchiveActionDelegate(
         state = _state,
         coroutineScope = viewModelScope,
+        archiveRepository = archiveRepository,
         bulkFileOperationCoordinator = bulkFileCoordinator,
         clearSelection = { clearSelection() }
     )
@@ -416,10 +457,12 @@ class BrowserViewModel @Inject constructor(
         navigationDelegate.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationDelegate.navigateToCategory(categoryName, volumeId)
     fun navigateToFolder(path: String) = navigationDelegate.navigateToFolder(path)
+    fun openArchive(path: String) = navigationDelegate.openArchive(path)
+    fun submitArchivePassword(password: String) = navigationDelegate.submitArchivePassword(password)
     fun navigateBack(): Boolean = navigationDelegate.navigateBack()
     fun refresh(pullToRefresh: Boolean = false) = navigationDelegate.refresh(pullToRefresh)
     fun toggleSelection(path: String) {
-        if (_state.value.isVolumeRootScreen) return
+        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
         _state.update { currentState ->
             currentState.reduce(
                 BrowserSelectionEvent.Toggle(
@@ -431,7 +474,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun selectAll(paths: List<String>) {
-        if (_state.value.isVolumeRootScreen) return
+        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
         _state.update { currentState ->
             currentState.reduce(
                 BrowserSelectionEvent.SelectAll(
@@ -443,7 +486,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun invertSelection(allPaths: List<String>) {
-        if (_state.value.isVolumeRootScreen) return
+        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
         _state.update { currentState ->
             currentState.reduce(
                 BrowserSelectionEvent.Invert(
@@ -458,7 +501,7 @@ class BrowserViewModel @Inject constructor(
         return calculateBrowserSelectionSize(selectedPaths, currentFiles, folderStats)
     }
     fun selectMultiple(paths: List<String>) {
-        if (_state.value.isVolumeRootScreen) return
+        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
         _state.update { currentState ->
             val updatedSelection = currentState.selectedFiles + paths
             currentState.copy(
@@ -556,20 +599,18 @@ class BrowserViewModel @Inject constructor(
             fakeFileSize = size
         )
     }
-    fun extractArchive(password: String?, createSubfolder: Boolean, deleteArchive: Boolean) =
-        archiveActionDelegate.extractArchive(password, createSubfolder, deleteArchive)
+    fun extractArchive(target: ArchiveExtractionTarget, customDestination: String?) =
+        archiveActionDelegate.extractArchive(target, customDestination)
     fun createArchiveFromSelection(
         archiveName: String,
         format: ArchiveFormat,
+        compressionLevel: ArchiveCompressionLevel = ArchiveCompressionLevel.STORE,
         password: String? = null,
-        deleteSources: Boolean = false,
-        separateArchives: Boolean = false
     ) = archiveActionDelegate.createArchiveFromSelection(
         archiveName = archiveName,
         format = format,
+        compressionLevel = compressionLevel,
         password = password,
-        deleteSources = deleteSources,
-        separateArchives = separateArchives
     )
     fun createZipFromSelection() = archiveActionDelegate.createZipFromSelection()
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
@@ -613,6 +654,14 @@ class BrowserViewModel @Inject constructor(
     }
     fun clearError() {
         _state.update { it.copy(error = null) }
+    }
+    fun dismissArchivePasswordPrompt() {
+        _state.update {
+            it.copy(
+                pendingArchiveExtraction = null,
+                archiveContext = it.archiveContext?.copy(passwordRequired = false)
+            )
+        }
     }
     fun clearFileOperationStatusMessage() = operationDelegate.clearStatusMessage()
     fun undoLastTrashMove() {
@@ -699,8 +748,27 @@ class BrowserViewModel @Inject constructor(
     fun cancelClipboard() = clipboardDelegate.cancelClipboard()
     fun pasteFromClipboard() = clipboardDelegate.pasteFromClipboard()
     fun removeFromClipboard(path: String) = clipboardDelegate.removeFromClipboard(path)
-    fun resolveConflicts(resolutions: Map<String, ConflictResolution>) = clipboardDelegate.resolveConflicts(resolutions)
-    fun dismissConflictDialog() = clipboardDelegate.dismissConflictDialog()
+    fun resolveConflicts(resolutions: Map<String, ConflictResolution>) {
+        if (_state.value.pendingArchiveExtraction != null) {
+            archiveActionDelegate.confirmPendingExtraction(resolutions)
+        } else {
+            clipboardDelegate.resolveConflicts(resolutions)
+        }
+    }
+    fun dismissConflictDialog() {
+        if (_state.value.pendingArchiveExtraction != null) {
+            _state.update {
+                it.copy(
+                    pendingArchiveExtraction = null,
+                    pasteConflicts = persistentListOf(),
+                    showConflictDialog = false
+                )
+            }
+        } else {
+            clipboardDelegate.dismissConflictDialog()
+        }
+    }
+    fun submitArchiveExtractionPassword(password: String) = archiveActionDelegate.retryPendingExtractionWithPassword(password)
 }
 
 fun OperationRecoveryRecord.toBrowserRecoveryUiState(): BrowserOperationRecoveryUiState =

@@ -107,21 +107,32 @@ internal fun BrowserDialogs(
             destinationPath = state.currentPath,
             existingNames = state.displayState.existingNames,
             onDismiss = { dialogVisibility.showCreateArchiveDialog = false },
-            onConfirm = { name, format, password, deleteSources, separateArchives ->
+            onConfirm = { name, format, compressionLevel, password ->
                 dialogVisibility.showCreateArchiveDialog = false
-                actions.onCreateArchiveFromSelection(name, format, password, deleteSources, separateArchives)
+                actions.onCreateArchiveFromSelection(name, format, compressionLevel, password)
             }
         )
     }
 
-    if (dialogVisibility.showExtractArchiveDialog && state.selectedFiles.size == 1) {
+    if (dialogVisibility.showExtractArchiveDialog && (state.selectedFiles.size == 1 || state.archiveContext != null)) {
+        val archivePath = state.archiveContext?.archivePath ?: state.selectedFiles.first()
+        val parentPath = File(archivePath).parent.orEmpty()
         ExtractArchiveDialog(
-            archiveName = File(state.selectedFiles.first()).name,
+            archiveName = File(archivePath).name,
+            defaultDestinationPath = parentPath,
             onDismiss = { dialogVisibility.showExtractArchiveDialog = false },
-            onConfirm = { password, createSubfolder, deleteArchive ->
+            onConfirm = { target, customDestination ->
                 dialogVisibility.showExtractArchiveDialog = false
-                actions.onExtractArchive(password, createSubfolder, deleteArchive)
+                actions.onExtractArchive(target, customDestination)
             }
+        )
+    }
+
+    state.archiveContext?.takeIf { it.passwordRequired }?.let { archive ->
+        ArchivePasswordPromptDialog(
+            archiveName = archive.archiveName,
+            onDismiss = actions.onDismissArchivePassword,
+            onConfirm = actions.onSubmitArchivePassword
         )
     }
 

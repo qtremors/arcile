@@ -1,18 +1,22 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
+import java.io.FilterInputStream
 import java.io.IOException
+import java.io.InputStream
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import net.lingala.zip4j.ZipFile as Zip4jFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.AesKeyStrength
+import net.lingala.zip4j.model.enums.CompressionLevel as Zip4jCompressionLevel
 import net.lingala.zip4j.model.enums.CompressionMethod
 import net.lingala.zip4j.model.enums.EncryptionMethod
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
@@ -129,10 +133,11 @@ internal class ZipArchiveHandler(
         target: File,
         password: String?,
         nameEncoding: ArchiveNameEncoding,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         if (!password.isNullOrEmpty()) {
-            createEncrypted(sources, target, password, nameEncoding, onProgress)
+            createEncrypted(sources, target, password, nameEncoding, compressionLevel, onProgress)
             return
         }
         val scan = scanArchiveCreationEntries(sources, validateMutationPath, safetyPolicy)
@@ -144,6 +149,7 @@ internal class ZipArchiveHandler(
         ZipArchiveOutputStream(target).use { zip ->
             zip.setEncoding(nameEncoding.charset().name())
             zip.setUseLanguageEncodingFlag(nameEncoding == ArchiveNameEncoding.UTF_8)
+            zip.setLevel(compressionLevel.zipDeflateLevel())
             val writeEntry: suspend (ArchiveSourceEntry) -> Boolean = { source ->
                 currentCoroutineContext().ensureActive()
                 val sourceRoot = source.sourceRoot
@@ -229,6 +235,7 @@ internal class ZipArchiveHandler(
         target: File,
         password: String,
         nameEncoding: ArchiveNameEncoding,
+        compressionLevel: ArchiveCompressionLevel,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val scan = scanArchiveCreationEntries(sources, validateMutationPath, safetyPolicy)
@@ -248,6 +255,7 @@ internal class ZipArchiveHandler(
             val parameters = ZipParameters().apply {
                 fileNameInZip = name + if (file.isDirectory) "/" else ""
                 compressionMethod = CompressionMethod.DEFLATE
+                this.compressionLevel = compressionLevel.zip4jLevel()
                 isEncryptFiles = true
                 encryptionMethod = EncryptionMethod.AES
                 aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
@@ -257,9 +265,22 @@ internal class ZipArchiveHandler(
                 zip.addStream(ByteArray(0).inputStream(), parameters)
             } else {
                 file.inputStream().use { input ->
-                    zip.addStream(input, parameters)
+                    var entryCopied = 0L
+                    val progressInput = ProgressInputStream(input) { delta ->
+                        entryCopied += delta
+                        onProgress?.invoke(
+                            BulkFileOperationProgress(
+                                completedItems = completed,
+                                totalItems = totalItems,
+                                currentPath = file.absolutePath,
+                                bytesCopied = totalBytes?.let { (copied + entryCopied).coerceAtMost(it) } ?: copied + entryCopied,
+                                totalBytes = totalBytes
+                            )
+                        )
+                    }
+                    zip.addStream(progressInput, parameters)
+                    copied += entryCopied
                 }
-                copied += file.length()
             }
             completed += 1
             onProgress?.invoke(BulkFileOperationProgress(completed, totalItems, file.absolutePath, totalBytes?.let { copied.coerceAtMost(it) } ?: copied, totalBytes))
@@ -271,5 +292,38 @@ internal class ZipArchiveHandler(
         } else {
             traverseArchiveSources(sources, validateMutationPath, writeEntry)
         }
+    }
+
+    private fun ArchiveCompressionLevel.zipDeflateLevel(): Int =
+        when (this) {
+            ArchiveCompressionLevel.STORE -> 0
+            ArchiveCompressionLevel.FAST -> 3
+            ArchiveCompressionLevel.DEFAULT -> -1
+            ArchiveCompressionLevel.MAXIMUM -> 9
+        }
+
+    private fun ArchiveCompressionLevel.zip4jLevel(): Zip4jCompressionLevel =
+        when (this) {
+            ArchiveCompressionLevel.STORE -> Zip4jCompressionLevel.NO_COMPRESSION
+            ArchiveCompressionLevel.FAST -> Zip4jCompressionLevel.FAST
+            ArchiveCompressionLevel.DEFAULT -> Zip4jCompressionLevel.NORMAL
+            ArchiveCompressionLevel.MAXIMUM -> Zip4jCompressionLevel.MAXIMUM
+        }
+}
+
+private class ProgressInputStream(
+    input: InputStream,
+    private val onRead: (Long) -> Unit
+) : FilterInputStream(input) {
+    override fun read(): Int {
+        val value = super.read()
+        if (value >= 0) onRead(1L)
+        return value
+    }
+
+    override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+        val read = super.read(buffer, offset, length)
+        if (read > 0) onRead(read.toLong())
+        return read
     }
 }

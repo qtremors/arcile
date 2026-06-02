@@ -7,9 +7,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 
 @Stable
 internal class BrowserDialogVisibility(
@@ -105,9 +107,11 @@ internal data class BrowserUiActions(
     val onSelectAll: (List<String>) -> Unit,
     val onRemoveFromClipboard: (String) -> Unit,
     val onSelectFolderTab: (String?) -> Unit,
-    val onExtractArchive: (String?, Boolean, Boolean) -> Unit,
+    val onExtractArchive: (ArchiveExtractionTarget, String?) -> Unit,
     val onCreateZipFromSelection: () -> Unit,
-    val onCreateArchiveFromSelection: (String, ArchiveFormat, String?, Boolean, Boolean) -> Unit,
+    val onCreateArchiveFromSelection: (String, ArchiveFormat, ArchiveCompressionLevel, String?) -> Unit,
+    val onSubmitArchivePassword: (String) -> Unit,
+    val onDismissArchivePassword: () -> Unit,
     val onUndoLastTrashMove: () -> Unit,
     val onClearPendingTrashUndo: () -> Unit,
     val onRetryRecoveredOperation: (String) -> Unit,
