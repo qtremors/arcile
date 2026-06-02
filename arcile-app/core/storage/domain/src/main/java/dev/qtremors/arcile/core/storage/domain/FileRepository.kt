@@ -56,22 +56,42 @@ interface ArchiveRepository {
         Result.failure(NotImplementedError("Archive support is not available"))
     suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
         listArchiveEntries(archivePath)
+    suspend fun listArchiveEntries(
+        archivePath: String,
+        password: String?,
+        nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
+    ): Result<List<ArchiveEntryModel>> = listArchiveEntries(archivePath, password)
     suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
         Result.failure(NotImplementedError("Archive support is not available"))
     suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
         getArchiveMetadata(archivePath)
+    suspend fun getArchiveMetadata(
+        archivePath: String,
+        password: String?,
+        nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
+    ): Result<ArchiveSummary> = getArchiveMetadata(archivePath, password)
     suspend fun extractArchive(
         archivePath: String,
         destinationPath: String,
         entryPrefix: String? = null,
         password: String? = null,
+        nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
+        resolutions: Map<String, ConflictResolution> = emptyMap(),
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
+    suspend fun detectArchiveConflicts(
+        archivePath: String,
+        destinationPath: String,
+        entryPrefix: String? = null,
+        password: String? = null,
+        nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
+    ): Result<List<FileConflict>> = Result.success(emptyList())
     suspend fun createArchive(
         sourcePaths: List<String>,
         destinationArchivePath: String,
         format: ArchiveFormat = ArchiveFormat.ZIP,
         password: String? = null,
+        nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 }

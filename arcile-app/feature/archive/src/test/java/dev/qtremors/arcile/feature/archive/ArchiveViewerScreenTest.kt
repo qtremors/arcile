@@ -29,13 +29,23 @@ class ArchiveViewerScreenTest {
                     onNavigateBack = {},
                     onNavigateUpInArchive = { false },
                     onOpenFolder = {},
+                    onSearchQueryChange = {},
                     onExtractAll = {},
                     onExtractCurrentFolder = {},
                     onSubmitPassword = {},
+                    onSelectNameEncoding = {},
+                    onSetConflictResolution = { _, _ -> },
+                    onApplyConflictResolutionToAll = {},
+                    onConfirmConflictResolutions = {},
+                    onDismissConflicts = {},
                     onClearError = {},
                     onCancelExtraction = {},
                     onClearOperationStatusMessage = {},
-                    onClearActiveOperation = {}
+                    onClearActiveOperation = {},
+                    onToggleItemSelection = {},
+                    onClearSelection = {},
+                    onExtractSelected = {},
+                    onSelectAll = {}
                 )
             }
         }

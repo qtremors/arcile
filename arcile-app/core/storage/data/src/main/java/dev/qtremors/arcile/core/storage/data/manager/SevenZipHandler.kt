@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import java.io.BufferedOutputStream
 import java.io.File
 import kotlinx.coroutines.currentCoroutineContext
@@ -38,7 +39,9 @@ internal class SevenZipHandler(
         destination: File,
         entryPrefix: String?,
         password: String?,
+        resolutions: Map<String, ConflictResolution>,
         createdOutputs: MutableSet<File>,
+        replacementBackups: MutableMap<File, File>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val allEntries = listEntries(archive, password).filter { it.path.matchesPrefix(entryPrefix) }
@@ -51,7 +54,12 @@ internal class SevenZipHandler(
                 val entry = sevenZ.nextEntry ?: break
                 val name = (entry.name ?: "unnamed").normalizeEntryName()
                 if (!name.matchesPrefix(entryPrefix)) continue
-                val target = extractionContext.resolveTarget(destination, name, entry.isDirectory)
+                val target = extractionContext.resolveTarget(destination, name, entry.isDirectory, resolutions)
+                if (target == null) {
+                    completed += 1
+                    onProgress?.invoke(BulkFileOperationProgress(completed, allEntries.size, name, copied.coerceAtMost(totalBytes), totalBytes))
+                    continue
+                }
                 if (entry.isDirectory) {
                     rememberCreatedOutput(target, createdOutputs)
                     target.mkdirs()
@@ -59,6 +67,7 @@ internal class SevenZipHandler(
                     rememberCreatedOutput(target, createdOutputs)
                     target.parentFile?.mkdirs()
                     validateMutationPath(target).getOrThrow()
+                    rememberReplacementBackup(target, replacementBackups)
                     BufferedOutputStream(target.outputStream()).use { output ->
                         val buffer = ByteArray(ARCHIVE_BUFFER_SIZE)
                         while (true) {
@@ -84,15 +93,19 @@ internal class SevenZipHandler(
         password: String?,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
-        val files = sources.flatMap { it.walkArchiveFiles(validateMutationPath) }
-        validateArchiveCreationEntries(files)
-        val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
+        val scan = scanArchiveCreationEntries(sources, validateMutationPath, safetyPolicy)
+        val safety = ArchiveSafetyTally(safetyPolicy)
+        val totalBytes = scan.totalBytes
+        val totalItems = scan.totalItems
         var copied = 0L
         var completed = 0
         val archivePassword = password?.takeIf { it.isNotEmpty() }?.toCharArray()
         SevenZOutputFile(target, archivePassword).use { sevenZ ->
-            for ((sourceRoot, file) in files) {
+            val writeEntry: suspend (ArchiveSourceEntry) -> Boolean = { source ->
                 currentCoroutineContext().ensureActive()
+                val sourceRoot = source.sourceRoot
+                val file = source.file
+                safety.accept(archiveEntryName(sourceRoot, file), if (file.isFile) file.length() else 0L, null)
                 val entry = sevenZ.createArchiveEntry(file, archiveEntryName(sourceRoot, file))
                 sevenZ.putArchiveEntry(entry)
                 if (file.isFile) {
@@ -104,13 +117,20 @@ internal class SevenZipHandler(
                             if (read < 0) break
                             sevenZ.write(buffer, 0, read)
                             copied += read
-                            onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied, totalBytes))
+                            onProgress?.invoke(BulkFileOperationProgress(completed, totalItems, file.absolutePath, copied, totalBytes))
                         }
                     }
                 }
                 sevenZ.closeArchiveEntry()
                 completed += 1
-                onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied.coerceAtMost(totalBytes), totalBytes))
+                onProgress?.invoke(BulkFileOperationProgress(completed, totalItems, file.absolutePath, totalBytes?.let { copied.coerceAtMost(it) } ?: copied, totalBytes))
+                true
+            }
+            val entries = scan.entries
+            if (entries != null) {
+                for (entry in entries) writeEntry(entry)
+            } else {
+                traverseArchiveSources(sources, validateMutationPath, writeEntry)
             }
         }
     }
@@ -122,14 +142,4 @@ internal class SevenZipHandler(
             SevenZFile.builder().setFile(archive).setPassword(password.toCharArray()).get()
         }
 
-    private fun validateArchiveCreationEntries(files: List<Pair<File, File>>) {
-        val safety = ArchiveSafetyTally(safetyPolicy)
-        files.forEach { (sourceRoot, file) ->
-            safety.accept(
-                rawName = archiveEntryName(sourceRoot, file),
-                uncompressedSize = if (file.isFile) file.length() else 0L,
-                compressedSize = null
-            )
-        }
-    }
 }

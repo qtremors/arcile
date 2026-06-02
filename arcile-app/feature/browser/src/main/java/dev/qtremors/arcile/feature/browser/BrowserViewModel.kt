@@ -233,6 +233,7 @@ class BrowserViewModel @Inject constructor(
     )
     private val archiveActionDelegate = ArchiveActionDelegate(
         state = _state,
+        coroutineScope = viewModelScope,
         bulkFileOperationCoordinator = bulkFileCoordinator,
         clearSelection = { clearSelection() }
     )
@@ -555,13 +556,21 @@ class BrowserViewModel @Inject constructor(
             fakeFileSize = size
         )
     }
-    fun extractSelectedArchiveHere(password: String? = null) = archiveActionDelegate.extractSelectedArchiveHere(password)
-    fun extractSelectedArchiveToFolder(password: String? = null) = archiveActionDelegate.extractSelectedArchiveToFolder(password)
+    fun extractArchive(password: String?, createSubfolder: Boolean, deleteArchive: Boolean) =
+        archiveActionDelegate.extractArchive(password, createSubfolder, deleteArchive)
     fun createArchiveFromSelection(
         archiveName: String,
         format: ArchiveFormat,
-        password: String? = null
-    ) = archiveActionDelegate.createArchiveFromSelection(archiveName, format, password)
+        password: String? = null,
+        deleteSources: Boolean = false,
+        separateArchives: Boolean = false
+    ) = archiveActionDelegate.createArchiveFromSelection(
+        archiveName = archiveName,
+        format = format,
+        password = password,
+        deleteSources = deleteSources,
+        separateArchives = separateArchives
+    )
     fun createZipFromSelection() = archiveActionDelegate.createZipFromSelection()
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()

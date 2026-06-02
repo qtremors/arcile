@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -23,8 +25,9 @@ internal class ZipArchiveHandler(
 ) {
     private val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
 
-    fun listEntries(archive: File, password: String?): List<ArchiveEntryModel> {
+    fun listEntries(archive: File, password: String?, nameEncoding: ArchiveNameEncoding): List<ArchiveEntryModel> {
         val zip4j = Zip4jFile(archive, password?.toCharArray())
+        zip4j.setCharset(nameEncoding.charset())
         if (zip4j.isEncrypted && password.isNullOrEmpty()) {
             throw IllegalArgumentException("A password is required or the password is incorrect")
         }
@@ -43,7 +46,7 @@ internal class ZipArchiveHandler(
                 )
             }
         }
-        return ZipFile.builder().setFile(archive).get().use { zip ->
+        return ZipFile.builder().setFile(archive).setCharset(nameEncoding.charset()).get().use { zip ->
             val safety = ArchiveSafetyTally(safetyPolicy)
             zip.entries.asSequence().map { entry ->
                 safety.accept(entry.name, entry.size.coerceAtLeast(0L), entry.compressedSize.takeIf { it >= 0L })
@@ -65,16 +68,20 @@ internal class ZipArchiveHandler(
         destination: File,
         entryPrefix: String?,
         password: String?,
+        nameEncoding: ArchiveNameEncoding,
+        resolutions: Map<String, ConflictResolution>,
         createdOutputs: MutableSet<File>,
+        replacementBackups: MutableMap<File, File>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val zip4j = Zip4jFile(archive, password?.toCharArray())
+        zip4j.setCharset(nameEncoding.charset())
         if (zip4j.isEncrypted || !password.isNullOrEmpty()) {
-            extractZip4j(zip4j, destination, entryPrefix, createdOutputs, onProgress)
+            extractZip4j(zip4j, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, onProgress)
             return
         }
         val prefix = entryPrefix?.normalizeEntryName()?.trimEnd('/')?.takeIf { it.isNotBlank() }
-        ZipFile.builder().setFile(archive).get().use { zip ->
+        ZipFile.builder().setFile(archive).setCharset(nameEncoding.charset()).get().use { zip ->
             val safety = ArchiveSafetyTally(safetyPolicy)
             val entries = zip.entries.asSequence()
                 .filter { it.name.matchesPrefix(prefix) }
@@ -86,7 +93,12 @@ internal class ZipArchiveHandler(
             for (entry in entries) {
                 currentCoroutineContext().ensureActive()
                 if (!zip.canReadEntryData(entry)) throw IOException("Archive contains unsupported entries")
-                val target = extractionContext.resolveTarget(destination, entry.name, entry.isDirectory)
+                val target = extractionContext.resolveTarget(destination, entry.name, entry.isDirectory, resolutions)
+                if (target == null) {
+                    completed += 1
+                    onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.name, copied.coerceAtMost(totalBytes), totalBytes))
+                    continue
+                }
                 if (entry.isDirectory) {
                     rememberCreatedOutput(target, createdOutputs)
                     target.mkdirs()
@@ -94,6 +106,7 @@ internal class ZipArchiveHandler(
                     rememberCreatedOutput(target, createdOutputs)
                     target.parentFile?.mkdirs()
                     validateMutationPath(target).getOrThrow()
+                    rememberReplacementBackup(target, replacementBackups)
                     zip.getInputStream(entry).use { input ->
                         BufferedInputStream(input).use { buffered ->
                             BufferedOutputStream(target.outputStream()).use { output ->
@@ -115,21 +128,28 @@ internal class ZipArchiveHandler(
         sources: List<File>,
         target: File,
         password: String?,
+        nameEncoding: ArchiveNameEncoding,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         if (!password.isNullOrEmpty()) {
-            createEncrypted(sources, target, password, onProgress)
+            createEncrypted(sources, target, password, nameEncoding, onProgress)
             return
         }
-        val files = sources.flatMap { it.walkArchiveFiles(validateMutationPath) }
-        validateArchiveCreationEntries(files)
-        val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
+        val scan = scanArchiveCreationEntries(sources, validateMutationPath, safetyPolicy)
+        val safety = ArchiveSafetyTally(safetyPolicy)
+        val totalBytes = scan.totalBytes
+        val totalItems = scan.totalItems
         var copied = 0L
         var completed = 0
         ZipArchiveOutputStream(target).use { zip ->
-            for ((sourceRoot, file) in files) {
+            zip.setEncoding(nameEncoding.charset().name())
+            zip.setUseLanguageEncodingFlag(nameEncoding == ArchiveNameEncoding.UTF_8)
+            val writeEntry: suspend (ArchiveSourceEntry) -> Boolean = { source ->
                 currentCoroutineContext().ensureActive()
+                val sourceRoot = source.sourceRoot
+                val file = source.file
                 val name = archiveEntryName(sourceRoot, file)
+                safety.accept(name, if (file.isFile) file.length() else 0L, null)
                 val entry = ZipArchiveEntry(name + if (file.isDirectory) "/" else "")
                 entry.time = file.lastModified()
                 if (!file.isDirectory) entry.size = file.length()
@@ -138,14 +158,21 @@ internal class ZipArchiveHandler(
                     file.inputStream().use { input ->
                         BufferedInputStream(input).use { buffered ->
                             copied += copyWithProgress(buffered::read, zip::write) {
-                                onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied + it, totalBytes))
+                                onProgress?.invoke(BulkFileOperationProgress(completed, totalItems, file.absolutePath, copied + it, totalBytes))
                             }
                         }
                     }
                 }
                 zip.closeArchiveEntry()
                 completed += 1
-                onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied.coerceAtMost(totalBytes), totalBytes))
+                onProgress?.invoke(BulkFileOperationProgress(completed, totalItems, file.absolutePath, totalBytes?.let { copied.coerceAtMost(it) } ?: copied, totalBytes))
+                true
+            }
+            val entries = scan.entries
+            if (entries != null) {
+                for (entry in entries) writeEntry(entry)
+            } else {
+                traverseArchiveSources(sources, validateMutationPath, writeEntry)
             }
         }
     }
@@ -154,7 +181,9 @@ internal class ZipArchiveHandler(
         zip: Zip4jFile,
         destination: File,
         entryPrefix: String?,
+        resolutions: Map<String, ConflictResolution>,
         createdOutputs: MutableSet<File>,
+        replacementBackups: MutableMap<File, File>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val entries = zip.fileHeaders.filter { it.fileName.matchesPrefix(entryPrefix) }
@@ -165,7 +194,12 @@ internal class ZipArchiveHandler(
         var completed = 0
         for (entry in entries) {
             currentCoroutineContext().ensureActive()
-            val target = extractionContext.resolveTarget(destination, entry.fileName, entry.isDirectory)
+            val target = extractionContext.resolveTarget(destination, entry.fileName, entry.isDirectory, resolutions)
+            if (target == null) {
+                completed += 1
+                onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.fileName, copied.coerceAtMost(totalBytes), totalBytes))
+                continue
+            }
             if (entry.isDirectory) {
                 rememberCreatedOutput(target, createdOutputs)
                 target.mkdirs()
@@ -173,6 +207,7 @@ internal class ZipArchiveHandler(
                 rememberCreatedOutput(target, createdOutputs)
                 target.parentFile?.mkdirs()
                 validateMutationPath(target).getOrThrow()
+                rememberReplacementBackup(target, replacementBackups)
                 zip.getInputStream(entry).use { input ->
                     BufferedInputStream(input).use { buffered ->
                         BufferedOutputStream(target.outputStream()).use { output ->
@@ -193,17 +228,23 @@ internal class ZipArchiveHandler(
         sources: List<File>,
         target: File,
         password: String,
+        nameEncoding: ArchiveNameEncoding,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
-        val files = sources.flatMap { it.walkArchiveFiles(validateMutationPath) }
-        validateArchiveCreationEntries(files)
-        val totalBytes = files.filter { it.second.isFile }.sumOf { it.second.length() }.coerceAtLeast(1L)
+        val scan = scanArchiveCreationEntries(sources, validateMutationPath, safetyPolicy)
+        val safety = ArchiveSafetyTally(safetyPolicy)
+        val totalBytes = scan.totalBytes
+        val totalItems = scan.totalItems
         val zip = Zip4jFile(target, password.toCharArray())
+        zip.setCharset(nameEncoding.charset())
         var copied = 0L
         var completed = 0
-        for ((sourceRoot, file) in files) {
+        val writeEntry: suspend (ArchiveSourceEntry) -> Boolean = { source ->
             currentCoroutineContext().ensureActive()
+            val sourceRoot = source.sourceRoot
+            val file = source.file
             val name = archiveEntryName(sourceRoot, file)
+            safety.accept(name, if (file.isFile) file.length() else 0L, null)
             val parameters = ZipParameters().apply {
                 fileNameInZip = name + if (file.isDirectory) "/" else ""
                 compressionMethod = CompressionMethod.DEFLATE
@@ -221,18 +262,14 @@ internal class ZipArchiveHandler(
                 copied += file.length()
             }
             completed += 1
-            onProgress?.invoke(BulkFileOperationProgress(completed, files.size, file.absolutePath, copied.coerceAtMost(totalBytes), totalBytes))
+            onProgress?.invoke(BulkFileOperationProgress(completed, totalItems, file.absolutePath, totalBytes?.let { copied.coerceAtMost(it) } ?: copied, totalBytes))
+            true
         }
-    }
-
-    private fun validateArchiveCreationEntries(files: List<Pair<File, File>>) {
-        val safety = ArchiveSafetyTally(safetyPolicy)
-        files.forEach { (sourceRoot, file) ->
-            safety.accept(
-                rawName = archiveEntryName(sourceRoot, file),
-                uncompressedSize = if (file.isFile) file.length() else 0L,
-                compressedSize = null
-            )
+        val entries = scan.entries
+        if (entries != null) {
+            for (entry in entries) writeEntry(entry)
+        } else {
+            traverseArchiveSources(sources, validateMutationPath, writeEntry)
         }
     }
 }

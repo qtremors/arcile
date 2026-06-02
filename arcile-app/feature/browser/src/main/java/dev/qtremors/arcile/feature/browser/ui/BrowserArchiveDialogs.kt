@@ -2,16 +2,29 @@ package dev.qtremors.arcile.feature.browser.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -39,6 +52,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.shared.ui.dialogs.FileNameInput
 import dev.qtremors.arcile.shared.ui.dialogs.validateFileName
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CreateArchiveDialog(
     defaultName: String,
@@ -46,15 +60,19 @@ internal fun CreateArchiveDialog(
     destinationPath: String,
     existingNames: Set<String>,
     onDismiss: () -> Unit,
-    onConfirm: (String, ArchiveFormat, String?) -> Unit
+    onConfirm: (String, ArchiveFormat, String?, Boolean, Boolean) -> Unit
 ) {
     var archiveName by rememberSaveable(defaultName) { mutableStateOf(defaultName) }
     var format by rememberSaveable { mutableStateOf(ArchiveFormat.ZIP) }
+    var compressionLevel by rememberSaveable { mutableStateOf("Default") }
     var usePassword by rememberSaveable { mutableStateOf(false) }
     var password by rememberSaveable { mutableStateOf("") }
     var confirmPassword by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     var confirmPasswordVisible by rememberSaveable { mutableStateOf(false) }
+    var deleteSources by rememberSaveable { mutableStateOf(false) }
+    var separateArchives by rememberSaveable { mutableStateOf(false) }
+
     val archiveBase = remember(archiveName) {
         archiveBaseName(archiveName)
     }
@@ -75,14 +93,19 @@ internal fun CreateArchiveDialog(
     val destinationPreview = remember(destinationPath, outputFileName) {
         destinationPath.trimEnd('/', '\\') + "/" + outputFileName
     }
-    val canCreate = nameValidation.isValid && (!usePassword || (password.isNotEmpty() && !passwordError))
+    val effectivePassword = password.takeIf { usePassword && format.supportsPassword && it.isNotEmpty() }
+    val canCreate = nameValidation.isValid && (!usePassword || !format.supportsPassword || (password.isNotEmpty() && !passwordError))
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
         title = { Text(stringResource(R.string.archive_create_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 Text(
                     text = stringResource(R.string.archive_create_summary, selectedCount),
                     style = MaterialTheme.typography.bodyMedium
@@ -95,7 +118,7 @@ internal fun CreateArchiveDialog(
                     validationValue = validationValue,
                     onDone = {
                         if (canCreate) {
-                            onConfirm(sanitizedArchiveBase, format, password.takeIf { usePassword && it.isNotEmpty() })
+                            onConfirm(sanitizedArchiveBase, format, effectivePassword, deleteSources, separateArchives)
                         }
                     }
                 )
@@ -106,16 +129,48 @@ internal fun CreateArchiveDialog(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Column {
-                    ArchiveFormatChoice(ArchiveFormat.ZIP, format, onSelect = { format = it })
-                    ArchiveFormatChoice(ArchiveFormat.SEVEN_Z, format, onSelect = { format = it })
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ArchiveDropdown(
+                        label = "Type",
+                        selectedOption = format.displayName,
+                        options = ArchiveFormat.creatableFormats().map { it.displayName },
+                        onOptionSelected = { selected ->
+                            format = ArchiveFormat.creatableFormats().first { it.displayName == selected }
+                            if (!format.supportsPassword) usePassword = false
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                    ArchiveDropdown(
+                        label = "Compression",
+                        selectedOption = compressionLevel,
+                        options = listOf("Store", "Fastest", "Fast", "Default", "Maximum", "Ultra"),
+                        onOptionSelected = { compressionLevel = it },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                InputChip(
-                    selected = usePassword,
-                    onClick = { usePassword = !usePassword },
-                    label = { Text(stringResource(R.string.archive_password_protect)) }
-                )
-                if (usePassword) {
+                if (format.supportsPassword) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { usePassword = !usePassword }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = usePassword,
+                            onCheckedChange = { usePassword = it }
+                        )
+                        Text(
+                            text = stringResource(R.string.archive_password_protect),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+                if (usePassword && format.supportsPassword) {
                     PasswordInputField(
                         value = password,
                         onValueChange = { password = it },
@@ -133,10 +188,49 @@ internal fun CreateArchiveDialog(
                         } else {
                             null
                         },
-                        passwordVisible = confirmPasswordVisible,
-                        onToggleVisibility = { confirmPasswordVisible = !confirmPasswordVisible }
+                        passwordVisible = passwordVisible,
+                        onToggleVisibility = null
                     )
                 }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { deleteSources = !deleteSources }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = deleteSources,
+                        onCheckedChange = { deleteSources = it }
+                    )
+                    Text(
+                        text = stringResource(R.string.archive_delete_source),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                if (selectedCount > 1) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { separateArchives = !separateArchives }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = separateArchives,
+                            onCheckedChange = { separateArchives = it }
+                        )
+                        Text(
+                            text = stringResource(R.string.archive_separate_archives),
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+
                 Text(
                     text = stringResource(R.string.archive_destination, destinationPreview),
                     style = MaterialTheme.typography.bodySmall,
@@ -150,7 +244,7 @@ internal fun CreateArchiveDialog(
             TextButton(
                 enabled = canCreate,
                 onClick = {
-                    onConfirm(sanitizedArchiveBase, format, password.takeIf { usePassword && it.isNotEmpty() })
+                    onConfirm(sanitizedArchiveBase, format, effectivePassword, deleteSources, separateArchives)
                 }
             ) {
                 Text(stringResource(R.string.archive_create_action))
@@ -187,31 +281,86 @@ private fun ArchiveFormatChoice(
 internal fun ExtractArchiveDialog(
     archiveName: String,
     onDismiss: () -> Unit,
-    onExtractHere: (String?) -> Unit,
-    onExtractToFolder: (String?) -> Unit
+    onConfirm: (String?, Boolean, Boolean) -> Unit
 ) {
-    var password by rememberSaveable { mutableStateOf("") }
+    var createSubfolder by rememberSaveable { mutableStateOf(true) }
+    var deleteArchive by rememberSaveable { mutableStateOf(false) }
     var usePassword by rememberSaveable { mutableStateOf(false) }
+    var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
     val archivePassword = password.takeIf { usePassword && it.isNotEmpty() }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
         title = { Text(stringResource(R.string.archive_extract_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 Text(
                     text = archiveName,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                InputChip(
-                    selected = usePassword,
-                    onClick = { usePassword = !usePassword },
-                    label = { Text(stringResource(R.string.archive_has_password)) }
-                )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { createSubfolder = !createSubfolder }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = createSubfolder,
+                        onCheckedChange = { createSubfolder = it }
+                    )
+                    Text(
+                        text = stringResource(R.string.archive_create_subfolder),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { deleteArchive = !deleteArchive }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = deleteArchive,
+                        onCheckedChange = { deleteArchive = it }
+                    )
+                    Text(
+                        text = stringResource(R.string.archive_delete_after_extraction),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { usePassword = !usePassword }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = usePassword,
+                        onCheckedChange = { usePassword = it }
+                    )
+                    Text(
+                        text = stringResource(R.string.archive_has_password),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
                 if (usePassword) {
                     PasswordInputField(
                         value = password,
@@ -225,18 +374,16 @@ internal fun ExtractArchiveDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onExtractToFolder(archivePassword) }) {
-                Text(stringResource(R.string.archive_extract_to_folder))
+            TextButton(
+                enabled = !usePassword || password.isNotEmpty(),
+                onClick = { onConfirm(archivePassword, createSubfolder, deleteArchive) }
+            ) {
+                Text("EXTRACT")
             }
         },
         dismissButton = {
-            Row {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.cancel))
-                }
-                TextButton(onClick = { onExtractHere(archivePassword) }) {
-                    Text(stringResource(R.string.archive_extract_here))
-                }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -246,6 +393,7 @@ private fun archiveBaseName(name: String): String {
     val trimmed = name.trim()
     val supportedSuffix = ArchiveFormat.entries
         .map { ".${it.extension}" }
+        .sortedByDescending { it.length }
         .firstOrNull { trimmed.endsWith(it, ignoreCase = true) }
     return if (supportedSuffix != null) {
         trimmed.dropLast(supportedSuffix.length)
@@ -260,7 +408,7 @@ private fun PasswordInputField(
     onValueChange: (String) -> Unit,
     label: String,
     passwordVisible: Boolean,
-    onToggleVisibility: () -> Unit,
+    onToggleVisibility: (() -> Unit)?,
     isError: Boolean = false,
     supportingText: String? = null
 ) {
@@ -279,18 +427,65 @@ private fun PasswordInputField(
         } else {
             PasswordVisualTransformation()
         },
-        trailingIcon = {
-            val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
-            val contentDescription = stringResource(
-                if (passwordVisible) {
-                    R.string.archive_password_hide
-                } else {
-                    R.string.archive_password_show
+        trailingIcon = if (onToggleVisibility != null) {
+            {
+                val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
+                val contentDescription = stringResource(
+                    if (passwordVisible) {
+                        R.string.archive_password_hide
+                    } else {
+                        R.string.archive_password_show
+                    }
+                )
+                IconButton(onClick = onToggleVisibility) {
+                    Icon(icon, contentDescription = contentDescription)
                 }
-            )
-            IconButton(onClick = onToggleVisibility) {
-                Icon(icon, contentDescription = contentDescription)
             }
+        } else {
+            null
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ArchiveDropdown(
+    label: String,
+    selectedOption: String,
+    options: List<String>,
+    onOptionSelected: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+        modifier = modifier
+    ) {
+        OutlinedTextField(
+            value = selectedOption,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
 }

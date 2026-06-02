@@ -31,13 +31,23 @@ fun NavGraphBuilder.archiveViewerScreen(
             onNavigateBack = onNavigateBack,
             onNavigateUpInArchive = { viewModel.navigateBack() },
             onOpenFolder = { viewModel.openFolder(it) },
+            onSearchQueryChange = { viewModel.updateSearchQuery(it) },
             onExtractAll = { password -> viewModel.extractAll(password) },
             onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
             onSubmitPassword = { viewModel.submitPassword(it) },
+            onSelectNameEncoding = { viewModel.selectNameEncoding(it) },
+            onSetConflictResolution = { path, resolution -> viewModel.setConflictResolution(path, resolution) },
+            onApplyConflictResolutionToAll = { viewModel.applyConflictResolutionToAll(it) },
+            onConfirmConflictResolutions = { viewModel.confirmConflictResolutions() },
+            onDismissConflicts = { viewModel.dismissConflicts() },
             onClearError = { viewModel.clearError() },
             onCancelExtraction = { viewModel.cancelExtraction() },
             onClearOperationStatusMessage = { viewModel.clearOperationStatusMessage() },
-            onClearActiveOperation = { viewModel.clearActiveOperation() }
+            onClearActiveOperation = { viewModel.clearActiveOperation() },
+            onToggleItemSelection = { viewModel.toggleItemSelection(it) },
+            onClearSelection = { viewModel.clearSelection() },
+            onExtractSelected = { password -> viewModel.extractSelected(password) },
+            onSelectAll = { viewModel.selectAllVisible() }
         )
     }
 }

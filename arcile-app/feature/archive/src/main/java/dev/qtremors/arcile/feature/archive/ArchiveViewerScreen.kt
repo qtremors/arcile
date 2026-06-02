@@ -1,8 +1,14 @@
 package dev.qtremors.arcile.feature.archive
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,17 +16,25 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -28,6 +42,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Surface
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
@@ -46,7 +62,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -59,35 +78,53 @@ import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
 import dev.qtremors.arcile.feature.archive.ArchiveOperationUiState
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.shared.ui.ConflictCard
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.DateFormat
+import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ArchiveViewerScreen(
     state: ArchiveViewerState,
     onNavigateBack: () -> Unit,
     onNavigateUpInArchive: () -> Boolean,
     onOpenFolder: (String) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
     onExtractAll: (String?) -> Unit,
     onExtractCurrentFolder: (String?) -> Unit,
     onSubmitPassword: (String) -> Unit,
+    onSelectNameEncoding: (ArchiveNameEncoding) -> Unit,
+    onSetConflictResolution: (String, ConflictResolution) -> Unit,
+    onApplyConflictResolutionToAll: (ConflictResolution) -> Unit,
+    onConfirmConflictResolutions: () -> Unit,
+    onDismissConflicts: () -> Unit,
     onClearError: () -> Unit,
     onCancelExtraction: () -> Unit,
     onClearOperationStatusMessage: () -> Unit,
-    onClearActiveOperation: () -> Unit
+    onClearActiveOperation: () -> Unit,
+    onToggleItemSelection: (String) -> Unit,
+    onClearSelection: () -> Unit,
+    onExtractSelected: (String?) -> Unit,
+    onSelectAll: () -> Unit
 ) {
     val haptics = rememberArcileHaptics()
+    val isInSelectionMode = state.selectedItems.isNotEmpty()
     val snackbarHostState = remember { SnackbarHostState() }
     val archiveFile = remember(state.archivePath) { File(state.archivePath) }
+    var showEncodingDialog by rememberSaveable { mutableStateOf(false) }
     val extractionDestination = remember(state.archivePath) {
-        File(archiveFile.parentFile ?: archiveFile, archiveFile.nameWithoutExtension).absolutePath
+        File(archiveFile.parentFile ?: archiveFile, archiveFile.archiveBaseName()).absolutePath
     }
     val operationStatusMessage = state.operationStatusMessage?.let { stringResource(it.stringRes()) }
     LaunchedEffect(state.error) {
@@ -120,7 +157,29 @@ fun ArchiveViewerScreen(
     if (state.passwordRequired) {
         ArchivePasswordDialog(
             onDismiss = onNavigateBack,
-            onConfirm = onSubmitPassword
+            onConfirm = onSubmitPassword,
+            nameEncoding = state.nameEncoding,
+            showEncodingSelector = state.archiveFormat == ArchiveFormat.ZIP,
+            onSelectNameEncoding = onSelectNameEncoding
+        )
+    }
+    if (showEncodingDialog) {
+        ArchiveEncodingDialog(
+            selected = state.nameEncoding,
+            onDismiss = { showEncodingDialog = false },
+            onSelect = {
+                showEncodingDialog = false
+                onSelectNameEncoding(it)
+            }
+        )
+    }
+    if (state.pendingConflicts.isNotEmpty()) {
+        ArchiveConflictDialog(
+            state = state,
+            onSetConflictResolution = onSetConflictResolution,
+            onApplyConflictResolutionToAll = onApplyConflictResolutionToAll,
+            onConfirm = onConfirmConflictResolutions,
+            onDismiss = onDismissConflicts
         )
     }
 
@@ -135,37 +194,66 @@ fun ArchiveViewerScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    if (isInSelectionMode) {
                         Text(
-                            text = archiveFile.name,
+                            text = stringResource(R.string.selected_count, state.selectedItems.size),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        state.currentPrefix?.let {
+                    } else {
+                        Column {
                             Text(
-                                text = it,
-                                style = MaterialTheme.typography.bodySmall,
+                                text = archiveFile.name,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
+                            state.currentPrefix?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (!onNavigateUpInArchive()) onNavigateBack()
+                        if (isInSelectionMode) {
+                            onClearSelection()
+                        } else if (!onNavigateUpInArchive()) {
+                            onNavigateBack()
+                        }
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(
+                            imageVector = if (isInSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(if (isInSelectionMode) R.string.clear_selection else R.string.back)
+                        )
                     }
                 },
                 actions = {
-                    if (state.currentPrefix != null) {
-                        IconButton(onClick = { onExtractCurrentFolder(null) }) {
-                            Icon(Icons.Default.Unarchive, contentDescription = stringResource(R.string.archive_extract_folder))
+                    if (isInSelectionMode) {
+                        IconButton(onClick = onSelectAll) {
+                            Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
                         }
-                    }
-                    IconButton(onClick = { onExtractAll(null) }) {
-                        Icon(Icons.Default.FolderZip, contentDescription = stringResource(R.string.archive_extract_archive))
+                        IconButton(onClick = { onExtractSelected(null) }) {
+                            Icon(Icons.Default.Unarchive, contentDescription = stringResource(R.string.archive_extract_archive))
+                        }
+                    } else {
+                        if (state.archiveFormat == ArchiveFormat.ZIP) {
+                            IconButton(onClick = { showEncodingDialog = true }) {
+                                Icon(Icons.Default.TextFields, contentDescription = state.nameEncoding.displayName)
+                            }
+                        }
+                        if (state.currentPrefix != null) {
+                            IconButton(onClick = { onExtractCurrentFolder(null) }) {
+                                Icon(Icons.Default.Unarchive, contentDescription = stringResource(R.string.archive_extract_folder))
+                            }
+                        }
+                        IconButton(onClick = { onExtractAll(null) }) {
+                            Icon(Icons.Default.FolderZip, contentDescription = stringResource(R.string.archive_extract_archive))
+                        }
                     }
                 }
             )
@@ -184,7 +272,13 @@ fun ArchiveViewerScreen(
                 ArchiveContextHeader(
                     archiveName = archiveFile.name,
                     currentPrefix = state.currentPrefix,
-                    extractionDestination = extractionDestination
+                    extractionDestination = extractionDestination,
+                    breadcrumbs = state.breadcrumbSegments,
+                    onOpenFolder = onOpenFolder,
+                    searchQuery = state.searchQuery,
+                    onSearchQueryChange = onSearchQueryChange,
+                    nameEncoding = state.nameEncoding,
+                    showEncoding = state.archiveFormat == ArchiveFormat.ZIP
                 )
             }
             state.activeOperation?.let { operation ->
@@ -211,27 +305,88 @@ fun ArchiveViewerScreen(
                 }
             }
             items(state.visibleItems, key = { it.path }) { item ->
-                ListItem(
-                    headlineContent = {
-                        Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    },
-                    supportingContent = {
-                        Text(
-                            if (item.isDirectory) stringResource(R.string.folder_label) else formatFileSize(item.size),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    leadingContent = {
-                        Icon(
-                            if (item.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                            contentDescription = null
-                        )
-                    },
-                    modifier = Modifier.clickable(enabled = item.isDirectory) {
-                        onOpenFolder(item.path)
-                    }
+                val isSelected = state.selectedItems.contains(item.path)
+                val animatedHorizontalPadding by animateDpAsState(
+                    targetValue = if (isSelected) 8.dp else 0.dp,
+                    label = "archiveItemHPadding"
                 )
+                val animatedVerticalPadding by animateDpAsState(
+                    targetValue = if (isSelected) 4.dp else 0.dp,
+                    label = "archiveItemVPadding"
+                )
+                Surface(
+                    shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
+                ) {
+                    ListItem(
+                        headlineContent = {
+                            Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        },
+                        supportingContent = {
+                            Text(
+                                if (item.isDirectory) {
+                                    if (item.childCount > 0) {
+                                        pluralStringResource(R.plurals.archive_entry_count, item.childCount, item.childCount)
+                                    } else {
+                                        stringResource(R.string.folder_label)
+                                    }
+                                } else {
+                                    formatFileSize(item.size)
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        leadingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (item.isDirectory) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                if (isSelected) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .size(18.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = stringResource(R.string.selected),
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.combinedClickable(
+                            onClick = {
+                                if (isInSelectionMode) {
+                                    onToggleItemSelection(item.path)
+                                } else if (item.isDirectory) {
+                                    onOpenFolder(item.path)
+                                }
+                            },
+                            onLongClick = {
+                                onToggleItemSelection(item.path)
+                            }
+                        )
+                    )
+                }
             }
         }
     }
@@ -247,7 +402,13 @@ private fun ArchiveOperationStatusMessage.stringRes(): Int =
 private fun ArchiveContextHeader(
     archiveName: String,
     currentPrefix: String?,
-    extractionDestination: String
+    extractionDestination: String,
+    breadcrumbs: List<Pair<String, String?>>,
+    onOpenFolder: (String) -> Unit,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    nameEncoding: ArchiveNameEncoding,
+    showEncoding: Boolean
 ) {
     Column(
         modifier = Modifier
@@ -269,6 +430,38 @@ private fun ArchiveContextHeader(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            breadcrumbs.forEach { (label, path) ->
+                FilterChip(
+                    selected = path == currentPrefix,
+                    onClick = { if (path != null) onOpenFolder(path) },
+                    label = {
+                        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                )
+            }
+        }
+        if (showEncoding) {
+            Text(
+                text = nameEncoding.displayName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text(stringResource(R.string.archive_search_entries)) }
+        )
         Text(
             text = stringResource(R.string.archive_destination_preview, extractionDestination),
             style = MaterialTheme.typography.bodySmall,
@@ -277,6 +470,11 @@ private fun ArchiveContextHeader(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+private fun File.archiveBaseName(): String {
+    val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension
+    return name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension }
 }
 
 @Composable
@@ -390,7 +588,10 @@ private fun ArchiveOperationCard(
 @Composable
 private fun ArchivePasswordDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
+    onConfirm: (String) -> Unit,
+    nameEncoding: ArchiveNameEncoding,
+    showEncodingSelector: Boolean,
+    onSelectNameEncoding: (ArchiveNameEncoding) -> Unit
 ) {
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
@@ -399,31 +600,58 @@ private fun ArchivePasswordDialog(
         icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
         title = { Text(stringResource(R.string.archive_password_title)) },
         text = {
-            OutlinedTextField(
-                value = password,
-                onValueChange = { password = it },
-                singleLine = true,
-                label = { Text(stringResource(R.string.archive_password)) },
-                supportingText = { Text(stringResource(R.string.archive_password_description)) },
-                visualTransformation = if (passwordVisible) {
-                    VisualTransformation.None
-                } else {
-                    PasswordVisualTransformation()
-                },
-                trailingIcon = {
-                    val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
-                    val label = stringResource(
-                        if (passwordVisible) {
-                            R.string.archive_password_hide
-                        } else {
-                            R.string.archive_password_show
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.archive_password)) },
+                    supportingText = { Text(stringResource(R.string.archive_password_description)) },
+                    visualTransformation = if (passwordVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    trailingIcon = {
+                        val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
+                        val label = stringResource(
+                            if (passwordVisible) {
+                                R.string.archive_password_hide
+                            } else {
+                                R.string.archive_password_show
+                            }
+                        )
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(icon, contentDescription = label)
                         }
-                    )
-                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(icon, contentDescription = label)
+                    }
+                )
+                if (showEncodingSelector) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = nameEncoding.displayName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ArchiveNameEncoding.entries.forEach { encoding ->
+                                FilterChip(
+                                    selected = encoding == nameEncoding,
+                                    onClick = { onSelectNameEncoding(encoding) },
+                                    label = { Text(encoding.displayName) }
+                                )
+                            }
+                        }
                     }
                 }
-            )
+            }
         },
         confirmButton = {
             TextButton(
@@ -431,6 +659,110 @@ private fun ArchivePasswordDialog(
                 onClick = { onConfirm(password) }
             ) {
                 Text(stringResource(R.string.open))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ArchiveEncodingDialog(
+    selected: ArchiveNameEncoding,
+    onDismiss: () -> Unit,
+    onSelect: (ArchiveNameEncoding) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.TextFields, contentDescription = null) },
+        title = { Text("Filename encoding") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                ArchiveNameEncoding.entries.forEach { encoding ->
+                    ListItem(
+                        headlineContent = { Text(encoding.displayName) },
+                        supportingContent = if (encoding == selected) {
+                            { Text("Selected") }
+                        } else {
+                            null
+                        },
+                        modifier = Modifier.clickable { onSelect(encoding) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun ArchiveConflictDialog(
+    state: ArchiveViewerState,
+    onSetConflictResolution: (String, ConflictResolution) -> Unit,
+    onApplyConflictResolutionToAll: (ConflictResolution) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val formatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
+    val allResolved = state.pendingConflicts.all { state.conflictResolutions[it.sourcePath] != null }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
+        title = { Text("Resolve conflicts") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.KEEP_BOTH) }) {
+                        Text("Keep both")
+                    }
+                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.REPLACE) }) {
+                        Text(stringResource(R.string.action_replace))
+                    }
+                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.SKIP) }) {
+                        Text(stringResource(R.string.action_skip))
+                    }
+                }
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 420.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(state.pendingConflicts, key = { it.sourcePath }) { conflict ->
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ConflictCard(
+                                conflict = conflict,
+                                resolution = state.conflictResolutions[conflict.sourcePath],
+                                formatter = formatter,
+                                onResolutionChange = { onSetConflictResolution(conflict.sourcePath, it) }
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.KEEP_BOTH) }) {
+                                    Text("Keep both")
+                                }
+                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.REPLACE) }) {
+                                    Text(stringResource(R.string.action_replace))
+                                }
+                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.SKIP) }) {
+                                    Text(stringResource(R.string.action_skip))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = allResolved, onClick = onConfirm) {
+                Text(stringResource(R.string.archive_extract_archive))
             }
         },
         dismissButton = {

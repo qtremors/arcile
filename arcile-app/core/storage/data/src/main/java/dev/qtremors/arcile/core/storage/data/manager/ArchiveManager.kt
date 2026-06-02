@@ -9,7 +9,11 @@ import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.FileConflict
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.di.ArcileDispatchers
 import java.io.File
 import java.io.IOException
@@ -40,33 +44,54 @@ class DefaultArchiveManager(
 ) : ArchiveManager {
     private val zipHandler by lazy { ZipArchiveHandler(safetyPolicy, ::validateMutationPath) }
     private val sevenZipHandler by lazy { SevenZipHandler(safetyPolicy, ::validateMutationPath) }
+    private val tarHandler by lazy { TarArchiveHandler(safetyPolicy, ::validateMutationPath) }
 
     override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
-        listArchiveEntries(archivePath, null)
+        listArchiveEntries(archivePath, null, ArchiveNameEncoding.UTF_8)
     }
 
-    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
+    override suspend fun listArchiveEntries(
+        archivePath: String,
+        password: String?,
+        nameEncoding: ArchiveNameEncoding
+    ): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
         runArchiveCatching {
             val archive = File(archivePath)
             validatePath(archive).getOrThrow()
             require(archive.isFile) { "Archive is not available" }
-            when (ArchiveFormat.fromPath(archivePath) ?: throw IllegalArgumentException("Unsupported archive format")) {
-                ArchiveFormat.ZIP -> zipHandler.listEntries(archive, password)
+            val format = supportedFormat(archivePath)
+            when (format) {
+                ArchiveFormat.ZIP -> zipHandler.listEntries(archive, password, nameEncoding)
                 ArchiveFormat.SEVEN_Z -> sevenZipHandler.listEntries(archive, password)
+                ArchiveFormat.TAR,
+                ArchiveFormat.TAR_GZIP,
+                ArchiveFormat.TGZ,
+                ArchiveFormat.TAR_BZIP2,
+                ArchiveFormat.TBZ2,
+                ArchiveFormat.TAR_XZ,
+                ArchiveFormat.TXZ,
+                ArchiveFormat.GZIP,
+                ArchiveFormat.BZIP2,
+                ArchiveFormat.XZ -> tarHandler.listEntries(archive, format)
+                ArchiveFormat.RAR -> throw IllegalArgumentException("RAR archives are not supported in this build")
             }
         }
     }
 
     override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> = withContext(dispatchers.io) {
-        getArchiveMetadata(archivePath, null)
+        getArchiveMetadata(archivePath, null, ArchiveNameEncoding.UTF_8)
     }
 
-    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> = withContext(dispatchers.io) {
+    override suspend fun getArchiveMetadata(
+        archivePath: String,
+        password: String?,
+        nameEncoding: ArchiveNameEncoding
+    ): Result<ArchiveSummary> = withContext(dispatchers.io) {
         runArchiveCatching {
             val archive = File(archivePath)
             validatePath(archive).getOrThrow()
-            val format = ArchiveFormat.fromPath(archivePath) ?: throw IllegalArgumentException("Unsupported archive format")
-            summarize(archive, format, listArchiveEntries(archivePath, password).getOrThrow())
+            val format = supportedFormat(archivePath)
+            summarize(archive, format, listArchiveEntries(archivePath, password, nameEncoding).getOrThrow())
         }
     }
 
@@ -75,6 +100,8 @@ class DefaultArchiveManager(
         destinationPath: String,
         entryPrefix: String?,
         password: String?,
+        nameEncoding: ArchiveNameEncoding,
+        resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(dispatchers.io) {
         runArchiveCatching {
@@ -87,16 +114,67 @@ class DefaultArchiveManager(
             require(destination.isDirectory) { "Destination must be a folder" }
 
             val createdOutputs = linkedSetOf<File>()
+            val replacementBackups = linkedMapOf<File, File>()
             try {
-                when (ArchiveFormat.fromPath(archivePath) ?: throw IllegalArgumentException("Unsupported archive format")) {
-                    ArchiveFormat.ZIP -> zipHandler.extract(archive, destination, entryPrefix, password, createdOutputs, onProgress)
-                    ArchiveFormat.SEVEN_Z -> sevenZipHandler.extract(archive, destination, entryPrefix, password, createdOutputs, onProgress)
+                val format = supportedFormat(archivePath)
+                when (format) {
+                    ArchiveFormat.ZIP -> zipHandler.extract(archive, destination, entryPrefix, password, nameEncoding, resolutions, createdOutputs, replacementBackups, onProgress)
+                    ArchiveFormat.SEVEN_Z -> sevenZipHandler.extract(archive, destination, entryPrefix, password, resolutions, createdOutputs, replacementBackups, onProgress)
+                    ArchiveFormat.TAR,
+                    ArchiveFormat.TAR_GZIP,
+                    ArchiveFormat.TGZ,
+                    ArchiveFormat.TAR_BZIP2,
+                    ArchiveFormat.TBZ2,
+                    ArchiveFormat.TAR_XZ,
+                    ArchiveFormat.TXZ,
+                    ArchiveFormat.GZIP,
+                    ArchiveFormat.BZIP2,
+                    ArchiveFormat.XZ -> tarHandler.extract(archive, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, onProgress)
+                    ArchiveFormat.RAR -> throw IllegalArgumentException("RAR archives are not supported in this build")
                 }
             } catch (e: Exception) {
                 cleanupCreatedOutputs(createdOutputs)
+                restoreReplacementBackups(replacementBackups)
                 throw e
             }
+            cleanupReplacementBackups(replacementBackups)
             mutationFinalizer.finalize(destination.absolutePath)
+        }
+    }
+
+    override suspend fun detectArchiveConflicts(
+        archivePath: String,
+        destinationPath: String,
+        entryPrefix: String?,
+        password: String?,
+        nameEncoding: ArchiveNameEncoding
+    ): Result<List<FileConflict>> = withContext(dispatchers.io) {
+        runArchiveCatching {
+            val archive = File(archivePath)
+            val destination = File(destinationPath)
+            validatePath(archive).getOrThrow()
+            validateMutationPath(destination).getOrThrow()
+            require(archive.isFile) { "Archive is not available" }
+            val entries = listArchiveEntries(archivePath, password, nameEncoding).getOrThrow()
+                .filter { !it.isDirectory && it.path.matchesPrefix(entryPrefix) }
+            val extractionContext = ArchiveExtractionContext(safetyPolicy, ::validateMutationPath)
+            entries.mapNotNull { entry ->
+                val target = extractionContext.resolveRequestedTarget(destination, entry.path)
+                if (!target.exists()) return@mapNotNull null
+                FileConflict(
+                    sourcePath = entry.path,
+                    sourceFile = FileModel(
+                        name = entry.name,
+                        absolutePath = entry.path,
+                        size = entry.size,
+                        lastModified = entry.lastModified ?: 0L,
+                        isDirectory = false,
+                        extension = entry.name.substringAfterLast('.', missingDelimiterValue = "").lowercase(),
+                        isHidden = entry.name.startsWith(".")
+                    ),
+                    existingFile = target.toFileModel()
+                )
+            }
         }
     }
 
@@ -105,6 +183,7 @@ class DefaultArchiveManager(
         destinationArchivePath: String,
         format: ArchiveFormat,
         password: String?,
+        nameEncoding: ArchiveNameEncoding,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(dispatchers.io) {
         runArchiveCatching {
@@ -120,8 +199,19 @@ class DefaultArchiveManager(
             mutationJournal.recordTemporaryPath(staging.absolutePath)
             try {
                 when (format) {
-                    ArchiveFormat.ZIP -> zipHandler.create(sources, staging, password, onProgress)
+                    ArchiveFormat.ZIP -> zipHandler.create(sources, staging, password, nameEncoding, onProgress)
                     ArchiveFormat.SEVEN_Z -> sevenZipHandler.create(sources, staging, password, onProgress)
+                    ArchiveFormat.TAR,
+                    ArchiveFormat.TAR_GZIP,
+                    ArchiveFormat.TGZ,
+                    ArchiveFormat.TAR_BZIP2,
+                    ArchiveFormat.TBZ2,
+                    ArchiveFormat.TAR_XZ,
+                    ArchiveFormat.TXZ -> tarHandler.create(sources, staging, format, onProgress)
+                    ArchiveFormat.GZIP,
+                    ArchiveFormat.BZIP2,
+                    ArchiveFormat.XZ,
+                    ArchiveFormat.RAR -> throw IllegalArgumentException("${format.displayName} archive creation is not supported")
                 }
                 if (!rename(staging, target)) throw IOException("Failed to create archive")
                 mutationJournal.forgetTemporaryPath(staging.absolutePath)
@@ -150,6 +240,12 @@ class DefaultArchiveManager(
 
     private fun validateMutationPath(file: File): Result<Unit> =
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
+
+    private fun supportedFormat(path: String): ArchiveFormat {
+        val format = ArchiveFormat.fromPath(path) ?: throw IllegalArgumentException("Unsupported archive format")
+        require(format.canBrowse) { "${format.displayName} archives are not supported in this build" }
+        return format
+    }
 
     private inline fun <T> runArchiveCatching(block: () -> T): Result<T> =
         try {
@@ -183,4 +279,15 @@ class DefaultArchiveManager(
             hasUnreadableEntries = entries.any { !it.canRead }
         )
     }
+
+    private fun File.toFileModel(): FileModel =
+        FileModel(
+            name = name,
+            absolutePath = absolutePath,
+            size = if (isFile) length() else 0L,
+            lastModified = lastModified(),
+            isDirectory = isDirectory,
+            extension = extension.lowercase(),
+            isHidden = name.startsWith(".")
+        )
 }

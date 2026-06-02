@@ -303,6 +303,7 @@
     <string name="archive_empty_description">This archive does not contain any files or folders.</string>
     <string name="archive_breadcrumb">%1$s / %2$s</string>
     <string name="archive_destination_preview">Extracts to %1$s</string>
+    <string name="archive_search_entries">Search archive</string>
     <string name="archive_create_title">Create archive</string>
     <string name="archive_create_summary">%1$d selected item(s)</string>
     <string name="archive_name">Archive name</string>
@@ -320,6 +321,13 @@
     <string name="archive_destination">Destination: %1$s</string>
     <string name="create_destination_preview">Creates at %1$s</string>
     <string name="archive_create_action">Create</string>
+    <string name="archive_compression_level">Compression level</string>
+    <string name="archive_encryption">Encryption</string>
+    <string name="archive_split_volumes">Split into volumes</string>
+    <string name="archive_delete_source">Delete source files after compression</string>
+    <string name="archive_separate_archives">Create separate archive for each item</string>
+    <string name="archive_create_subfolder">Create subfolder</string>
+    <string name="archive_delete_after_extraction">Delete archive after extraction</string>
     <string name="archive_extract_title">Extract archive</string>
     <string name="archive_ratio_unavailable">n/a</string>
     <string name="archive_summary_size_ratio">Archive %1$s • Ratio %2$s</string>

@@ -327,11 +327,12 @@ fun AppNavigationGraph(
                                     onInvertSelection = { browserViewModel.invertSelection(it) },
                                     onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
                                     onSelectFolderTab = { browserViewModel.selectFolderTab(it) },
-                                    onExtractSelectedArchive = { password -> browserViewModel.extractSelectedArchiveHere(password) },
-                                    onExtractSelectedArchiveToFolder = { password -> browserViewModel.extractSelectedArchiveToFolder(password) },
+                                    onExtractArchive = { password, createSubfolder, deleteArchive ->
+                                        browserViewModel.extractArchive(password, createSubfolder, deleteArchive)
+                                    },
                                     onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
-                                    onCreateArchiveFromSelection = { name, format, password ->
-                                        browserViewModel.createArchiveFromSelection(name, format, password)
+                                    onCreateArchiveFromSelection = { name, format, password, deleteSources, separateArchives ->
+                                        browserViewModel.createArchiveFromSelection(name, format, password, deleteSources, separateArchives)
                                     },
                                     onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
                                     onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },

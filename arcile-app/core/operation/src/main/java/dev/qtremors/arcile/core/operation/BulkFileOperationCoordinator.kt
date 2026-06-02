@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.operation
 
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,8 @@ interface BulkFileOperationCoordinator {
         fakeFileSize: Long? = null,
         archiveFormat: ArchiveFormat? = null,
         archiveEntryPrefix: String? = null,
-        archivePassword: String? = null
+        archivePassword: String? = null,
+        archiveNameEncoding: ArchiveNameEncoding? = null
     ): Boolean
 
     fun cancelActiveOperation()
@@ -47,7 +49,8 @@ object NoOpBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         fakeFileSize: Long?,
         archiveFormat: ArchiveFormat?,
         archiveEntryPrefix: String?,
-        archivePassword: String?
+        archivePassword: String?,
+        archiveNameEncoding: ArchiveNameEncoding?
     ): Boolean = false
 
     override fun cancelActiveOperation() = Unit

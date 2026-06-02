@@ -17,6 +17,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
@@ -145,7 +146,9 @@ class BulkFileOperationService : Service() {
                                 archivePath = request.sourcePaths.first(),
                                 destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
                                 entryPrefix = request.archiveEntryPrefix,
-                                password = request.archivePassword
+                                password = request.archivePassword,
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                resolutions = request.resolutions
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
@@ -154,7 +157,8 @@ class BulkFileOperationService : Service() {
                                 sourcePaths = request.sourcePaths,
                                 destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
                                 format = requireNotNull(request.archiveFormat) { "Archive format is required" },
-                                password = request.archivePassword
+                                password = request.archivePassword,
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)

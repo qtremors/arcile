@@ -1,10 +1,30 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.6
-> **Last Updated:** 2026-06-01
+> **Version:** 0.9.7
+> **Last Updated:** 2026-06-02
 
 ---
+
+## [0.9.7] - 2026-06-02
+
+### Archive Performance
+- **Streaming Archive Creation (PERF-0001):** Replaced eager source-file materialization with cancellable streaming traversal for ZIP and 7z creation, including bounded pre-scan progress and indeterminate progress fallback for very large directory trees.
+
+### Archive UX
+- **Robust Archive Extraction (FEAT-0007):** Added ZIP filename encoding presets, pre-extraction conflict detection, Keep both / Replace / Skip resolution handling, safer replacement rollback, and richer archive preview navigation with breadcrumbs and folder counts.
+- **Expanded Archive Formats:** Added OSS-backed TAR archive handling, including create/list/extract support for TAR, TAR.GZ/TGZ, TAR.BZ2/TBZ2, and TAR.XZ/TXZ, plus browse/extract support for single-stream GZIP, BZIP2, and XZ files. Archive format detection now handles compound extensions, keeps unsupported RAR builds explicit, and limits password options to formats that support them.
+- **Archive Viewer Search:** Added in-archive search filtering and compound-extension-aware extraction folder naming so archives such as `photos.tar.gz` extract into `photos` instead of `photos.tar`.
+- **Archive Viewer Multi-Selection & Contextual Top Bar:** Added granular multi-item selection in `ArchiveViewerScreen` using premium Material 3 motion guidelines (padding scaling, morphing, primary container selection colors) paired with a contextual TopAppBar showing selected count, select all, and unarchive actions.
+- **Sequential Multi-Extraction:** Structured ViewModel-level sequential extraction processing in `ArchiveViewerViewModel` to queue and execute extraction tasks sequentially, overcoming background worker limitations without altering the lower-level API contracts.
+- **Archive Password Dialog Layout Bug Fix:** Resolved an overlapping bug in the Archive Viewer's password entry dialog by wrapping layout components inside a vertical Column with standard spacing and width configurations.
+- **Premium Create Archive Dialog:** Redesigned the Create Archive Dialog to match the premium reference layout, utilizing standard side-by-side Material 3 `ExposedDropdownMenuBox` selectors for Type and Compression, removing the top FolderZip icon, and mirroring password visibility across inputs (hiding the visibility toggle on the confirm password field).
+- **Sequential Multi-Archiving & Deferred Source Deletion:** Added sequential queueing in the ViewModel delegate to process separate archive creations consecutively, and implemented deferred source deletion that executes only as a single bulk operation upon successful completion of all creations in the queue.
+- **Premium Extract Archive Dialog & Deferred Archive Deletion:** Redesigned the Extract Archive Dialog to feature clean checkbox options ("Create subfolder", "Delete archive after extraction", and "Enter password") and a single unified **EXTRACT** action button. Implemented deferred archive cleanup that deletes the original archive file upon successful completion of the extraction.
+
+### Verification
+- **Regression Coverage:** Added archive manager, archive viewer ViewModel, Compose, and foreground service tests covering encoding propagation, conflict resolution, large-tree progress, rollback behavior, TAR-family archive handling, single-stream decompression, and browser create-dialog format gating.
+- **UX and Multi-Selection Verification:** Verified integration test coverage for selection gestures, dynamic header state transitions, and ViewModel sequential queue management during extraction tasks.
 
 ## [0.9.6] - 2026-06-01
 

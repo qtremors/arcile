@@ -13,6 +13,7 @@ import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.di.ApplicationScope
@@ -67,7 +68,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         fakeFileSize: Long?,
         archiveFormat: ArchiveFormat?,
         archiveEntryPrefix: String?,
-        archivePassword: String?
+        archivePassword: String?,
+        archiveNameEncoding: ArchiveNameEncoding?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -80,7 +82,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             fakeFileSize = fakeFileSize,
             archiveFormat = archiveFormat,
             archiveEntryPrefix = archiveEntryPrefix,
-            archivePassword = archivePassword?.takeIf { it.isNotEmpty() }
+            archivePassword = archivePassword?.takeIf { it.isNotEmpty() },
+            archiveNameEncoding = archiveNameEncoding
         )
         return startRequest(request)
     }

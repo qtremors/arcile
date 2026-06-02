@@ -107,9 +107,9 @@ internal fun BrowserDialogs(
             destinationPath = state.currentPath,
             existingNames = state.displayState.existingNames,
             onDismiss = { dialogVisibility.showCreateArchiveDialog = false },
-            onConfirm = { name, format, password ->
+            onConfirm = { name, format, password, deleteSources, separateArchives ->
                 dialogVisibility.showCreateArchiveDialog = false
-                actions.onCreateArchiveFromSelection(name, format, password)
+                actions.onCreateArchiveFromSelection(name, format, password, deleteSources, separateArchives)
             }
         )
     }
@@ -118,13 +118,9 @@ internal fun BrowserDialogs(
         ExtractArchiveDialog(
             archiveName = File(state.selectedFiles.first()).name,
             onDismiss = { dialogVisibility.showExtractArchiveDialog = false },
-            onExtractHere = { password ->
+            onConfirm = { password, createSubfolder, deleteArchive ->
                 dialogVisibility.showExtractArchiveDialog = false
-                actions.onExtractSelectedArchive(password)
-            },
-            onExtractToFolder = { password ->
-                dialogVisibility.showExtractArchiveDialog = false
-                actions.onExtractSelectedArchiveToFolder(password)
+                actions.onExtractArchive(password, createSubfolder, deleteArchive)
             }
         )
     }

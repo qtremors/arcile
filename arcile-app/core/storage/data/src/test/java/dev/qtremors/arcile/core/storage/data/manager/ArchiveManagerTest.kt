@@ -4,6 +4,8 @@ import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -12,6 +14,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
+import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
+import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -52,7 +57,12 @@ class ArchiveManagerTest {
     fun `archive format detects supported extensions`() {
         assertEquals(ArchiveFormat.ZIP, ArchiveFormat.fromPath("demo.ZIP"))
         assertEquals(ArchiveFormat.SEVEN_Z, ArchiveFormat.fromPath("demo.7z"))
-        assertEquals(null, ArchiveFormat.fromPath("demo.rar"))
+        assertEquals(ArchiveFormat.TAR_GZIP, ArchiveFormat.fromPath("demo.tar.gz"))
+        assertEquals(ArchiveFormat.TGZ, ArchiveFormat.fromPath("demo.tgz"))
+        assertEquals(ArchiveFormat.TAR_BZIP2, ArchiveFormat.fromPath("demo.tar.bz2"))
+        assertEquals(ArchiveFormat.TAR_XZ, ArchiveFormat.fromPath("demo.tar.xz"))
+        assertEquals(ArchiveFormat.RAR, ArchiveFormat.fromPath("demo.rar"))
+        assertFalse(ArchiveFormat.isSupported("demo.rar"))
     }
 
     @Test
@@ -83,6 +93,51 @@ class ArchiveManagerTest {
         assertTrue(manager.listArchiveEntries(archive.absolutePath).getOrThrow().any { it.path == "note.txt" })
         assertTrue(manager.extractArchive(archive.absolutePath, destination.absolutePath).isSuccess)
         assertEquals("seven zip", File(destination, "note.txt").readText())
+    }
+
+    @Test
+    fun `tar archive families can be created listed and extracted`() = runTest {
+        val formats = listOf(
+            ArchiveFormat.TAR,
+            ArchiveFormat.TAR_GZIP,
+            ArchiveFormat.TGZ,
+            ArchiveFormat.TAR_BZIP2,
+            ArchiveFormat.TBZ2,
+            ArchiveFormat.TAR_XZ,
+            ArchiveFormat.TXZ
+        )
+        for (format in formats) {
+            val sourceDir = File(root, "source-${format.extension}").apply { mkdirs() }
+            File(sourceDir, "nested").mkdirs()
+            File(sourceDir, "nested/file.txt").writeText("body ${format.extension}")
+            val archive = File(root, "bundle.${format.extension}")
+            val destination = File(root, "out-${format.extension.replace('.', '-')}").apply { mkdirs() }
+
+            assertTrue(manager.createArchive(listOf(sourceDir.absolutePath), archive.absolutePath, format).isSuccess)
+            assertTrue(manager.listArchiveEntries(archive.absolutePath).getOrThrow().any { it.path == "${sourceDir.name}/nested/file.txt" })
+            assertTrue(manager.extractArchive(archive.absolutePath, destination.absolutePath).isSuccess)
+            assertEquals("body ${format.extension}", File(destination, "${sourceDir.name}/nested/file.txt").readText())
+        }
+    }
+
+    @Test
+    fun `single stream compressed files can be listed and extracted`() = runTest {
+        val gzip = compressedFile("plain.txt.gz", ArchiveFormat.GZIP, "gzip body")
+        val bzip = compressedFile("plain.log.bz2", ArchiveFormat.BZIP2, "bzip body")
+        val xz = compressedFile("plain.data.xz", ArchiveFormat.XZ, "xz body")
+
+        assertEquals("plain.txt", manager.listArchiveEntries(gzip.absolutePath).getOrThrow().single().path)
+        assertEquals("plain.log", manager.listArchiveEntries(bzip.absolutePath).getOrThrow().single().path)
+        assertEquals("plain.data", manager.listArchiveEntries(xz.absolutePath).getOrThrow().single().path)
+
+        val destination = File(root, "single-stream-out").apply { mkdirs() }
+        assertTrue(manager.extractArchive(gzip.absolutePath, destination.absolutePath).isSuccess)
+        assertTrue(manager.extractArchive(bzip.absolutePath, destination.absolutePath).isSuccess)
+        assertTrue(manager.extractArchive(xz.absolutePath, destination.absolutePath).isSuccess)
+
+        assertEquals("gzip body", File(destination, "plain.txt").readText())
+        assertEquals("bzip body", File(destination, "plain.log").readText())
+        assertEquals("xz body", File(destination, "plain.data").readText())
     }
 
     @Test
@@ -216,6 +271,97 @@ class ArchiveManagerTest {
     }
 
     @Test
+    fun `archive extraction replaces or skips conflicting entries from resolutions`() = runTest {
+        val replaceSource = File(root, "replace.txt").apply { writeText("incoming replace") }
+        val skipSource = File(root, "skip.txt").apply { writeText("incoming skip") }
+        val archive = File(root, "conflicts.zip")
+        val destination = File(root, "conflict-dest").apply { mkdirs() }
+        File(destination, "replace.txt").writeText("existing replace")
+        File(destination, "skip.txt").writeText("existing skip")
+
+        assertTrue(manager.createArchive(listOf(replaceSource.absolutePath, skipSource.absolutePath), archive.absolutePath, ArchiveFormat.ZIP).isSuccess)
+
+        assertTrue(
+            manager.extractArchive(
+                archive.absolutePath,
+                destination.absolutePath,
+                resolutions = mapOf(
+                    "replace.txt" to ConflictResolution.REPLACE,
+                    "skip.txt" to ConflictResolution.SKIP
+                )
+            ).isSuccess
+        )
+
+        assertEquals("incoming replace", File(destination, "replace.txt").readText())
+        assertEquals("existing skip", File(destination, "skip.txt").readText())
+        assertFalse(File(destination, "skip (1).txt").exists())
+    }
+
+    @Test
+    fun `detect archive conflicts returns normalized archive entry keys`() = runTest {
+        val source = File(root, "detect.txt").apply { writeText("incoming") }
+        val archive = File(root, "detect.zip")
+        val destination = File(root, "detect-dest").apply { mkdirs() }
+        File(destination, "detect.txt").writeText("existing")
+
+        assertTrue(manager.createArchive(listOf(source.absolutePath), archive.absolutePath, ArchiveFormat.ZIP).isSuccess)
+
+        val conflicts = manager.detectArchiveConflicts(archive.absolutePath, destination.absolutePath).getOrThrow()
+
+        assertEquals(listOf("detect.txt"), conflicts.map { it.sourcePath })
+    }
+
+    @Test
+    fun `zip archive supports selected legacy filename encoding`() = runTest {
+        val source = File(root, "café.txt").apply { writeText("legacy name") }
+        val archive = File(root, "legacy.zip")
+        val destination = File(root, "legacy-out").apply { mkdirs() }
+
+        assertTrue(
+            manager.createArchive(
+                listOf(source.absolutePath),
+                archive.absolutePath,
+                ArchiveFormat.ZIP,
+                nameEncoding = ArchiveNameEncoding.WINDOWS_1252
+            ).isSuccess
+        )
+        assertTrue(
+            manager.listArchiveEntries(
+                archive.absolutePath,
+                password = null,
+                nameEncoding = ArchiveNameEncoding.WINDOWS_1252
+            ).getOrThrow().any { it.path == "café.txt" }
+        )
+        assertTrue(
+            manager.extractArchive(
+                archive.absolutePath,
+                destination.absolutePath,
+                nameEncoding = ArchiveNameEncoding.WINDOWS_1252
+            ).isSuccess
+        )
+        assertEquals("legacy name", File(destination, "café.txt").readText())
+    }
+
+    @Test
+    fun `large archive creation switches to indeterminate progress without failing`() = runTest {
+        val sourceDir = File(root, "large-tree").apply { mkdirs() }
+        repeat(2_060) { index ->
+            File(sourceDir, "file-$index.txt").writeText("x")
+        }
+        val archive = File(root, "large-tree.zip")
+        val totals = mutableListOf<Int>()
+
+        assertTrue(
+            manager.createArchive(listOf(sourceDir.absolutePath), archive.absolutePath, ArchiveFormat.ZIP) { progress ->
+                totals += progress.totalItems
+            }.isSuccess
+        )
+
+        assertTrue(archive.isFile)
+        assertTrue(totals.any { it == 0 })
+    }
+
+    @Test
     fun `archive extraction rejects excessive entry count`() = runTest {
         val archive = File(root, "too-many.zip")
         ZipArchiveOutputStream(archive).use { zip ->
@@ -282,6 +428,31 @@ class ArchiveManagerTest {
         assertFalse(File(root, "bad.txt").exists())
     }
 
+    @Test
+    fun `failed extraction restores replaced outputs`() = runTest {
+        val archive = File(root, "replace-partial.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("same.txt"))
+            zip.write("incoming".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("../bad.txt"))
+            zip.write("bad".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val destination = File(root, "replace-partial-out").apply { mkdirs() }
+        File(destination, "same.txt").writeText("existing")
+
+        val result = manager.extractArchive(
+            archive.absolutePath,
+            destination.absolutePath,
+            resolutions = mapOf("same.txt" to ConflictResolution.REPLACE)
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals("existing", File(destination, "same.txt").readText())
+        assertTrue(destination.listFiles().orEmpty().none { it.name.contains(".arcile-replace-") })
+    }
+
     private fun managerWith(policy: ArchiveSafetyPolicy): DefaultArchiveManager {
         return DefaultArchiveManager(volumeProvider, finalizer, policy, mutationJournal = mutationJournal)
     }
@@ -293,6 +464,18 @@ class ArchiveManagerTest {
             zip.write(body.toByteArray())
             zip.closeArchiveEntry()
         }
+        return archive
+    }
+
+    private fun compressedFile(name: String, format: ArchiveFormat, body: String): File {
+        val archive = File(root, name)
+        val output = when (format) {
+            ArchiveFormat.GZIP -> GzipCompressorOutputStream(archive.outputStream())
+            ArchiveFormat.BZIP2 -> BZip2CompressorOutputStream(archive.outputStream())
+            ArchiveFormat.XZ -> XZCompressorOutputStream(archive.outputStream())
+            else -> error("Unsupported single-stream test format")
+        }
+        output.use { it.write(body.toByteArray()) }
         return archive
     }
 

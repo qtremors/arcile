@@ -1,17 +1,38 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.storage.data.source.FileConflictNameGenerator
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import java.io.File
+import java.nio.charset.Charset
+import java.util.UUID
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 internal const val ARCHIVE_BUFFER_SIZE = 128 * 1024
+internal const val ARCHIVE_CREATION_PRE_SCAN_MAX_ENTRIES = 2_048
+internal const val ARCHIVE_CREATION_PRE_SCAN_MAX_BYTES = 512L * 1024L * 1024L
+
+internal data class ArchiveSourceEntry(
+    val sourceRoot: File,
+    val file: File
+)
+
+internal data class ArchiveCreationScan(
+    val entries: List<ArchiveSourceEntry>?,
+    val totalItems: Int,
+    val totalBytes: Long?
+) {
+    val isDeterminate: Boolean get() = entries != null
+}
 
 internal class ArchiveExtractionContext(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    fun resolveTarget(destination: File, rawEntryName: String, directory: Boolean): File {
+    fun resolveRequestedTarget(destination: File, rawEntryName: String): File {
         ArchiveSafetyTally(safetyPolicy).accept(rawEntryName, 0L, null)
         val normalized = rawEntryName.normalizeEntryName()
         require(normalized.isNotBlank()) { "Archive contains an empty entry name" }
@@ -24,10 +45,22 @@ internal class ArchiveExtractionContext(
             "Archive entry escapes the destination folder"
         }
 
-        val target = if (directory || !requested.exists()) {
-            requested
-        } else {
-            FileConflictNameGenerator.generateKeepBothTarget(
+        return requested
+    }
+
+    fun resolveTarget(
+        destination: File,
+        rawEntryName: String,
+        directory: Boolean,
+        resolutions: Map<String, ConflictResolution> = emptyMap()
+    ): File? {
+        val requested = resolveRequestedTarget(destination, rawEntryName)
+        val normalized = rawEntryName.normalizeEntryName()
+        val target = when {
+            directory || !requested.exists() -> requested
+            resolutions[normalized] == ConflictResolution.SKIP -> return null
+            resolutions[normalized] == ConflictResolution.REPLACE -> requested
+            else -> FileConflictNameGenerator.generateKeepBothTarget(
                 requireNotNull(requested.parentFile) { "Archive target has no parent folder" },
                 requested
             )
@@ -82,13 +115,98 @@ internal fun cleanupCreatedOutputs(createdOutputs: Set<File>) {
     }
 }
 
-internal fun File.walkArchiveFiles(validateMutationPath: (File) -> Result<Unit>): List<Pair<File, File>> {
-    validateMutationPath(this).getOrThrow()
-    require(exists()) { "File does not exist: $name" }
-    return if (isDirectory) {
-        listOf(this to this) + walkTopDown().drop(1).map { this to it }
+internal fun rememberReplacementBackup(target: File, replacementBackups: MutableMap<File, File>) {
+    if (!target.exists() || !target.isFile || replacementBackups.containsKey(target)) return
+    val parent = requireNotNull(target.parentFile) { "Archive target has no parent folder" }
+    var backup: File
+    do {
+        backup = File(parent, ".${target.name}.arcile-replace-${UUID.randomUUID()}.tmp")
+    } while (backup.exists())
+    target.copyTo(backup, overwrite = false)
+    replacementBackups[target] = backup
+}
+
+internal fun cleanupReplacementBackups(replacementBackups: Map<File, File>) {
+    replacementBackups.values.forEach { backup ->
+        runCatching {
+            if (backup.exists()) backup.delete()
+        }
+    }
+}
+
+internal fun restoreReplacementBackups(replacementBackups: Map<File, File>) {
+    replacementBackups.entries.toList().asReversed().forEach { (target, backup) ->
+        runCatching {
+            if (backup.exists()) {
+                backup.copyTo(target, overwrite = true)
+                backup.delete()
+            }
+        }
+    }
+}
+
+internal fun archiveSourceEntries(
+    sources: List<File>,
+    validateMutationPath: (File) -> Result<Unit>
+): Flow<ArchiveSourceEntry> = flow {
+    traverseArchiveSources(sources, validateMutationPath) { entry ->
+        emit(entry)
+        true
+    }
+}
+
+internal suspend fun traverseArchiveSources(
+    sources: List<File>,
+    validateMutationPath: (File) -> Result<Unit>,
+    onEntry: suspend (ArchiveSourceEntry) -> Boolean
+) {
+    for (source in sources) {
+        currentCoroutineContext().ensureActive()
+        validateMutationPath(source).getOrThrow()
+        require(source.exists()) { "File does not exist: ${source.name}" }
+        if (!onEntry(ArchiveSourceEntry(source, source))) return
+        if (source.isDirectory) {
+            val iterator = source.walkTopDown().drop(1).iterator()
+            while (iterator.hasNext()) {
+                currentCoroutineContext().ensureActive()
+                if (!onEntry(ArchiveSourceEntry(source, iterator.next()))) return
+            }
+        }
+    }
+}
+
+internal suspend fun scanArchiveCreationEntries(
+    sources: List<File>,
+    validateMutationPath: (File) -> Result<Unit>,
+    safetyPolicy: ArchiveSafetyPolicy
+): ArchiveCreationScan {
+    val safety = ArchiveSafetyTally(safetyPolicy)
+    val entries = mutableListOf<ArchiveSourceEntry>()
+    var totalBytes = 0L
+    var totalItems = 0
+    var exceededLimit = false
+    traverseArchiveSources(sources, validateMutationPath) { entry ->
+        currentCoroutineContext().ensureActive()
+        safety.accept(
+            rawName = archiveEntryName(entry.sourceRoot, entry.file),
+            uncompressedSize = if (entry.file.isFile) entry.file.length() else 0L,
+            compressedSize = null
+        )
+        totalItems += 1
+        if (entry.file.isFile) {
+            totalBytes = Math.addExact(totalBytes, entry.file.length())
+        }
+        if (totalItems > ARCHIVE_CREATION_PRE_SCAN_MAX_ENTRIES || totalBytes > ARCHIVE_CREATION_PRE_SCAN_MAX_BYTES) {
+            exceededLimit = true
+            return@traverseArchiveSources false
+        }
+        entries += entry
+        true
+    }
+    return if (exceededLimit) {
+        ArchiveCreationScan(entries = null, totalItems = 0, totalBytes = null)
     } else {
-        listOf(this to this)
+        ArchiveCreationScan(entries = entries, totalItems = totalItems, totalBytes = totalBytes.coerceAtLeast(1L))
     }
 }
 
@@ -107,6 +225,8 @@ internal fun String.matchesPrefix(prefix: String?): Boolean {
     val normalized = normalizeEntryName()
     return normalized == normalizedPrefix || normalized.startsWith("$normalizedPrefix/")
 }
+
+internal fun ArchiveNameEncoding.charset(): Charset = Charset.forName(charsetName)
 
 internal suspend fun copyWithProgress(
     read: (ByteArray) -> Int,

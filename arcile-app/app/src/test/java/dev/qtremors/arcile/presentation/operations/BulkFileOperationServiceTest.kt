@@ -9,6 +9,8 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.testutil.FakeArchiveRepository
 import dev.qtremors.arcile.testutil.FakeClipboardRepository
@@ -200,6 +202,30 @@ class BulkFileOperationServiceTest {
 
         verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
         awaitInactiveMutation()
+    }
+
+    @Test
+    fun `service passes archive encoding and conflict resolutions to extraction`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-extract",
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf("/source/archive.zip"),
+            destinationPath = "/dest",
+            resolutions = mapOf("same.txt" to ConflictResolution.REPLACE),
+            archiveEntryPrefix = "folder",
+            archivePassword = "secret",
+            archiveNameEncoding = ArchiveNameEncoding.WINDOWS_1252
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        val extractRequest = archiveRepository.extractArchiveRequests.single()
+        assertEquals(ArchiveNameEncoding.WINDOWS_1252, extractRequest.nameEncoding)
+        assertEquals(mapOf("same.txt" to ConflictResolution.REPLACE), extractRequest.resolutions)
+        assertEquals("folder", extractRequest.entryPrefix)
+        assertEquals("secret", extractRequest.password)
     }
 
     private fun awaitInactiveMutation() {

@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.operation
 
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArcileError
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.serialization.Serializable
@@ -28,7 +29,8 @@ data class BulkFileOperationRequest(
     val fakeFileSize: Long? = null,
     val archiveFormat: ArchiveFormat? = null,
     val archiveEntryPrefix: String? = null,
-    val archivePassword: String? = null
+    val archivePassword: String? = null,
+    val archiveNameEncoding: ArchiveNameEncoding? = null
 ) {
     val sourceRefs: List<StorageNodeRef> get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }
     val destinationRef: StorageNodeRef? get() = destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }
