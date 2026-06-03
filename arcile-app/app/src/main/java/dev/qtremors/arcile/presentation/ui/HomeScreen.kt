@@ -153,6 +153,8 @@ import androidx.compose.ui.platform.LocalContext
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 
 private const val HomeRecentFilesPreviewLimit = 12
@@ -318,14 +320,21 @@ fun HomeScreen(
                 val extension = file.extension.lowercase()
                 !file.isDirectory && (
                     FileCategories.Images.extensions.contains(extension) ||
-                        FileCategories.Videos.extensions.contains(extension)
+                        FileCategories.Videos.extensions.contains(extension) ||
+                        FileCategories.Audio.extensions.contains(extension)
                     )
             }
             .take(HomeRecentFilesPreloadLimit)
             .forEach { file ->
+                val thumbnailKey = ThumbnailKey.from(file)
+                val thumbnailData = when (thumbnailKey.type) {
+                    ThumbnailType.Audio,
+                    ThumbnailType.Video -> thumbnailKey
+                    else -> File(file.absolutePath)
+                }
                 context.imageLoader.enqueue(
                     ImageRequest.Builder(context)
-                        .data(File(file.absolutePath))
+                        .data(thumbnailData)
                         .size(HomeRecentFilesPreloadSizePx)
                         .memoryCacheKey(homeRecentPreloadCacheKey(file))
                         .diskCacheKey(homeRecentPreloadCacheKey(file))
@@ -464,6 +473,7 @@ fun HomeScreen(
                         )
                     }
 
+                    val displayedHomeUtilities = HomeUtilityCatalog.filter { it.id in state.homeUtilityIds }
                     item {
                         Row(
                             modifier = Modifier
@@ -487,33 +497,31 @@ fun HomeScreen(
                         }
                     }
 
-                    item {
-                        androidx.compose.foundation.lazy.LazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
-                            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
-                        ) {
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.trash_bin),
-                                            Icons.Default.Delete,
-                                            isImplemented = true
-                                        ), onClick = onNavigateToTrash
-                                    )
-                                }
-                            }
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.tool_clean),
-                                            Icons.Default.CleaningServices,
-                                            isImplemented = true
-                                        ), onClick = onNavigateToCleaner
-                                    )
+                    if (displayedHomeUtilities.isNotEmpty()) {
+                        item {
+                            androidx.compose.foundation.lazy.LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
+                                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
+                            ) {
+                                items(displayedHomeUtilities, key = { it.id }) { definition ->
+                                    Box(modifier = Modifier.width(140.dp)) {
+                                        ToolCard(
+                                            ToolItem(
+                                                stringResource(definition.nameRes),
+                                                definition.icon,
+                                                isImplemented = definition.isImplemented
+                                            ),
+                                            onClick = {
+                                                when (definition.action) {
+                                                    UtilityAction.Trash -> onNavigateToTrash()
+                                                    UtilityAction.Cleaner -> onNavigateToCleaner()
+                                                    UtilityAction.None -> Unit
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }

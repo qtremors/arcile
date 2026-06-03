@@ -1,10 +1,14 @@
 package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -243,5 +247,84 @@ class BrowserViewModelNavigationTest {
 
         assertNull(viewModel.state.value.selectedFolderTabPath)
         assertFalse(viewModel.state.value.isCategoryScreen)
+    }
+
+    @Test
+    fun `archive back exits to real parent directory without restoring virtual path as directory`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val archivePath = "/storage/emulated/0/Download/bundle.zip"
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(browserFile("bundle.zip", archivePath))
+            )
+        )
+        repo.archiveRepository.archiveEntriesResultProvider = { _, _, _ ->
+            Result.success(
+                listOf(
+                    ArchiveEntryModel("docs", "docs/", 0L, null, 10L, isDirectory = true),
+                    ArchiveEntryModel("note.txt", "docs/note.txt", 12L, null, 20L, isDirectory = false)
+                )
+            )
+        }
+        val savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        val viewModel = createViewModel(
+            repository = repo,
+            savedStateHandle = savedStateHandle
+        )
+
+        advanceUntilIdle()
+        viewModel.openArchive(archivePath)
+        advanceUntilIdle()
+        viewModel.navigateToFolder(ArchiveEntryThumbnailData.virtualPath(archivePath, "docs"))
+        advanceUntilIdle()
+
+        assertEquals("docs", viewModel.state.value.archiveContext?.entryPrefix)
+
+        assertTrue(viewModel.navigateBack())
+        advanceUntilIdle()
+        assertNull(viewModel.state.value.archiveContext?.entryPrefix)
+
+        assertTrue(viewModel.navigateBack())
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.archiveContext)
+        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
+        assertEquals("/storage/emulated/0/Download", savedStateHandle.get<String>("currentPath"))
+    }
+
+    @Test
+    fun `selected archive entry extraction starts targeted archive operation`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val archivePath = "/storage/emulated/0/Download/bundle.zip"
+        val repo = BrowserFakeFileRepository(volumes = listOf(internal))
+        repo.archiveRepository.archiveEntriesResultProvider = { _, _, _ ->
+            Result.success(
+                listOf(
+                    ArchiveEntryModel("note.txt", "docs/note.txt", 12L, null, 20L, isDirectory = false),
+                    ArchiveEntryModel("image.jpg", "image.jpg", 24L, null, 30L, isDirectory = false)
+                )
+            )
+        }
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = createViewModel(
+            repository = repo,
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.openArchive(archivePath)
+        advanceUntilIdle()
+        viewModel.toggleSelection(ArchiveEntryThumbnailData.virtualPath(archivePath, "image.jpg"))
+        viewModel.extractSelectedArchiveEntries(ArchiveExtractionTarget.SAME_FOLDER, null)
+        advanceUntilIdle()
+
+        val request = coordinator.startedRequests.single()
+        assertEquals(BulkFileOperationType.EXTRACT_ARCHIVE, request.type)
+        assertEquals(listOf(archivePath), request.sourcePaths)
+        assertEquals("/storage/emulated/0/Download", request.destinationPath)
+        assertEquals("image.jpg", request.archiveEntryPrefix)
+        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
     }
 }

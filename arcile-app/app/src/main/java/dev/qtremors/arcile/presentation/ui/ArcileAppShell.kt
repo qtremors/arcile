@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
@@ -74,7 +75,7 @@ fun ArcileAppShell(
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.Home
+    val currentRoute = navBackStackEntry?.destination?.route
     val context = LocalContext.current
 
     val snackbarHostState = remember { SnackbarHostState() }
@@ -87,7 +88,8 @@ fun ArcileAppShell(
             val result = snackbarHostState.showSnackbar(
                 message = event.message.asString(context),
                 actionLabel = event.actionLabel?.asString(context),
-                withDismissAction = event.actionLabel != null || event.severity == ArcileFeedbackSeverity.Error
+                withDismissAction = event.actionLabel != null || event.severity == ArcileFeedbackSeverity.Error,
+                duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
                 event.onAction?.invoke()
@@ -95,6 +97,10 @@ fun ArcileAppShell(
                 event.onDismiss?.invoke()
             }
         }
+    }
+
+    LaunchedEffect(currentRoute) {
+        snackbarHostState.currentSnackbarData?.dismiss()
     }
 
     androidx.compose.animation.SharedTransitionLayout {

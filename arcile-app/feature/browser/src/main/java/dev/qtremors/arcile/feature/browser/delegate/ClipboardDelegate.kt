@@ -28,6 +28,7 @@ class ClipboardDelegate(
     private val refreshAction: () -> Unit
 ) {
     fun copySelectedToClipboard() {
+        if (state.value.archiveContext != null) return
         val selectedPaths = state.value.selectedFiles
         val selectedFiles = state.value.files.filter { it.absolutePath in selectedPaths }.map { file ->
             if (file.isDirectory) {
@@ -47,6 +48,7 @@ class ClipboardDelegate(
     }
 
     fun cutSelectedToClipboard() {
+        if (state.value.archiveContext != null) return
         val selectedPaths = state.value.selectedFiles
         val selectedFiles = state.value.files.filter { it.absolutePath in selectedPaths }.map { file ->
             if (file.isDirectory) {
@@ -83,6 +85,7 @@ class ClipboardDelegate(
     }
 
     fun pasteFromClipboard() {
+        if (state.value.archiveContext != null) return
         val clipboard = state.value.clipboardState ?: return
         val currentPath = state.value.currentPath
         if (currentPath.isEmpty()) return

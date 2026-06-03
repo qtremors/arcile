@@ -228,9 +228,8 @@ val AccentOrange = Color(0xFFFF9800)
 val AccentDeepOrange = Color(0xFFFF5722)
 val AccentBrown = Color(0xFF795548)
 val AccentBlueGrey = Color(0xFF607D8B)
-val AccentGrey = Color(0xFF9E9E9E)
-val AccentBlack = Color(0xFF212121)
-val AccentMonochrome = Color.Gray // Keeping as fallback or alias
+val AccentGrey = Color(0xFF757575)
+val AccentBlack = Color(0xFF111111)
 
 // OLED Specific
 val OledSurfaceVariant = Color(0xFF121212)
@@ -322,6 +321,76 @@ fun buildScheme(primary: Color, isDark: Boolean): ColorScheme {
     }
 }
 
+fun buildMonochromeScheme(isDark: Boolean, isOled: Boolean = false): ColorScheme {
+    val background = when {
+        isOled -> Color.Black
+        isDark -> Color(0xFF121212)
+        else -> Color(0xFFFAFAFA)
+    }
+    val surface = background
+    return if (isDark || isOled) {
+        darkColorScheme(
+            primary = Color(0xFFE0E0E0),
+            onPrimary = Color(0xFF1A1A1A),
+            primaryContainer = Color(0xFF3A3A3A),
+            onPrimaryContainer = Color(0xFFEDEDED),
+            secondary = Color(0xFFCFCFCF),
+            onSecondary = Color(0xFF1F1F1F),
+            secondaryContainer = Color(0xFF333333),
+            onSecondaryContainer = Color(0xFFE6E6E6),
+            tertiary = Color(0xFFBDBDBD),
+            onTertiary = Color(0xFF1F1F1F),
+            tertiaryContainer = Color(0xFF2F2F2F),
+            onTertiaryContainer = Color(0xFFE0E0E0),
+            background = background,
+            onBackground = Color(0xFFEDEDED),
+            surface = surface,
+            onSurface = Color(0xFFEDEDED),
+            surfaceVariant = if (isOled) OledSurfaceVariant else Color(0xFF2C2C2C),
+            onSurfaceVariant = Color(0xFFC7C7C7),
+            surfaceContainerLowest = if (isOled) Color.Black else Color(0xFF0D0D0D),
+            surfaceContainerLow = if (isOled) Color(0xFF0A0A0A) else Color(0xFF171717),
+            surfaceContainer = Color(0xFF1F1F1F),
+            surfaceContainerHigh = Color(0xFF2A2A2A),
+            surfaceContainerHighest = Color(0xFF353535),
+            outline = Color(0xFF8A8A8A),
+            outlineVariant = Color(0xFF454545),
+            error = Color(0xFFFFB4AB),
+            onError = Color(0xFF690005)
+        )
+    } else {
+        lightColorScheme(
+            primary = Color(0xFF424242),
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFFE0E0E0),
+            onPrimaryContainer = Color(0xFF1B1B1B),
+            secondary = Color(0xFF616161),
+            onSecondary = Color.White,
+            secondaryContainer = Color(0xFFE8E8E8),
+            onSecondaryContainer = Color(0xFF202020),
+            tertiary = Color(0xFF757575),
+            onTertiary = Color.White,
+            tertiaryContainer = Color(0xFFEDEDED),
+            onTertiaryContainer = Color(0xFF242424),
+            background = background,
+            onBackground = Color(0xFF1B1B1B),
+            surface = surface,
+            onSurface = Color(0xFF1B1B1B),
+            surfaceVariant = Color(0xFFE3E3E3),
+            onSurfaceVariant = Color(0xFF464646),
+            surfaceContainerLowest = Color.White,
+            surfaceContainerLow = Color(0xFFF5F5F5),
+            surfaceContainer = Color(0xFFEFEFEF),
+            surfaceContainerHigh = Color(0xFFE8E8E8),
+            surfaceContainerHighest = Color(0xFFE0E0E0),
+            outline = Color(0xFF777777),
+            outlineVariant = Color(0xFFC7C7C7),
+            error = Color(0xFFBA1A1A),
+            onError = Color.White
+        )
+    }
+}
+
 data class SemanticColors(
     val success: Color,
     val onSuccess: Color,
@@ -372,4 +441,4 @@ fun SemanticColors.harmonizeWith(keyColor: Color): SemanticColors {
     )
 }
 
-val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }
+val LocalSemanticColors = staticCompositionLocalOf { LightSemanticColors }

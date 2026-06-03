@@ -14,6 +14,7 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.feature.browser.BrowserNavigationEvent
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
@@ -45,7 +46,7 @@ class NavigationDelegate(
     private val savedStateHandle: SavedStateHandle,
     private val onClearSearch: () -> Unit
 ) {
-    private val pathHistory = ArrayDeque<String>()
+    private val pathHistory = ArrayDeque<BrowserHistoryEntry>()
 
     fun restoreLocationFromState(): StorageBrowserLocation? {
         val isVolumeRootScreen = savedStateHandle.get<Boolean>("isVolumeRootScreen")
@@ -58,7 +59,7 @@ class NavigationDelegate(
 
         if (restoredHistory != null) {
             pathHistory.clear()
-            pathHistory.addAll(restoredHistory)
+            pathHistory.addAll(restoredHistory.mapNotNull { BrowserHistoryEntry.fromSavedValue(it) })
         }
 
         if (!restoredArchivePath.isNullOrEmpty()) return null
@@ -100,7 +101,7 @@ class NavigationDelegate(
         savedStateHandle["isVolumeRootScreen"] = state.value.isVolumeRootScreen
         savedStateHandle["isCategoryScreen"] = state.value.isCategoryScreen
         savedStateHandle["activeCategoryName"] = state.value.activeCategoryName
-        savedStateHandle["pathHistory"] = pathHistory.toTypedArray()
+        savedStateHandle["pathHistory"] = pathHistory.map { it.toSavedValue() }.toTypedArray()
         savedStateHandle["archivePath"] = state.value.archiveContext?.archivePath
         savedStateHandle["archiveEntryPrefix"] = state.value.archiveContext?.entryPrefix
     }
@@ -194,7 +195,7 @@ class NavigationDelegate(
         }
         pathHistory.clear()
         if (seedInitialPathHistory && path != volume.path) {
-            pathHistory.push(volume.path)
+            pathHistory.push(BrowserHistoryEntry.Directory(volume.path))
         }
         loadDirectory(path, volume.id, clearHistory = false)
     }
@@ -207,7 +208,7 @@ class NavigationDelegate(
     fun navigateToFolder(path: String) {
         state.value.archiveContext?.let {
             if (path.startsWith(ARCHIVE_VIRTUAL_PREFIX)) {
-                openArchiveFolder(path.removePrefix(ARCHIVE_VIRTUAL_PREFIX))
+                ArchiveEntryThumbnailData.entryPathFromVirtualPath(path)?.let(::openArchiveFolder)
                 return
             }
             openArchive(path)
@@ -223,7 +224,7 @@ class NavigationDelegate(
         }
 
         if (state.value.currentPath.isNotEmpty() && state.value.currentPath != path) {
-            pathHistory.push(state.value.currentPath)
+            state.value.historyEntry()?.let { pathHistory.push(it) }
         }
         loadDirectory(path, state.value.currentVolumeId, clearHistory = false)
     }
@@ -258,8 +259,9 @@ class NavigationDelegate(
                 loadArchiveEntries(archive.archivePath, parent, archive.password, archive.nameEncoding, pushHistory = false)
                 return true
             }
-            val parentPath = File(archive.archivePath).parent
+            val parentPath = File(archive.archivePath).parent?.normalizeStorageSeparators()
             if (!parentPath.isNullOrBlank()) {
+                pathHistory.clear()
                 loadDirectory(parentPath, state.value.currentVolumeId, clearHistory = false)
                 return true
             }
@@ -267,11 +269,25 @@ class NavigationDelegate(
         }
 
         if (pathHistory.isNotEmpty()) {
-            val previousPath = pathHistory.pop()
-            val volume = findVolumeForPath(previousPath)
-            if (volume != null) {
-                loadDirectory(previousPath, volume.id, clearHistory = false)
-                return true
+            when (val previous = pathHistory.pop()) {
+                is BrowserHistoryEntry.Directory -> {
+                    val volume = findVolumeForPath(previous.path)
+                    if (volume != null) {
+                        loadDirectory(previous.path, volume.id, clearHistory = false)
+                        return true
+                    }
+                }
+                is BrowserHistoryEntry.Archive -> {
+                    loadArchiveEntries(
+                        archivePath = previous.archivePath,
+                        entryPrefix = previous.entryPrefix,
+                        password = state.value.archiveContext?.takeIf { it.archivePath == previous.archivePath }?.password,
+                        nameEncoding = state.value.archiveContext?.takeIf { it.archivePath == previous.archivePath }?.nameEncoding
+                            ?: dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding.UTF_8,
+                        pushHistory = false
+                    )
+                    return true
+                }
             }
         }
 
@@ -314,9 +330,9 @@ class NavigationDelegate(
             return
         }
         pathHistory.clear()
-        val parent = File(archivePath).parent
+        val parent = File(archivePath).parent?.normalizeStorageSeparators()
         if (seedHistory && !parent.isNullOrBlank()) {
-            pathHistory.push(parent)
+            pathHistory.push(BrowserHistoryEntry.Directory(parent))
         }
         loadArchiveEntries(
             archivePath = archivePath,
@@ -432,7 +448,12 @@ class NavigationDelegate(
     ) {
         val previous = state.value.archiveContext
         if (pushHistory && previous?.entryPrefix != entryPrefix) {
-            pathHistory.push(previous?.archivePath ?: archivePath)
+            pathHistory.push(
+                BrowserHistoryEntry.Archive(
+                    archivePath = previous?.archivePath ?: archivePath,
+                    entryPrefix = previous?.entryPrefix
+                )
+            )
         }
         val volume = findVolumeForPath(archivePath)
         state.update {
@@ -473,7 +494,7 @@ class NavigationDelegate(
                             nameEncoding = nameEncoding,
                             entries = entries
                         ),
-                        files = buildArchiveFiles(entries, entryPrefix).toPersistentList()
+                        files = buildArchiveFiles(archivePath, entries, entryPrefix).toPersistentList()
                     ).withUpdatedDisplayState()
                 }
                 saveNavState()
@@ -500,7 +521,7 @@ class NavigationDelegate(
         }
     }
 
-    private fun buildArchiveFiles(entries: List<ArchiveEntryModel>, prefix: String?): List<FileModel> {
+    private fun buildArchiveFiles(archivePath: String, entries: List<ArchiveEntryModel>, prefix: String?): List<FileModel> {
         val normalizedPrefix = prefix?.trimEnd('/')?.takeIf { it.isNotBlank() }
         val directoryPaths = entries
             .asSequence()
@@ -537,7 +558,7 @@ class NavigationDelegate(
             if (existing == null || (!isDirectory && existing.isDirectory)) {
                 children[childPath] = FileModel(
                     name = childName,
-                    absolutePath = ARCHIVE_VIRTUAL_PREFIX + childPath,
+                    absolutePath = ArchiveEntryThumbnailData.virtualPath(archivePath, childPath),
                     size = if (isDirectory) 0L else entry.size,
                     lastModified = entry.lastModified ?: 0L,
                     isDirectory = isDirectory,
@@ -605,6 +626,37 @@ class NavigationDelegate(
             message.orEmpty().contains("encrypted", ignoreCase = true)
 
     companion object {
-        const val ARCHIVE_VIRTUAL_PREFIX = "arcile-archive-entry://"
+        const val ARCHIVE_VIRTUAL_PREFIX = ArchiveEntryThumbnailData.VIRTUAL_PREFIX
     }
 }
+
+private sealed interface BrowserHistoryEntry {
+    data class Directory(val path: String) : BrowserHistoryEntry
+    data class Archive(val archivePath: String, val entryPrefix: String?) : BrowserHistoryEntry
+
+    fun toSavedValue(): String = when (this) {
+        is Directory -> "dir:$path"
+        is Archive -> "archive:$archivePath|${entryPrefix.orEmpty()}"
+    }
+
+    companion object {
+        fun fromSavedValue(value: String): BrowserHistoryEntry? = when {
+            value.startsWith("dir:") -> Directory(value.removePrefix("dir:"))
+            value.startsWith("archive:") -> {
+                val payload = value.removePrefix("archive:")
+                val archivePath = payload.substringBefore('|').takeIf { it.isNotBlank() } ?: return null
+                val entryPrefix = payload.substringAfter('|', "").takeIf { it.isNotBlank() }
+                Archive(archivePath, entryPrefix)
+            }
+            value.startsWith(NavigationDelegate.ARCHIVE_VIRTUAL_PREFIX) -> null
+            else -> Directory(value)
+        }
+    }
+}
+
+private fun BrowserState.historyEntry(): BrowserHistoryEntry? =
+    archiveContext?.let { BrowserHistoryEntry.Archive(it.archivePath, it.entryPrefix) }
+        ?: currentPath.takeIf { it.isNotBlank() && !it.startsWith(NavigationDelegate.ARCHIVE_VIRTUAL_PREFIX) }
+            ?.let { BrowserHistoryEntry.Directory(it) }
+
+private fun String.normalizeStorageSeparators(): String = replace('\\', '/')

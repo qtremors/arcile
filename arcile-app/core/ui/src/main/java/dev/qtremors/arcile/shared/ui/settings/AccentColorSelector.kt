@@ -34,6 +34,16 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import androidx.annotation.StringRes
 
+fun displayedAccentColors(): List<AccentColor> =
+    buildList {
+        add(AccentColor.DYNAMIC)
+        add(AccentColor.MONOCHROME)
+        AccentColor.entries
+            .filter { it != AccentColor.DYNAMIC && it != AccentColor.MONOCHROME }
+            .distinctBy { it.color?.value ?: it.name.hashCode().toULong() }
+            .forEach(::add)
+    }
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AccentColorSelector(
@@ -42,10 +52,7 @@ fun AccentColorSelector(
 ) {
     var showPicker by remember { mutableStateOf(false) }
     
-    val allAccents = remember {
-        listOf(AccentColor.DYNAMIC, AccentColor.MONOCHROME) + 
-        AccentColor.entries.filter { it != AccentColor.DYNAMIC && it != AccentColor.MONOCHROME }
-    }
+    val allAccents = remember { displayedAccentColors() }
 
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Text(
@@ -183,8 +190,8 @@ fun AccentColorPickerSheet(
             Spacer(modifier = Modifier.height(24.dp))
 
             // Presets Grid
-            val presets = remember { 
-                AccentColor.entries.filter { it != AccentColor.DYNAMIC && it != AccentColor.MONOCHROME } 
+            val presets = remember {
+                displayedAccentColors().filter { it != AccentColor.DYNAMIC && it != AccentColor.MONOCHROME }
             }
             
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {

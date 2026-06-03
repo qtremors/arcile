@@ -37,6 +37,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.feature.browser.BrowserState
+import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.shared.ui.Breadcrumbs
 import dev.qtremors.arcile.shared.ui.EmptyState
@@ -113,7 +114,11 @@ internal fun BrowserContent(
                     archiveName = state.archiveContext.archiveName,
                     entryPrefix = state.archiveContext.entryPrefix,
                     onArchiveRootClick = { actions.onNavigateTo(state.archiveContext.archivePath) },
-                    onEntryClick = { actions.onNavigateTo("arcile-archive-entry://$it") }
+                    onEntryClick = {
+                        actions.onNavigateTo(
+                            ArchiveEntryThumbnailData.virtualPath(state.archiveContext.archivePath, it)
+                        )
+                    }
                 )
             } else if (!state.isVolumeRootScreen && !state.isCategoryScreen) {
                 Breadcrumbs(

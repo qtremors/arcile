@@ -1,10 +1,32 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.8
-> **Last Updated:** 2026-06-02
+> **Version:** 0.9.9
+> **Last Updated:** 2026-06-03
 
 ---
+
+## [0.9.9] - 2026-06-03
+
+### Archive UX
+- **Seamless Archive Selection:** Enabled selection inside browser-native archive views and added targeted extraction for selected files or the current archive folder without extracting the whole archive.
+- **Read-Only Archive Actions:** Limited archive-entry actions to valid virtual-file operations such as extract and properties, while blocking copy, cut, delete, rename, create, paste, and archive creation for entries that are only being viewed inside an archive.
+- **Archive Entry Thumbnails:** Added safe ZIP image-entry thumbnail loading through Coil using virtual archive-entry data, with unsupported or protected entries falling back to file icons.
+
+### Reliability
+- **Archive Back Navigation Fix:** Fixed back navigation from archive folders so virtual archive paths are not restored as real directories, preventing the "not a valid directory" error after leaving an archive.
+- **Archive Index Isolation:** Kept archive entry browsing virtual and read-only so archive contents are not added to Recent Files, categories, folder stats scans, quick access, clipboard state, or persisted browser locations.
+- **Archive Properties Isolation:** Added archive-local properties for selected entries so virtual archive paths do not leak into real filesystem property scanning.
+- **Feedback Lifetime:** Made app-level feedback use finite snackbar durations and dismiss on route changes so stale toasts no longer linger across screens.
+
+### UI/UX Refinements
+- **Accent Color Cleanup:** Centralized the displayed accent palette, adjusted duplicate or near-duplicate swatches, and made Monochrome a true neutral grayscale scheme instead of a gray accent seed.
+- **Recent Audio Thumbnails:** Enabled audio files in the Home recent-files carousel to request album-art thumbnails while preserving icon fallbacks when artwork is unavailable.
+- **Utilities Deduplication:** Replaced separate Home and Tools utility lists with a shared catalog so utility cards stay unique and consistent.
+- **Home Utility Selection:** Added persisted per-utility Tools & Utilities switches for choosing which utility shortcuts appear on the Home screen, with Trash shown by default.
+
+### Verification
+- **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, accent palette and monochrome scheme tests, utility catalog and preference tests, and Home visibility coverage. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, and `:app:compileDebugKotlin`.
 
 ## [0.9.8] - 2026-06-02
 

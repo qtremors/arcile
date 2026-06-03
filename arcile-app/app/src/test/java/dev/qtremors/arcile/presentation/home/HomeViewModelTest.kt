@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
+import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
@@ -254,6 +255,30 @@ class HomeViewModelTest {
         assertEquals(24L, viewModel.state.value.trashStorageUsage.totalBytes)
         assertEquals(UiText.Dynamic("trash failed"), viewModel.state.value.error)
     }
+
+    @Test
+    fun `utility preference controls which utilities are visible on home`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle()
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val utilityStore = HomeFakeUtilityPreferencesStore()
+        val viewModel = HomeViewModel(
+            repository.volumeRepository,
+            repository.storageAnalyticsRepository,
+            repository.searchRepository,
+            HomeFakeStorageClassificationStore(),
+            quickAccessRepo,
+            utilityStore
+        )
+
+        advanceUntilIdle()
+        assertTrue("trash" in viewModel.state.value.homeUtilityIds)
+        assertTrue("cleaner" in viewModel.state.value.homeUtilityIds)
+
+        utilityStore.setHomeUtilityIds(setOf("trash"))
+        advanceUntilIdle()
+
+        assertEquals(setOf("trash"), viewModel.state.value.homeUtilityIds)
+    }
 }
 
 private class HomeFakeStorageClassificationStore(
@@ -273,6 +298,16 @@ private class HomeFakeStorageClassificationStore(
     }
 
     override suspend fun resetClassification(storageKey: String) = Unit
+}
+
+private class HomeFakeUtilityPreferencesStore : UtilityPreferencesStore {
+    private val ids = MutableStateFlow(setOf("trash", "cleaner"))
+
+    override val homeUtilityIds = ids.asStateFlow()
+
+    override suspend fun setHomeUtilityIds(ids: Set<String>) {
+        this.ids.value = ids
+    }
 }
 
 private fun homeVolume(

@@ -9,6 +9,7 @@ import coil.memory.MemoryCache
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.image.ApkIconFetcher
+import dev.qtremors.arcile.image.ArchiveEntryImageFetcher
 import dev.qtremors.arcile.image.AudioAlbumArtFetcher
 import dev.qtremors.arcile.image.PdfThumbnailFetcher
 import dev.qtremors.arcile.image.VideoThumbnailFetcher
@@ -56,6 +57,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
                 add(ApkIconFetcher.KeyFactory())
                 add(AudioAlbumArtFetcher.Factory())
                 add(AudioAlbumArtFetcher.KeyFactory())
+                add(ArchiveEntryImageFetcher.Factory())
             }
             .crossfade(true)
             .build()

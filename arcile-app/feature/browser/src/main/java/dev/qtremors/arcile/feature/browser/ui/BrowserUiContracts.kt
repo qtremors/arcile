@@ -108,6 +108,8 @@ internal data class BrowserUiActions(
     val onRemoveFromClipboard: (String) -> Unit,
     val onSelectFolderTab: (String?) -> Unit,
     val onExtractArchive: (ArchiveExtractionTarget, String?) -> Unit,
+    val onExtractSelectedArchiveEntries: (ArchiveExtractionTarget, String?) -> Unit,
+    val onExtractCurrentArchiveFolder: (ArchiveExtractionTarget, String?) -> Unit,
     val onCreateZipFromSelection: () -> Unit,
     val onCreateArchiveFromSelection: (String, ArchiveFormat, ArchiveCompressionLevel, String?) -> Unit,
     val onSubmitArchivePassword: (String) -> Unit,

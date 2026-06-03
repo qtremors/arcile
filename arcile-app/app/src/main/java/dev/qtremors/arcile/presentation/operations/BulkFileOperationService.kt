@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.operations
 
 import android.app.Notification
 import android.app.NotificationChannel

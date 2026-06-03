@@ -314,38 +314,49 @@ private fun BrowserSelectionToolbar(
     dialogVisibility: BrowserDialogVisibility,
     actions: BrowserUiActions
 ) {
+    val isArchiveSelection = state.archiveContext != null
     val selectedArchive = state.selectedFiles.singleOrNull()?.let { ArchiveFormat.isSupported(it) } == true
     val mainActions = mutableListOf<ToolbarAction>()
-    mainActions.add(
-        ToolbarAction(
-            icon = Icons.Default.ContentCopy,
-            contentDescription = stringResource(R.string.action_copy),
-            onClick = actions.onCopySelected
-        )
-    )
-    mainActions.add(
-        ToolbarAction(
-            icon = Icons.Default.ContentCut,
-            contentDescription = stringResource(R.string.action_cut),
-            onClick = actions.onCutSelected
-        )
-    )
-    mainActions.add(
-        ToolbarAction(
-            icon = Icons.Default.Delete,
-            contentDescription = stringResource(R.string.action_delete_selected),
-            tint = MaterialTheme.colorScheme.error,
-            onClick = actions.onRequestDeleteSelected
-        )
-    )
-    if (state.selectedFiles.size == 1) {
+    if (isArchiveSelection) {
         mainActions.add(
             ToolbarAction(
-                icon = Icons.Default.Edit,
-                contentDescription = stringResource(R.string.action_rename),
-                onClick = { dialogVisibility.showRenameDialog = true }
+                icon = Icons.Default.Unarchive,
+                contentDescription = stringResource(R.string.archive_extract_archive),
+                onClick = { dialogVisibility.showExtractArchiveDialog = true }
             )
         )
+    } else {
+        mainActions.add(
+            ToolbarAction(
+                icon = Icons.Default.ContentCopy,
+                contentDescription = stringResource(R.string.action_copy),
+                onClick = actions.onCopySelected
+            )
+        )
+        mainActions.add(
+            ToolbarAction(
+                icon = Icons.Default.ContentCut,
+                contentDescription = stringResource(R.string.action_cut),
+                onClick = actions.onCutSelected
+            )
+        )
+        mainActions.add(
+            ToolbarAction(
+                icon = Icons.Default.Delete,
+                contentDescription = stringResource(R.string.action_delete_selected),
+                tint = MaterialTheme.colorScheme.error,
+                onClick = actions.onRequestDeleteSelected
+            )
+        )
+        if (state.selectedFiles.size == 1) {
+            mainActions.add(
+                ToolbarAction(
+                    icon = Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.action_rename),
+                    onClick = { dialogVisibility.showRenameDialog = true }
+                )
+            )
+        }
     }
 
     FloatingSelectionToolbar(
@@ -377,9 +388,9 @@ private fun BrowserSelectionToolbar(
                     expanded = showSelectionMenu,
                     onDismissRequest = { showSelectionMenu = false }
                 ) {
-                    val menuActions = remember(actions.onShareSelected, state.selectedFiles) {
+                    val menuActions = remember(actions.onShareSelected, state.selectedFiles, isArchiveSelection) {
                         mutableListOf<@Composable () -> Unit>().apply {
-                            add {
+                            if (!isArchiveSelection) add {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.archive_compress_zip)) },
                                     leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
@@ -401,7 +412,7 @@ private fun BrowserSelectionToolbar(
                                     )
                                 }
                             }
-                            add {
+                            if (!isArchiveSelection) add {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.share)) },
                                     leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },

@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.operations
 
 import android.content.Context
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress

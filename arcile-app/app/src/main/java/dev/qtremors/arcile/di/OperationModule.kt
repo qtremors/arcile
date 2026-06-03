@@ -7,9 +7,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.DefaultOperationJournal
-import dev.qtremors.arcile.presentation.operations.ForegroundBulkFileOperationCoordinator
-import dev.qtremors.arcile.presentation.operations.OperationJournal
+import dev.qtremors.arcile.operations.DefaultOperationJournal
+import dev.qtremors.arcile.operations.ForegroundBulkFileOperationCoordinator
+import dev.qtremors.arcile.operations.OperationJournal
 import javax.inject.Qualifier
 import javax.inject.Singleton
 

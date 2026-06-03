@@ -123,7 +123,13 @@ internal fun BrowserDialogs(
             onDismiss = { dialogVisibility.showExtractArchiveDialog = false },
             onConfirm = { target, customDestination ->
                 dialogVisibility.showExtractArchiveDialog = false
-                actions.onExtractArchive(target, customDestination)
+                when {
+                    state.archiveContext != null && state.selectedFiles.isNotEmpty() ->
+                        actions.onExtractSelectedArchiveEntries(target, customDestination)
+                    state.archiveContext?.entryPrefix != null ->
+                        actions.onExtractCurrentArchiveFolder(target, customDestination)
+                    else -> actions.onExtractArchive(target, customDestination)
+                }
             }
         )
     }

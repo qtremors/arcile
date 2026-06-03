@@ -9,9 +9,11 @@ import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.BrowserPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
+import dev.qtremors.arcile.core.storage.data.UtilityPreferencesRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
 import dev.qtremors.arcile.di.ArcileDispatchers
 import javax.inject.Singleton
 
@@ -59,5 +61,14 @@ object BrowserPrefsModule {
         @ApplicationContext context: Context
     ): QuickAccessPreferencesStore {
         return QuickAccessPreferencesRepository(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideUtilityPreferencesStore(
+        @ApplicationContext context: Context,
+        dispatchers: ArcileDispatchers
+    ): UtilityPreferencesStore {
+        return UtilityPreferencesRepository(context, dispatchers = dispatchers)
     }
 }

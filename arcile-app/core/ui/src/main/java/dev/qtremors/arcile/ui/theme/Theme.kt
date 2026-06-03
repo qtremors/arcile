@@ -83,6 +83,13 @@ fun ArcileTheme(
             )
         }
         ThemePreset.NONE -> when {
+            themeState.accentColor == AccentColor.MONOCHROME -> {
+                buildMonochromeScheme(
+                    isDark = effectivelyDark,
+                    isOled = themeState.themeMode == ThemeMode.OLED
+                )
+            }
+
             // 1. Dynamic Wallpaper Colors (Android 12+)
             themeState.accentColor == AccentColor.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
                 if (effectivelyDark) {

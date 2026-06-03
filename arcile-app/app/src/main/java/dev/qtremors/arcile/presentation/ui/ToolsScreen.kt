@@ -45,7 +45,10 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ToolsScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToCleaner: () -> Unit
+    onNavigateToCleaner: () -> Unit,
+    onNavigateToTrash: () -> Unit,
+    homeUtilityIds: Set<String>,
+    onUtilityHomeVisibilityChange: (String, Boolean) -> Unit
 ) {
     ArcileScreenScaffold(
         topBar = {
@@ -60,19 +63,6 @@ fun ToolsScreen(
             )
         }
     ) { padding ->
-        val tools = listOf(
-            ToolItem(stringResource(R.string.tool_ftp), Icons.Default.WifiTethering),
-            ToolItem(stringResource(R.string.tool_analyze), Icons.Default.PieChart),
-            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices, isImplemented = true),
-            ToolItem(stringResource(R.string.tool_duplicates), Icons.Default.FilterNone),
-            ToolItem(stringResource(R.string.tool_large), Icons.Default.ZoomIn),
-            ToolItem(stringResource(R.string.tool_manager), Icons.Default.Apps),
-            ToolItem(stringResource(R.string.tool_onlyfiles), Icons.Default.Lock),
-            ToolItem(stringResource(R.string.tool_share), Icons.Default.Dns)
-        )
-
-        val cleanName = stringResource(R.string.tool_clean)
-
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier
@@ -86,15 +76,45 @@ fun ToolsScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(tools) { tool ->
-                ToolCard(
-                    item = tool,
-                    onClick = {
-                        if (tool.name == cleanName) {
-                            onNavigateToCleaner()
+            items(ArcileUtilityCatalog, key = { it.id }) { definition ->
+                val tool = ToolItem(
+                    name = stringResource(definition.nameRes),
+                    icon = definition.icon,
+                    isImplemented = definition.isImplemented
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ToolCard(
+                        item = tool,
+                        onClick = {
+                            when (definition.action) {
+                                UtilityAction.Cleaner -> onNavigateToCleaner()
+                                UtilityAction.Trash -> onNavigateToTrash()
+                                UtilityAction.None -> Unit
+                            }
+                        }
+                    )
+                    if (definition.showOnHome) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = stringResource(R.string.quick_access_show_on_home),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Switch(
+                                checked = definition.id in homeUtilityIds,
+                                onCheckedChange = { checked ->
+                                    onUtilityHomeVisibilityChange(definition.id, checked)
+                                }
+                            )
                         }
                     }
-                )
+                }
             }
         }
     }

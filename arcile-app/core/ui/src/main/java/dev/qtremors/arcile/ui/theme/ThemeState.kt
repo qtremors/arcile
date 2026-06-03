@@ -42,7 +42,7 @@ enum class AccentColor(val color: Color?) {
     GREY(AccentGrey),
     BLACK(AccentBlack),
 
-    MONOCHROME(AccentMonochrome) // Keep as fallback or special case
+    MONOCHROME(null) // Handled as a true neutral scheme
 }
 
 

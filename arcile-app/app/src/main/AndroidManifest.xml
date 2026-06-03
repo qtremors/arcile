@@ -54,7 +54,7 @@
         </provider>
 
         <service
-            android:name=".presentation.operations.BulkFileOperationService"
+            android:name=".operations.BulkFileOperationService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
     </application>

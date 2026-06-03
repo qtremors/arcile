@@ -5,9 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
@@ -25,26 +23,21 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
-import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.UiText
-import dev.qtremors.arcile.shared.presentation.PropertiesUiModel
 import dev.qtremors.arcile.feature.browser.delegate.ArchiveActionDelegate
 import dev.qtremors.arcile.feature.browser.delegate.BrowserOperationDelegate
 import dev.qtremors.arcile.feature.browser.delegate.ClipboardDelegate
 import dev.qtremors.arcile.feature.browser.delegate.NavigationDelegate
 import dev.qtremors.arcile.feature.browser.delegate.PropertiesDelegate
 import dev.qtremors.arcile.feature.browser.delegate.SearchDelegate
+import dev.qtremors.arcile.feature.browser.delegate.UndoDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
-import dev.qtremors.arcile.core.operation.OperationCompletionStatus
-import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
-import dev.qtremors.arcile.core.storage.domain.toArcileError
-import dev.qtremors.arcile.core.storage.domain.userMessage
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -58,154 +51,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import javax.inject.Inject
 import java.io.File
-enum class BrowserNativeAction { TRASH }
-enum class ArchiveExtractionTarget {
-    NAMED_FOLDER,
-    SAME_FOLDER,
-    CUSTOM_FOLDER
-}
-
-@androidx.compose.runtime.Immutable
-data class BrowserArchiveContext(
-    val archivePath: String,
-    val entryPrefix: String? = null,
-    val password: String? = null,
-    val nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
-    val entries: List<ArchiveEntryModel> = emptyList(),
-    val passwordRequired: Boolean = false,
-    val pendingPasswordAction: ArchivePasswordAction = ArchivePasswordAction.OPEN
-) {
-    val archiveName: String get() = File(archivePath).name
-    val parentPath: String get() = File(archivePath).parent.orEmpty()
-}
-
-enum class ArchivePasswordAction {
-    OPEN,
-    EXTRACT
-}
-
-@androidx.compose.runtime.Immutable
-data class PendingArchiveExtraction(
-    val archivePath: String,
-    val destinationPath: String,
-    val entryPrefix: String? = null,
-    val password: String? = null,
-    val nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
-)
-
-@androidx.compose.runtime.Immutable
-data class BrowserFileOperationUiState(
-    val type: BulkFileOperationType,
-    val totalItems: Int,
-    val completedItems: Int = 0,
-    val currentPath: String? = null,
-    val isCancelling: Boolean = false,
-    val bytesCopied: Long? = null,
-    val totalBytes: Long? = null,
-    val startTimeMillis: Long = System.currentTimeMillis(),
-    val terminalStatus: OperationCompletionStatus? = null,
-    val sourcePaths: List<String> = emptyList()
-) {
-    val isIndeterminate: Boolean
-        get() = (totalBytes ?: 0L) <= 0L && totalItems <= 0
-}
-
-@androidx.compose.runtime.Immutable
-data class BrowserOperationRecoveryUiState(
-    val operationId: String,
-    val type: BulkFileOperationType,
-    val sourcePaths: List<String>,
-    val destinationPath: String?,
-    val phase: String,
-    val completedItems: Int,
-    val totalItems: Int,
-    val currentPath: String?,
-    val error: String?
-)
-sealed interface BrowserUndoAction {
-    data class Trash(val trashIds: PersistentList<String>) : BrowserUndoAction
-    data class Rename(val originalPath: String, val renamedPath: String) : BrowserUndoAction
-    data class Created(val path: String) : BrowserUndoAction
-    data class Moved(val entries: PersistentList<MoveUndoEntry>) : BrowserUndoAction
-}
-@androidx.compose.runtime.Immutable
-data class MoveUndoEntry(
-    val originalPath: String,
-    val movedPath: String
-)
-@androidx.compose.runtime.Immutable
-data class BrowserState(
-    val currentPath: String = "",
-    val currentVolumeId: String? = null,
-    val isVolumeRootScreen: Boolean = false,
-    val isCategoryScreen: Boolean = false,
-    val activeCategoryName: String = "",
-    val selectedFolderTabPath: String? = null,
-    val files: PersistentList<FileModel> = persistentListOf(),
-    val folderStatsByPath: PersistentMap<String, FolderStats> = persistentMapOf(),
-    val folderStatsLoadingPaths: PersistentSet<String> = persistentSetOf(),
-    val searchResults: PersistentList<FileModel> = persistentListOf(),
-    val isSearching: Boolean = false,
-    val browserSearchQuery: String = "",
-    val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
-    val browserViewMode: BrowserViewMode = BrowserViewMode.LIST,
-    val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
-    val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
-    val browserShowThumbnails: Boolean = BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS,
-    val selectedFiles: PersistentSet<String> = persistentSetOf(),
-    val clipboardState: ClipboardState? = null,
-    val activeSearchFilters: SearchFilters = SearchFilters(),
-    val isSearchFilterMenuVisible: Boolean = false,
-    val isLoading: Boolean = true,
-    val isPullToRefreshing: Boolean = false,
-    val error: UiText? = null,
-    val pasteConflicts: PersistentList<FileConflict> = persistentListOf(),
-    val showConflictDialog: Boolean = false,
-    val storageVolumes: PersistentList<StorageVolume> = persistentListOf(),
-    val showTrashConfirmation: Boolean = false,
-    val showPermanentDeleteConfirmation: Boolean = false,
-    val showMixedDeleteExplanation: Boolean = false,
-    val deleteDecision: DeleteDecision? = null,
-    val isPermanentDeleteChecked: Boolean = false,
-    val isShredChecked: Boolean = false,
-    val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: BrowserNativeAction? = null,
-    val isPropertiesVisible: Boolean = false,
-    val isPropertiesLoading: Boolean = false,
-    val properties: PropertiesUiModel? = null,
-    val activeFileOperation: BrowserFileOperationUiState? = null,
-    val activeRecoveryOperation: BrowserOperationRecoveryUiState? = null,
-    val fileOperationStatusMessage: UiText? = null,
-    val pendingTrashUndoIds: PersistentList<String> = persistentListOf(),
-    val pendingUndoAction: BrowserUndoAction? = null,
-    val selectedFilesTotalSize: Long = 0L,
-    val archiveContext: BrowserArchiveContext? = null,
-    val pendingArchiveExtraction: PendingArchiveExtraction? = null,
-    val displayState: BrowserDisplayState = BrowserDisplayState()
-)
-private const val ALL_FILES_LABEL = "All files"
-fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
-    displayState = buildBrowserDisplayState(
-        files = files,
-        sortOption = browserSortOption,
-        selectedFolderTabPath = selectedFolderTabPath,
-        isCategoryScreen = isCategoryScreen,
-        currentVolumeId = currentVolumeId,
-        storageVolumes = storageVolumes,
-        allFilesLabel = ALL_FILES_LABEL
-    )
-)
 @HiltViewModel
 class BrowserViewModel @Inject constructor(
     private val fileBrowserRepository: FileBrowserRepository,
@@ -283,6 +135,14 @@ class BrowserViewModel @Inject constructor(
         viewModelScope = viewModelScope,
         fileBrowserRepository = fileBrowserRepository,
         archiveRepository = archiveRepository
+    )
+    private val undoDelegate = UndoDelegate(
+        state = _state,
+        coroutineScope = viewModelScope,
+        fileMutationRepository = fileMutationRepository,
+        clipboardRepository = clipboardRepository,
+        trashRepository = trashRepository,
+        refreshAction = { navigationDelegate.refresh() }
     )
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
@@ -462,7 +322,7 @@ class BrowserViewModel @Inject constructor(
     fun navigateBack(): Boolean = navigationDelegate.navigateBack()
     fun refresh(pullToRefresh: Boolean = false) = navigationDelegate.refresh(pullToRefresh)
     fun toggleSelection(path: String) {
-        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
+        if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
             currentState.reduce(
                 BrowserSelectionEvent.Toggle(
@@ -474,7 +334,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun selectAll(paths: List<String>) {
-        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
+        if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
             currentState.reduce(
                 BrowserSelectionEvent.SelectAll(
@@ -486,7 +346,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun invertSelection(allPaths: List<String>) {
-        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
+        if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
             currentState.reduce(
                 BrowserSelectionEvent.Invert(
@@ -501,7 +361,7 @@ class BrowserViewModel @Inject constructor(
         return calculateBrowserSelectionSize(selectedPaths, currentFiles, folderStats)
     }
     fun selectMultiple(paths: List<String>) {
-        if (_state.value.isVolumeRootScreen || _state.value.archiveContext != null) return
+        if (_state.value.isVolumeRootScreen) return
         _state.update { currentState ->
             val updatedSelection = currentState.selectedFiles + paths
             currentState.copy(
@@ -555,6 +415,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun createFolder(name: String) {
+        if (_state.value.archiveContext != null) return
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
         viewModelScope.launch {
@@ -572,6 +433,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun createFile(name: String) {
+        if (_state.value.archiveContext != null) return
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
         viewModelScope.launch {
@@ -589,6 +451,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun createFakeFile(name: String, size: Long) {
+        if (_state.value.archiveContext != null) return
         val currentPath = _state.value.currentPath
         if (currentPath.isEmpty() || _state.value.isVolumeRootScreen) return
         bulkFileCoordinator.startOperation(
@@ -601,25 +464,47 @@ class BrowserViewModel @Inject constructor(
     }
     fun extractArchive(target: ArchiveExtractionTarget, customDestination: String?) =
         archiveActionDelegate.extractArchive(target, customDestination)
+    fun extractSelectedArchiveEntries(target: ArchiveExtractionTarget, customDestination: String?) =
+        archiveActionDelegate.extractSelectedArchiveEntries(target, customDestination)
+    fun extractCurrentArchiveFolder(target: ArchiveExtractionTarget, customDestination: String?) =
+        archiveActionDelegate.extractCurrentArchiveFolder(target, customDestination)
     fun createArchiveFromSelection(
         archiveName: String,
         format: ArchiveFormat,
         compressionLevel: ArchiveCompressionLevel = ArchiveCompressionLevel.STORE,
         password: String? = null,
-    ) = archiveActionDelegate.createArchiveFromSelection(
-        archiveName = archiveName,
-        format = format,
-        compressionLevel = compressionLevel,
-        password = password,
-    )
-    fun createZipFromSelection() = archiveActionDelegate.createZipFromSelection()
-    fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
+    ) {
+        if (_state.value.archiveContext != null) return
+        archiveActionDelegate.createArchiveFromSelection(
+            archiveName = archiveName,
+            format = format,
+            compressionLevel = compressionLevel,
+            password = password,
+        )
+    }
+    fun createZipFromSelection() {
+        if (_state.value.archiveContext != null) return
+        archiveActionDelegate.createZipFromSelection()
+    }
+    fun requestDeleteSelected() {
+        if (_state.value.archiveContext != null) return
+        deleteFlowDelegate.requestDeleteSelected()
+    }
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
     fun toggleShred() = deleteFlowDelegate.toggleShred()
-    fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
+    fun confirmDeleteSelected() {
+        if (_state.value.archiveContext != null) return
+        deleteFlowDelegate.confirmDeleteSelected()
+    }
     fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
-    fun moveSelectedToTrash() = deleteFlowDelegate.moveSelectedToTrash()
-    fun deleteSelectedPermanently() = deleteFlowDelegate.deleteSelectedPermanently()
+    fun moveSelectedToTrash() {
+        if (_state.value.archiveContext != null) return
+        deleteFlowDelegate.moveSelectedToTrash()
+    }
+    fun deleteSelectedPermanently() {
+        if (_state.value.archiveContext != null) return
+        deleteFlowDelegate.deleteSelectedPermanently()
+    }
     fun handleNativeActionResult(confirmed: Boolean) {
         val pendingAction = _state.value.pendingNativeAction ?: return
         _state.update { it.copy(pendingNativeAction = null) }
@@ -629,6 +514,7 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun renameFile(path: String, newName: String) {
+        if (_state.value.archiveContext != null) return
         val invalidChars = listOf('/', '\\', '\u0000')
         if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
             _state.update { it.copy(error = UiText.StringResource(R.string.error_invalid_name)) }
@@ -664,79 +550,10 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun clearFileOperationStatusMessage() = operationDelegate.clearStatusMessage()
-    fun undoLastTrashMove() {
-        val trashIds = _state.value.pendingTrashUndoIds
-        if (trashIds.isEmpty()) return
-        _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
-        viewModelScope.launch {
-            trashRepository.restoreFromTrash(trashIds).onSuccess {
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(error = error.toArcileError().userMessage) }
-            }
-        }
-    }
-    fun clearPendingTrashUndo() {
-        _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
-    }
-    fun undoLastOperation() {
-        when (val undo = _state.value.pendingUndoAction) {
-            is BrowserUndoAction.Trash -> undoLastTrashMove()
-            is BrowserUndoAction.Rename -> undoRename(undo)
-            is BrowserUndoAction.Created -> undoCreated(undo)
-            is BrowserUndoAction.Moved -> undoMove(undo)
-            null -> Unit
-        }
-    }
-    fun clearPendingUndo() {
-        _state.update { it.copy(pendingTrashUndoIds = persistentListOf(), pendingUndoAction = null) }
-    }
-    private fun undoRename(undo: BrowserUndoAction.Rename) {
-        _state.update { it.copy(pendingUndoAction = null) }
-        val originalName = File(undo.originalPath).name
-        viewModelScope.launch {
-            fileMutationRepository.renameFile(undo.renamedPath, originalName).onSuccess {
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(error = error.toArcileError().userMessage) }
-            }
-        }
-    }
-    private fun undoCreated(undo: BrowserUndoAction.Created) {
-        _state.update { it.copy(pendingUndoAction = null) }
-        viewModelScope.launch {
-            fileMutationRepository.deletePermanently(listOf(undo.path)).onSuccess {
-                refresh()
-            }.onFailure { error ->
-                _state.update { it.copy(error = error.toArcileError().userMessage) }
-            }
-        }
-    }
-    private fun undoMove(undo: BrowserUndoAction.Moved) {
-        _state.update { it.copy(pendingUndoAction = null) }
-        viewModelScope.launch {
-            val groupedByOriginalParent = undo.entries.groupBy { parentStoragePath(it.originalPath) }
-            for ((originalParent, entries) in groupedByOriginalParent) {
-                if (originalParent.isBlank()) {
-                    _state.update { it.copy(error = UiText.StringResource(R.string.file_operation_undo_failed)) }
-                    return@launch
-                }
-                clipboardRepository.moveFiles(
-                    sourcePaths = entries.map { it.movedPath },
-                    destinationPath = originalParent
-                ).onFailure { error ->
-                    _state.update { it.copy(error = error.toArcileError().userMessage) }
-                    return@launch
-                }
-            }
-            refresh()
-        }
-    }
-    private fun parentStoragePath(path: String): String {
-        val normalized = path.replace('\\', '/').trimEnd('/')
-        val index = normalized.lastIndexOf('/')
-        return if (index > 0) normalized.substring(0, index) else ""
-    }
+    fun undoLastTrashMove() = undoDelegate.undoLastTrashMove()
+    fun clearPendingTrashUndo() = undoDelegate.clearPendingTrashUndo()
+    fun undoLastOperation() = undoDelegate.undoLastOperation()
+    fun clearPendingUndo() = undoDelegate.clearPendingUndo()
     fun clearActiveFileOperation() = operationDelegate.clearActiveOperation()
     fun retryRecoveredOperation(operationId: String) = operationDelegate.retryRecoveredOperation(operationId)
     fun cleanupRecoveredOperation(operationId: String) = operationDelegate.cleanupRecoveredOperation(operationId)
@@ -771,15 +588,3 @@ class BrowserViewModel @Inject constructor(
     fun submitArchiveExtractionPassword(password: String) = archiveActionDelegate.retryPendingExtractionWithPassword(password)
 }
 
-fun OperationRecoveryRecord.toBrowserRecoveryUiState(): BrowserOperationRecoveryUiState =
-    BrowserOperationRecoveryUiState(
-        operationId = request.operationId,
-        type = request.type,
-        sourcePaths = request.sourcePaths,
-        destinationPath = request.destinationPath,
-        phase = phase,
-        completedItems = progress?.completedItems ?: 0,
-        totalItems = progress?.totalItems ?: request.sourcePaths.size.coerceAtLeast(1),
-        currentPath = progress?.currentPath ?: request.sourcePaths.firstOrNull(),
-        error = error
-    )

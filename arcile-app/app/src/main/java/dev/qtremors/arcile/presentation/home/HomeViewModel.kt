@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.NoOpBulkFileOperationCoordinator
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
@@ -17,6 +18,7 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -30,10 +32,13 @@ import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
+import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
+import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -78,7 +83,8 @@ data class HomeState(
     val unclassifiedVolumes: PersistentList<StorageVolume> = persistentListOf(),
     val showClassificationPrompt: Boolean = false,
     val todayStart: Long = 0L,
-    val displayState: HomeDisplayState = HomeDisplayState()
+    val displayState: HomeDisplayState = HomeDisplayState(),
+    val homeUtilityIds: PersistentSet<String> = persistentSetOf("trash", "cleaner")
 )
 
 fun HomeState.withUpdatedDisplayState(): HomeState {
@@ -105,6 +111,7 @@ class HomeViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val classificationRepo: StorageClassificationStore,
     private val quickAccessRepo: QuickAccessPreferencesStore,
+    private val utilityPreferencesStore: UtilityPreferencesStore = NoOpUtilityPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
@@ -122,6 +129,12 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             quickAccessRepo.quickAccessItems.collectLatest { items ->
                 _state.update { it.copy(quickAccessItems = items.toPersistentList()) }
+            }
+        }
+
+        viewModelScope.launch {
+            utilityPreferencesStore.homeUtilityIds.collectLatest { ids ->
+                _state.update { it.copy(homeUtilityIds = ids.toPersistentSet()) }
             }
         }
 

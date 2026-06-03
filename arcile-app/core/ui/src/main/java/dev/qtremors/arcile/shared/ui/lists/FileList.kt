@@ -57,6 +57,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStats
+import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailPolicyInput
 import dev.qtremors.arcile.shared.ui.getFileIconVector
@@ -291,12 +292,17 @@ fun FileItemRow(
                     )
                 )
                 if (shouldLoadThumbnail) {
+                    val archiveThumbnailData = ArchiveEntryThumbnailData.fromVirtualPath(
+                        path = file.absolutePath,
+                        sizeBytes = file.size,
+                        lastModifiedMillis = file.lastModified
+                    )
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(File(file.absolutePath))
+                            .data(archiveThumbnailData ?: File(file.absolutePath))
                             .size(row.thumbnailSizePx)
-                            .memoryCacheKey(row.thumbnailKey.cacheKey)
-                            .diskCacheKey(row.thumbnailKey.cacheKey)
+                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
+                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .build(),

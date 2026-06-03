@@ -54,6 +54,8 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
@@ -110,17 +112,28 @@ fun RecentFileCarouselItem(
     val extension = file.extension.lowercase()
     val usesFullBleedThumbnail = !file.isDirectory && (
         FileCategories.Images.extensions.contains(extension) ||
-            FileCategories.Videos.extensions.contains(extension)
+            FileCategories.Videos.extensions.contains(extension) ||
+            FileCategories.Audio.extensions.contains(extension)
         )
     val previewAccent = previewAccentFor(file)
     val previewIcon = dev.qtremors.arcile.shared.ui.getFileIconVector(file)
     val context = LocalContext.current
+    val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {
+        ThumbnailKey.from(file)
+    }
+    val thumbnailData = remember(thumbnailKey) {
+        when (thumbnailKey.type) {
+            ThumbnailType.Audio,
+            ThumbnailType.Video -> thumbnailKey
+            else -> File(file.absolutePath)
+        }
+    }
     val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size, thumbnailSizePx) {
         homeThumbnailCacheKey(file, thumbnailSizePx)
     }
-    val thumbnailRequest = remember(file.absolutePath, thumbnailSizePx, thumbnailCacheKey) {
+    val thumbnailRequest = remember(thumbnailData, thumbnailSizePx, thumbnailCacheKey) {
         ImageRequest.Builder(context)
-            .data(File(file.absolutePath))
+            .data(thumbnailData)
             .size(thumbnailSizePx)
             .memoryCacheKey(thumbnailCacheKey)
             .diskCacheKey(thumbnailCacheKey)

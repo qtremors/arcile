@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_ftp">FTP Server</string>
+    <string name="tool_analyze">Analyze Storage</string>
+    <string name="tool_clean">Clean Junk</string>
+    <string name="tool_duplicates">Duplicates</string>
+    <string name="tool_large">Large Files</string>
+    <string name="tool_manager">App Manager</string>
+    <string name="tool_onlyfiles">OnlyFiles</string>
+    <string name="tool_share">Network Share</string>
+</resources>

@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
@@ -15,6 +16,7 @@ import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.feature.browser.PendingArchiveExtraction
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import java.io.File
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +37,7 @@ class ArchiveActionDelegate(
     private var shouldDeleteSourcesAfterCompletion = false
     private val sourcesToDelete = mutableListOf<String>()
     private var archiveToDeleteAfterExtraction: String? = null
+    private val pendingArchiveEntryExtractions = ArrayDeque<PendingArchiveExtraction>()
 
     init {
         coroutineScope.launch {
@@ -79,6 +82,13 @@ class ArchiveActionDelegate(
                             resolutions = emptyMap()
                         )
                     }
+                } else if (event.request.type == BulkFileOperationType.EXTRACT_ARCHIVE &&
+                    pendingArchiveEntryExtractions.isNotEmpty() &&
+                    event.request.sourcePaths.firstOrNull() == pendingArchiveEntryExtractions.first().archivePath) {
+                    pendingArchiveEntryExtractions.removeFirst()
+                    if (pendingArchiveEntryExtractions.isNotEmpty()) {
+                        beginExtraction(pendingArchiveEntryExtractions.first(), emptyMap(), clearSelectionAfterStart = false)
+                    }
                 }
             }
             is BulkFileOperationEvent.Failed -> {
@@ -91,6 +101,7 @@ class ArchiveActionDelegate(
                 } else if (event.request.type == BulkFileOperationType.EXTRACT_ARCHIVE &&
                     event.request.sourcePaths.firstOrNull() == archiveToDeleteAfterExtraction) {
                     archiveToDeleteAfterExtraction = null
+                    pendingArchiveEntryExtractions.clear()
                 }
             }
             is BulkFileOperationEvent.Cancelled -> {
@@ -103,6 +114,7 @@ class ArchiveActionDelegate(
                 } else if (event.request?.type == BulkFileOperationType.EXTRACT_ARCHIVE &&
                     event.request?.sourcePaths?.firstOrNull() == archiveToDeleteAfterExtraction) {
                     archiveToDeleteAfterExtraction = null
+                    pendingArchiveEntryExtractions.clear()
                 }
             }
             else -> {}
@@ -114,18 +126,10 @@ class ArchiveActionDelegate(
         customDestination: String?
     ) {
         val archivePath = state.value.archiveContext?.archivePath ?: state.value.selectedFiles.singleOrNull() ?: return
-        val currentPath = state.value.currentPath
-        val parentPath = File(archivePath).parent.orEmpty().ifBlank { currentPath }
-        if (!ArchiveFormat.isSupported(archivePath) || parentPath.isEmpty()) {
+        val destination = archiveDestination(archivePath, target, customDestination)
+        if (destination == null) {
             state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
             return
-        }
-
-        val archive = File(archivePath)
-        val destination = when (target) {
-            ArchiveExtractionTarget.NAMED_FOLDER -> File(parentPath, archive.archiveBaseName()).absolutePath
-            ArchiveExtractionTarget.SAME_FOLDER -> parentPath
-            ArchiveExtractionTarget.CUSTOM_FOLDER -> customDestination?.takeIf { it.isNotBlank() } ?: parentPath
         }
         val archiveContext = state.value.archiveContext
         val request = PendingArchiveExtraction(
@@ -136,14 +140,60 @@ class ArchiveActionDelegate(
             nameEncoding = archiveContext?.nameEncoding ?: ArchiveNameEncoding.UTF_8
         )
 
-        coroutineScope.launch {
-            archiveRepository.detectArchiveConflicts(
-                archivePath = archivePath,
+        inspectAndBeginExtraction(request)
+    }
+
+    fun extractCurrentArchiveFolder(
+        target: ArchiveExtractionTarget,
+        customDestination: String?
+    ) {
+        val archiveContext = state.value.archiveContext ?: return
+        val entryPrefix = archiveContext.entryPrefix?.takeIf { it.isNotBlank() } ?: return
+        val destination = archiveDestination(archiveContext.archivePath, target, customDestination)
+        if (destination == null) {
+            state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
+            return
+        }
+        inspectAndBeginExtraction(
+            PendingArchiveExtraction(
+                archivePath = archiveContext.archivePath,
                 destinationPath = destination,
-                entryPrefix = null,
-                password = request.password,
-                nameEncoding = request.nameEncoding
-            ).onSuccess { conflicts ->
+                entryPrefix = entryPrefix,
+                password = archiveContext.password,
+                nameEncoding = archiveContext.nameEncoding
+            )
+        )
+    }
+
+    fun extractSelectedArchiveEntries(
+        target: ArchiveExtractionTarget,
+        customDestination: String?
+    ) {
+        val archiveContext = state.value.archiveContext ?: return
+        val selectedPrefixes = state.value.selectedFiles
+            .mapNotNull { it.removeArchiveVirtualPrefix() }
+            .distinct()
+        if (selectedPrefixes.isEmpty()) return
+        val destination = archiveDestination(archiveContext.archivePath, target, customDestination)
+        if (destination == null) {
+            state.update { it.copy(error = UiText.StringResource(R.string.error_unsupported_archive)) }
+            return
+        }
+        inspectAndBeginExtraction(
+            PendingArchiveExtraction(
+                archivePath = archiveContext.archivePath,
+                destinationPath = destination,
+                entryPrefix = selectedPrefixes.singleOrNull(),
+                entryPrefixes = selectedPrefixes,
+                password = archiveContext.password,
+                nameEncoding = archiveContext.nameEncoding
+            )
+        )
+    }
+
+    private fun inspectAndBeginExtraction(request: PendingArchiveExtraction) {
+        coroutineScope.launch {
+            detectConflicts(request).onSuccess { conflicts ->
                 if (conflicts.isEmpty()) {
                     beginExtraction(request, emptyMap())
                 } else {
@@ -160,9 +210,9 @@ class ArchiveActionDelegate(
                     state.update {
                         it.copy(
                             pendingArchiveExtraction = request,
-                            archiveContext = archiveContext ?: BrowserArchiveContext(archivePath = archivePath),
+                            archiveContext = it.archiveContext ?: BrowserArchiveContext(archivePath = request.archivePath),
                         ).copy(
-                            archiveContext = (it.archiveContext ?: BrowserArchiveContext(archivePath = archivePath)).copy(
+                            archiveContext = (it.archiveContext ?: BrowserArchiveContext(archivePath = request.archivePath)).copy(
                                 passwordRequired = true,
                                 pendingPasswordAction = ArchivePasswordAction.EXTRACT
                             )
@@ -200,13 +250,7 @@ class ArchiveActionDelegate(
             )
         }
         coroutineScope.launch {
-            archiveRepository.detectArchiveConflicts(
-                archivePath = updated.archivePath,
-                destinationPath = updated.destinationPath,
-                entryPrefix = updated.entryPrefix,
-                password = updated.password,
-                nameEncoding = updated.nameEncoding
-            ).onSuccess { conflicts ->
+            detectConflicts(updated).onSuccess { conflicts ->
                 if (conflicts.isEmpty()) {
                     beginExtraction(updated, emptyMap())
                     state.update { it.copy(pendingArchiveExtraction = null) }
@@ -232,8 +276,37 @@ class ArchiveActionDelegate(
         }
     }
 
-    private fun beginExtraction(request: PendingArchiveExtraction, resolutions: Map<String, ConflictResolution>) {
+    private suspend fun detectConflicts(request: PendingArchiveExtraction): Result<List<FileConflict>> {
+        val prefixes = request.entryPrefixes.ifEmpty { listOf(request.entryPrefix) }
+        val conflicts = mutableListOf<FileConflict>()
+        prefixes.forEach { prefix ->
+            archiveRepository.detectArchiveConflicts(
+                archivePath = request.archivePath,
+                destinationPath = request.destinationPath,
+                entryPrefix = prefix,
+                password = request.password,
+                nameEncoding = request.nameEncoding
+            ).onSuccess { conflicts += it }
+                .onFailure { return Result.failure(it) }
+        }
+        return Result.success(conflicts)
+    }
+
+    private fun beginExtraction(
+        request: PendingArchiveExtraction,
+        resolutions: Map<String, ConflictResolution>,
+        clearSelectionAfterStart: Boolean = true
+    ) {
         archiveToDeleteAfterExtraction = null
+        val prefixes = request.entryPrefixes.ifEmpty { listOf(request.entryPrefix) }
+        if (prefixes.size > 1) {
+            pendingArchiveEntryExtractions.clear()
+            pendingArchiveEntryExtractions.addAll(prefixes.map { prefix ->
+                request.copy(entryPrefix = prefix, entryPrefixes = emptyList())
+            })
+            beginExtraction(pendingArchiveEntryExtractions.first(), resolutions, clearSelectionAfterStart)
+            return
+        }
         bulkFileOperationCoordinator.startOperation(
             type = BulkFileOperationType.EXTRACT_ARCHIVE,
             sourcePaths = listOf(request.archivePath),
@@ -243,8 +316,26 @@ class ArchiveActionDelegate(
             archivePassword = request.password,
             archiveNameEncoding = request.nameEncoding
         )
-        clearSelection()
+        if (clearSelectionAfterStart) clearSelection()
     }
+
+    private fun archiveDestination(
+        archivePath: String,
+        target: ArchiveExtractionTarget,
+        customDestination: String?
+    ): String? {
+        val archive = File(archivePath)
+        val parentPath = archive.parent.orEmpty().replace('\\', '/').ifBlank { state.value.currentPath }
+        if (!ArchiveFormat.isSupported(archivePath) || parentPath.isEmpty()) return null
+        return when (target) {
+            ArchiveExtractionTarget.NAMED_FOLDER -> File(parentPath, archive.archiveBaseName()).absolutePath.replace('\\', '/')
+            ArchiveExtractionTarget.SAME_FOLDER -> parentPath
+            ArchiveExtractionTarget.CUSTOM_FOLDER -> customDestination?.takeIf { it.isNotBlank() }?.replace('\\', '/') ?: parentPath
+        }
+    }
+
+    private fun String.removeArchiveVirtualPrefix(): String? =
+        ArchiveEntryThumbnailData.entryPathFromVirtualPath(this)
 
     fun createArchiveFromSelection(
         archiveName: String,

@@ -423,14 +423,6 @@
 
     <!-- Tools -->
     <string name="tools_title">Tools &amp; Utilities</string>
-    <string name="tool_ftp">FTP Server</string>
-    <string name="tool_analyze">Analyze Storage</string>
-    <string name="tool_clean">Clean Junk</string>
-    <string name="tool_duplicates">Duplicates</string>
-    <string name="tool_large">Large Files</string>
-    <string name="tool_manager">App Manager</string>
-    <string name="tool_onlyfiles">OnlyFiles</string>
-    <string name="tool_share">Network Share</string>
     <string name="storage_cleaner_title">Storage Cleaner</string>
     <string name="cleaner_scanning">Scanning indexed storage…</string>
     <string name="cleaner_partial_results">Some folders could not be scanned. Results may be incomplete.</string>

@@ -340,6 +340,12 @@ fun AppNavigationGraph(
                                     onExtractArchive = { target, customDestination ->
                                         browserViewModel.extractArchive(target, customDestination)
                                     },
+                                    onExtractSelectedArchiveEntries = { target, customDestination ->
+                                        browserViewModel.extractSelectedArchiveEntries(target, customDestination)
+                                    },
+                                    onExtractCurrentArchiveFolder = { target, customDestination ->
+                                        browserViewModel.extractCurrentArchiveFolder(target, customDestination)
+                                    },
                                     onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
                                     onCreateArchiveFromSelection = { name, format, compressionLevel, password ->
                                         browserViewModel.createArchiveFromSelection(name, format, compressionLevel, password)
@@ -435,9 +441,19 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition
                 ) {
+                    val viewModel = hiltViewModel<UtilityPreferencesViewModel>()
+                    val homeUtilityIds by viewModel.homeUtilityIds.collectAsStateWithLifecycle()
                     ToolsScreen(
                         onNavigateBack = { navController.popBackStack() },
-                        onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) }
+                        onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) },
+                        onNavigateToTrash = {
+                            navController.navigate(AppRoutes.Trash) {
+                                popUpTo<AppRoutes.Main> { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        homeUtilityIds = homeUtilityIds,
+                        onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
                     )
                 }
                 storageCleanerScreen(
