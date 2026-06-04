@@ -9,6 +9,8 @@ interface BrowserPreferencesStore {
 
     suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences)
     suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences)
+    suspend fun updateHomeRecentCarouselLimit(limit: Int)
+    suspend fun updateShowHiddenFiles(show: Boolean)
     suspend fun updatePathPresentation(
         path: String,
         presentation: BrowserPresentationPreferences?,

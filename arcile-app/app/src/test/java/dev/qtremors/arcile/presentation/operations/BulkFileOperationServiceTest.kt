@@ -174,7 +174,92 @@ class BulkFileOperationServiceTest {
 
             assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TITLE) == "Copying files" })
             assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("50%") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("1 / 2 items") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("a.txt") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("/s") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("remaining") })
             assertTrue(notifications.any { notification -> notification.actions.any { it.title == "Cancel" } })
+        } finally {
+            finishOperation.countDown()
+            verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+            awaitInactiveMutation()
+        }
+    }
+
+    @Test
+    fun `service notification uses singular initial item text`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-initial-singular",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val operationStarted = CountDownLatch(1)
+        val finishOperation = CountDownLatch(1)
+        clipboardRepository.copyFilesResultProvider = { _, _, _, _ ->
+            operationStarted.countDown()
+            finishOperation.await(2, TimeUnit.SECONDS)
+            Result.success(Unit)
+        }
+
+        try {
+            serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+            assertTrue(operationStarted.await(2, TimeUnit.SECONDS))
+
+            val notificationManager = context.getSystemService(NotificationManager::class.java)
+            val notifications = shadowOf(notificationManager).allNotifications
+
+            assertTrue(notifications.any {
+                it.extras.getString(Notification.EXTRA_TEXT) == "Processing 1 item in the background"
+            })
+        } finally {
+            finishOperation.countDown()
+            verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+            awaitInactiveMutation()
+        }
+    }
+
+    @Test
+    fun `service notification pluralizes item-only progress`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-item-progress",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val progressSent = CountDownLatch(1)
+        val finishOperation = CountDownLatch(1)
+        clipboardRepository.copyFilesResultProvider = { _, _, _, onProgress ->
+            onProgress?.invoke(
+                BulkFileOperationProgress(
+                    completedItems = 1,
+                    totalItems = 2,
+                    currentPath = "/source/b.txt",
+                    bytesCopied = null,
+                    totalBytes = null
+                )
+            )
+            progressSent.countDown()
+            finishOperation.await(2, TimeUnit.SECONDS)
+            Result.success(Unit)
+        }
+
+        try {
+            serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+            assertTrue(progressSent.await(2, TimeUnit.SECONDS))
+
+            val notificationManager = context.getSystemService(NotificationManager::class.java)
+            val notifications = shadowOf(notificationManager).allNotifications
+
+            assertTrue(notifications.any {
+                it.extras.getString(Notification.EXTRA_TEXT) == "1 / 2 items • b.txt"
+            })
         } finally {
             finishOperation.countDown()
             verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }

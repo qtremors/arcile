@@ -42,6 +42,7 @@ import dev.qtremors.arcile.shared.ui.ArcileListSurface
 
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 
 /**
  * Settings screen for theme and appearance preferences.
@@ -60,7 +61,11 @@ import dev.qtremors.arcile.core.ui.R
 fun SettingsScreen(
     currentThemeState: ThemeState,
     showThumbnails: Boolean,
+    homeRecentCarouselLimit: Int,
+    showHiddenFiles: Boolean,
     onShowThumbnailsChange: (Boolean) -> Unit,
+    onHomeRecentCarouselLimitChange: (Int) -> Unit,
+    onShowHiddenFilesChange: (Boolean) -> Unit,
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit,
     onOpenStorageManagement: () -> Unit = {},
@@ -214,6 +219,62 @@ fun SettingsScreen(
                                     .clip(MaterialTheme.shapes.medium)
                                     .clickable { onShowThumbnailsChange(!showThumbnails) }
                                     .testTag("thumbnail_setting_row")
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    .testTag("home_recent_carousel_limit_setting")
+                            ) {
+                                Text(stringResource(R.string.settings_home_recent_carousel_limit))
+                                Text(
+                                    text = if (homeRecentCarouselLimit == 0) {
+                                        stringResource(R.string.settings_home_recent_carousel_hidden)
+                                    } else {
+                                        stringResource(R.string.settings_home_recent_carousel_count, homeRecentCarouselLimit)
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Slider(
+                                    value = homeRecentCarouselLimit.toFloat(),
+                                    onValueChange = { value -> onHomeRecentCarouselLimitChange(value.toInt()) },
+                                    valueRange = BrowserPreferences.MIN_HOME_RECENT_CAROUSEL_LIMIT.toFloat()..
+                                        BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT.toFloat(),
+                                    steps = BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT - 1,
+                                    modifier = Modifier.testTag("home_recent_carousel_limit_slider")
+                                )
+                            }
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_show_hidden_files)) },
+                                supportingContent = { Text(stringResource(R.string.settings_show_hidden_files_description)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = showHiddenFiles,
+                                        onCheckedChange = onShowHiddenFilesChange,
+                                        thumbContent = {
+                                            Icon(
+                                                imageVector = if (showHiddenFiles) Icons.Default.Check else Icons.Default.Close,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(SwitchDefaults.IconSize)
+                                            )
+                                        },
+                                        modifier = Modifier.testTag("hidden_files_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .clickable { onShowHiddenFilesChange(!showHiddenFiles) }
+                                    .testTag("hidden_files_setting_row")
                             )
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant,

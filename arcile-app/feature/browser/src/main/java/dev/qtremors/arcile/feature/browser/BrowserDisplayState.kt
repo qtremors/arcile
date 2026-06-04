@@ -33,11 +33,13 @@ fun buildBrowserDisplayState(
     isCategoryScreen: Boolean,
     currentVolumeId: String?,
     storageVolumes: List<StorageVolume>,
+    showHiddenFiles: Boolean,
     allFilesLabel: String
 ): BrowserDisplayState {
-    val tabFilteredFiles = filterFilesByFolderTab(files, selectedFolderTabPath)
+    val baseFiles = if (showHiddenFiles) files else files.filterNot { it.isHidden }
+    val tabFilteredFiles = filterFilesByFolderTab(baseFiles, selectedFolderTabPath)
     val visibleFiles = filterAndSortFiles(tabFilteredFiles, "", sortOption)
-    val sortedCategoryFiles = filterAndSortFiles(files, "", sortOption)
+    val sortedCategoryFiles = filterAndSortFiles(baseFiles, "", sortOption)
     val categoryFolderTabs = if (isCategoryScreen) {
         buildFolderTabs(sortedCategoryFiles, allFilesLabel)
     } else {

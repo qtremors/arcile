@@ -47,7 +47,7 @@ import dev.qtremors.arcile.shared.ui.lists.FileGrid
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.shared.ui.lists.FileList
 import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
+import dev.qtremors.arcile.shared.ui.rememberDateOnlyFormatter
 import dev.qtremors.arcile.ui.theme.spacing
 import java.util.Date
 import kotlin.math.abs
@@ -268,7 +268,7 @@ private fun BrowserSearchResults(
             modifier = Modifier.fillMaxSize()
         )
     } else {
-        val formatter = rememberDateFormatter("MMM dd, yyyy")
+        val formatter = rememberDateOnlyFormatter()
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(

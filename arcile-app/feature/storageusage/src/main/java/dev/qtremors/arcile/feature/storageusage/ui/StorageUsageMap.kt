@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.storageusage.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -42,9 +42,22 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +76,7 @@ import dev.qtremors.arcile.utils.formatFileSize
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
+import java.util.Locale
 
 @Composable
 fun StorageUsageMap(
@@ -99,6 +113,11 @@ fun StorageUsageMap(
                     onBreadcrumbClick = onBreadcrumbClick
                 )
                 StorageUsageSunburst(
+                    root = state.currentRoot,
+                    selectedNode = state.selectedNode,
+                    onSelectNode = onSelectNode
+                )
+                StorageUsageSegmentList(
                     root = state.currentRoot,
                     selectedNode = state.selectedNode,
                     onSelectNode = onSelectNode
@@ -243,6 +262,27 @@ private fun StorageUsageSunburst(
             colorScheme.tertiaryContainer
         )
     }
+    val visibleSegments = remember(root) { root.children }
+    val selectedForSemantics = selectedNode ?: root
+    val context = LocalContext.current
+    val chartDescription = stringResource(R.string.storage_usage_map_chart_description, root.name)
+    val selectedState = stringResource(
+        R.string.storage_usage_map_selected_state,
+        selectedForSemantics.name,
+        formatFileSize(selectedForSemantics.sizeBytes),
+        selectedForSemantics.childCount
+    )
+    val segmentActions = remember(visibleSegments, context, onSelectNode) {
+        visibleSegments.map { node ->
+            CustomAccessibilityAction(
+                label = context.getString(R.string.storage_usage_map_select_segment, node.name),
+                action = {
+                    onSelectNode(node)
+                    true
+                }
+            )
+        }
+    }
 
     Surface(
         modifier = Modifier
@@ -277,6 +317,45 @@ private fun StorageUsageSunburst(
             Canvas(
                 modifier = Modifier
                     .size(chartSize)
+                    .semantics {
+                        role = Role.Image
+                        contentDescription = chartDescription
+                        stateDescription = selectedState
+                        customActions = segmentActions
+                    }
+                    .onKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown || visibleSegments.isEmpty()) {
+                            return@onKeyEvent false
+                        }
+                        val selectedIndex = visibleSegments.indexOfFirst { it.path == selectedNode?.path }
+                        when (event.key) {
+                            Key.DirectionRight,
+                            Key.DirectionDown -> {
+                                val nextIndex = if (selectedIndex < 0) 0 else (selectedIndex + 1) % visibleSegments.size
+                                onSelectNode(visibleSegments[nextIndex])
+                                true
+                            }
+                            Key.DirectionLeft,
+                            Key.DirectionUp -> {
+                                val previousIndex = if (selectedIndex <= 0) {
+                                    visibleSegments.lastIndex
+                                } else {
+                                    selectedIndex - 1
+                                }
+                                onSelectNode(visibleSegments[previousIndex])
+                                true
+                            }
+                            Key.Enter,
+                            Key.NumPadEnter,
+                            Key.DirectionCenter -> {
+                                val selectedSegment = visibleSegments.getOrNull(selectedIndex) ?: visibleSegments.first()
+                                onSelectNode(selectedSegment)
+                                true
+                            }
+                            else -> false
+                        }
+                    }
+                    .focusable()
                     .pointerInput(root, segments) {
                         detectTapGestures { offset ->
                             findSegmentAt(offset, size.width.toFloat(), size.height.toFloat(), segments)
@@ -398,7 +477,7 @@ private fun StorageUsageDetails(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StorageUsageMetric(stringResource(R.string.storage_usage_map_size), formatFileSize(node.sizeBytes))
-                StorageUsageMetric(stringResource(R.string.storage_usage_map_share), String.format("%.1f%%", percent))
+                StorageUsageMetric(stringResource(R.string.storage_usage_map_share), String.format(Locale.getDefault(), "%.1f%%", percent))
                 StorageUsageMetric(stringResource(R.string.storage_usage_map_items), node.childCount.toString())
             }
 

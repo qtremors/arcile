@@ -304,7 +304,8 @@ class BrowserViewModel @Inject constructor(
                         browserViewMode = pathPresentation.viewMode,
                         browserListZoom = pathPresentation.listZoom,
                         browserGridMinCellSize = pathPresentation.gridMinCellSize,
-                        browserShowThumbnails = pathPresentation.showThumbnails
+                        browserShowThumbnails = pathPresentation.showThumbnails,
+                        showHiddenFiles = prefs.showHiddenFiles
                     ).withUpdatedDisplayState()
                 }
             }

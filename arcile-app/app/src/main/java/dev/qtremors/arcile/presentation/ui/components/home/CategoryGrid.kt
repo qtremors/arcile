@@ -15,12 +15,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.AudioFile
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FolderZip
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.VideoFile
+import androidx.compose.material.icons.outlined.Android
+import androidx.compose.material.icons.outlined.AudioFile
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.FolderZip
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.VideoFile
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -57,12 +57,12 @@ fun CategoryGrid(
     val catColors = LocalCategoryColors.current
 
     val categories = listOf(
-        CategoryDisplay("Images", stringResource(R.string.category_images), Icons.Default.Image, catColors.images, categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
-        CategoryDisplay("Videos", stringResource(R.string.category_videos), Icons.Default.VideoFile, catColors.videos, categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
-        CategoryDisplay("Audio", stringResource(R.string.category_audio), Icons.Default.AudioFile, catColors.audio, categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
-        CategoryDisplay("Docs", stringResource(R.string.category_docs), Icons.Default.Description, catColors.docs, categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
-        CategoryDisplay("Archives", stringResource(R.string.category_archives), Icons.Default.FolderZip, catColors.archives, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
-        CategoryDisplay("APKs", stringResource(R.string.category_apks), Icons.Default.Android, catColors.apks, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Images", stringResource(R.string.category_images), Icons.Outlined.Image, catColors.images, categoryStorages.find { it.name == "Images" }?.sizeBytes ?: 0),
+        CategoryDisplay("Videos", stringResource(R.string.category_videos), Icons.Outlined.VideoFile, catColors.videos, categoryStorages.find { it.name == "Videos" }?.sizeBytes ?: 0),
+        CategoryDisplay("Audio", stringResource(R.string.category_audio), Icons.Outlined.AudioFile, catColors.audio, categoryStorages.find { it.name == "Audio" }?.sizeBytes ?: 0),
+        CategoryDisplay("Docs", stringResource(R.string.category_docs), Icons.Outlined.Description, catColors.docs, categoryStorages.find { it.name == "Docs" }?.sizeBytes ?: 0),
+        CategoryDisplay("Archives", stringResource(R.string.category_archives), Icons.Outlined.FolderZip, catColors.archives, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
+        CategoryDisplay("APKs", stringResource(R.string.category_apks), Icons.Outlined.Android, catColors.apks, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
     ).sortedByDescending { it.sizeBytes }
 
     Column(modifier = Modifier.padding(horizontal = 8.dp)) {

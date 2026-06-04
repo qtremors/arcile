@@ -475,7 +475,11 @@ fun AppNavigationGraph(
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         showThumbnails = browserPrefs.globalPresentation.showThumbnails,
+                        homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
+                        showHiddenFiles = browserPrefs.showHiddenFiles,
                         onShowThumbnailsChange = { viewModel.updateShowThumbnails(it) },
+                        onHomeRecentCarouselLimitChange = { viewModel.updateHomeRecentCarouselLimit(it) },
+                        onShowHiddenFilesChange = { viewModel.updateShowHiddenFiles(it) },
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },

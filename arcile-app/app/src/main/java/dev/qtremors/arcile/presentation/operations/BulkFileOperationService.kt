@@ -26,6 +26,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.core.ui.asString
+import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
@@ -82,6 +83,7 @@ class BulkFileOperationService : Service() {
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
     private var lastNotificationUpdateAt = 0L
+    private var notificationMetrics = NotificationMetrics()
     private val serviceOperationJournal: OperationJournal
         get() = if (::operationJournal.isInitialized) operationJournal else NoOpOperationJournal()
 
@@ -106,6 +108,7 @@ class BulkFileOperationService : Service() {
                 val requestJson = intent.getStringExtra(EXTRA_REQUEST_JSON) ?: return START_NOT_STICKY
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
+                notificationMetrics = NotificationMetrics(startedAtMillis = System.currentTimeMillis())
                 serviceOperationJournal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
                 startForeground(NOTIFICATION_ID, buildNotification(request))
                 storageWorkCoordinator.beginMutation()
@@ -190,6 +193,7 @@ class BulkFileOperationService : Service() {
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
+                        notificationMetrics = NotificationMetrics()
                         stopForegroundSafely()
                         stopSelf(capturedStartId)
                     }
@@ -222,7 +226,11 @@ class BulkFileOperationService : Service() {
         ensureChannel()
         val title = operationTitle(request.type)
         val content = progress?.let(::progressContent)
-            ?: getString(R.string.file_operation_processing_background, request.sourcePaths.size)
+            ?: resources.getQuantityString(
+                R.plurals.file_operation_processing_background,
+                request.sourcePaths.size,
+                request.sourcePaths.size
+            )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(dev.qtremors.arcile.R.drawable.ic_notification)
             .setContentTitle(title)
@@ -255,12 +263,40 @@ class BulkFileOperationService : Service() {
         val currentName = progress.currentPath
             ?.substringAfterLast('/')
             ?.takeIf { it.isNotBlank() }
+        val itemProgress = resources.getQuantityString(
+            R.plurals.file_operation_progress_items,
+            progress.totalItems,
+            progress.completedItems,
+            progress.totalItems
+        )
         val primary = if ((progress.totalBytes ?: 0L) > 0L) {
-            "${progressPercent(progress)}% • ${progress.completedItems}/${progress.totalItems} items"
+            getString(R.string.file_operation_progress_percent, progressPercent(progress), itemProgress)
         } else {
-            "${progress.completedItems}/${progress.totalItems} items"
+            itemProgress
         }
-        return listOfNotNull(primary, currentName).joinToString(" • ")
+        val metrics = notificationProgressDetails(progress, System.currentTimeMillis())
+        return listOfNotNull(primary, metrics, currentName).joinToString(" • ")
+    }
+
+    private fun notificationProgressDetails(progress: BulkFileOperationProgress, nowMillis: Long): String? {
+        val copied = progress.bytesCopied ?: return null
+        val total = progress.totalBytes?.takeIf { it > 0L } ?: return null
+        if (copied <= 0L) return null
+        val elapsedMillis = (nowMillis - notificationMetrics.startedAtMillis).coerceAtLeast(1L)
+        val bytesPerSecond = (copied * 1000L / elapsedMillis).coerceAtLeast(1L)
+        val speed = getString(R.string.transfer_speed_value, formatFileSize(bytesPerSecond))
+        val remainingBytes = (total - copied).coerceAtLeast(0L)
+        val eta = if (remainingBytes == 0L) {
+            null
+        } else {
+            val seconds = (remainingBytes / bytesPerSecond).coerceAtLeast(1L)
+            if (seconds >= 60L) {
+                getString(R.string.transfer_eta_minutes, (seconds / 60L).toInt(), (seconds % 60L).toInt())
+            } else {
+                getString(R.string.transfer_eta_seconds, seconds.toInt())
+            }
+        }
+        return listOfNotNull(speed, eta).joinToString(" • ")
     }
 
     private fun applyProgress(
@@ -327,4 +363,8 @@ class BulkFileOperationService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_UPDATE_THROTTLE_MS = 500L
     }
+
+    private data class NotificationMetrics(
+        val startedAtMillis: Long = 0L
+    )
 }

@@ -26,6 +26,7 @@ class BrowserDisplayStateTest {
             isCategoryScreen = false,
             currentVolumeId = "primary",
             storageVolumes = listOf(volume("primary", "/storage/emulated/0")),
+            showHiddenFiles = true,
             allFilesLabel = "All files"
         )
 
@@ -49,6 +50,7 @@ class BrowserDisplayStateTest {
             isCategoryScreen = true,
             currentVolumeId = null,
             storageVolumes = emptyList(),
+            showHiddenFiles = true,
             allFilesLabel = "All files"
         )
 
@@ -68,11 +70,45 @@ class BrowserDisplayStateTest {
         assertSame(base.displayState, updated.displayState)
     }
 
+    @Test
+    fun `display state hides hidden files unless enabled`() {
+        val files = listOf(
+            file("visible.txt", "/storage/emulated/0/visible.txt"),
+            file(".secret", "/storage/emulated/0/.secret", isHidden = true)
+        )
+
+        val hiddenDisabled = buildBrowserDisplayState(
+            files = files,
+            sortOption = FileSortOption.NAME_ASC,
+            selectedFolderTabPath = null,
+            isCategoryScreen = false,
+            currentVolumeId = null,
+            storageVolumes = emptyList(),
+            showHiddenFiles = false,
+            allFilesLabel = "All files"
+        )
+        val hiddenEnabled = buildBrowserDisplayState(
+            files = files,
+            sortOption = FileSortOption.NAME_ASC,
+            selectedFolderTabPath = null,
+            isCategoryScreen = false,
+            currentVolumeId = null,
+            storageVolumes = emptyList(),
+            showHiddenFiles = true,
+            allFilesLabel = "All files"
+        )
+
+        assertEquals(listOf("visible.txt"), hiddenDisabled.visibleFiles.map { it.name })
+        assertEquals(listOf(".secret", "visible.txt"), hiddenEnabled.visibleFiles.map { it.name })
+        assertEquals(setOf("visible.txt", ".secret"), hiddenDisabled.existingNames)
+    }
+
     private fun file(
         name: String,
         path: String,
         isDirectory: Boolean = false,
-        size: Long = 1L
+        size: Long = 1L,
+        isHidden: Boolean = false
     ) = FileModel(
         name = name,
         absolutePath = path,
@@ -80,7 +116,7 @@ class BrowserDisplayStateTest {
         lastModified = size,
         isDirectory = isDirectory,
         extension = name.substringAfterLast('.', ""),
-        isHidden = false
+        isHidden = isHidden
     )
 
     private fun volume(id: String, path: String) = StorageVolume(

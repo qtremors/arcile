@@ -14,6 +14,8 @@ class FakeBrowserPreferencesStore(
 
     var lastUpdatedGlobalPresentation: BrowserPresentationPreferences? = null
     var lastUpdatedRecentPresentation: BrowserPresentationPreferences? = null
+    var lastUpdatedHomeRecentCarouselLimit: Int? = null
+    var lastUpdatedShowHiddenFiles: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
 
@@ -25,6 +27,17 @@ class FakeBrowserPreferencesStore(
     override suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences) {
         lastUpdatedRecentPresentation = presentation
         preferences.value = preferences.value.copy(recentPresentation = presentation)
+    }
+
+    override suspend fun updateHomeRecentCarouselLimit(limit: Int) {
+        val normalized = BrowserPreferences.normalizeHomeRecentCarouselLimit(limit)
+        lastUpdatedHomeRecentCarouselLimit = normalized
+        preferences.value = preferences.value.copy(homeRecentCarouselLimit = normalized)
+    }
+
+    override suspend fun updateShowHiddenFiles(show: Boolean) {
+        lastUpdatedShowHiddenFiles = show
+        preferences.value = preferences.value.copy(showHiddenFiles = show)
     }
 
     override suspend fun updatePathPresentation(

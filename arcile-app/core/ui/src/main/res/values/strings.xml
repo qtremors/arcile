@@ -101,6 +101,11 @@
     <string name="later">Later</string>
     <string name="settings_show_thumbnails">Show Thumbnails</string>
     <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
+    <string name="settings_show_hidden_files">Show hidden files</string>
+    <string name="settings_show_hidden_files_description">Include dotfiles and hidden folders in browser listings.</string>
+    <string name="settings_home_recent_carousel_limit">Home recent files</string>
+    <string name="settings_home_recent_carousel_count">Show %1$d recent files</string>
+    <string name="settings_home_recent_carousel_hidden">Hidden on Home</string>
     <string name="settings_harmonize_colors">Harmonize Colors</string>
     <string name="settings_harmonize_colors_description">Blend category and status colors with the active theme accent color.</string>
     <string name="settings_vibrations">Vibrations</string>
@@ -158,18 +163,6 @@
     <string name="temp_storage_description">"This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card."</string>
     <string name="storage_dashboard_summary_tab">Summary</string>
     <string name="storage_dashboard_usage_map_tab">Usage Map</string>
-    <string name="storage_usage_map_unavailable_title">Usage map unavailable</string>
-    <string name="storage_usage_map_unavailable_description">Temporary storage stays browsable, but folder usage mapping is available only for indexed internal storage and SD cards.</string>
-    <string name="storage_usage_map_scanning">Scanning folders</string>
-    <string name="storage_usage_map_scan_progress">%1$d items • %2$s found</string>
-    <string name="storage_usage_map_error_title">Could not scan storage</string>
-    <string name="storage_usage_map_error_description">Try refreshing, or open the folder in the browser.</string>
-    <string name="storage_usage_map_size">Size</string>
-    <string name="storage_usage_map_share">Share</string>
-    <string name="storage_usage_map_items">Items</string>
-    <string name="storage_usage_map_scan_partial">Some folders could not be read, so this total may be partial.</string>
-    <string name="storage_usage_map_scan_partial_live">Scan is still running, so this total may change.</string>
-    <string name="storage_usage_map_drill_in">Drill in</string>
 
     <!-- Permission Request -->
     <string name="permission_title">Storage Permission Required</string>
@@ -602,6 +595,7 @@
     <string name="transfer_eta_seconds">%1$ds remaining</string>
     <string name="transfer_progress_bytes">%1$s / %2$s</string>
     <string name="transfer_progress_items">%1$d / %2$d items</string>
+    <string name="file_operation_progress_percent">%1$d%% • %2$s</string>
     <string name="transfer_cancel_operation">Cancel operation</string>
     <string name="transfer_file_queue">File queue</string>
     <string name="onboarding_skip">Skip</string>
@@ -672,8 +666,14 @@
     <string name="no_app_found">No app found</string>
     <string name="could_not_open_folder_files_app">Could not open folder in Files app</string>
     <string name="share_files_via">Share files via</string>
+    <string name="save_to_arcile_title">Save to Arcile</string>
+    <string name="save_to_arcile_choose_storage">Choose storage</string>
+    <string name="save_to_arcile_save_here">Save here</string>
+    <string name="save_to_arcile_no_files">No shared files found</string>
+    <string name="save_to_arcile_failed">Could not save shared files: %1$s</string>
+    <string name="save_to_arcile_invalid_destination">Choose a valid folder</string>
+    <string name="save_to_arcile_failed_open_stream">Could not open shared file stream</string>
     <string name="volume_usage">%1$s used of %2$s</string>
-    <string name="file_operation_processing_background">Processing %1$d item(s) in the background</string>
     <string name="file_operation_copying_files">Copying files</string>
     <string name="file_operation_moving_files">Moving files</string>
     <string name="file_operation_moving_files_to_trash">Moving files to Trash</string>

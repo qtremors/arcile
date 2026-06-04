@@ -28,7 +28,7 @@ class AudioAlbumArtFetcher(
     override suspend fun fetch(): FetchResult? = withContext(ioContext) {
         if (file.exists() && file.length() > ThumbnailPolicy.MAX_AUDIO_BYTES) return@withContext null
         val context = options.context
-        val targetSize = 500
+        val targetSize = ThumbnailTargetSize.fromOptions(options)
 
         // Use native loadThumbnail on API 29+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

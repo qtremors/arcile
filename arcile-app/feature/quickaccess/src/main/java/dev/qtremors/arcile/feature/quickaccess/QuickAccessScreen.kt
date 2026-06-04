@@ -226,7 +226,7 @@ fun QuickAccessScreen(
                 val systemFolders = state.items.filter { it.type == QuickAccessType.STANDARD }
                 val customFolders = state.items.filter { it.type == QuickAccessType.CUSTOM }
                 val scopedFolders = state.items.filter { it.type == QuickAccessType.SAF_TREE }
-                val handoffFolders = state.items.filter { it.type == QuickAccessType.EXTERNAL_HANDOFF }
+                val handoffFolders = state.items.filter { it.type == QuickAccessType.EXTERNAL_HANDOFF || it.type == QuickAccessType.FILES_APP }
 
                 if (systemFolders.isNotEmpty()) {
                     item { SectionHeader(stringResource(R.string.quick_access_section_system)) }
@@ -369,6 +369,7 @@ fun QuickAccessListItem(
                             imageVector = when (item.type) {
                                 QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
                                 QuickAccessType.EXTERNAL_HANDOFF -> Icons.AutoMirrored.Filled.OpenInNew
+                                QuickAccessType.FILES_APP -> Icons.AutoMirrored.Filled.OpenInNew
                                 else -> Icons.Default.Folder
                             },
                             contentDescription = null,

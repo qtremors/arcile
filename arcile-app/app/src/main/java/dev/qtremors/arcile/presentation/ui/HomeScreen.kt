@@ -154,12 +154,12 @@ import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 
-private const val HomeRecentFilesPreviewLimit = 12
 private const val HomeRecentFilesPreloadLimit = 6
-private const val HomeRecentFilesPreloadSizePx = 512
+private const val HomeRecentFilesPreloadSizePx = 384
 /**
  * Dashboard screen shown when the app first launches.
  *
@@ -301,6 +301,7 @@ fun HomeScreen(
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
     onShareRecentFile: (String) -> Unit = {},
+    homeRecentCarouselLimit: Int = 12,
     onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
     onNavigateToCleaner: () -> Unit = {}
@@ -312,8 +313,11 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
-    val displayedRecentFiles = state.displayState.todayRecentFiles.take(HomeRecentFilesPreviewLimit)
+    val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+        .normalizeHomeRecentCarouselLimit(homeRecentCarouselLimit)
+    val displayedRecentFiles = state.displayState.todayRecentFiles.take(normalizedRecentLimit)
     LaunchedEffect(displayedRecentFiles) {
+        if (normalizedRecentLimit == 0) return@LaunchedEffect
         displayedRecentFiles
             .asSequence()
             .filter { file ->
@@ -335,7 +339,7 @@ fun HomeScreen(
                 context.imageLoader.enqueue(
                     ImageRequest.Builder(context)
                         .data(thumbnailData)
-                        .size(HomeRecentFilesPreloadSizePx)
+                        .size(ThumbnailTargetSize.fromBounds(HomeRecentFilesPreloadSizePx))
                         .memoryCacheKey(homeRecentPreloadCacheKey(file))
                         .diskCacheKey(homeRecentPreloadCacheKey(file))
                         .memoryCachePolicy(CachePolicy.ENABLED)
@@ -527,47 +531,49 @@ fun HomeScreen(
                         }
                     }
 
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    start = MaterialTheme.spacing.medium,
-                                    top = MaterialTheme.spacing.large,
-                                    end = MaterialTheme.spacing.medium,
-                                    bottom = MaterialTheme.spacing.small
-                                ),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.recent_files),
-                                style = MaterialTheme.typography.titleMediumBold
-                            )
-                            TextButton(onClick = onNavigateToRecentFiles) {
-                                Text(stringResource(R.string.see_all))
+                    if (normalizedRecentLimit > 0) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = MaterialTheme.spacing.medium,
+                                        top = MaterialTheme.spacing.large,
+                                        end = MaterialTheme.spacing.medium,
+                                        bottom = MaterialTheme.spacing.small
+                                    ),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.recent_files),
+                                    style = MaterialTheme.typography.titleMediumBold
+                                )
+                                TextButton(onClick = onNavigateToRecentFiles) {
+                                    Text(stringResource(R.string.see_all))
+                                }
                             }
                         }
-                    }
 
-                    if (displayedRecentFiles.isEmpty() && !state.isLoading) {
-                        item {
-                            EmptyState(
-                                variant = EmptyStateVariant.Recent,
-                                title = stringResource(R.string.no_recent_files),
-                                description = stringResource(R.string.no_recent_files_description),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    } else if (displayedRecentFiles.isNotEmpty()) {
-                        item {
-                            dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
-                                files = displayedRecentFiles,
-                                onOpenFile = onOpenFile,
-                                onNavigateToPath = onNavigateToPath,
-                                onShareFile = onShareRecentFile,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        if (displayedRecentFiles.isEmpty() && !state.isLoading) {
+                            item {
+                                EmptyState(
+                                    variant = EmptyStateVariant.Recent,
+                                    title = stringResource(R.string.no_recent_files),
+                                    description = stringResource(R.string.no_recent_files_description),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        } else if (displayedRecentFiles.isNotEmpty()) {
+                            item {
+                                dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
+                                    files = displayedRecentFiles,
+                                    onOpenFile = onOpenFile,
+                                    onNavigateToPath = onNavigateToPath,
+                                    onShareFile = onShareRecentFile,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
 

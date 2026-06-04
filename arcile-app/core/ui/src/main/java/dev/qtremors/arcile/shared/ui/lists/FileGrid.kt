@@ -59,12 +59,11 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailPolicyInput
+import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.shared.ui.getFileIconVector
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
+import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -84,8 +83,8 @@ fun FileGrid(
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
-    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
-    val thumbnailSizePx = with(LocalDensity.current) { minCellSize.roundToPx().coerceAtLeast(96) }
+    val formatter = rememberDateTimeFormatter()
+    val thumbnailSizePx = with(LocalDensity.current) { ThumbnailTargetSize.fromBounds(minCellSize.roundToPx()) }
     val rows = remember(files, folderStatsByPath, formatter, thumbnailSizePx) {
         files.map { file ->
             file.toFileRowUiModel(
@@ -187,11 +186,12 @@ fun FileGridItem(
     onOpenDirectly: () -> Unit = {},
     onToggleSelectionDirectly: () -> Unit = {}
 ) {
+    val formatter = rememberDateTimeFormatter()
     val row = remember(file, formattedDate, folderStats) {
         file.toFileRowUiModel(
-            formatter = SimpleDateFormat("MMM dd, yyyy  h:mm a", Locale.getDefault()),
+            formatter = formatter,
             folderStats = folderStats,
-            thumbnailSizePx = 160
+            thumbnailSizePx = ThumbnailTargetSize.fromBounds(160)
         ).copy(formattedDate = formattedDate)
     }
     FileGridItem(

@@ -10,6 +10,7 @@ import android.util.Size
 import androidx.test.core.app.ApplicationProvider
 import coil.fetch.DrawableResult
 import coil.request.Options
+import coil.size.Size as CoilSize
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -61,12 +62,13 @@ class AudioAlbumArtFetcherTest {
         val context = ThumbnailContext(baseContext, resolver)
         val options = mockk<Options> {
             every { this@mockk.context } returns context
+            every { size } returns CoilSize(320, 320)
         }
 
         val result = AudioAlbumArtFetcher(File("/storage/emulated/0/Music/song.mp3"), options).fetch() as DrawableResult
 
         assertEquals(1, queryCount)
-        assertEquals(Size(500, 500), lastRequestedSize)
+        assertEquals(Size(320, 320), lastRequestedSize)
         assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
     }
 

@@ -2,15 +2,15 @@ package dev.qtremors.arcile.presentation.ui
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.CleaningServices
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.FilterNone
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.WifiTethering
-import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.CleaningServices
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.FilterNone
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.PieChart
+import androidx.compose.material.icons.outlined.WifiTethering
+import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.ui.graphics.vector.ImageVector
 import dev.qtremors.arcile.core.ui.R
 
@@ -30,15 +30,15 @@ data class UtilityDefinition(
 )
 
 val ArcileUtilityCatalog: List<UtilityDefinition> = listOf(
-    UtilityDefinition("trash", R.string.trash_bin, Icons.Default.Delete, isImplemented = true, showOnHome = true, action = UtilityAction.Trash),
-    UtilityDefinition("cleaner", R.string.tool_clean, Icons.Default.CleaningServices, isImplemented = true, showOnHome = true, action = UtilityAction.Cleaner),
-    UtilityDefinition("ftp", R.string.tool_ftp, Icons.Default.WifiTethering),
-    UtilityDefinition("analyze", R.string.tool_analyze, Icons.Default.PieChart),
-    UtilityDefinition("duplicates", R.string.tool_duplicates, Icons.Default.FilterNone),
-    UtilityDefinition("large", R.string.tool_large, Icons.Default.ZoomIn),
-    UtilityDefinition("manager", R.string.tool_manager, Icons.Default.Apps),
-    UtilityDefinition("onlyfiles", R.string.tool_onlyfiles, Icons.Default.Lock),
-    UtilityDefinition("share", R.string.tool_share, Icons.Default.Dns)
+    UtilityDefinition("trash", R.string.trash_bin, Icons.Outlined.Delete, isImplemented = true, showOnHome = true, action = UtilityAction.Trash),
+    UtilityDefinition("cleaner", R.string.tool_clean, Icons.Outlined.CleaningServices, isImplemented = true, showOnHome = true, action = UtilityAction.Cleaner),
+    UtilityDefinition("ftp", R.string.tool_ftp, Icons.Outlined.WifiTethering),
+    UtilityDefinition("analyze", R.string.tool_analyze, Icons.Outlined.PieChart),
+    UtilityDefinition("duplicates", R.string.tool_duplicates, Icons.Outlined.FilterNone),
+    UtilityDefinition("large", R.string.tool_large, Icons.Outlined.ZoomIn),
+    UtilityDefinition("manager", R.string.tool_manager, Icons.Outlined.Apps),
+    UtilityDefinition("onlyfiles", R.string.tool_onlyfiles, Icons.Outlined.Lock),
+    UtilityDefinition("share", R.string.tool_share, Icons.Outlined.Dns)
 ).distinctBy { it.id }
 
 val HomeUtilityCatalog: List<UtilityDefinition> =

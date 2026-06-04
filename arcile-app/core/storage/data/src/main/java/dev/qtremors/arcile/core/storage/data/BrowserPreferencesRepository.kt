@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
@@ -44,6 +45,8 @@ class BrowserPreferencesRepository(
     private val RECENT_LIST_ZOOM_KEY = floatPreferencesKey("recent_list_zoom")
     private val RECENT_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("recent_grid_min_cell_size")
     private val RECENT_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("recent_show_thumbnails")
+    private val HOME_RECENT_CAROUSEL_LIMIT_KEY = intPreferencesKey("home_recent_carousel_limit")
+    private val SHOW_HIDDEN_FILES_KEY = booleanPreferencesKey("show_hidden_files")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
 
@@ -157,6 +160,10 @@ class BrowserPreferencesRepository(
                 recentPresentation = recentPresentation,
                 pathPresentationOptions = pathMap.mapValues { it.value.normalized() },
                 exactPathPresentationOptions = exactPathMap.mapValues { it.value.normalized() },
+                homeRecentCarouselLimit = BrowserPreferences.normalizeHomeRecentCarouselLimit(
+                    prefs[HOME_RECENT_CAROUSEL_LIMIT_KEY] ?: BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
+                ),
+                showHiddenFiles = prefs[SHOW_HIDDEN_FILES_KEY] ?: false,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
@@ -182,6 +189,18 @@ class BrowserPreferencesRepository(
             prefs[RECENT_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[RECENT_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
             prefs[RECENT_SHOW_THUMBNAILS_KEY] = normalized.showThumbnails
+        }
+    }
+
+    override suspend fun updateHomeRecentCarouselLimit(limit: Int) {
+        dataStore.edit { prefs ->
+            prefs[HOME_RECENT_CAROUSEL_LIMIT_KEY] = BrowserPreferences.normalizeHomeRecentCarouselLimit(limit)
+        }
+    }
+
+    override suspend fun updateShowHiddenFiles(show: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[SHOW_HIDDEN_FILES_KEY] = show
         }
     }
 

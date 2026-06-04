@@ -2,7 +2,7 @@
 
 > **Project:** Arcile
 > **Version:** 0.9.9
-> **Last Updated:** 2026-06-03
+> **Last Updated:** 2026-06-04
 
 ---
 
@@ -18,15 +18,23 @@
 - **Archive Index Isolation:** Kept archive entry browsing virtual and read-only so archive contents are not added to Recent Files, categories, folder stats scans, quick access, clipboard state, or persisted browser locations.
 - **Archive Properties Isolation:** Added archive-local properties for selected entries so virtual archive paths do not leak into real filesystem property scanning.
 - **Feedback Lifetime:** Made app-level feedback use finite snackbar durations and dismiss on route changes so stale toasts no longer linger across screens.
+- **Large Directory Efficiency:** Reduced eager traversal and collection work in archive and trash paths, including bounded archive pre-scans and lazy trash payload sizing for large directory trees.
 
 ### UI/UX Refinements
 - **Accent Color Cleanup:** Centralized the displayed accent palette, adjusted duplicate or near-duplicate swatches, and made Monochrome a true neutral grayscale scheme instead of a gray accent seed.
 - **Recent Audio Thumbnails:** Enabled audio files in the Home recent-files carousel to request album-art thumbnails while preserving icon fallbacks when artwork is unavailable.
 - **Utilities Deduplication:** Replaced separate Home and Tools utility lists with a shared catalog so utility cards stay unique and consistent.
 - **Home Utility Selection:** Added persisted per-utility Tools & Utilities switches for choosing which utility shortcuts appear on the Home screen, with Trash shown by default.
+- **Configurable Home Recents:** Added a Settings slider for the Home recent-files carousel, preserving the default 12-item preview while allowing users to hide the block or show up to 48 items.
+- **Icon Style Harmonization:** Aligned primary Home, quick access, category, utility, and file-type icons around outlined Material variants with consistent sizing across list, grid, and carousel surfaces.
+- **Thumbnail Sizing Policy:** Centralized thumbnail target sizing so PDF, video, audio, APK, list, grid, and Home carousel requests use bounded container-aware sizes instead of fixed decode targets.
+
+### Android Integration
+- **Save to Arcile Share Target:** Added Android share-sheet support for single and multiple incoming files, with a dedicated "Save to Arcile" receiver, destination folder picker, keep-both naming for conflicts, and streamed writes into the selected folder.
+- **Richer Operation Notifications:** Improved foreground file-operation notifications with pluralized progress text, active file names, transfer speed, remaining-time estimates, and the existing monochrome notification glyph.
 
 ### Verification
-- **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, accent palette and monochrome scheme tests, utility catalog and preference tests, and Home visibility coverage. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, and `:app:compileDebugKotlin`.
+- **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, accent palette and monochrome scheme tests, utility catalog and preference tests, Home visibility coverage, share-target parsing and manifest tests, carousel-limit persistence tests, notification progress tests, and thumbnail sizing expectations. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, targeted `:app:testDebugUnitTest :core:storage:data:testDebugUnitTest :core:ui:testDebugUnitTest`, and `:app:checkProductionStrings`.
 
 ## [0.9.8] - 2026-06-02
 

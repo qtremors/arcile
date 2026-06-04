@@ -11,13 +11,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Movie
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -26,7 +27,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 
@@ -37,22 +40,26 @@ fun QuickAccessGrid(
     onNavigateToPath: (String) -> Unit,
     onNavigateToSaf: (String) -> Unit
 ) {
-    fun getIconForLabel(label: String): ImageVector {
-        return when (label.lowercase()) {
-            "dcim" -> Icons.Default.CameraAlt
-            "downloads", "download" -> Icons.Default.Download
-            "pictures", "images" -> Icons.Default.Image
-            "documents", "docs" -> Icons.Default.Description
-            "music", "audio" -> Icons.Default.MusicNote
-            "movies", "videos", "video" -> Icons.Default.Movie
-            else -> Icons.Default.Folder
+    fun getIconForItem(item: QuickAccessItem): ImageVector {
+        if (item.type == QuickAccessType.FILES_APP || item.type == QuickAccessType.EXTERNAL_HANDOFF) {
+            return Icons.AutoMirrored.Outlined.OpenInNew
+        }
+        return when (item.label.lowercase()) {
+            "dcim" -> Icons.Outlined.CameraAlt
+            "downloads", "download" -> Icons.Outlined.Download
+            "pictures", "images" -> Icons.Outlined.Image
+            "documents", "docs" -> Icons.Outlined.Description
+            "music", "audio" -> Icons.Outlined.MusicNote
+            "movies", "videos", "video" -> Icons.Outlined.Movie
+            else -> Icons.Outlined.Folder
         }
     }
 
+    val allFilesLabel = stringResource(R.string.all_files)
     // Include "All Files" as the final fallback action
     val allFilesItem = QuickAccessItem(
         id = "internal_all_files",
-        label = "All Files",
+        label = allFilesLabel,
         path = "",
         type = QuickAccessType.STANDARD,
         isPinned = true,
@@ -81,7 +88,7 @@ fun QuickAccessGrid(
                         onClick = {
                             if (folder.id == "internal_all_files") {
                                 onOpenFileBrowser()
-                            } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF) {
+                            } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF || folder.type == QuickAccessType.FILES_APP) {
                                 onNavigateToSaf(folder.path)
                             } else {
                                 onNavigateToPath(folder.path)
@@ -99,7 +106,7 @@ fun QuickAccessGrid(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = getIconForLabel(folder.label),
+                                imageVector = getIconForItem(folder),
                                 contentDescription = folder.label,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)

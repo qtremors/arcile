@@ -6,7 +6,8 @@ enum class QuickAccessType {
     STANDARD,  // Hardcoded paths like Downloads, DCIM
     CUSTOM,    // User-selected internal storage paths via Arcile picker
     SAF_TREE,  // Selected via ACTION_OPEN_DOCUMENT_TREE
-    EXTERNAL_HANDOFF
+    EXTERNAL_HANDOFF,
+    FILES_APP
 }
 
 @Serializable
@@ -18,4 +19,8 @@ data class QuickAccessItem(
     val handoffDescription: String? = null,
     val isPinned: Boolean = true,
     val isEnabled: Boolean = true
-)
+) {
+    companion object {
+        const val FILES_APP_PATH = "arcile://quick-access/files-app"
+    }
+}

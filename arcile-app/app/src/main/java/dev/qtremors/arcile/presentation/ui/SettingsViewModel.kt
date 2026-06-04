@@ -26,6 +26,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateHomeRecentCarouselLimit(limit: Int) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateHomeRecentCarouselLimit(limit)
+        }
+    }
+
+    fun updateShowHiddenFiles(show: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateShowHiddenFiles(show)
+        }
+    }
+
     suspend fun resetOnboarding() {
         onboardingPreferencesStore.resetOnboarding()
     }

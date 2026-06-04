@@ -11,6 +11,22 @@
         <item quantity="one">%d item</item>
         <item quantity="other">%d items</item>
     </plurals>
+    <plurals name="file_operation_processing_background">
+        <item quantity="one">Processing %d item in the background</item>
+        <item quantity="other">Processing %d items in the background</item>
+    </plurals>
+    <plurals name="file_operation_progress_items">
+        <item quantity="one">%1$d / %2$d item</item>
+        <item quantity="other">%1$d / %2$d items</item>
+    </plurals>
+    <plurals name="save_to_arcile_selected_files">
+        <item quantity="one">%d file selected</item>
+        <item quantity="other">%d files selected</item>
+    </plurals>
+    <plurals name="save_to_arcile_saved_files">
+        <item quantity="one">Saved %d file to Arcile</item>
+        <item quantity="other">Saved %d files to Arcile</item>
+    </plurals>
     <plurals name="file_operation_copied_items">
         <item quantity="one">Copied %d item</item>
         <item quantity="other">Copied %d items</item>

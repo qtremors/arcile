@@ -125,6 +125,7 @@ data class BrowserState(
     val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
     val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val browserShowThumbnails: Boolean = BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS,
+    val showHiddenFiles: Boolean = false,
     val selectedFiles: PersistentSet<String> = persistentSetOf(),
     val clipboardState: ClipboardState? = null,
     val activeSearchFilters: SearchFilters = SearchFilters(),
@@ -167,6 +168,7 @@ fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
         isCategoryScreen = isCategoryScreen,
         currentVolumeId = currentVolumeId,
         storageVolumes = storageVolumes,
+        showHiddenFiles = showHiddenFiles,
         allFilesLabel = ALL_FILES_LABEL
     )
 )

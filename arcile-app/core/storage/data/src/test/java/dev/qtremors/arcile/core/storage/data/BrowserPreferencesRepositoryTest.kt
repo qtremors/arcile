@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
@@ -66,6 +67,8 @@ class BrowserPreferencesRepositoryTest {
         assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
         assertEquals(BrowserPresentationPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
+        assertEquals(12, preferences.homeRecentCarouselLimit)
+        assertEquals(false, preferences.showHiddenFiles)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.pathPresentationOptions)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.exactPathPresentationOptions)
     }
@@ -133,5 +136,28 @@ class BrowserPreferencesRepositoryTest {
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
         assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
         assertEquals(BrowserPresentationPreferences.MAX_LIST_ZOOM, preferences.globalPresentation.listZoom)
+    }
+
+    @Test
+    fun `home recent carousel limit is clamped when stored or updated`() = runBlocking {
+        dataStore.edit { prefs ->
+            prefs[intPreferencesKey("home_recent_carousel_limit")] = 200
+        }
+        val repository = BrowserPreferencesRepository(context, dataStore)
+
+        assertEquals(48, repository.preferencesFlow.first().homeRecentCarouselLimit)
+
+        repository.updateHomeRecentCarouselLimit(-5)
+
+        assertEquals(0, repository.preferencesFlow.first().homeRecentCarouselLimit)
+    }
+
+    @Test
+    fun `show hidden files preference is persisted`() = runBlocking {
+        val repository = BrowserPreferencesRepository(context, dataStore)
+
+        repository.updateShowHiddenFiles(true)
+
+        assertEquals(true, repository.preferencesFlow.first().showHiddenFiles)
     }
 }

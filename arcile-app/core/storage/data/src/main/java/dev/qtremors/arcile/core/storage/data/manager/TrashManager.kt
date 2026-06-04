@@ -406,8 +406,11 @@ class DefaultTrashManager(
                 val trashMetadataDir = getTrashMetadataDirForVolume(volume)
 
                 if (trashDir.exists() && trashMetadataDir.exists()) {
-                    trashMetadataDir.listFiles()?.forEach { metadataFile ->
-                        if (metadataFile.isFile && metadataFile.extension == "json") {
+                    trashMetadataDir.listFiles()
+                        .orEmpty()
+                        .asSequence()
+                        .filter { it.isFile && it.extension == "json" }
+                        .forEach { metadataFile ->
                             when (val metadata = readMetadata(metadataFile, trashDir)) {
                                 is MetadataReadResult.Readable -> {
                                     val entity = metadata.entity
@@ -449,7 +452,6 @@ class DefaultTrashManager(
                                     AppLogger.w("TrashManager", "Deleting orphaned trash metadata")
                                     metadataFile.delete()
                                 }
-                            }
                         }
                     }
                 }
@@ -468,7 +470,8 @@ class DefaultTrashManager(
                 val trashDir = File(File(volume.path, ".arcile"), ".trash")
                 volume.id to trashDir.listFiles()
                     .orEmpty()
-                    .filter { it.name != ".nomedia" }
+                    .asSequence()
+                    .filter { it.name != ".nomedia" && it.name != ".metadata" }
                     .sumOf(::trashPayloadSize)
             }.filterValues { it > 0L }
             Result.success(TrashStorageUsage(totalBytes = byVolume.values.sum(), byVolumeId = byVolume))
@@ -482,6 +485,7 @@ class DefaultTrashManager(
         if (!file.exists() || file.name == ".nomedia") return 0L
         if (file.isFile) return file.length()
         return file.walkTopDown()
+            .asSequence()
             .filter { it.isFile && it.name != ".nomedia" }
             .sumOf { it.length() }
     }

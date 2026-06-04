@@ -200,7 +200,7 @@ internal suspend fun scanArchiveCreationEntries(
             exceededLimit = true
             return@traverseArchiveSources false
         }
-        entries += entry
+        if (!exceededLimit) entries += entry
         true
     }
     return if (exceededLimit) {

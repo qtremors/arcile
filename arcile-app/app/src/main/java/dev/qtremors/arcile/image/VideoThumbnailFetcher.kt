@@ -38,9 +38,7 @@ class VideoThumbnailFetcher(
             kotlinx.coroutines.delay(300)
             
             val context = options.context
-            val reqWidth = (options.size.width as? coil.size.Dimension.Pixels)?.px ?: 512
-            val reqHeight = (options.size.height as? coil.size.Dimension.Pixels)?.px ?: 512
-            val targetSize = maxOf(reqWidth, reqHeight).coerceIn(128, 1024)
+            val targetSize = ThumbnailTargetSize.fromOptions(options)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {

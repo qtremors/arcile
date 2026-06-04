@@ -1,7 +1,10 @@
 package dev.qtremors.arcile.image
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.BitmapDrawable
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -28,9 +31,13 @@ class ApkIconFetcher(
                 appInfo.publicSourceDir = data.absolutePath
                 val icon = appInfo.loadIcon(packageManager)
                 if (icon != null) {
+                    val targetSize = ThumbnailTargetSize.fromOptions(
+                        options,
+                        maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX
+                    )
                     DrawableResult(
-                        drawable = icon,
-                        isSampled = false,
+                        drawable = icon.toBoundedDrawable(options.context, targetSize),
+                        isSampled = true,
                         dataSource = DataSource.DISK
                     )
                 } else null
@@ -59,4 +66,20 @@ class ApkIconFetcher(
             }
         }
     }
+}
+
+private fun Drawable.toBoundedDrawable(context: Context, targetSize: Int): Drawable {
+    val width = runCatching { intrinsicWidth }.getOrNull()?.takeIf { it > 0 } ?: targetSize
+    val height = runCatching { intrinsicHeight }.getOrNull()?.takeIf { it > 0 } ?: targetSize
+    if (this is BitmapDrawable && bitmap.width <= targetSize && bitmap.height <= targetSize) return this
+    val scale = minOf(targetSize.toFloat() / width, targetSize.toFloat() / height, 1f)
+    val outWidth = (width * scale).toInt().coerceAtLeast(1)
+    val outHeight = (height * scale).toInt().coerceAtLeast(1)
+    val bitmap = runCatching {
+        Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+    }.getOrElse { return this }
+    val canvas = Canvas(bitmap)
+    setBounds(0, 0, outWidth, outHeight)
+    runCatching { draw(canvas) }.getOrElse { return this }
+    return BitmapDrawable(context.resources, bitmap)
 }

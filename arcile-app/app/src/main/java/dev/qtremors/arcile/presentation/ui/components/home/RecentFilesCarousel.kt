@@ -55,6 +55,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
@@ -75,7 +76,7 @@ fun RecentFilesCarousel(
     val primaryWidth = configuration.screenWidthDp.dp / 2
     val itemHeight = primaryWidth * 1.25f
     val thumbnailSizePx = with(LocalDensity.current) {
-        primaryWidth.roundToPx().coerceIn(192, 512)
+        ThumbnailTargetSize.fromBounds(primaryWidth.roundToPx(), maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX)
     }
 
     val state = rememberCarouselState { files.size }

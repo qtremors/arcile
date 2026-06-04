@@ -53,6 +53,13 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 handoffDescription = "Opens in the Android Files app due to platform restrictions."
             )
         }
+        if (item.type == QuickAccessType.FILES_APP || item.id == "handoff_files_app") {
+            return item.copy(
+                path = buildAndroidTreeUri(""),
+                type = QuickAccessType.FILES_APP,
+                handoffDescription = "Open the Android Files app."
+            )
+        }
         return item
     }
 
@@ -80,6 +87,15 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 label = "Documents",
                 path = File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath,
                 type = QuickAccessType.STANDARD,
+                isPinned = true,
+                isEnabled = true
+            ),
+            QuickAccessItem(
+                id = "handoff_files_app",
+                label = "Files",
+                path = buildAndroidTreeUri(""),
+                type = QuickAccessType.FILES_APP,
+                handoffDescription = "Open the Android Files app.",
                 isPinned = true,
                 isEnabled = true
             ),
