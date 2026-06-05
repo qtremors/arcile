@@ -8,6 +8,7 @@ import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,7 +50,7 @@ import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
 import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
@@ -267,8 +268,9 @@ fun FileGridItem(
     val marqueeEnabled = LocalMarqueeFilenames.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (isPressed && !reducedMotion) 0.95f else 1f,
         animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "gridItemScale"
     )
@@ -323,9 +325,9 @@ fun FileGridItem(
                         sizeBytes = file.size,
                         lastModifiedMillis = file.lastModified
                     )
-                    AsyncImage(
+                    SubcomposeAsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(archiveThumbnailData ?: File(file.absolutePath))
+                            .data(row.thumbnailRequestData(archiveThumbnailData))
                             .size(row.thumbnailSizePx)
                             .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
                             .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
@@ -341,23 +343,16 @@ fun FileGridItem(
                         modifier = Modifier
                             .fillMaxWidth()
                             .aspectRatio(1f),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        loading = {
+                            GridFileIcon(file = file, modifier = Modifier.fillMaxSize())
+                        },
+                        error = {
+                            GridFileIcon(file = file, modifier = Modifier.fillMaxSize())
+                        }
                     )
                 } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = getFileIconVector(file),
-                            contentDescription = null,
-                            tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(48.dp)
-                        )
-                    }
+                    GridFileIcon(file = file)
                 }
                 if (isSelected) {
                     Surface(
@@ -409,5 +404,26 @@ fun FileGridItem(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun GridFileIcon(
+    file: FileModel,
+    modifier: Modifier = Modifier
+        .fillMaxWidth()
+        .aspectRatio(1f)
+) {
+    Box(
+        modifier = modifier
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = getFileIconVector(file),
+            contentDescription = null,
+            tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(48.dp)
+        )
     }
 }

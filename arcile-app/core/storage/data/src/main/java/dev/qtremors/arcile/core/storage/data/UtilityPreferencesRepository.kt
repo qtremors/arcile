@@ -30,6 +30,7 @@ class UtilityPreferencesRepository(
 ) : UtilityPreferencesStore {
     private val HOME_UTILITY_IDS_KEY = stringSetPreferencesKey("home_utility_ids")
     private val defaultHomeUtilityIds = setOf("trash", "cleaner")
+    private val allowedHomeUtilityIds = defaultHomeUtilityIds
 
     override val homeUtilityIds: Flow<Set<String>> = dataStore.data
         .catch { exception ->
@@ -39,12 +40,15 @@ class UtilityPreferencesRepository(
                 throw exception
             }
         }
-        .map { prefs -> prefs[HOME_UTILITY_IDS_KEY] ?: defaultHomeUtilityIds }
+        .map { prefs -> sanitizeHomeUtilityIds(prefs[HOME_UTILITY_IDS_KEY] ?: defaultHomeUtilityIds) }
         .flowOn(dispatchers.io)
 
     override suspend fun setHomeUtilityIds(ids: Set<String>) {
         dataStore.edit { prefs ->
-            prefs[HOME_UTILITY_IDS_KEY] = ids
+            prefs[HOME_UTILITY_IDS_KEY] = sanitizeHomeUtilityIds(ids)
         }
     }
+
+    private fun sanitizeHomeUtilityIds(ids: Set<String>): Set<String> =
+        ids.filterTo(linkedSetOf()) { it in allowedHomeUtilityIds }
 }

@@ -31,6 +31,7 @@ import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -129,9 +130,9 @@ internal fun CreateArchiveDialog(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     ArchiveDropdown(
                         label = stringResource(R.string.archive_type),
@@ -141,7 +142,7 @@ internal fun CreateArchiveDialog(
                             format = ArchiveFormat.creatableFormats().first { it.displayName == selected }
                             if (!format.supportsPassword) usePassword = false
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     )
                     ArchiveDropdown(
                         label = stringResource(R.string.archive_compression),
@@ -150,7 +151,7 @@ internal fun CreateArchiveDialog(
                         onOptionSelected = { selected ->
                             compressionLevel = ArchiveCompressionLevel.entries.first { it.displayName == selected }
                         },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 if (format.supportsPassword) {
@@ -266,21 +267,51 @@ internal fun ExtractArchiveDialog(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                ArchiveExtractionTarget.entries.forEach { option ->
-                    val label = when (option) {
-                        ArchiveExtractionTarget.NAMED_FOLDER -> stringResource(R.string.archive_create_subfolder)
-                        ArchiveExtractionTarget.SAME_FOLDER -> stringResource(R.string.archive_extract_here)
-                        ArchiveExtractionTarget.CUSTOM_FOLDER -> stringResource(R.string.archive_choose_folder)
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { target = option }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = target == option, onClick = { target = option })
-                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ArchiveExtractionTarget.entries.forEach { option ->
+                        val label = when (option) {
+                            ArchiveExtractionTarget.NAMED_FOLDER -> stringResource(R.string.archive_create_subfolder)
+                            ArchiveExtractionTarget.SAME_FOLDER -> stringResource(R.string.archive_extract_here)
+                            ArchiveExtractionTarget.CUSTOM_FOLDER -> stringResource(R.string.archive_choose_folder)
+                        }
+                        val isSelected = target == option
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.large)
+                                .clickable { target = option }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = { target = option }
+                                )
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = if (isSelected) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
                 if (target == ArchiveExtractionTarget.CUSTOM_FOLDER) {

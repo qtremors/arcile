@@ -101,4 +101,20 @@ class QuickAccessViewModel @Inject constructor(
             quickAccessRepository.addItem(newItem)
         }
     }
+
+    fun addFilesAppShortcut(uriString: String) {
+        viewModelScope.launch {
+            quickAccessRepository.addItem(
+                QuickAccessItem(
+                    id = "handoff_files_app",
+                    label = "Files",
+                    path = uriString,
+                    type = QuickAccessType.FILES_APP,
+                    handoffDescription = "Open the Android Files app.",
+                    isPinned = true,
+                    isEnabled = true
+                )
+            )
+        }
+    }
 }

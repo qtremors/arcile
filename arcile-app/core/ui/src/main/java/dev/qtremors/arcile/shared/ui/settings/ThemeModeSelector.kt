@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.titleMediumBold
 
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 
@@ -82,9 +83,10 @@ fun ThemeModeCard(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
     
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1f,
+        targetValue = if (isPressed && !reducedMotion) 0.92f else 1f,
         animationSpec = spring(
             dampingRatio = 0.8f,
             stiffness = Spring.StiffnessMediumLow), label = "cardScale"
@@ -109,8 +111,11 @@ fun ThemeModeCard(
                 indication = null
             )
             .semantics { contentDescription = label }
-            .clickable { onClick(mode) }
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = 4.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -122,10 +127,6 @@ fun ThemeModeCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                }
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(

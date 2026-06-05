@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -12,7 +14,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -24,7 +26,7 @@ import java.util.UUID
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
-class UtilityPreferencesRepositoryTest {
+class QuickAccessPreferencesRepositoryTest {
     private lateinit var context: Context
     private lateinit var dataStoreFile: File
     private lateinit var dataStoreScope: CoroutineScope
@@ -35,7 +37,7 @@ class UtilityPreferencesRepositoryTest {
         context = ApplicationProvider.getApplicationContext()
         dataStoreFile = File(
             context.filesDir,
-            "datastore/utility-prefs-test-${UUID.randomUUID()}.preferences_pb"
+            "datastore/quick-access-prefs-test-${UUID.randomUUID()}.preferences_pb"
         )
         dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         dataStore = PreferenceDataStoreFactory.create(
@@ -51,30 +53,31 @@ class UtilityPreferencesRepositoryTest {
     }
 
     @Test
-    fun `home utility ids default to trash and cleaner`() = runBlocking {
-        val repository = UtilityPreferencesRepository(context, dataStore)
+    fun `removeItem persists custom shortcut deletion`() = runBlocking {
+        val repository = QuickAccessPreferencesRepository(context, dataStore)
+        val custom = QuickAccessItem(
+            id = "custom_test",
+            label = "Custom",
+            path = "/storage/emulated/0/Custom",
+            type = QuickAccessType.CUSTOM
+        )
 
-        val ids = repository.homeUtilityIds.first()
+        repository.addItem(custom)
+        assertTrue(repository.quickAccessItems.first().any { it.id == custom.id })
 
-        assertTrue("trash" in ids)
-        assertTrue("cleaner" in ids)
+        repository.removeItem(custom.id)
+
+        assertFalse(repository.quickAccessItems.first().any { it.id == custom.id })
     }
 
     @Test
-    fun `home utility ids persist updates`() = runBlocking {
-        val repository = UtilityPreferencesRepository(context, dataStore)
+    fun `removeItem tombstones files app default shortcut`() = runBlocking {
+        val repository = QuickAccessPreferencesRepository(context, dataStore)
 
-        repository.setHomeUtilityIds(setOf("trash"))
+        assertTrue(repository.quickAccessItems.first().any { it.id == "handoff_files_app" })
 
-        assertTrue(repository.homeUtilityIds.first() == setOf("trash"))
-    }
+        repository.removeItem("handoff_files_app")
 
-    @Test
-    fun `home utility ids discard stale cleaner sub tools`() = runBlocking {
-        val repository = UtilityPreferencesRepository(context, dataStore)
-
-        repository.setHomeUtilityIds(setOf("trash", "cleaner", "large", "duplicates", "analyze"))
-
-        assertEquals(setOf("trash", "cleaner"), repository.homeUtilityIds.first())
+        assertFalse(repository.quickAccessItems.first().any { it.id == "handoff_files_app" })
     }
 }

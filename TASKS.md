@@ -6,126 +6,397 @@
 
 ---
 
-## Backlog / Future Ideas
+## Upcoming Version Roadmap
 
-> A parking lot for future ideas, enhancements, and unprioritized Android file-manager features.
-> Audited against the current codebase on 2026-05-26. Items marked "Expand existing" already have a shipped foundation and should be treated as polish or completion work, not greenfield features.
+### 1.1 - Categories, Recents, And Gallery Experience
 
-### Architecture & Foundation (Comparison Insights)
-- **Persistent Operation Manager** `[Expand existing]`: `BulkFileOperationCoordinator`, foreground service execution, operation events, progress smoothing, and `OperationJournal` already exist. Extend this into a real queue with multiple pending operations, pause/resume/retry, restart recovery UI, and background notifications for copy, move, delete, rename, archive, extract, trash, and cleaner jobs.
-- **Storage Provider Interfaces (VFS)** `[New]`: Decouple the data layer from hardcoded `java.io.File` and Android Scoped Storage APIs. Introduce a `StorageProvider` interface that returns standard domain `FileModel`s and handles `InputStream`/`OutputStream` streams. This lays the groundwork for SMB, FTP, SFTP, WebDAV, cloud, and richer SAF providers without modifying UI layers.
-- **Native File Viewers** `[New]`: Integrate in-app viewers for Markdown, JSON, XML, TXT, logs, and code-like formats with encoding detection, syntax highlighting, line numbers, search, share, and copy actions.
+- [ ] **FEAT-1101 - Recent files calendar filter**
+  - Add date/calendar filtering for recent files, with quick chips for today, yesterday, this week, and custom date range.
+
+- [ ] **FEAT-1102 - Category tab-based search**
+  - Make category search aware of active category tabs/sections so users can search within Images, Videos, Audio, Documents, APKs, and Archives.
+
+- [ ] **FEAT-1103 - Category date chips and sections**
+  - Add date chips and grouped sections to category views, especially media-heavy categories.
+
+- [ ] **FEAT-1104 - Gallery view for image and video categories**
+  - Add a pure gallery view mode for Images and Videos with large visual tiles and minimal file-manager chrome.
+
+- [ ] **FEAT-1105 - Customizable category view modes**
+  - Let categories choose list, grid, gallery, tabbed, or river-style views independently from normal folders.
+
+- [ ] **FEAT-1106 - Gallery side rail / left-side media navigation**
+  - Explore a left-side gallery/category rail for larger screens after the base gallery mode works.
+
+### 1.2 - Settings, Personalization, And Home
+
+- [ ] **FEAT-1201 - Separate theme page** `[Expand Existing]`
+  - **Audit:** Theme modes, theme presets, accent selection, custom colors, harmonization, OLED, and persistence already exist inside Settings.
+  - Move theme customization into a dedicated settings page with clearer previews and grouped controls.
+
+- [ ] **FEAT-1202 - Home and screen-specific settings**
+  - Add settings for Home sections, Browser defaults, category defaults, thumbnails, hidden files, and utility visibility.
+
+- [ ] **FEAT-1203 - File icon packs**
+  - Support optional icon style packs for file types, folders, archives, media, and APKs.
+
+- [ ] **FEAT-1204 - Show app icons for app-related folders**
+  - Detect common app-owned folders and show recognizable app/package icons where safe and useful.
+
+- [ ] **FEAT-1205 - Material 3 expressive motion pass**
+  - Add bouncy physics and expressive animations only where they improve clarity, not to core file-operation reliability paths.
+
+### 1.3 - Cleaner, Trash, And Storage Intelligence
+
+- [ ] **FEAT-1301 - Investigate SD Maid SE patterns**
+  - Study cleaner UX, risk labeling, exclusions, app-cache handling, and user confirmation patterns.
+  - Document what Arcile should adopt, avoid, or simplify.
+
+- [ ] **FEAT-1302 - Storage-based vs app-based trash strategy**
+  - Decide whether Arcile should keep storage-root trash, app-private trash, or a hybrid based on volume type and Android restrictions.
+  - Include privacy, restore reliability, removable storage, and uninstall behavior.
+
+- [ ] **FEAT-1303 - Dedicated duplicate finder** `[Expand Existing]`
+  - **Audit:** Cleaner already detects duplicate candidates by name and size.
+  - Build this into a dedicated duplicate finder with preview, exclusions, optional hashing, and safe trash/delete flow.
+
+- [ ] **FEAT-1304 - Cleaner recommendation model polish** `[Expand Existing]`
+  - **Audit:** Cleaner risk levels and risk reasons already exist, including high-risk acknowledgement behavior.
+  - Refine labels, copy, exclusions, and SD Maid-style recommendations for app folders, thumbnails, unknown cache-like directories, and user media.
+
+### 1.4+ - Preview, Cache, And Power Tools
+
+- [ ] **FEAT-1401 - Native text and Markdown viewer**
+  - Add in-app viewing for Markdown, TXT, JSON, XML, logs, and code-like files with encoding detection, search, copy, and share.
+
+- [ ] **FEAT-1402 - SVG thumbnails**
+  - Add safe SVG thumbnail generation with size, parser, and timeout limits.
+
+- [ ] **FEAT-1403 - Thumbnail cache architecture research**
+  - Research how Aves and similar gallery apps manage thumbnail cache keys, invalidation, failure caching, and disk budgets.
+
+- [ ] **FEAT-1404 - Rich media detail sheets**
+  - Add image EXIF, video metadata, audio metadata, and document metadata sheets.
+
+---
+
+## Tracked Technical Debt
+
+> These IDs are referenced from source comments. Keep the IDs stable until the comments are removed or updated.
+
+- [ ] **C1 - Bound home recent-file queries**
+  - **Reference:** `StorageAnalyticsRepository.getRecentFiles`.
+  - **Concern:** Home currently requests a bounded preview limit, but this should remain guarded if the Home carousel or Recent Files UI grows.
+  - **Next step:** Keep Home preview limits bounded and add paging/offset UI only where needed.
+
+- [ ] **C2 - Avoid repeated full MediaStore category-size scans**
+  - **Reference:** `StorageAnalyticsRepository.getCategoryStorageSizes`.
+  - **Concern:** Category-size caching exists for global and volume-wide stats; invalidation, TTL behavior, and scoped refresh still need periodic audit.
+  - **Next step:** Verify cache invalidation after mutations, volume changes, and MediaStore-only updates.
+
+- [ ] **A4 - Trash metadata orphan correctness**
+  - **Reference:** `TrashRepository.getTrashFiles`.
+  - **Concern:** Orphaned metadata cleanup is silent and should be audited for failure reporting and recovery visibility.
+  - **Next step:** Add explicit cleanup result tracking or diagnostics for missing blobs and invalid metadata sidecars.
+
+- [ ] **F4 - Non-interactive utility cards clarity**
+  - **Reference:** `ToolsScreen`.
+  - **Concern:** Coming-soon utility cards can look too similar to actionable tools.
+  - **Next step:** Either hide unavailable tools or make disabled state visually and semantically obvious.
+
+---
+
+## Future Backlog
+
+> This is the long-range parking lot. Items already shipped in 1.0.0, such as MediaStore content URI hardening, archive replacement rollback, release APK naming, expanded production string checks, and Android 17 target SDK work, have been removed from the active backlog.
+
+### Architecture & Storage Foundation
+
+- [ ] **BACKLOG-ARCH-001 - Storage Provider / VFS abstraction**
+  - Introduce a provider interface for local files, SAF trees, MediaStore, removable volumes, network locations, and future cloud/network backends.
+
+- [ ] **BACKLOG-ARCH-002 - Queued operation manager**
+  - Extend the existing operation coordinator, foreground service, and journal into a visible queue with pause, resume, retry, cancellation, and completed-operation history.
+
+- [ ] **BACKLOG-ARCH-003 - Operation logs page**
+  - Add a diagnostics/history page for completed, failed, cancelled, cleanup-required, undo, and cleaner events.
+
+- [ ] **BACKLOG-ARCH-004 - Performance benchmarks**
+  - Add repeatable benchmarks for large folder listing, recursive stats, thumbnail loading, cleaner scanning, usage-map building, and search.
 
 ### File Browsing & Navigation
-- **Dual-Pane File Browser** `[New]`: Add tablet, foldable, and landscape browsing with two live folder panes for drag/copy/move workflows.
-- **Breadcrumb Path Editing** `[New]`: Let users tap the current path and type or paste a filesystem path directly.
-- **Folder Tabs With Restore** `[Expand existing]`: `FolderTabs.kt` currently builds folder grouping tabs for file lists. Extend this into user-managed open folder tabs with add/close/reorder and process-death restore.
-- **Starred / Favorited Files** `[New]`: Add a starred section to the Home screen and a star toggle on individual files and folders.
-- **Recent Locations** `[New]`: Track recently opened folders separately from recently modified files.
-- **Quick Jump / Quick Access Expansion** `[Expand existing]`: Quick Access already supports standard folders, custom paths, SAF trees, pinned home items, and restricted-folder handoff. Expand it into a drawer or sheet with Download, DCIM, Documents, Android/media, Android/data, Android/obb, SD cards, OTG drives, network locations, recent locations, and pinned folders.
-- **Native Android Files Shortcut** `[Expand existing]`: `QuickAccessPreferencesRepository`, `QuickAccessScreen`, and `ExternalFileAccessHelper.openInFilesApp` already hand off `Android/data` and `Android/obb` to DocumentsUI. Add a clearer trigger/shortcut from Home/Tools or a launcher shortcut that opens the system Files app directly.
-- **Global Hidden Files Toggle** `[Partially exists]`: Search filters already support `includeHidden`, and hidden files have UI semantics. Add a persistent browser-level show/hide hidden files control that applies consistently across folder browsing, search, recents, trash, and picker surfaces.
 
-### File Operations & Reliability
-- **Queued Operation Manager** `[Expand existing]`: Operation service/coordinator/journal exist, but the app still needs a visible queue with pause, resume, cancel, retry, and persistent multi-operation state.
-- **Conflict Resolution Dialogs** `[Partially exists]`: Conflict preflight/dialog code exists for paste flows. Expand choices to replace, skip, rename, apply-to-all, compare metadata, and keep-both across copy, move, and archive extraction.
-- **Checksum Verification** `[New]`: Add MD5, SHA-1, and SHA-256 calculation plus optional post-copy verification for large transfers.
-- **Batch Rename Tool** `[New]`: Support numbered patterns, date tokens, find/replace, regex and reverse-regex workflows, case conversion, extension changes, conflict detection, and a live before/after diff preview.
-- **Undo Recent Operations** `[Expand existing]`: Trash undo already exists for browser trash moves. Extend safe undo to rename, move, restore, create folder/file, and cleaner moves where rollback is reliable.
-- **Safe Large Transfer Mode** `[Partially exists]`: `FileTransferEngine` already uses staged transfer and metadata verification paths. Add user-facing warnings before large cross-volume moves and copy-then-delete fallback with verification.
-- **Operation Logs Page** `[Expand existing]`: `OperationJournal` records active/interrupted operation state. Add a dedicated history page for completed, failed, cancelled, cleanup-required, toast/snackbar, undo, and cleaner events.
+- [ ] **BACKLOG-BROWSE-001 - Dual-pane file browser**
+  - Add tablet, foldable, and landscape browsing with two live panes for copy/move workflows.
+
+- [ ] **BACKLOG-BROWSE-002 - Editable breadcrumb path**
+  - Let users type or paste a filesystem path directly from the current path bar.
+
+- [ ] **BACKLOG-BROWSE-003 - User-managed folder tabs**
+  - Add open folder tabs with add, close, reorder, and process-death restore.
+
+- [ ] **BACKLOG-BROWSE-004 - Starred files and folders**
+  - Add favorites to Home, Browser rows, search, and quick access.
+
+- [ ] **BACKLOG-BROWSE-005 - Recent locations**
+  - Track recently opened folders separately from recently modified files.
+
+- [ ] **BACKLOG-BROWSE-006 - Quick Access drawer expansion**
+  - Expand Quick Access into a drawer or sheet with Downloads, DCIM, Documents, Android/media, Android/data, Android/obb, SD cards, OTG drives, network locations, recent locations, and pinned folders.
+
+### File Operations
+
+- [ ] **BACKLOG-OPS-001 - Batch rename**
+  - Support patterns, date tokens, find/replace, regex, case conversion, extension changes, conflict detection, and live preview.
+
+- [ ] **BACKLOG-OPS-002 - Checksum tools**
+  - Add MD5, SHA-1, and SHA-256 calculation plus optional post-copy verification.
+
+- [ ] **BACKLOG-OPS-003 - Broader safe undo**
+  - Extend undo beyond trash moves to rename, move, restore, create folder/file, and cleaner actions where rollback is reliable.
+
+- [ ] **BACKLOG-OPS-004 - Large transfer safety mode**
+  - Add warnings and copy-then-delete verification for risky cross-volume moves.
+
+- [ ] **BACKLOG-OPS-005 - Rich conflict resolution dialogs**
+  - Conflict preflight exists for paste and archive flows.
+  - Remaining scope: replace, skip, rename, apply-to-all, compare metadata, and keep-both consistently across copy, move, and archive extraction.
 
 ### Archives & File Formats
-- **APK / AAB Inspector** `[Expand existing]`: APK icon thumbnails already exist. Add package name, version, signatures, permissions, split APK details, and install/open actions.
-- **PDF / Document Preview Hooks** `[Expand existing]`: PDF thumbnails and safe external handoff exist. Add richer document metadata, thumbnail refresh, and safer handoff hints for PDFs, Office files, and ebooks.
-- **Expanded Archive Format Support** `[Expand existing]`: ZIP and 7z create/list/extract, password support, archive viewer, safety checks, and keep-both extraction already exist. Add read-only RAR plus TAR, GZIP, BZIP2, and XZ support.
-- **Advanced Archive Creation Options** `[Expand existing]`: Archive creation and password support exist. Add compression levels, archive splitting/multi-volume creation, and explicit encryption controls in the create dialog.
-- **Archive Modification** `[New]`: Allow in-place editing of ZIP archives by adding/removing entries without full extraction.
-- **In-Memory Archive Previews** `[New]`: Stream archive entries directly into image or text previewers within `ArchiveViewerScreen` without extracting to disk.
-- **Archive Integrations** `[New]`: Register Share intent for creating ZIPs from external apps and add smart extraction rules such as auto-delete archive after extraction.
+
+- [ ] **BACKLOG-ARCHIVE-001 - APK / AAB inspector**
+  - Add package name, version, signatures, permissions, split APK details, and install/open actions.
+
+- [ ] **BACKLOG-ARCHIVE-002 - Archive modification**
+  - Support adding/removing entries from ZIP archives without full extraction.
+
+- [ ] **BACKLOG-ARCHIVE-003 - In-memory archive previews**
+  - Stream archive entries directly into image or text previewers without extracting to disk.
+
+- [ ] **BACKLOG-ARCHIVE-004 - Advanced archive creation**
+  - Compression levels, no-compression default, format selection, and password controls already exist.
+  - Remaining scope: archive splitting, multi-volume creation, explicit encryption algorithm controls, and richer format-specific options.
+
+- [ ] **BACKLOG-ARCHIVE-005 - Archive integrations**
+  - Register share intents for creating archives from external apps and add smart extraction rules such as optional archive deletion after successful extraction.
+
+- [ ] **BACKLOG-ARCHIVE-006 - Read-only RAR support**
+  - Archive format detection recognizes RAR, but this build does not browse or extract it.
+  - Add read-only RAR browsing/extraction if a suitable dependency and license path are acceptable.
 
 ### Storage, Access & Android Integration
-- **Storage Health Diagnostics** `[Expand existing]`: Storage volumes, classification, usage summaries, category sizes, and usage map already exist. Add mount state details, free-space trends, health checks, and repair/trim suggestions for mounted volumes.
-- **Mount / Unmount Awareness** `[Partially exists]`: `HomeViewModel` observes storage volumes and refreshes summaries. Extend this to immediate browser/trash/operation recovery when SD card or USB OTG devices mount/unmount.
-- **MediaStore Rescan Tools** `[New]`: Manually rescan selected files or folders so gallery, music, and downloads apps see changes sooner.
-- **MTP / USB Transfer Mode Notes** `[New]`: Surface helpful guidance when Android's USB file transfer state blocks desktop access.
+
+- [ ] **BACKLOG-STORAGE-001 - Storage health diagnostics**
+  - Storage volumes, classification, usage summaries, category sizes, and usage map already exist.
+  - Add mount state details, free-space trends, health checks, and repair/trim suggestions for mounted volumes.
+
+- [ ] **BACKLOG-STORAGE-002 - Mount and unmount awareness**
+  - Home observes storage volumes and refreshes summaries.
+  - Extend this to immediate Browser, Trash, operation recovery, and cleaner behavior when SD cards or USB OTG devices mount/unmount.
+
+- [ ] **BACKLOG-STORAGE-003 - MediaStore rescan tools**
+  - Add manual rescan actions for selected files or folders so gallery, music, and downloads apps see changes sooner.
+
+- [ ] **BACKLOG-STORAGE-004 - MTP and USB transfer guidance**
+  - Surface helpful guidance when Android USB file transfer state blocks desktop access.
 
 ### Search, Filters & Organization
-- **Indexed Search** `[New]`: Current search is repository/MediaStore-backed with local helper filtering. Add an optional local index for faster filename, extension, MIME type, size, date, tag, and folder searches.
-- **Advanced Search Filters** `[Expand existing]`: `SearchFilters` already supports type, item type, size, date, extension, hidden, volume, folder scope, MIME, and saved-preset metadata. Add UI/storage for saved presets plus media duration, image dimensions, and duplicate candidates.
-- **Tags And Tag Search** `[New]`: Let users assign Arcile-owned tags to files/folders and search or filter by one or more tags. Store tag metadata locally without requiring network access.
-- **Saved Searches** `[Partially exists]`: `SearchFilters.savedPresetName` exists as metadata. Add persistence, management UI, and pinning reusable searches such as "large videos", "old APKs", or "recent downloads".
-- **Duplicate Finder** `[Partially exists]`: Cleaner already groups duplicate candidates by name and size. Add a dedicated duplicate finder with size pre-filtering, optional content hashing, preview, exclusions, and safe delete/trash flow.
-- **Large / Old Files Cleanup** `[Expand existing]`: Storage cleaner already has large files and old downloads groups. Expand with richer filters, folder exclusions, risk labels, and saved cleaner presets.
-- **Empty Folder Finder** `[New]`: Scan and clean empty folders with preview and exclusions.
-- **Smart Collections** `[Partially exists]`: Category browsing already groups common file types. Add smarter collections for screenshots, screen recordings, WhatsApp/Telegram media, APKs, downloads, documents, and other app/media-specific patterns.
-- **Storage Analyzer ("Filelight" View)** `[Expand existing]`: `StorageUsageMap` already provides a radial usage-map view. Improve drill-down, labels, selection actions, legends, filtering, and large-folder performance.
 
-### Media & Preview Experience
-- **Rich Media Previews** `[Expand existing]`: Custom Coil fetchers already cover APK icons, audio album art, PDFs, and videos. Continue adding richer thumbnails/metadata for images, documents, ebooks, archives, and developer files.
-- **Image Detail Sheet** `[New]`: Show resolution, EXIF, location presence, orientation, color profile, and quick rotate/share actions.
-- **Video Detail Sheet** `[New]`: Show duration, resolution, codec, bitrate, frame rate, subtitles, and thumbnail refresh actions.
-- **Audio Detail Sheet** `[Expand existing]`: Album art fetcher exists. Add artist, album, duration, bitrate, embedded-art status, and metadata cleanup hints.
-- **Thumbnail Cache Controls** `[Partially exists]`: Global thumbnail visibility is already in settings, and external handoff cache cleanup exists. Add dedicated thumbnail cache clear, size-limit, rebuild, and failure-cache controls.
-- **Thumbnail Cleaner** `[Partially exists]`: Folder stats and cleaner scanning already skip `.thumbnails`; add explicit thumbnail/cache detection with preview, exclusions, and risk labels for locations that are not recommended to remove.
-- **Hidden Media Controls** `[New]`: Create or remove `.nomedia` files with clear warnings about gallery visibility.
+- [ ] **BACKLOG-SEARCH-001 - Indexed search**
+  - Add an optional local index for faster filename, extension, MIME, size, date, tag, and folder searches.
 
-### Automation & Power Tools
-- **Automated Task Rules** `[New]`: Implement trigger-based operations, for example auto-moving video files from Camera to Videos daily.
-- **Watched Folders** `[New]`: Monitor selected folders for new files and offer rule actions such as rename, move, compress, or notify.
-- **Quick Actions** `[New]`: Let users configure a small set of folder-specific actions like "send to SD", "compress here", or "clean old files".
-- **Scheduled Cleanup** `[New]`: Periodically empty trash, remove temporary files, or prompt for old downloads review.
-- **Custom Cleaner Rules** `[New]`: Let users define cleaner rules by folder, extension, size, age, filename pattern, and exclusions. Show preview results before any deletion.
-- **Cleaner Recommendation Risk Labels** `[New]`: Mark risky cleanup candidates as not recommended or review-required, especially app-owned folders, thumbnail stores, and unknown cache-like directories.
+- [ ] **BACKLOG-SEARCH-002 - Saved search presets**
+  - `SearchFilters.savedPresetName` metadata and active filter chips exist.
+  - Remaining scope: persistence, management UI, and pinning reusable searches such as large videos, old APKs, recent downloads, or hidden media.
+
+- [ ] **BACKLOG-SEARCH-003 - Tags**
+  - Let users assign Arcile-owned tags to files and folders for local organization.
+
+- [ ] **BACKLOG-SEARCH-004 - Smart collections**
+  - Add collections for screenshots, screen recordings, messaging-app media, APKs, downloads, documents, and app-specific folders.
+
+- [ ] **BACKLOG-SEARCH-005 - Advanced search filter expansion**
+  - Current filters cover type, item type, size, date, extension, hidden, volume, folder scope, MIME, and saved-preset metadata.
+  - Add media duration, image dimensions, duplicate candidates, and persisted preset management.
+
+- [ ] **BACKLOG-SEARCH-006 - Large and old files cleanup presets**
+  - Cleaner already has large files and old downloads groups.
+  - Add richer filters, folder exclusions, risk labels, and saved cleaner presets.
+
+- [ ] **BACKLOG-SEARCH-007 - Empty folder finder**
+  - Scan and clean empty folders with preview and exclusions.
+
+- [ ] **BACKLOG-SEARCH-008 - Storage analyzer polish**
+  - StorageUsageMap already provides a radial usage-map view.
+  - Improve drill-down, labels, selection actions, legends, filtering, and large-folder performance.
+
+### Media, Preview & Cache
+
+- [ ] **BACKLOG-MEDIA-001 - Thumbnail cache controls**
+  - Staging cache controls and folder/category caches exist, but dedicated thumbnail cache controls were not found.
+  - Add thumbnail cache clear, size limit, rebuild, and failure-cache controls.
+
+- [ ] **BACKLOG-MEDIA-002 - Hidden media controls**
+  - Create or remove `.nomedia` files with clear warnings about gallery visibility.
+
+- [ ] **BACKLOG-MEDIA-003 - Document and ebook preview hooks**
+  - Add richer metadata, thumbnails, and safer handoff hints for PDFs, Office files, and ebooks.
+
+- [ ] **BACKLOG-MEDIA-004 - Rich media preview expansion**
+  - Custom fetchers already cover APK icons, audio album art, PDFs, and videos.
+  - Continue adding richer thumbnails and metadata for images, documents, ebooks, archives, and developer files.
+
+- [ ] **BACKLOG-MEDIA-005 - Image detail sheet**
+  - Show resolution, EXIF, location presence, orientation, color profile, and quick rotate/share actions.
+
+- [ ] **BACKLOG-MEDIA-006 - Video detail sheet**
+  - Show duration, resolution, codec, bitrate, frame rate, subtitles, and thumbnail refresh actions.
+
+- [ ] **BACKLOG-MEDIA-007 - Audio detail sheet**
+  - Album art fetching exists.
+  - Add artist, album, duration, bitrate, embedded-art status, and metadata cleanup hints.
+
+- [ ] **BACKLOG-MEDIA-008 - Thumbnail cleaner**
+  - Folder stats and cleaner scanning already skip `.thumbnails`.
+  - Add explicit thumbnail/cache detection with preview, exclusions, and risk labels for locations that are not recommended to remove.
 
 ### Sharing, Transfers & Network
-- **Nearby Share / Share Sheet Polish** `[Expand existing]`: Share/open handoff is centralized through `ExternalFileAccessHelper` and `ShareHelper`. Improve multi-file target grouping, Nearby Share behavior, unsupported-target messaging, and post-share cleanup visibility.
-- **Local HTTP File Drop** `[New]`: Temporarily host selected files or a folder over LAN with a QR code and one-tap shutdown.
-- **WebDAV / SMB Client** `[New]`: Browse and transfer files from NAS, routers, and desktop shares.
-- **FTP / SFTP Client** `[New]`: Add optional remote location support for advanced users.
-- **Wi-Fi Direct Transfer** `[New]`: Explore device-to-device transfer without an external network.
+
+- [ ] **BACKLOG-NET-001 - Local HTTP file drop**
+  - Temporarily host selected files or folders over LAN with QR code and one-tap shutdown.
+
+- [ ] **BACKLOG-NET-002 - WebDAV / SMB client**
+  - Browse and transfer files from NAS, routers, and desktop shares.
+
+- [ ] **BACKLOG-NET-003 - FTP / SFTP client**
+  - Add optional remote location support for advanced users.
+
+- [ ] **BACKLOG-NET-004 - Wi-Fi Direct transfer**
+  - Explore direct device-to-device transfer without an external network.
+
+- [ ] **BACKLOG-NET-005 - Nearby Share and share sheet polish**
+  - Share/open handoff is centralized through `ExternalFileAccessHelper` and `ShareHelper`.
+  - Improve multi-file target grouping, Nearby Share behavior, unsupported-target messaging, and post-share cleanup visibility.
 
 ### Security, Privacy & Safety
-- **"OnlyFiles" Encrypted Vault** `[New]`: A secure, encrypted vault for sensitive files and folders using AES-256 encryption.
-- **Secure Delete Option** `[New]`: Provide best-effort overwrite/delete workflows where storage type makes it meaningful, with honest limitations.
-- **Private Folder Bookmarks** `[New]`: Hide selected pinned folders behind biometric confirmation.
-- **Trash Privacy Audit** `[Expand existing]`: Trash already uses `.arcile/.trash`, metadata sidecars, `.nomedia`, restore, filters, sorting, properties, and permanent routing for temporary volumes. Review visibility to other apps and options for app-private trash on supported storage.
-- **Sensitive Metadata Warnings** `[New]`: Warn before sharing images with location EXIF or documents with embedded author metadata.
-- **App Lock** `[New]`: Add optional biometric/PIN lock for opening Arcile.
 
-### Home Screen & UI Polish
-- **Material 3 Expressive SplitButton Rollout** `[Expand existing]`: `SplitButtonGroup` exists and is used in Trash. Expand usage to browser, cleaner, archive, and selection actions where a main action needs secondary options.
-- **Material 3 Expressive WavyProgressIndicator** `[New]`: Investigate and implement `WavyProgressIndicator` for long-running non-blocking background tasks if appropriate.
-- **Progress FAB** `[New]`: Let the floating action button transform into a circular percentage/progress control during scans and long-running operations, with tap behavior for details or cancellation where appropriate.
-- **Haptics & Interaction Quality** `[Expand existing]`: `rememberArcileHaptics` and global vibration settings already exist. Audit coverage for long-press, successful operations, errors, selection changes, and destructive confirmations.
-- **Animated Empty States** `[Partially exists]`: Reusable `EmptyState` composables exist. Add motion/Lottie or lightweight animation for empty folders, trash, and search results.
-- **Selection Mode Polish** `[Partially exists]`: Multi-select, select-all, invert-selection, and floating/toolbar actions exist. Improve selected-count affordances, drag selection, range selection, and action grouping.
-- **One UI-Style Scroll Action Chips** `[New]`: Collapse or transform prominent actions into compact icon chips while scrolling so browser and home surfaces keep primary actions reachable without crowding content.
-- **Customizable Home Screen** `[New]`: Let users reorder, hide, and restore Home sections such as storage cards, categories, quick access, recent files, starred files, and cleaner shortcuts.
-- **Adaptive Bottom Actions** `[New]`: Keep high-frequency actions thumb-friendly on phones while preserving dense toolbars on tablets.
-- **Shape Customization Toggle** `[New]`: Add a setting to toggle UI element shapes, for example squircle vs standard rounded corners.
+- [ ] **BACKLOG-SEC-001 - App lock**
+  - Add optional biometric/PIN lock for opening Arcile.
 
-### Settings, Personalization & Accessibility
-- **File Icon Packs** `[New]`: Allow optional icon style packs for file types, folders, archives, media, and app packages.
-- **Named Theme Presets** `[Expand existing]`: Theme modes, dynamic color, OLED, accents, harmonization, filename behavior, haptics, and thumbnail settings exist. Add named full-palette presets such as Dracula, Nord, Catppuccin, and high-contrast profiles.
-- **Compact / Comfortable Density** `[Partially exists]`: Browser presentation already stores list zoom and grid min cell size. Add a user-facing density preset that applies across rows, grid cells, toolbars, dialogs, and dashboard sections.
-- **Large Text Audit** `[New]`: Verify folder lists, dialogs, and bottom sheets at Android large-font accessibility settings.
-- **High Contrast Theme** `[New]`: Add a contrast-focused theme profile beyond light, dark, dynamic, accent, and OLED modes.
-- **Gesture Customization** `[New]`: Configure swipe actions, long-press behavior, and double-tap shortcuts.
+- [ ] **BACKLOG-SEC-002 - Encrypted vault**
+  - Explore an Arcile-owned encrypted vault for sensitive files and folders.
 
-### Multi-Window, Layout & Devices
-- **Multi-Window / Split-Screen Support** `[New]`: Ensure the app works correctly in Android multi-window mode, with proper layout reflow.
-- **Foldable Layouts** `[New]`: Add hinge-aware navigation and dual-pane behavior for large foldable devices.
-- **Adaptive Layout System** `[New]`: Define shared window-size classes and adaptive scaffolds for phones, tablets, foldables, landscape, desktop mode, and large external displays.
-- **Tablet Navigation Rail** `[New]`: Use a rail or permanent navigation surface on wider screens.
-- **Keyboard & Mouse Support** `[Partially exists]`: Pointer/scroll interactions exist in Compose lists, but desktop-grade keyboard shortcuts, hover states, context menus, and right-click behavior are still needed.
-- **Gamepad / Remote Support** `[New]`: Add predictable D-pad focus order, remote-friendly actions, and gamepad navigation for large-screen and accessibility use cases.
-- **Chromebook Polish** `[New]`: Verify resizable windows, external storage access, drag/drop, and system file picker interoperability.
+- [ ] **BACKLOG-SEC-003 - Sensitive metadata warnings**
+  - Warn before sharing images with location EXIF or documents with embedded author metadata.
+
+- [ ] **BACKLOG-SEC-004 - Secure delete option**
+  - Provide honest best-effort overwrite/delete workflows where the storage type makes it meaningful.
+
+- [ ] **BACKLOG-SEC-005 - Private folder bookmarks**
+  - Hide selected pinned folders behind biometric confirmation.
+
+- [ ] **BACKLOG-SEC-006 - Trash privacy audit**
+  - Trash already uses `.arcile/.trash`, metadata sidecars, `.nomedia`, restore, filters, sorting, properties, and permanent routing for temporary volumes.
+  - Review visibility to other apps and options for app-private trash on supported storage.
+
+### Layout, Accessibility & Devices
+
+- [ ] **BACKLOG-UI-001 - Adaptive layout system**
+  - Define shared window-size classes and adaptive scaffolds for phones, tablets, foldables, landscape, desktop mode, and large displays.
+
+- [ ] **BACKLOG-UI-002 - Tablet navigation rail**
+  - Use a rail or permanent navigation surface on wider screens.
+
+- [ ] **BACKLOG-UI-003 - Large text audit**
+  - Verify folder lists, dialogs, bottom sheets, and toolbars under Android large-font accessibility settings.
+
+- [ ] **BACKLOG-UI-004 - Keyboard, mouse, and right-click support**
+  - Add desktop-grade shortcuts, hover states, context menus, and predictable focus movement.
+
+- [ ] **BACKLOG-UI-005 - Foldable and multi-window polish**
+  - Add hinge-aware behavior, split-screen reflow, and Chromebook/resizable-window checks.
+
+- [ ] **BACKLOG-UI-006 - Material 3 expressive SplitButton rollout**
+  - `SplitButtonGroup` exists and is used in Trash.
+  - Expand usage to Browser, cleaner, archive, and selection actions where a main action needs secondary options.
+
+- [ ] **BACKLOG-UI-007 - Material 3 expressive WavyProgressIndicator**
+  - Investigate and implement `WavyProgressIndicator` for long-running non-blocking background tasks if appropriate.
+
+- [ ] **BACKLOG-UI-008 - Progress FAB**
+  - Let the floating action button transform into a circular percentage/progress control during scans and long-running operations, with tap behavior for details or cancellation where appropriate.
+
+- [ ] **BACKLOG-UI-009 - Haptics and interaction quality audit**
+  - `rememberArcileHaptics` and global vibration settings already exist.
+  - Audit long-press, successful operations, errors, selection changes, and destructive confirmations.
+
+- [ ] **BACKLOG-UI-010 - Animated empty states**
+  - Reusable `EmptyState` composables exist.
+  - Add motion, Lottie, or lightweight animation for empty folders, trash, and search results.
+
+- [ ] **BACKLOG-UI-011 - Selection mode polish**
+  - Multi-select, select-all, invert-selection, and floating/toolbar actions exist.
+  - Improve selected-count affordances, drag selection, range selection, and action grouping.
+
+- [ ] **BACKLOG-UI-012 - One UI-style scroll action chips**
+  - Collapse or transform prominent actions into compact icon chips while scrolling so Browser and Home surfaces keep primary actions reachable without crowding content.
+
+- [ ] **BACKLOG-UI-013 - Customizable Home screen**
+  - Let users reorder, hide, and restore Home sections such as storage cards, categories, quick access, recent files, starred files, and cleaner shortcuts.
+
+- [ ] **BACKLOG-UI-014 - Adaptive bottom actions**
+  - Keep high-frequency actions thumb-friendly on phones while preserving dense toolbars on tablets.
+
+- [ ] **BACKLOG-UI-015 - Shape customization toggle**
+  - Add a setting to toggle UI element shapes, for example squircle vs standard rounded corners.
+
+- [ ] **BACKLOG-UI-016 - Compact and comfortable density presets**
+  - Browser presentation already stores list zoom and grid min cell size.
+  - Add a user-facing density preset that applies across rows, grid cells, toolbars, dialogs, and dashboard sections.
+
+- [ ] **BACKLOG-UI-017 - High contrast theme**
+  - Add a contrast-focused theme profile beyond light, dark, dynamic, accent, and OLED modes.
+
+- [ ] **BACKLOG-UI-018 - Gesture customization**
+  - Configure swipe actions, long-press behavior, and double-tap shortcuts.
+
+- [ ] **BACKLOG-UI-019 - Gamepad and remote support**
+  - Add predictable D-pad focus order, remote-friendly actions, and gamepad navigation for large-screen and accessibility use cases.
+
+- [ ] **BACKLOG-UI-020 - Chromebook polish**
+  - Verify resizable windows, external storage access, drag/drop, and system file picker interoperability.
+
+### Automation & Power Tools
+
+- [ ] **BACKLOG-AUTO-001 - Watched folders**
+  - Monitor selected folders and offer actions for new files.
+
+- [ ] **BACKLOG-AUTO-002 - Automated task rules**
+  - Add trigger-based move, rename, compress, clean, or notify rules.
+
+- [ ] **BACKLOG-AUTO-003 - Scheduled cleanup**
+  - Periodically empty trash, remove temporary files, or prompt for old downloads review.
+
+- [ ] **BACKLOG-AUTO-004 - Custom cleaner rules**
+  - Let users define cleaner rules by folder, extension, size, age, filename pattern, and exclusions.
+
+- [ ] **BACKLOG-AUTO-005 - Quick actions**
+  - Let users configure folder-specific actions such as send to SD, compress here, clean old files, or share recent.
 
 ### Developer, Build & Release
-- **Developer Mode Toggle** `[New]`: Unlock hidden developer options by rapidly holding or tapping the version number in the About screen.
-- **Older Android Compatibility Audit** `[New]`: Verify behavior across Android 17+ and older supported versions, especially storage permissions, DocumentsUI handoff, MediaStore queries, notifications, and background operation behavior.
-- **FOSS / Libre Build** `[New]`: Ensure a fully free-and-open-source build flavor suitable for F-Droid without proprietary blobs or dependencies.
-- **Internal Diagnostics Export** `[New]`: Export anonymized app state, settings, quick access, operation journal state, staging cache stats, storage classifications, and recent operation errors for bug reports.
-- **Performance Benchmarks** `[New]`: Add repeatable benchmarks for large folder listing, recursive stats, thumbnail loading, storage cleaner scanning, storage usage map building, and search.
-- **StrictMode Debug Profile** `[New]`: Enable stricter debug-only checks for disk I/O, leaked resources, and slow main-thread work.
+
+- [ ] **BACKLOG-DEV-001 - FOSS / Libre build flavor**
+  - Ensure a fully free-and-open-source build suitable for F-Droid-style distribution.
+
+- [ ] **BACKLOG-DEV-002 - Internal diagnostics export**
+  - Export anonymized app state, settings, quick access, operation journal state, cache stats, storage classifications, and recent errors.
+
+- [ ] **BACKLOG-DEV-003 - StrictMode debug profile**
+  - Enable stricter debug-only checks for disk I/O, leaked resources, and slow main-thread work.
+
+- [ ] **BACKLOG-DEV-004 - Android 11+ compatibility audit**
+  - Current `minSdk` is 30 and `targetSdk` is 37.
+  - Verify storage permissions, DocumentsUI handoff, MediaStore queries, notifications, and background operation behavior across Android 11 through Android 17.
+
+- [ ] **BACKLOG-DEV-005 - Developer mode toggle**
+  - Unlock hidden developer options by rapidly holding or tapping the version number in the About screen.

@@ -23,4 +23,13 @@ class UtilityCatalogTest {
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Trash })
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Cleaner })
     }
+
+    @Test
+    fun `utility catalog does not duplicate cleaner sub tools`() {
+        val ids = ArcileUtilityCatalog.map { it.id }.toSet()
+
+        assertTrue("analyze" !in ids)
+        assertTrue("duplicates" !in ids)
+        assertTrue("large" !in ids)
+    }
 }

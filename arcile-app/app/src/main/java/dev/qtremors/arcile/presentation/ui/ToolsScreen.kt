@@ -4,12 +4,6 @@ import dev.qtremors.arcile.shared.ui.ToolItem
 import dev.qtremors.arcile.shared.ui.ToolCard
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -17,19 +11,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.R
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 
@@ -82,7 +71,7 @@ fun ToolsScreen(
                     icon = definition.icon,
                     isImplemented = definition.isImplemented
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Box {
                     ToolCard(
                         item = tool,
                         onClick = {
@@ -94,24 +83,35 @@ fun ToolsScreen(
                         }
                     )
                     if (definition.showOnHome) {
-                        Row(
+                        val isShownOnHome = definition.id in homeUtilityIds
+                        IconButton(
+                            onClick = { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) },
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(36.dp)
                         ) {
-                            Text(
-                                text = stringResource(R.string.quick_access_show_on_home),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Switch(
-                                checked = definition.id in homeUtilityIds,
-                                onCheckedChange = { checked ->
-                                    onUtilityHomeVisibilityChange(definition.id, checked)
+                            Surface(
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                color = if (isShownOnHome) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerHighest
                                 }
-                            )
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isShownOnHome) Icons.Default.Home else Icons.Outlined.Home,
+                                        contentDescription = stringResource(R.string.quick_access_show_on_home),
+                                        tint = if (isShownOnHome) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

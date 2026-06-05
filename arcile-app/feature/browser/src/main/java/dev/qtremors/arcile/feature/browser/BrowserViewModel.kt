@@ -285,7 +285,7 @@ class BrowserViewModel @Inject constructor(
                     currentState.copy(
                         folderStatsByPath = (currentState.folderStatsByPath + (update.path to update.stats)).toPersistentMap(),
                         folderStatsLoadingPaths = (currentState.folderStatsLoadingPaths - update.path).toPersistentSet()
-                    )
+                    ).withUpdatedDisplayState()
                 }
             }
         }

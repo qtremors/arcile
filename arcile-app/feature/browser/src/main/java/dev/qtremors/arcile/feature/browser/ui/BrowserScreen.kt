@@ -165,7 +165,7 @@ fun BrowserScreen(
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
             gridMinCellSize = state.browserGridMinCellSize,
-            showThumbnails = state.browserShowThumbnails
+            showThumbnails = state.browserShowThumbnails && state.archiveContext == null
         )
     }
     val actions = BrowserUiActions(

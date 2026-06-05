@@ -22,6 +22,16 @@
 - **Bounded Storage Usage Scans:** Stopped partial storage-usage nodes from launching an extra recursive fallback after scan depth or node limits are reached, keeping large-tree scans within their configured traversal budget.
 - **Stable Directory Paging:** Sorted full directory listings before paging streamed results so every accumulated browser page remains globally directory-first and name-sorted across page boundaries.
 
+### UI/UX
+- **Seamless Shimmer Skeletons for Storage Summary:** Removed the collapsing unindexed layout branch in `StorageSummaryCard`, forcing the detailed card layout to always remain active. Replaced text labels and legends with beautiful shimmer skeleton blocks when storage statistics are loading or unavailable.
+- **Animated Categories Grid:** Replaced the static flow grid with a responsive coordinate-based offset animation layout, allowing items to slide smoothly to their sorted slots. Added size text shimmers that fade out gracefully as actual category sizes are computed, preventing layout jumps.
+- **Spring-Based Navigation Transitions:** Upgraded all screen-slide transitions across details and utility pages to fluid physics-based spring animations (`dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow`) instead of linear duration tweens, delivering a cohesive and organic interface flow.
+- **Tactile Card Scaling Feedback:** Resolved disconnected press-state scaling in `ToolCard` by routing the mutable interaction source correctly. Cleaned up redundant click modifiers in `ThemeModeCard` and scaled the parent column so text labels and borders shrink in unison on touch.
+- **Organic List Item Rows:** Added reactive press-scaling (down to `98%` size) on file list rows using spring physics. Integrated global checks for system-wide reduced motion settings (`LocalReducedMotionEnabled`) to disable interactive scaling when required.
+- **Stacked Create Archive Selectors:** Stacked the Type and Compression dropdown fields vertically, giving each full dialog width and resolving a visual bug where compression labels (like "No compression") wrapped poorly.
+- **Selectable Extract Option Cards:** Refactored raw radio button lists in the Extract Archive Dialog into clean, modern selectable card elements with smooth background color selection highlights.
+- **Dynamic & Polished Delete Confirmation:** Bound the header title, description copy, and icon to update dynamically as "Permanently delete" is toggled in the UI. Polished the contents by replacing the disabled grey chip with a soft secondary container tag pill, styling the warning as a clear warning icon banner, and standardizing card backgrounds to stay consistently grey to prevent jarring color jumps.
+
 ### Performance
 - **Precomputed Browser Rows:** Moved list and grid row UI model derivation into browser display state with thumbnail-size and folder-stat-aware reuse, reducing repeated row work during unrelated recompositions.
 

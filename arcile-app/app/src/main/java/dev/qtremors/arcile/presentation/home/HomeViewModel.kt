@@ -122,6 +122,7 @@ class HomeViewModel @Inject constructor(
     private val recentsPreviewLimit = 50
     private var searchJob: Job? = null
     private var refreshJob: Job? = null
+    private var dashboardBreakdownJob: Job? = null
     private val suppressedVolumeKeys = ConcurrentHashMap.newKeySet<String>()
     private var lastAnalyticsRefreshTime = 0L
 
@@ -214,7 +215,6 @@ class HomeViewModel @Inject constructor(
                 var storageResult: Result<StorageInfo>? = null
                 var categoryResult: Result<List<CategoryStorage>>? = null
                 var trashUsageResult: Result<TrashStorageUsage>? = null
-                var categoryByVolume: Map<String, List<CategoryStorage>> = _state.value.categoryStoragesByVolume
 
                 val completedWithinTimeout = withTimeoutOrNull(15_000) {
                     recentResult = recentResultDef.await()
@@ -222,20 +222,6 @@ class HomeViewModel @Inject constructor(
                     storageResult = storageResultDef?.await()
                     categoryResult = categoryResultDef?.await()
                     trashUsageResult = trashUsageResultDef?.await()
-
-                    if (shouldRefreshAnalytics) {
-                        val storageInfo = storageResult?.getOrNull()
-                        categoryByVolume = storageInfo?.volumes
-                            ?.filter { it.kind.isIndexed }
-                            ?.map { volume ->
-                                async {
-                                    volume.id to (storageAnalyticsRepository.getCategoryStorageSizes(StorageScope.Volume(volume.id)).getOrNull() ?: emptyList())
-                                }
-                            }
-                            ?.map { it.await() }
-                            ?.toMap()
-                            ?: emptyMap()
-                    }
                 } != null
 
                 val timedOut = !completedWithinTimeout
@@ -268,16 +254,53 @@ class HomeViewModel @Inject constructor(
                         recentFiles = (recentResult?.getOrNull() ?: currentState.recentFiles).toPersistentList(),
                         storageInfo = storageInfo,
                         categoryStorages = (if (shouldRefreshAnalytics && !timedOut) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages).toPersistentList(),
-                        categoryStoragesByVolume = (if (shouldRefreshAnalytics && !timedOut) {
-                            categoryByVolume.mapValues { it.value.sortedByDescending(CategoryStorage::sizeBytes).toPersistentList() }
-                        } else {
-                            currentState.categoryStoragesByVolume
-                        }).toPersistentMap(),
                         trashStorageUsage = if (shouldRefreshAnalytics && !timedOut) trashUsageResult?.getOrNull() ?: currentState.trashStorageUsage else currentState.trashStorageUsage,
                         unclassifiedVolumes = unclassified.toPersistentList(),
                         showClassificationPrompt = unclassified.isNotEmpty()
                     ).withUpdatedDisplayState()
                 }
+            }
+        }
+    }
+
+    fun loadDashboardCategoryBreakdown(selectedVolumeId: String? = null) {
+        val currentState = _state.value
+        val indexedVolumes = currentState.storageInfo?.volumes
+            ?.filter { it.kind.isIndexed }
+            ?: currentState.allStorageVolumes.filter { it.kind.isIndexed }
+        val targetVolumes = if (selectedVolumeId != null) {
+            indexedVolumes.filter { it.id == selectedVolumeId }
+        } else {
+            indexedVolumes
+        }.filter { currentState.categoryStoragesByVolume[it.id] == null }
+
+        if (targetVolumes.isEmpty()) return
+
+        dashboardBreakdownJob?.cancel()
+        dashboardBreakdownJob = viewModelScope.launch {
+            _state.update { it.copy(isCalculatingStorage = true) }
+            val results = supervisorScope {
+                targetVolumes.map { volume ->
+                    async {
+                        volume.id to storageAnalyticsRepository
+                            .getCategoryStorageSizes(StorageScope.Volume(volume.id))
+                            .getOrNull()
+                            .orEmpty()
+                    }
+                }.map { it.await() }
+            }
+
+            _state.update { current ->
+                val merged = current.categoryStoragesByVolume.toMutableMap()
+                results.forEach { (volumeId, categories) ->
+                    merged[volumeId] = categories
+                        .sortedByDescending(CategoryStorage::sizeBytes)
+                        .toPersistentList()
+                }
+                current.copy(
+                    isCalculatingStorage = false,
+                    categoryStoragesByVolume = merged.toPersistentMap()
+                ).withUpdatedDisplayState()
             }
         }
     }

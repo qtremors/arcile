@@ -89,10 +89,13 @@ class QuickAccessViewModelTest {
     }
 
     @Test
-    fun `removeCustomItem removes custom item but ignores standard items`() = runTest(dispatcher) {
+    fun `removeCustomItem removes non standard items but ignores standard items`() = runTest(dispatcher) {
         val standardItem = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
         val customItem = QuickAccessItem(id = "2", label = "Custom", path = "/custom", type = QuickAccessType.CUSTOM, isPinned = true, isEnabled = true)
-        fakeStore.itemsFlow.value = listOf(standardItem, customItem)
+        val safItem = QuickAccessItem(id = "3", label = "SAF", path = "content://tree", type = QuickAccessType.SAF_TREE, isPinned = true, isEnabled = true)
+        val handoffItem = QuickAccessItem(id = "4", label = "Android/data", path = "content://data", type = QuickAccessType.EXTERNAL_HANDOFF, isPinned = true, isEnabled = true)
+        val filesItem = QuickAccessItem(id = "5", label = "Files", path = "content://files", type = QuickAccessType.FILES_APP, isPinned = true, isEnabled = true)
+        fakeStore.itemsFlow.value = listOf(standardItem, customItem, safItem, handoffItem, filesItem)
 
         val viewModel = QuickAccessViewModel(fakeStore)
         advanceUntilIdle()
@@ -102,8 +105,11 @@ class QuickAccessViewModelTest {
         assertTrue(fakeStore.removedIds.isEmpty())
 
         viewModel.removeCustomItem(customItem)
+        viewModel.removeCustomItem(safItem)
+        viewModel.removeCustomItem(handoffItem)
+        viewModel.removeCustomItem(filesItem)
         advanceUntilIdle()
-        assertEquals(listOf("2"), fakeStore.removedIds)
+        assertEquals(listOf("2", "3", "4", "5"), fakeStore.removedIds)
     }
 
     @Test
@@ -120,5 +126,21 @@ class QuickAccessViewModelTest {
         assertEquals("/custom/path", added.path)
         assertEquals(QuickAccessType.CUSTOM, added.type)
         assertTrue(added.id.startsWith("custom_"))
+    }
+
+    @Test
+    fun `addFilesAppShortcut adds files app handoff item`() = runTest(dispatcher) {
+        val viewModel = QuickAccessViewModel(fakeStore)
+        advanceUntilIdle()
+
+        viewModel.addFilesAppShortcut("content://files-root")
+        advanceUntilIdle()
+
+        val added = fakeStore.addedItems.single()
+        assertEquals("Files", added.label)
+        assertEquals("handoff_files_app", added.id)
+        assertEquals("content://files-root", added.path)
+        assertEquals(QuickAccessType.FILES_APP, added.type)
+        assertTrue(added.isPinned)
     }
 }

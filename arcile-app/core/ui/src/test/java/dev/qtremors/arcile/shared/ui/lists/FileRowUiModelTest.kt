@@ -1,9 +1,12 @@
 package dev.qtremors.arcile.shared.ui.lists
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.image.ThumbnailKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -47,5 +50,50 @@ class FileRowUiModelTest {
         ).toFileRowUiModel(localeFormatter)
 
         assertEquals("1 janv. 1970", row.formattedDate)
+    }
+
+    @Test
+    fun `supports thumbnails for pdf apk and audio rows`() {
+        val rows = listOf(
+            FileModel(name = "report.pdf", absolutePath = "/storage/emulated/0/report.pdf", extension = "pdf"),
+            FileModel(name = "app.apk", absolutePath = "/storage/emulated/0/app.apk", extension = "apk"),
+            FileModel(name = "song.mp3", absolutePath = "/storage/emulated/0/song.mp3", extension = "mp3")
+        ).map { it.toFileRowUiModel(formatter) }
+
+        assertTrue(rows.all { it.canShowThumbnail })
+    }
+
+    @Test
+    fun `image rows use file request data even when content uri is present`() {
+        val row = FileModel(
+            name = "photo.jpg",
+            absolutePath = "/storage/emulated/0/DCIM/photo.jpg",
+            extension = "jpg",
+            nodeRef = StorageNodeRef.mediaStore(
+                id = 42L,
+                volumeName = "external",
+                contentUri = "content://media/external/images/media/42",
+                displayPath = "/storage/emulated/0/DCIM/photo.jpg"
+            )
+        ).toFileRowUiModel(formatter)
+
+        assertTrue(row.thumbnailRequestData() is File)
+    }
+
+    @Test
+    fun `audio rows use thumbnail key request data for content uri fetchers`() {
+        val row = FileModel(
+            name = "song.mp3",
+            absolutePath = "/storage/emulated/0/Music/song.mp3",
+            extension = "mp3",
+            nodeRef = StorageNodeRef.mediaStore(
+                id = 42L,
+                volumeName = "external",
+                contentUri = "content://media/external/audio/media/42",
+                displayPath = "/storage/emulated/0/Music/song.mp3"
+            )
+        ).toFileRowUiModel(formatter)
+
+        assertTrue(row.thumbnailRequestData() is ThumbnailKey)
     }
 }

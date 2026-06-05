@@ -3,7 +3,6 @@ package dev.qtremors.arcile.core.storage.data.source
 import dev.qtremors.arcile.core.storage.domain.FileOperationException
 
 import android.content.Context
-import android.os.storage.StorageManager
 import android.provider.MediaStore
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.indexedVolumesForScope
@@ -258,39 +257,6 @@ class DefaultMediaStoreClient(
             }
 
             val sizes = LongArray(FileCategories.all.size)
-            val needsCalculation = BooleanArray(FileCategories.all.size) { true }
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && scope is StorageScope.Volume) {
-                val statsManager = appContext.getSystemService(Context.STORAGE_STATS_SERVICE) as? android.app.usage.StorageStatsManager
-                val volume = volumes.find { it.id == scope.volumeId }
-                
-                if (statsManager != null && volume != null) {
-                    try {
-                        val uuid = if (volume.isPrimary) {
-                            StorageManager.UUID_DEFAULT
-                        } else {
-                            val sm = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager
-                            sm.storageVolumes.find { 
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) it.directory?.absolutePath == volume.path else false 
-                            }?.uuid?.let { java.util.UUID.fromString(it) }
-                        }
-
-                        if (uuid != null) {
-                            val stats = statsManager.queryExternalStatsForUser(uuid, android.os.Process.myUserHandle())
-                            FileCategories.all.forEachIndexed { index, cat ->
-                                when (cat.name) {
-                                    "Images" -> { sizes[index] = stats.imageBytes; needsCalculation[index] = false }
-                                    "Videos" -> { sizes[index] = stats.videoBytes; needsCalculation[index] = false }
-                                    "Audio" -> { sizes[index] = stats.audioBytes; needsCalculation[index] = false }
-                                }
-                            }
-                        }
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        AppLogger.e("MediaStoreClient", "StorageStatsManager query failed", e)
-                    }
-                }
-            }
 
             val uri = MediaStore.Files.getContentUri("external")
             val projection = mediaProjection()
@@ -307,7 +273,7 @@ class DefaultMediaStoreClient(
                     if (!rowMatchesScope(row, scope, volumes)) continue
                     val matchedCategory = FileCategories.getCategoryForFile(row.extension, row.mimeType) ?: continue
                     val index = FileCategories.all.indexOf(matchedCategory)
-                    if (index >= 0 && needsCalculation[index]) {
+                    if (index >= 0) {
                         sizes[index] += row.size
                     }
                 }

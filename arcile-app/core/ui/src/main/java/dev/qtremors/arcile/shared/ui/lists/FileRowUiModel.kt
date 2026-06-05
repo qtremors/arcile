@@ -11,6 +11,7 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.image.ThumbnailKey
 import dev.qtremors.arcile.image.ThumbnailType
+import java.io.File
 import dev.qtremors.arcile.utils.formatFileSize
 import java.text.DateFormat
 import java.util.Date
@@ -73,6 +74,16 @@ fun FileModel.toFileRowUiModel(
 
 val FileRowUiModel.canShowThumbnail: Boolean
     get() = !isDirectory && thumbnailKey.type != ThumbnailType.Unsupported
+
+fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any =
+    archiveThumbnailData ?: when (thumbnailKey.type) {
+        ThumbnailType.Audio,
+        ThumbnailType.Video,
+        ThumbnailType.Pdf,
+        ThumbnailType.Apk -> thumbnailKey
+        ThumbnailType.Image,
+        ThumbnailType.Unsupported -> File(file.absolutePath)
+    }
 
 @Composable
 fun FileRowUiModel.displaySubtitle(isFolderStatsLoading: Boolean = false): String {

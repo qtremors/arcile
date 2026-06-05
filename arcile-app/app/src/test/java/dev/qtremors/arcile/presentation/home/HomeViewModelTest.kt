@@ -279,6 +279,18 @@ class HomeViewModelTest {
 
         assertEquals(setOf("trash"), viewModel.state.value.homeUtilityIds)
     }
+
+    @Test
+    fun `display state keeps only today recent files for home carousel limit`() {
+        val older = homeFile("older.txt").copy(lastModified = 1L)
+        val newer = homeFile("newer.txt").copy(lastModified = 20_000L)
+        val state = HomeState(
+            recentFiles = kotlinx.collections.immutable.persistentListOf(older, newer),
+            todayStart = 10_000L
+        ).withUpdatedDisplayState()
+
+        assertEquals(listOf("newer.txt"), state.displayState.todayRecentFiles.map { it.name })
+    }
 }
 
 private class HomeFakeStorageClassificationStore(

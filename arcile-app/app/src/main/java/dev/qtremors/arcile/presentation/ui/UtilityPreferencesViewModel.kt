@@ -13,17 +13,20 @@ import kotlinx.coroutines.launch
 class UtilityPreferencesViewModel @Inject constructor(
     private val utilityPreferencesStore: UtilityPreferencesStore
 ) : ViewModel() {
+    private val allowedHomeUtilityIds = HomeUtilityCatalog.mapTo(mutableSetOf()) { it.id }
+
     val homeUtilityIds = utilityPreferencesStore.homeUtilityIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), setOf("trash", "cleaner"))
 
     fun setUtilityShownOnHome(id: String, show: Boolean) {
+        if (id !in allowedHomeUtilityIds) return
         viewModelScope.launch {
             val next = if (show) {
                 homeUtilityIds.value + id
             } else {
                 homeUtilityIds.value - id
             }
-            utilityPreferencesStore.setHomeUtilityIds(next)
+            utilityPreferencesStore.setHomeUtilityIds(next.filterTo(mutableSetOf()) { it in allowedHomeUtilityIds })
         }
     }
 }

@@ -107,6 +107,24 @@ class AudioAlbumArtFetcherTest {
         assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
     }
 
+    @Test
+    fun `fetch returns null when album art is unavailable`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val resolver = mockk<ContentResolver>()
+        every {
+            resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
+        } returns MatrixCursor(arrayOf(MediaStore.Audio.Media._ID))
+        val context = ThumbnailContext(baseContext, resolver)
+        val options = mockk<Options> {
+            every { this@mockk.context } returns context
+            every { size } returns CoilSize(128, 128)
+        }
+
+        val result = AudioAlbumArtFetcher(File("/storage/emulated/0/Music/missing.mp3"), options).fetch()
+
+        assertNull(result)
+    }
+
     private class ThumbnailContext(
         base: Context,
         private val resolver: ContentResolver

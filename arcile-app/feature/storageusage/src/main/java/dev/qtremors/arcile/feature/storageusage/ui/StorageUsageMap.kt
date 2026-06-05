@@ -76,7 +76,12 @@ import dev.qtremors.arcile.utils.formatFileSize
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.min
 import java.util.Locale
+
+private const val MAX_SUNBURST_DEPTH = 3
+private const val MAX_SUNBURST_SEGMENTS = 160
+private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
 
 @Composable
 fun StorageUsageMap(
@@ -262,7 +267,7 @@ private fun StorageUsageSunburst(
             colorScheme.tertiaryContainer
         )
     }
-    val visibleSegments = remember(root) { root.children }
+    val visibleSegments = remember(root) { root.children.take(MAX_SUNBURST_CHILDREN_PER_NODE) }
     val selectedForSemantics = selectedNode ?: root
     val context = LocalContext.current
     val chartDescription = stringResource(R.string.storage_usage_map_chart_description, root.name)
@@ -303,7 +308,7 @@ private fun StorageUsageSunburst(
             val chartSizePx = with(density) { chartSize.toPx() }
             val diameter = chartSizePx
             val centerRadius = diameter * 0.18f
-            val ringCount = root.maxDepth().coerceIn(1, 5)
+            val ringCount = root.maxDepth().coerceIn(1, MAX_SUNBURST_DEPTH)
             val ringWidth = ((diameter / 2f) - centerRadius - 10f) / ringCount
             val segments = remember(root, colors, chartSizePx) {
                 buildSegments(
@@ -311,7 +316,9 @@ private fun StorageUsageSunburst(
                     colors = colors,
                     centerRadius = centerRadius,
                     ringWidth = ringWidth,
-                    maxDepth = ringCount
+                    maxDepth = ringCount,
+                    maxSegments = MAX_SUNBURST_SEGMENTS,
+                    maxChildrenPerNode = MAX_SUNBURST_CHILDREN_PER_NODE
                 )
             }
             Canvas(
@@ -563,27 +570,63 @@ private fun buildSegments(
     colors: List<Color>,
     centerRadius: Float,
     ringWidth: Float,
-    maxDepth: Int
+    maxDepth: Int,
+    maxSegments: Int,
+    maxChildrenPerNode: Int
 ): List<RingSegment> {
     val segments = mutableListOf<RingSegment>()
     fun visit(node: StorageUsageNode, depth: Int, start: Float, sweep: Float) {
-        if (depth > maxDepth || node.children.isEmpty()) return
+        if (depth > maxDepth || node.children.isEmpty() || segments.size >= maxSegments) return
         val childTotal = node.children.sumOf { it.sizeBytes }.coerceAtLeast(1L)
+        val visibleChildBudget = min(maxChildrenPerNode, maxSegments - segments.size).coerceAtLeast(0)
+        if (visibleChildBudget == 0) return
+        val visibleChildren = node.children.take(visibleChildBudget)
+        val hiddenChildren = node.children.drop(visibleChildBudget)
+        val chartChildren = if (hiddenChildren.isEmpty()) {
+            visibleChildren
+        } else {
+            visibleChildren + StorageUsageNode(
+                name = "Other small items",
+                path = "${node.path}/Other small items",
+                sizeBytes = hiddenChildren.sumOf { it.sizeBytes },
+                kind = StorageUsageNodeKind.Grouped,
+                childCount = hiddenChildren.sumOf { kotlin.math.max(1, it.childCount) },
+                status = if (hiddenChildren.any { it.status != StorageUsageScanStatus.Ready }) {
+                    StorageUsageScanStatus.Partial
+                } else {
+                    StorageUsageScanStatus.Ready
+                }
+            )
+        }
         var childStart = start
-        node.children.forEachIndexed { index, child ->
+        chartChildren.forEachIndexed { index, child ->
+            if (segments.size >= maxSegments) return@forEachIndexed
             val childSweep = (sweep * (child.sizeBytes.toFloat() / childTotal.toFloat())).coerceAtLeast(0.4f)
             val inner = centerRadius + (depth - 1) * ringWidth
             val outer = inner + ringWidth
             val color = colors[(index + depth) % colors.size]
                 .copy(alpha = (0.98f - depth * 0.08f).coerceAtLeast(0.62f))
             segments += RingSegment(child, childStart, childSweep, inner, outer, color)
-            visit(child, depth + 1, childStart, childSweep)
+            if (child.kind != StorageUsageNodeKind.Grouped) {
+                visit(child, depth + 1, childStart, childSweep)
+            }
             childStart += childSweep
         }
     }
     visit(root, depth = 1, start = -90f, sweep = 360f)
     return segments
 }
+
+internal fun boundedStorageUsageSunburstSegmentCount(root: StorageUsageNode): Int =
+    buildSegments(
+        root = root,
+        colors = listOf(Color.Red, Color.Green, Color.Blue),
+        centerRadius = 10f,
+        ringWidth = 10f,
+        maxDepth = MAX_SUNBURST_DEPTH,
+        maxSegments = MAX_SUNBURST_SEGMENTS,
+        maxChildrenPerNode = MAX_SUNBURST_CHILDREN_PER_NODE
+    ).size
 
 private fun StorageUsageNode.maxDepth(): Int {
     if (children.isEmpty()) return 1

@@ -191,6 +191,14 @@ fun QuickAccessScreen(
                                 }
                             ),
                             FabMenuItem(
+                                label = stringResource(R.string.item_type_files),
+                                icon = Icons.AutoMirrored.Filled.OpenInNew,
+                                onClick = {
+                                    isFabExpanded = false
+                                    onAddSafFolder(buildRestrictedFolderUri(""), "Files")
+                                }
+                            ),
+                            FabMenuItem(
                                 label = stringResource(R.string.add_android_data),
                                 icon = Icons.Default.FolderSpecial,
                                 onClick = {

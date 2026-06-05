@@ -175,8 +175,7 @@ class DefaultFileSystemDataSource(
 
             val boundedPageSize = pageSize.coerceIn(1, ListingPage.MAX_PAGE_SIZE)
             children.asSequence()
-                .map { it.toFileModel() }
-                .sortedWith(listingComparator)
+                .sortedWith(fileListingComparator)
                 .chunked(boundedPageSize)
                 .forEachIndexed { index, chunk ->
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
@@ -184,7 +183,7 @@ class DefaultFileSystemDataSource(
                     emit(
                         ListingPage(
                             path = path,
-                            files = chunk,
+                            files = chunk.map { it.toFileModel() },
                             pageIndex = index,
                             isComplete = complete
                         )
@@ -402,6 +401,9 @@ class DefaultFileSystemDataSource(
             causeType = javaClass.simpleName,
             cleanupRequired = cleanupRequired
         )
+
+    private val fileListingComparator = compareBy<File> { !it.isDirectory }
+        .thenBy { it.name.lowercase() }
 
     private fun shredRecursively(file: File) {
         if (file.isDirectory) {

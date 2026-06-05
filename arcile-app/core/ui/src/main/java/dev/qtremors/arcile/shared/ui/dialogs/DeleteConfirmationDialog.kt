@@ -1,13 +1,17 @@
 package dev.qtremors.arcile.shared.ui.dialogs
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.Security
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.*
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,13 +52,18 @@ fun DeleteConfirmationDialog(
         irreversible = isPermanentDeleteChecked
     )
     val irreversible = resolvedDecision.irreversible || isPermanentDeleteChecked
-    val destinationLabel = when (resolvedDecision.destination) {
+    val effectiveDestination = if (isPermanentDeleteChecked) {
+        DeleteDestination.Permanent
+    } else {
+        resolvedDecision.destination
+    }
+    val destinationLabel = when (effectiveDestination) {
         DeleteDestination.Trash -> stringResource(R.string.delete_destination_trash)
         DeleteDestination.Permanent -> stringResource(R.string.delete_destination_permanent)
         DeleteDestination.AndroidSystemConfirmation -> stringResource(R.string.delete_destination_android)
         DeleteDestination.MixedBlocked -> stringResource(R.string.delete_destination_mixed)
     }
-    val description = when (resolvedDecision.destination) {
+    val description = when (effectiveDestination) {
         DeleteDestination.Trash -> stringResource(R.string.delete_decision_trash_description)
         DeleteDestination.Permanent -> stringResource(R.string.delete_decision_permanent_description)
         DeleteDestination.AndroidSystemConfirmation -> stringResource(R.string.delete_decision_android_description)
@@ -71,7 +80,7 @@ fun DeleteConfirmationDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(
-                imageVector = when (resolvedDecision.destination) {
+                imageVector = when (effectiveDestination) {
                     DeleteDestination.Trash -> Icons.Outlined.Delete
                     DeleteDestination.Permanent -> Icons.Outlined.DeleteForever
                     DeleteDestination.AndroidSystemConfirmation -> Icons.Outlined.Security
@@ -101,124 +110,143 @@ fun DeleteConfirmationDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text(summary) }
-                )
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Text(
+                        text = summary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
 
                 if (irreversible) {
                     Surface(
                         shape = MaterialTheme.shapes.medium,
-                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.25f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = stringResource(R.string.delete_irreversible_warning),
+                        Row(
                             modifier = Modifier.padding(12.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall
-                        )
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = stringResource(R.string.delete_irreversible_warning),
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
                     }
                 }
                 
-                if (resolvedDecision.destination != DeleteDestination.MixedBlocked) Surface(
-                    shape = MaterialTheme.shapes.large,
-                    color = if (isPermanentDeleteChecked)
-                        MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f) 
-                    else 
-                        MaterialTheme.colorScheme.surfaceContainerHighest,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.large)
-                        .semantics(mergeDescendants = true) {
-                            if (!isPermanentDeleteToggleEnabled) disabled()
-                        }
-                        .clickable(enabled = isPermanentDeleteToggleEnabled) {
-                            haptics.selectionChanged()
-                            onTogglePermanentDelete()
-                        }
-                ) {
-                    ListItem(
-                        headlineContent = {
-                            Text(
-                                text = permanentlyDeleteLabel,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (isPermanentDeleteToggleEnabled) {
-                                    if (isPermanentDeleteChecked) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
-                                } else {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                }
-                            )
-                        },
-                        supportingContent = {
-                            Text(
-                                text = stringResource(R.string.permanently_delete_checkbox_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (isPermanentDeleteToggleEnabled) {
-                                    if (isPermanentDeleteChecked) MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-                                }
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = isPermanentDeleteChecked,
-                                onCheckedChange = null,
-                                enabled = isPermanentDeleteToggleEnabled,
-                                modifier = Modifier
-                                    .testTag("permanent_delete_switch")
-                                    .semantics {
-                                        contentDescription = permanentlyDeleteLabel
-                                    }
-                            )
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-
-                if (isPermanentDeleteChecked && onToggleShred != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = if (isShredChecked)
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
-                        else
-                            MaterialTheme.colorScheme.surfaceContainerHighest,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.large)
-                            .clickable {
-                                haptics.selectionChanged()
-                                onToggleShred()
-                            }
+                if (resolvedDecision.destination != DeleteDestination.MixedBlocked) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    text = stringResource(R.string.shred_permanently_checkbox),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = if (isShredChecked) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurface
+                        Surface(
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.large)
+                                .semantics(mergeDescendants = true) {
+                                    if (!isPermanentDeleteToggleEnabled) disabled()
+                                }
+                                .clickable(enabled = isPermanentDeleteToggleEnabled) {
+                                    haptics.selectionChanged()
+                                    onTogglePermanentDelete()
+                                }
+                        ) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = permanentlyDeleteLabel,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (isPermanentDeleteToggleEnabled) {
+                                            MaterialTheme.colorScheme.onSurface
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                        }
+                                    )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = stringResource(R.string.permanently_delete_checkbox_description),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isPermanentDeleteToggleEnabled) {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                                        }
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = isPermanentDeleteChecked,
+                                        onCheckedChange = null,
+                                        enabled = isPermanentDeleteToggleEnabled,
+                                        modifier = Modifier
+                                            .testTag("permanent_delete_switch")
+                                            .semantics {
+                                                contentDescription = permanentlyDeleteLabel
+                                            }
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+
+                        if (isPermanentDeleteChecked && onToggleShred != null) {
+                            Surface(
+                                shape = MaterialTheme.shapes.large,
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(MaterialTheme.shapes.large)
+                                    .clickable {
+                                        haptics.selectionChanged()
+                                        onToggleShred()
+                                    }
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(
+                                            text = stringResource(R.string.shred_permanently_checkbox),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            text = stringResource(R.string.shred_permanently_checkbox_description),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    trailingContent = {
+                                        Checkbox(
+                                            checked = isShredChecked,
+                                            onCheckedChange = null
+                                        )
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    modifier = Modifier.padding(vertical = 4.dp)
                                 )
-                            },
-                            supportingContent = {
-                                Text(
-                                    text = stringResource(R.string.shred_permanently_checkbox_description),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (isShredChecked) MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingContent = {
-                                Checkbox(
-                                    checked = isShredChecked,
-                                    onCheckedChange = null
-                                )
-                            },
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
+                            }
+                        }
                     }
                 }
             }

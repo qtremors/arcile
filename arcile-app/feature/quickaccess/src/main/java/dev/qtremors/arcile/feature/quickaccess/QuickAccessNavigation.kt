@@ -37,7 +37,9 @@ fun NavGraphBuilder.quickAccessScreen(
             onRemoveItem = { viewModel.removeCustomItem(it) },
             onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
             onAddSafFolder = { uri, label ->
-                if (label == "Android/data" || label == "Android/obb") {
+                if (label == "Files") {
+                    viewModel.addFilesAppShortcut(uri)
+                } else if (label == "Android/data" || label == "Android/obb") {
                     viewModel.addExternalHandoffFolder(uri, label)
                 } else {
                     viewModel.addSafFolder(uri, label)

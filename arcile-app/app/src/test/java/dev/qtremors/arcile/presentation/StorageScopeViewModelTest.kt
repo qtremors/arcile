@@ -57,7 +57,7 @@ class StorageScopeViewModelTest {
     }
 
     @Test
-    fun `home view model loads global and indexed per-volume storage scopes`() = runTest(dispatcher) {
+    fun `home view model defers per-volume category scopes until dashboard requests them`() = runTest(dispatcher) {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
         val sd = volume(id = "sd", name = "SD Card", path = "/storage/1234-5678", removable = true)
         val repository = FakeStorageRepositoryBundle(
@@ -75,6 +75,12 @@ class StorageScopeViewModelTest {
 
         assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
+        assertTrue(repository.requestedCategoryScopes.none { it is StorageScope.Volume })
+        assertTrue(viewModel.state.value.categoryStoragesByVolume.isEmpty())
+
+        viewModel.loadDashboardCategoryBreakdown()
+        advanceUntilIdle()
+
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("primary")))
         assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
         assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)

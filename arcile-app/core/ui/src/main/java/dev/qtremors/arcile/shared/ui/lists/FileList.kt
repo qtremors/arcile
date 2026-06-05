@@ -2,9 +2,16 @@ package dev.qtremors.arcile.shared.ui.lists
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,7 +57,7 @@ import androidx.compose.foundation.basicMarquee
 import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
 import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
@@ -283,11 +290,24 @@ fun FileItemRow(
     val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale).copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
     val subtitleText = row.displaySubtitle(isFolderStatsLoading)
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && !reducedMotion) 0.98f else 1f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        label = "fileItemScale"
+    )
+
     Surface(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         modifier = modifier
             .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .alpha(if (row.isHidden) 0.5f else 1f)
             .fileItemSemantics(
                 file = file,
@@ -300,7 +320,12 @@ fun FileItemRow(
                 onOpenDirectly = onOpenDirectly,
                 onToggleSelectionDirectly = onToggleSelectionDirectly
             )
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .combinedClickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         Row(
             modifier = Modifier
@@ -331,9 +356,9 @@ fun FileItemRow(
                         sizeBytes = file.size,
                         lastModifiedMillis = file.lastModified
                     )
-                    AsyncImage(
+                    SubcomposeAsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data(archiveThumbnailData ?: File(file.absolutePath))
+                            .data(row.thumbnailRequestData(archiveThumbnailData))
                             .size(row.thumbnailSizePx)
                             .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
                             .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
@@ -349,15 +374,16 @@ fun FileItemRow(
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        loading = {
+                            ListFileIcon(file = file, iconSize = iconSize * 0.5f)
+                        },
+                        error = {
+                            ListFileIcon(file = file, iconSize = iconSize * 0.5f)
+                        }
                     )
                 } else {
-                    Icon(
-                        imageVector = getFileIconVector(file),
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(iconSize * 0.5f)
-                    )
+                    ListFileIcon(file = file, iconSize = iconSize * 0.5f)
                 }
                 if (isSelected) {
                     Surface(
@@ -415,6 +441,21 @@ fun FileItemRow(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ListFileIcon(file: FileModel, iconSize: androidx.compose.ui.unit.Dp) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = getFileIconVector(file),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(iconSize)
+        )
     }
 }
 

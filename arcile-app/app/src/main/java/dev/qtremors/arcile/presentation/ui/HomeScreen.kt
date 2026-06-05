@@ -112,7 +112,6 @@ import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
-import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.presentation.home.HomeState
 import dev.qtremors.arcile.shared.ui.ArcileTopBar
@@ -321,19 +320,16 @@ fun HomeScreen(
         displayedRecentFiles
             .asSequence()
             .filter { file ->
-                val extension = file.extension.lowercase()
-                !file.isDirectory && (
-                    FileCategories.Images.extensions.contains(extension) ||
-                        FileCategories.Videos.extensions.contains(extension) ||
-                        FileCategories.Audio.extensions.contains(extension)
-                    )
+                !file.isDirectory && ThumbnailKey.from(file).type != ThumbnailType.Unsupported
             }
             .take(HomeRecentFilesPreloadLimit)
             .forEach { file ->
                 val thumbnailKey = ThumbnailKey.from(file)
                 val thumbnailData = when (thumbnailKey.type) {
                     ThumbnailType.Audio,
-                    ThumbnailType.Video -> thumbnailKey
+                    ThumbnailType.Video,
+                    ThumbnailType.Pdf,
+                    ThumbnailType.Apk -> thumbnailKey
                     else -> File(file.absolutePath)
                 }
                 context.imageLoader.enqueue(
@@ -444,7 +440,13 @@ fun HomeScreen(
                             )
                         )
                     }
-                    item { CategoryGrid(state.categoryStorages, onCategoryClick) }
+                    item {
+                        CategoryGrid(
+                            categoryStorages = state.categoryStorages,
+                            reserveSizeLine = state.isLoading || state.isCalculatingStorage || state.categoryStorages.isEmpty(),
+                            onCategoryClick = onCategoryClick
+                        )
+                    }
 
                     item {
                         Row(

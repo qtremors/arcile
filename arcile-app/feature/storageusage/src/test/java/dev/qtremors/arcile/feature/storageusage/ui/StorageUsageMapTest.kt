@@ -80,6 +80,37 @@ class StorageUsageMapTest {
         composeRule.onNode(hasStateDescription("Downloads selected, 768.0 B, 1 items")).assertExists()
     }
 
+    @Test
+    fun `sunburst segment generation is bounded for large trees`() {
+        val root = StorageUsageNode(
+            name = "Internal",
+            path = "/storage/emulated/0",
+            sizeBytes = 10_000,
+            kind = StorageUsageNodeKind.Folder,
+            childCount = 300,
+            children = (0 until 300).map { folderIndex ->
+                StorageUsageNode(
+                    name = "Folder $folderIndex",
+                    path = "/storage/emulated/0/folder$folderIndex",
+                    sizeBytes = 100,
+                    kind = StorageUsageNodeKind.Folder,
+                    childCount = 50,
+                    children = (0 until 50).map { fileIndex ->
+                        StorageUsageNode(
+                            name = "file$fileIndex.bin",
+                            path = "/storage/emulated/0/folder$folderIndex/file$fileIndex.bin",
+                            sizeBytes = 1,
+                            kind = StorageUsageNodeKind.File,
+                            childCount = 0
+                        )
+                    }
+                )
+            }
+        )
+
+        assertEquals(160, boundedStorageUsageSunburstSegmentCount(root))
+    }
+
     private fun setStorageUsageContent(
         onSelectedNode: (StorageUsageNode) -> Unit = {}
     ) {

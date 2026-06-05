@@ -22,7 +22,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 @Singleton
 class QuickAccessPreferencesRepository @Inject constructor(
-    private val context: Context
+    private val context: Context,
+    private val dataStore: DataStore<Preferences> = context.dataStore
 ) : QuickAccessPreferencesStore {
     private val QUICK_ACCESS_ITEMS_KEY = stringPreferencesKey("quick_access_items")
 
@@ -136,54 +137,62 @@ class QuickAccessPreferencesRepository @Inject constructor(
         )
     }
 
-    override val quickAccessItems: Flow<List<QuickAccessItem>> = context.dataStore.data.map { preferences ->
+    private fun decodeStoredItems(serialized: String?): List<QuickAccessItem> {
+        if (serialized.isNullOrEmpty()) return defaultItems
+        return runCatching {
+            json.decodeFromString<List<QuickAccessItem>>(serialized).map(::migrateStoredItem)
+        }.getOrDefault(defaultItems)
+    }
+
+    private fun mergeDefaultAndStored(storedItems: List<QuickAccessItem>): List<QuickAccessItem> {
+        val defaultItemIds = defaultItems.map { it.id }.toSet()
+        return (defaultItems.map { defaultItem ->
+            storedItems.find { it.id == defaultItem.id } ?: defaultItem
+        } + storedItems.filter { it.id !in defaultItemIds })
+            .distinctBy { it.id }
+            .filter { it.isEnabled }
+    }
+
+    override val quickAccessItems: Flow<List<QuickAccessItem>> = dataStore.data.map { preferences ->
         val serialized = preferences[QUICK_ACCESS_ITEMS_KEY]
         if (serialized.isNullOrEmpty()) {
             defaultItems
         } else {
-            try {
-                val storedItems = json.decodeFromString<List<QuickAccessItem>>(serialized).map(::migrateStoredItem)
-                val defaultItemIds = defaultItems.map { it.id }.toSet()
-                val merged = (defaultItems.map { defaultItem ->
-                    storedItems.find { it.id == defaultItem.id } ?: defaultItem
-                } + storedItems.filter { it.id !in defaultItemIds }).distinctBy { it.id }
-                merged
-            } catch (e: Exception) {
-                defaultItems
-            }
+            mergeDefaultAndStored(decodeStoredItems(serialized))
         }
     }
 
     override suspend fun updateItems(items: List<QuickAccessItem>) {
-        context.dataStore.edit { preferences ->
-            preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(items)
+        dataStore.edit { preferences ->
+            val storedTombstones = decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY])
+                .filter { !it.isEnabled && defaultItems.any { defaultItem -> defaultItem.id == it.id } }
+            preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString((items + storedTombstones).distinctBy { it.id })
         }
     }
 
     override suspend fun addItem(item: QuickAccessItem) {
-        context.dataStore.edit { preferences ->
-            val currentStr = preferences[QUICK_ACCESS_ITEMS_KEY]
-            val currentList = if (currentStr.isNullOrEmpty()) {
-                defaultItems
-            } else {
-                try {
-                    json.decodeFromString<List<QuickAccessItem>>(currentStr).map(::migrateStoredItem)
-                } catch (e: Exception) {
-                    defaultItems
-                }
-            }
-            if (currentList.none { it.path == item.path }) {
-                val newList = currentList + item
-                preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(newList)
+        dataStore.edit { preferences ->
+            val currentList = decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY])
+            val existing = currentList.firstOrNull { it.id == item.id || it.path == item.path }
+            if (existing == null) {
+                preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(currentList + item)
+            } else if (!existing.isEnabled) {
+                preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(
+                    (currentList.filter { it.id != existing.id } + item).distinctBy { it.id }
+                )
             }
         }
     }
 
     override suspend fun removeItem(id: String) {
-         context.dataStore.edit { preferences ->
-            val currentStr = preferences[QUICK_ACCESS_ITEMS_KEY]
-            val currentList = if (currentStr.isNullOrEmpty()) defaultItems else json.decodeFromString<List<QuickAccessItem>>(currentStr)
-            val newList = currentList.filter { it.id != id }
+         dataStore.edit { preferences ->
+            val currentList = decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY])
+            val defaultItem = defaultItems.firstOrNull { it.id == id }
+            val tombstone = defaultItem
+                ?.takeIf { it.type != QuickAccessType.STANDARD }
+                ?.copy(isEnabled = false, isPinned = false)
+            val newList = (currentList.filter { it.id != id } + listOfNotNull(tombstone))
+                .distinctBy { it.id }
             preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(newList)
         }
     }
