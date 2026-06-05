@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.9.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.0.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
@@ -100,7 +100,6 @@ arcile/
 │   │   ├── src/main/java/dev/qtremors/arcile/
 │   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
 │   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
-│   │   │   ├── feature/                         # App-specific UI features (onboarding, storage stats, cleaner)
 │   │   │   ├── navigation/                      # Serializable typed routes & navigation graph
 │   │   │   └── di/                              # Dagger Hilt dependency injection modules
 │   ├── core/                                    # Shared business logic and UI frameworks
@@ -115,7 +114,11 @@ arcile/
 │   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
 │       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
 │       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
+│       ├── onboarding/                          # First-run setup and permission guidance
+│       ├── quickaccess/                         # Pinned folders, SAF handoffs, and folder shortcuts
 │       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
+│       ├── storagecleaner/                      # Cleanup scanner and review workflow
+│       ├── storageusage/                        # Storage dashboard and usage-map UI
 │       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
 ├── docs/                                        # Promotional landing page website
 ├── CHANGELOG.md                                 # Release logs and history

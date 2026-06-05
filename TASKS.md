@@ -1,51 +1,12 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 0.9.9
+> **Version:** 1.0.0
 > **Last Updated:** 2026-06-05
 
 ---
 
 ## Audit Remediation Backlog
-
-### Reliability Tasks
-
-- [ ] **REL-0001 - Cancel stale browser loads** `[High]`
-  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/NavigationDelegate.kt`
-  - **Problem:** `loadDirectory`, `loadCategory`, and `loadArchiveEntries` each start a new `viewModelScope.launch` without retaining or cancelling the previous load job. A fast folder change, refresh, archive navigation, or volume change can leave an older collector updating `BrowserState.files`, loading flags, cached folder stats, and errors after the user has moved to a different location.
-  - **Impact:** Browser contents, selection state, folder stats, and error messages can be overwritten by stale work, which is especially risky during file operations and rapid navigation through large directories.
-  - **Fix:** Track the active navigation/listing job, cancel it before starting another load, and gate state updates by a monotonically increasing request id or target location so old pages cannot mutate the current screen.
-  - **Verification:** Add a `NavigationDelegate` or `BrowserViewModel` test with a delayed first listing and a faster second navigation, proving that only the newest path updates `files`, `currentPath`, `isLoading`, and errors.
-
-- [ ] **REL-0002 - Make foreground operation recovery executable, not just visible** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationCoordinator.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/OperationJournal.kt`
-  - **Problem:** The service returns `START_NOT_STICKY`; if the process is killed mid-copy, move, delete, archive, or extraction, the operation is only exposed later as a recovered record that requires manual retry or cleanup. There is no startup repair policy that distinguishes safe resume, rollback, or mandatory cleanup per operation phase.
-  - **Impact:** Long-running or destructive operations can be interrupted with partial outputs, staged files, or stale UI state, leaving users to infer the right recovery action.
-  - **Fix:** Extend journal records with operation phase checkpoints, temp output paths, completed targets, and retry safety. On app startup, run a recovery coordinator that either resumes idempotent work, rolls back staged outputs, or presents a specific repair action with consequences.
-  - **Verification:** Add tests that kill/recreate the coordinator with active copy, move, replace, archive extraction, and trash operations, then verify the recovered action, cleanup result, and UI message for each phase.
-
-- [ ] **REL-0003 - Prevent partial permanent deletes from silently succeeding** `[High]`
-  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt`
-  - **Problem:** `deletePermanently` and `shred` iterate paths one by one and return failure after the first delete/shred failure, but any earlier paths are already deleted and only `finalizeMutation` is called for those scanned paths. The result model is `Result<Unit>`, so callers cannot report which items were removed, which failed, or what recovery is possible.
-  - **Impact:** Batch destructive operations can partially complete while the UI shows a generic failure, eroding user trust and making recovery or support difficult.
-  - **Fix:** Return a typed batch mutation result that records succeeded, skipped, failed, and cleanup-required paths. Use it in the foreground service and confirmation UI so partial success is explicit and retry targets are precise.
-  - **Verification:** Add unit tests for mixed delete/shred batches where the second item fails, asserting that completed paths, failed paths, mutation finalization, user message, and retry payload are all correct.
-
-### Security / Privacy Tasks
-
-- [ ] **SEC-0002 - Harden Save to Arcile against hostile share intents** `[High]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/SaveToArcileActivity.kt` `arcile-app/app/src/main/AndroidManifest.xml`
-  - **Problem:** The exported `SaveToArcileActivity` accepts `ACTION_SEND` and `ACTION_SEND_MULTIPLE` from any app, reads every stream immediately, and only sanitizes `/` and `\` in display names. It does not validate URI schemes, item count, filename length, control characters, reserved names, reported size, destination free space, or provider read failures before copying.
-  - **Impact:** Malicious or buggy share providers can trigger disk-filling copies, confusing filenames, long-running foreground-less work, or partial imports with weak user feedback.
-  - **Fix:** Add an import preflight that accepts only `content://` and safe `file://` sources where appropriate, enforces item and byte limits, normalizes filenames through the shared file-name validator, checks destination capacity when size is known, and reports per-item failures.
-  - **Verification:** Add Robolectric tests for malicious display names, unsupported schemes, huge batches, unknown sizes, stream-open failures, duplicate names, and insufficient-space simulation.
-
-- [ ] **SEC-0003 - Bound archive-entry thumbnail decoding** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/image/ArchiveEntryImageFetcher.kt`
-  - **Problem:** ZIP entry thumbnails are decoded with `BitmapFactory.decodeStream` directly from archive data. The code checks extension and `entry.size`, but ZIP metadata can be missing or misleading, and the decoder does not first read bounds or apply `inSampleSize`.
-  - **Impact:** A crafted archive image can cause excessive memory use or UI jank while browsing archive entries.
-  - **Fix:** Decode bounds first, reject images above a pixel-count limit, sample to `options.size`, and enforce a counting input stream cap independent of ZIP metadata.
-  - **Verification:** Add tests with unknown-size entries and oversized image dimensions, and manually browse a ZIP containing large images while monitoring memory and thumbnail behavior.
 
 ### Data / Storage / Platform Tasks
 
@@ -103,15 +64,6 @@
   - **Impact:** Localization, consistency, and review gates can regress silently outside the app module.
   - **Fix:** Move the string guard to a convention plugin or root verification task that scans all production Android source sets while preserving targeted allowlists for tests and non-user-facing constants.
   - **Verification:** Run the expanded check, migrate current feature-module hardcoded strings to resources, and ensure `./gradlew checkProductionStrings` or its replacement fails on a new hardcoded feature string.
-
-### Documentation Tasks
-
-- [ ] **DOC-0001 - Align README version and structure docs with the current project** `[Low]`
-  - **Location:** `README.md` `TASKS.md`
-  - **Problem:** `TASKS.md` and Gradle report version `0.9.9`, while the README badge still says `0.9.0`. The README project tree also references older app-internal feature locations even though feature modules now live under `arcile-app/feature/*`.
-  - **Impact:** Setup, release review, and contributor onboarding can start from stale project facts.
-  - **Fix:** Update the README badge and project-structure section to match the current Gradle version and module layout, and add a lightweight release checklist item that keeps docs in sync with `versionName`.
-  - **Verification:** Compare README version/module references against `app/build.gradle.kts` and `settings.gradle.kts`, then run markdown link checking if available.
 
 ## Backlog / Future Ideas
 

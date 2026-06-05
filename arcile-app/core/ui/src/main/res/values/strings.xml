@@ -666,13 +666,6 @@
     <string name="no_app_found">No app found</string>
     <string name="could_not_open_folder_files_app">Could not open folder in Files app</string>
     <string name="share_files_via">Share files via</string>
-    <string name="save_to_arcile_title">Save to Arcile</string>
-    <string name="save_to_arcile_choose_storage">Choose storage</string>
-    <string name="save_to_arcile_save_here">Save here</string>
-    <string name="save_to_arcile_no_files">No shared files found</string>
-    <string name="save_to_arcile_failed">Could not save shared files: %1$s</string>
-    <string name="save_to_arcile_invalid_destination">Choose a valid folder</string>
-    <string name="save_to_arcile_failed_open_stream">Could not open shared file stream</string>
     <string name="volume_usage">%1$s used of %2$s</string>
     <string name="file_operation_copying_files">Copying files</string>
     <string name="file_operation_moving_files">Moving files</string>

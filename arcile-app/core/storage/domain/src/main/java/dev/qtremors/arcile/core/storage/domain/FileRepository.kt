@@ -156,12 +156,22 @@ interface FileMutationRepository {
      */
     suspend fun deletePermanently(paths: List<String>): Result<Unit>
 
+    suspend fun deletePermanentlyDetailed(paths: List<String>): Result<BatchMutationResult> =
+        deletePermanently(paths).map {
+            BatchMutationResult(succeededPaths = paths)
+        }
+
     /**
      * Securely shreds the files or directories at [paths].
      *
      * This overwrites the target file sectors with zero-fills before deleting them.
      */
     suspend fun shred(paths: List<String>): Result<Unit>
+
+    suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> =
+        shred(paths).map {
+            BatchMutationResult(succeededPaths = paths)
+        }
 
     /**
      * Renames the file or directory at [path] to [newName].

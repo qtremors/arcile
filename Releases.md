@@ -1,11 +1,13 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 0.8.0
-> **Last Updated:** 2026-05-24
+> **Version:** 1.0.0
+> **Last Updated:** 2026-06-05
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.0.0](#v100) | 2026-06-05 | Security Hardening, Recovery, Archive Safety |
+| [v0.9.0 Beta](#v090-beta) | 2026-05-28 | Modular Architecture, Feature Extraction, Release Sync |
 | [v0.8.0 Beta](#v080-beta) | 2026-05-24 | Storage Cleaner, Trash Overhaul, Safety & Polish |
 | [v0.7.0 Beta](#v070-beta) | 2026-05-16 | Onboarding, Archives, Recent Files & Reliability |
 | [v0.6.0 Beta](#v060-beta) | 2026-04-19 | UI/UX Overhaul, Quick Access & Unified Controls |
@@ -14,6 +16,31 @@
 | [v0.4.0 Beta](#v040-beta) | 2026-03-16 | SD Card & OTG Support |
 | [v0.3.0 Beta](#v030-beta) | 2026-03-11 | Trash Bin & Copy/Paste |
 | [v0.2.0 Beta](#v020-beta) | 2026-03-06 | Material 3 Redesign |
+
+---
+
+# v1.0.0
+
+**Release Date:** June 5, 2026  
+**Previous release:** v0.9.9 Beta
+
+Arcile v1.0.0 promotes the hardened 0.9.x foundation with stronger import safety, safer archive thumbnails, clearer recovery for interrupted operations, and explicit reporting for partial destructive batches.
+
+## What's New & Improved
+
+### Security & Privacy Hardening
+- Save to Arcile now preflights incoming share items before destination selection, accepting `content://` sources and only app-owned `file://` paths after canonical path checks.
+- Incoming imports enforce a 200-item limit, a 10 GiB total byte budget, filename normalization, destination free-space checks, counted streaming for unknown sizes, and concise partial-failure messages.
+- Archive-entry thumbnails now decode bounds first, reject invalid or oversized images, enforce an independent 75 MiB stream cap, sample large valid images to the requested thumbnail size, and fall back to normal icons on rejection.
+
+### Reliability
+- Browser navigation cancels superseded listing jobs and gates state updates by request generation, preventing stale loads from replacing current files, paths, loading flags, or errors.
+- Foreground operation recovery now classifies interrupted work into explicit cleanup-required records with retry and cleanup actions.
+- Permanent delete and shred batches now report succeeded, skipped, failed, and cleanup-required paths so partial destructive work is visible and retryable.
+
+### Release Maintenance
+- Android app metadata is now `versionName` `1.0.0` with `versionCode` `100`.
+- Release-facing documentation, changelog metadata, and module-structure docs were synchronized for the 1.0.0 release.
 
 ---
 

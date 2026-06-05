@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.storage.data.manager.TrashManager
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -292,7 +293,13 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
         deletePermanentlyRequests += paths
         return Result.success(Unit)
     }
+    override suspend fun deletePermanentlyDetailed(paths: List<String>): Result<BatchMutationResult> {
+        deletePermanentlyRequests += paths
+        return Result.success(BatchMutationResult(succeededPaths = paths))
+    }
     override suspend fun shred(paths: List<String>): Result<Unit> = Result.success(Unit)
+    override suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> =
+        Result.success(BatchMutationResult(succeededPaths = paths))
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.success(testFile(newName, path.substringBeforeLast('/') + "/$newName"))
     override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.success(emptyList())
     override suspend fun createFakeFile(parentPath: String, name: String, size: Long, onProgress: ((dev.qtremors.arcile.core.operation.BulkFileOperationProgress) -> Unit)?): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", false, size))

@@ -28,6 +28,7 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -47,6 +48,8 @@ class NavigationDelegate(
     private val onClearSearch: () -> Unit
 ) {
     private val pathHistory = ArrayDeque<BrowserHistoryEntry>()
+    private var activeLoadJob: Job? = null
+    private var activeLoadGeneration = 0L
 
     fun restoreLocationFromState(): StorageBrowserLocation? {
         val isVolumeRootScreen = savedStateHandle.get<Boolean>("isVolumeRootScreen")
@@ -104,6 +107,18 @@ class NavigationDelegate(
         savedStateHandle["pathHistory"] = pathHistory.map { it.toSavedValue() }.toTypedArray()
         savedStateHandle["archivePath"] = state.value.archiveContext?.archivePath
         savedStateHandle["archiveEntryPrefix"] = state.value.archiveContext?.entryPrefix
+    }
+
+    private fun nextLoadGeneration(): Long {
+        activeLoadJob?.cancel()
+        activeLoadGeneration += 1
+        return activeLoadGeneration
+    }
+
+    private fun isActiveLoad(generation: Long): Boolean = generation == activeLoadGeneration
+
+    private fun saveNavStateIfActive(generation: Long) {
+        if (isActiveLoad(generation)) saveNavState()
     }
 
     fun volumeFiles() = state.value.storageVolumes.map { volume ->
@@ -166,8 +181,10 @@ class NavigationDelegate(
 
     fun openVolumeRoots(errorMessage: UiText? = null) {
         pathHistory.clear()
+        val generation = nextLoadGeneration()
         viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
+            if (!isActiveLoad(generation)) return@launch
             val presentation = prefs.getPresentationForPath("/")
             state.update {
                 it.reduce(BrowserNavigationEvent.OpenVolumeRoots(volumeFiles())).copy(
@@ -179,7 +196,7 @@ class NavigationDelegate(
                     browserShowThumbnails = presentation.showThumbnails
                 ).withUpdatedDisplayState()
             }
-            saveNavState()
+            saveNavStateIfActive(generation)
         }
     }
 
@@ -381,21 +398,24 @@ class NavigationDelegate(
         if (clearHistory) {
             pathHistory.clear()
         }
+        val generation = nextLoadGeneration()
         state.update {
             it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId)).copy(
                 isLoading = true,
                 error = errorMessage,
             ).withUpdatedDisplayState()
         }
-        saveNavState()
-        viewModelScope.launch {
+        saveNavStateIfActive(generation)
+        activeLoadJob = viewModelScope.launch {
             if (persistAsLastOpened) {
                 browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
             }
             val prefs = browserPreferencesRepository.preferencesFlow.first()
-            applyPresentation(prefs.getPresentationForPath(path))
+            if (!isActiveLoad(generation)) return@launch
+            applyPresentation(prefs.getPresentationForPath(path), generation)
 
             fileBrowserRepository.listFilePages(path).collect { page ->
+                if (!isActiveLoad(generation)) return@collect
                 page.error?.let { error ->
                     state.update {
                         it.copy(
@@ -414,6 +434,7 @@ class NavigationDelegate(
                 }
                 val folderPaths = page.files.filter { it.isDirectory }.map { it.absolutePath }
                 val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
+                if (!isActiveLoad(generation)) return@collect
                 val now = System.currentTimeMillis()
                 val pathsToQueue = folderPaths.filter { folderPath ->
                     val cached = cachedStats[folderPath] ?: return@filter true
@@ -434,7 +455,7 @@ class NavigationDelegate(
                     ).withUpdatedDisplayState()
                 }
                 fileBrowserRepository.queueFolderStats(pathsToQueue)
-                if (page.isComplete) saveNavState()
+                if (page.isComplete) saveNavStateIfActive(generation)
             }
         }
     }
@@ -447,6 +468,7 @@ class NavigationDelegate(
         pushHistory: Boolean
     ) {
         val previous = state.value.archiveContext
+        val generation = nextLoadGeneration()
         if (pushHistory && previous?.entryPrefix != entryPrefix) {
             pathHistory.push(
                 BrowserHistoryEntry.Archive(
@@ -480,9 +502,10 @@ class NavigationDelegate(
                 error = null
             ).withUpdatedDisplayState()
         }
-        saveNavState()
-        viewModelScope.launch {
+        saveNavStateIfActive(generation)
+        activeLoadJob = viewModelScope.launch {
             archiveRepository.listArchiveEntries(archivePath, password, nameEncoding).onSuccess { entries ->
+                if (!isActiveLoad(generation)) return@onSuccess
                 state.update {
                     it.copy(
                         isLoading = false,
@@ -497,8 +520,9 @@ class NavigationDelegate(
                         files = buildArchiveFiles(archivePath, entries, entryPrefix).toPersistentList()
                     ).withUpdatedDisplayState()
                 }
-                saveNavState()
+                saveNavStateIfActive(generation)
             }.onFailure { error ->
+                if (!isActiveLoad(generation)) return@onFailure
                 val passwordError = error.isArchivePasswordError()
                 state.update {
                     it.copy(
@@ -571,19 +595,22 @@ class NavigationDelegate(
     }
 
     private fun loadCategory(categoryName: String, volumeId: String?) {
+        val generation = nextLoadGeneration()
         state.update {
             it.reduce(BrowserNavigationEvent.OpenCategory(categoryName, volumeId)).copy(
                 isLoading = true,
                 error = null,
             ).withUpdatedDisplayState()
         }
-        saveNavState()
-        viewModelScope.launch {
+        saveNavStateIfActive(generation)
+        activeLoadJob = viewModelScope.launch {
             val prefs = browserPreferencesRepository.preferencesFlow.first()
+            if (!isActiveLoad(generation)) return@launch
             val categoryPresentation = prefs.getPresentationForCategory(categoryName)
 
             val scope = StorageScope.Category(volumeId?.takeIf { it.isNotEmpty() }, categoryName)
             searchRepository.getFilesByCategory(scope, categoryName).onSuccess { files ->
+                if (!isActiveLoad(generation)) return@onSuccess
                 state.update {
                     it.copy(
                         isLoading = false,
@@ -596,8 +623,9 @@ class NavigationDelegate(
                         browserShowThumbnails = categoryPresentation.showThumbnails
                     ).withUpdatedDisplayState()
                 }
-                saveNavState()
+                saveNavStateIfActive(generation)
             }.onFailure { error ->
+                if (!isActiveLoad(generation)) return@onFailure
                 state.update {
                     it.copy(
                         isLoading = false,
@@ -609,7 +637,8 @@ class NavigationDelegate(
         }
     }
 
-    private fun applyPresentation(presentation: BrowserPresentationPreferences) {
+    private fun applyPresentation(presentation: BrowserPresentationPreferences, generation: Long? = null) {
+        if (generation != null && !isActiveLoad(generation)) return
         state.update {
             it.copy(
                 browserSortOption = presentation.sortOption,

@@ -1,10 +1,28 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 0.9.9
-> **Last Updated:** 2026-06-04
+> **Version:** 1.0.0
+> **Last Updated:** 2026-06-05
 
 ---
+
+## [1.0.0] - 2026-06-05
+
+### Security & Privacy
+- **Hardened Save to Arcile Imports:** Added hostile-share preflight for incoming `content://` and app-owned `file://` sources, including URI scheme validation, item and byte limits, safe filename normalization, duplicate-name handling after sanitization, destination space checks, counted streaming, and partial-failure reporting.
+- **Bounded Archive Thumbnail Decoding:** Added ZIP-entry thumbnail byte caps, bounds-first image decoding, pixel-count rejection, sampled decode sizing, and safe fallback behavior for corrupt, oversized, unknown-size, or unsupported archive entries.
+
+### Reliability
+- **Stale Browser Load Cancellation:** Cancelled superseded directory, category, archive, and volume-root loads with generation-gated state updates so older listings cannot overwrite the current browser path, files, loading state, or errors after rapid navigation.
+- **Executable Operation Recovery Policy:** Pinned interrupted queued, running, and cancelling foreground operations to cleanup-required recovery records while preserving user-triggered retry and cleanup actions.
+- **Partial Permanent Delete Reporting:** Added detailed delete/shred batch results that record succeeded, skipped, failed, and cleanup-required paths, and surfaced partial destructive batches as explicit failed foreground operations with retry-target detail.
+
+### Release
+- **1.0.0 Version Sync:** Bumped the Android app to `versionName` `1.0.0` and `versionCode` `100`, then synchronized release-facing documentation and metadata.
+
+### Verification
+- **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, stale-load cancellation tests, accent palette and monochrome scheme tests, utility catalog and preference tests, Home visibility coverage, share-target parsing and manifest tests, carousel-limit persistence tests, notification progress and partial-delete failure tests, interrupted-operation recovery classification tests, detailed delete/shred batch tests, and thumbnail sizing expectations. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, targeted `:app:testDebugUnitTest :core:storage:data:testDebugUnitTest :core:ui:testDebugUnitTest`, `:feature:browser:testDebugUnitTest :core:storage:data:testDebugUnitTest :app:checkProductionStrings`, and `:app:checkProductionStrings`.
+- **Release Sync Verification:** Rechecked active version references across Gradle, README, release docs, development docs, task metadata, and the website, then verified the amended release with `:app:compileDebugKotlin` and `:app:checkProductionStrings`.
 
 ## [0.9.9] - 2026-06-03
 
@@ -34,7 +52,7 @@
 - **Richer Operation Notifications:** Improved foreground file-operation notifications with pluralized progress text, active file names, transfer speed, remaining-time estimates, and the existing monochrome notification glyph.
 
 ### Verification
-- **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, accent palette and monochrome scheme tests, utility catalog and preference tests, Home visibility coverage, share-target parsing and manifest tests, carousel-limit persistence tests, notification progress tests, and thumbnail sizing expectations. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, targeted `:app:testDebugUnitTest :core:storage:data:testDebugUnitTest :core:ui:testDebugUnitTest`, and `:app:checkProductionStrings`.
+- **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, stale-load cancellation tests, accent palette and monochrome scheme tests, utility catalog and preference tests, Home visibility coverage, share-target parsing and manifest tests, carousel-limit persistence tests, notification progress and partial-delete failure tests, interrupted-operation recovery classification tests, detailed delete/shred batch tests, and thumbnail sizing expectations. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, targeted `:app:testDebugUnitTest :core:storage:data:testDebugUnitTest :core:ui:testDebugUnitTest`, `:feature:browser:testDebugUnitTest :core:storage:data:testDebugUnitTest :app:checkProductionStrings`, and `:app:checkProductionStrings`.
 
 ## [0.9.8] - 2026-06-02
 

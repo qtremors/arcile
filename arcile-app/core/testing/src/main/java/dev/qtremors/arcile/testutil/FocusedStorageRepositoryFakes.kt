@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -81,7 +82,9 @@ class FakeFileMutationRepository : FileMutationRepository {
     var createFakeFileResultProvider: (suspend (String, String, Long, ((BulkFileOperationProgress) -> Unit)?) -> Result<FileModel>)? = null
     var deleteFileResultProvider: (suspend (String) -> Result<Unit>)? = null
     var deletePermanentlyResult: Result<Unit> = Result.failure(NotImplementedError())
+    var deletePermanentlyDetailedResultProvider: (suspend (List<String>) -> Result<BatchMutationResult>)? = null
     var shredResult: Result<Unit> = Result.success(Unit)
+    var shredDetailedResultProvider: (suspend (List<String>) -> Result<BatchMutationResult>)? = null
     var renameFileResultProvider: (suspend (String, String) -> Result<FileModel>)? = null
 
     val createDirectoryRequests = mutableListOf<Pair<String, String>>()
@@ -124,12 +127,34 @@ class FakeFileMutationRepository : FileMutationRepository {
 
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> {
         deletePermanentlyRequests += paths
-        return deletePermanentlyResult
+        return deletePermanentlyDetailedResultProvider?.invoke(paths)
+            ?.fold(
+                onSuccess = { it.requireCompleteSuccess("Permanent delete") },
+                onFailure = { Result.failure(it) }
+            )
+            ?: deletePermanentlyResult
+    }
+
+    override suspend fun deletePermanentlyDetailed(paths: List<String>): Result<BatchMutationResult> {
+        deletePermanentlyRequests += paths
+        return deletePermanentlyDetailedResultProvider?.invoke(paths)
+            ?: deletePermanentlyResult.map { BatchMutationResult(succeededPaths = paths) }
     }
 
     override suspend fun shred(paths: List<String>): Result<Unit> {
         shredRequests += paths
-        return shredResult
+        return shredDetailedResultProvider?.invoke(paths)
+            ?.fold(
+                onSuccess = { it.requireCompleteSuccess("Secure shred") },
+                onFailure = { Result.failure(it) }
+            )
+            ?: shredResult
+    }
+
+    override suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> {
+        shredRequests += paths
+        return shredDetailedResultProvider?.invoke(paths)
+            ?: shredResult.map { BatchMutationResult(succeededPaths = paths) }
     }
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> {

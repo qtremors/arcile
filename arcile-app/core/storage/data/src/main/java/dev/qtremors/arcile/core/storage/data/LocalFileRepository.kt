@@ -15,6 +15,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -311,8 +312,14 @@ class LocalFileRepository(
     override suspend fun deletePermanently(paths: List<String>): Result<Unit> =
         fileSystemDataSource.deletePermanently(paths)
 
+    override suspend fun deletePermanentlyDetailed(paths: List<String>): Result<BatchMutationResult> =
+        fileSystemDataSource.deletePermanentlyDetailed(paths)
+
     override suspend fun shred(paths: List<String>): Result<Unit> =
         fileSystemDataSource.shred(paths)
+
+    override suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> =
+        fileSystemDataSource.shredDetailed(paths)
 
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> =
         fileSystemDataSource.renameFile(path, newName)

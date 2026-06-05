@@ -19,6 +19,7 @@ import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.BatchMutationPartialFailure
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
@@ -136,8 +137,16 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanently(request.sourcePaths)
-                            BulkFileOperationType.SHRED -> fileMutationRepository.shred(request.sourcePaths)
+                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(request.sourcePaths)
+                                .fold(
+                                    onSuccess = { it.requireCompleteSuccess("Permanent delete") },
+                                    onFailure = { Result.failure(it) }
+                                )
+                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(request.sourcePaths)
+                                .fold(
+                                    onSuccess = { it.requireCompleteSuccess("Secure shred") },
+                                    onFailure = { Result.failure(it) }
+                                )
                             BulkFileOperationType.CREATE_FAKE -> fileMutationRepository.createFakeFile(
                                 requireNotNull(request.destinationPath),
                                 request.sourcePaths.first(),
@@ -181,7 +190,7 @@ class BulkFileOperationService : Service() {
                             }
                             coordinator.onOperationFailed(
                                 request,
-                                error.toArcileError().userMessage.asString(this@BulkFileOperationService)
+                                operationFailureMessage(error)
                             )
                             serviceOperationJournal.clearActive(request.operationId)
                         }
@@ -221,6 +230,13 @@ class BulkFileOperationService : Service() {
             buildNotification(request, progress)
         )
     }
+
+    private fun operationFailureMessage(error: Throwable): String =
+        if (error is BatchMutationPartialFailure) {
+            error.message ?: getString(R.string.error_file_operation_failed)
+        } else {
+            error.toArcileError().userMessage.asString(this@BulkFileOperationService)
+        }
 
     private fun buildNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress? = null): Notification {
         ensureChannel()

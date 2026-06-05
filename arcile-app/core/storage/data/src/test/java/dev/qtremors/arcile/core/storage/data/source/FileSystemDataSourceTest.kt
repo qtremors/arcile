@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.BatchMutationPartialFailure
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
@@ -149,6 +150,46 @@ class FileSystemDataSourceTest {
         assertFalse(file1.exists())
         assertFalse(file2.exists())
         assertFalse(dir.exists())
+    }
+
+    @Test
+    fun `deletePermanentlyDetailed reports partial success and failed retry targets`() = runTest {
+        val file1 = File(root, "f1.txt").apply { createNewFile() }
+        val invalidPath = File(root.parentFile, "outside.txt").absolutePath
+        val file3 = File(root, "f3.txt").apply { createNewFile() }
+
+        val result = dataSource.deletePermanentlyDetailed(listOf(file1.absolutePath, invalidPath, file3.absolutePath))
+            .getOrThrow()
+
+        assertEquals(listOf(file1.absolutePath, file3.absolutePath), result.succeededPaths)
+        assertEquals(invalidPath, result.failedItems.single().path)
+        assertEquals(emptyList<String>(), result.skippedPaths)
+        assertFalse(file1.exists())
+        assertFalse(file3.exists())
+    }
+
+    @Test
+    fun `deletePermanently compatibility fails with partial result when one item fails`() = runTest {
+        val file1 = File(root, "f1.txt").apply { createNewFile() }
+        val invalidPath = File(root.parentFile, "outside.txt").absolutePath
+
+        val result = dataSource.deletePermanently(listOf(file1.absolutePath, invalidPath))
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is BatchMutationPartialFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("1 succeeded"))
+        assertFalse(file1.exists())
+    }
+
+    @Test
+    fun `shredDetailed reports missing paths as skipped without failing`() = runTest {
+        val missing = File(root, "missing.txt").absolutePath
+
+        val result = dataSource.shredDetailed(listOf(missing)).getOrThrow()
+
+        assertEquals(emptyList<String>(), result.succeededPaths)
+        assertEquals(listOf(missing), result.skippedPaths)
+        assertTrue(result.failedItems.isEmpty())
     }
 
     @Test

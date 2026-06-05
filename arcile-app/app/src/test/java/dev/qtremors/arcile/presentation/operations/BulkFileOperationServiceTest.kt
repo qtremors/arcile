@@ -10,6 +10,10 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.testutil.FakeArchiveRepository
@@ -20,12 +24,16 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -290,6 +298,48 @@ class BulkFileOperationServiceTest {
     }
 
     @Test
+    fun `service reports partial permanent delete as failed operation`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-partial-delete",
+            type = BulkFileOperationType.DELETE,
+            sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
+            destinationPath = null,
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        val recordingCoordinator = RecordingBulkFileOperationCoordinator(request)
+        service.coordinator = recordingCoordinator
+        fileMutationRepository.deletePermanentlyDetailedResultProvider = {
+            Result.success(
+                BatchMutationResult(
+                    succeededPaths = listOf("/source/a.txt"),
+                    failedItems = listOf(
+                        BatchMutationFailure(
+                            path = "/source/b.txt",
+                            displayName = "b.txt",
+                            message = "Access denied",
+                            causeType = "AccessDenied"
+                        )
+                    ),
+                    cleanupRequiredPaths = listOf("/source/b.txt")
+                )
+            )
+        }
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        val deadline = System.currentTimeMillis() + 2_000
+        while (recordingCoordinator.failedMessage == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10)
+        }
+        assertNotNull(recordingCoordinator.failedMessage)
+        assertTrue(recordingCoordinator.failedMessage.orEmpty().contains("1 succeeded"))
+        assertTrue(recordingCoordinator.failedMessage.orEmpty().contains("1 failed"))
+        assertTrue(recordingCoordinator.failedMessage.orEmpty().contains("b.txt"))
+        awaitInactiveMutation()
+    }
+
+    @Test
     fun `service passes archive encoding and conflict resolutions to extraction`() {
         val request = BulkFileOperationRequest(
             operationId = "op-extract",
@@ -326,4 +376,38 @@ class BulkFileOperationServiceTest {
             action = BulkFileOperationService.ACTION_START
             putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, Json.encodeToString(request))
         }
+
+    private class RecordingBulkFileOperationCoordinator(
+        active: BulkFileOperationRequest
+    ) : BulkFileOperationCoordinator {
+        override val activeRequest: StateFlow<BulkFileOperationRequest?> = MutableStateFlow(active)
+        override val recoveryRecords = MutableStateFlow(emptyList<dev.qtremors.arcile.core.operation.OperationRecoveryRecord>())
+        override val events: SharedFlow<dev.qtremors.arcile.core.operation.BulkFileOperationEvent> = MutableSharedFlow()
+        var failedMessage: String? = null
+
+        override fun startOperation(
+            type: BulkFileOperationType,
+            sourcePaths: List<String>,
+            destinationPath: String?,
+            resolutions: Map<String, ConflictResolution>,
+            fakeFileSize: Long?,
+            archiveFormat: ArchiveFormat?,
+            archiveEntryPrefix: String?,
+            archivePassword: String?,
+            archiveNameEncoding: ArchiveNameEncoding?,
+            archiveCompressionLevel: ArchiveCompressionLevel?
+        ): Boolean = false
+
+        override fun cancelActiveOperation() = Unit
+        override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+        override fun onOperationCancelling(request: BulkFileOperationRequest) = Unit
+        override fun onOperationCompleted(request: BulkFileOperationRequest) = Unit
+        override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {
+            failedMessage = message
+        }
+        override fun onOperationCancelled(request: BulkFileOperationRequest?) = Unit
+        override fun retryRecoveredOperation(operationId: String): Boolean = false
+        override fun cleanupRecoveredOperation(operationId: String) = Unit
+        override fun dismissRecoveredOperation(operationId: String) = Unit
+    }
 }

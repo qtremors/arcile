@@ -277,6 +277,35 @@ class NavigationDelegateTest {
     }
 
     @Test
+    fun `newer directory navigation prevents stale listing from updating state`() = testScope.runTest {
+        val firstFiles = listOf(FileModel("old", "/storage/emulated/0/Slow/old.txt", 0L, 0L, false, "txt", false))
+        val secondFiles = listOf(FileModel("new", "/storage/emulated/0/Fast/new.txt", 0L, 0L, false, "txt", false))
+        val firstListing = CompletableDeferred<Result<List<FileModel>>>()
+        val secondListing = CompletableDeferred<Result<List<FileModel>>>()
+        repository.listFilesResultProvider = { path ->
+            when (path) {
+                "/storage/emulated/0/Slow" -> firstListing.await()
+                "/storage/emulated/0/Fast" -> secondListing.await()
+                else -> Result.success(emptyList())
+            }
+        }
+        state.value = state.value.copy(currentPath = "/storage/emulated/0", currentVolumeId = "vol1")
+
+        delegate.navigateToFolder("/storage/emulated/0/Slow")
+        delegate.navigateToFolder("/storage/emulated/0/Fast")
+        secondListing.complete(Result.success(secondFiles))
+        advanceUntilIdle()
+
+        firstListing.complete(Result.success(firstFiles))
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Fast", state.value.currentPath)
+        assertFalse(state.value.isLoading)
+        assertEquals(secondFiles, state.value.files)
+        verify { savedStateHandle.set("currentPath", "/storage/emulated/0/Fast") }
+    }
+
+    @Test
     fun `navigateToCategory clears previous files while loading category`() = testScope.runTest {
         val previousFiles = listOf(FileModel("old", "/storage/emulated/0/old", 0L, 0L, false, "", false))
         val loadedFiles = listOf(FileModel("image", "/storage/emulated/0/image.jpg", 0L, 0L, false, "jpg", false))

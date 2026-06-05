@@ -9,6 +9,8 @@ import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -36,7 +38,9 @@ interface FileSystemDataSource : DirectoryListingDataSource {
     suspend fun createDirectory(parentPath: String, name: String): Result<FileModel>
     suspend fun createFile(parentPath: String, name: String): Result<FileModel>
     suspend fun deletePermanently(paths: List<String>): Result<Unit>
+    suspend fun deletePermanentlyDetailed(paths: List<String>): Result<BatchMutationResult>
     suspend fun shred(paths: List<String>): Result<Unit>
+    suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult>
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>>
     suspend fun copyFiles(sourcePaths: List<String>, destinationPath: String, resolutions: Map<String, ConflictResolution>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
@@ -264,26 +268,55 @@ class DefaultFileSystemDataSource(
     }
 
 
-    override suspend fun deletePermanently(paths: List<String>): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun deletePermanently(paths: List<String>): Result<Unit> =
+        deletePermanentlyDetailed(paths).fold(
+            onSuccess = { it.requireCompleteSuccess("Permanent delete") },
+            onFailure = { Result.failure(it) }
+        )
+
+    override suspend fun deletePermanentlyDetailed(paths: List<String>): Result<BatchMutationResult> = withContext(dispatchers.io) {
         try {
-            val scannedPaths = mutableListOf<String>()
+            val succeededPaths = mutableListOf<String>()
+            val skippedPaths = mutableListOf<String>()
+            val failedItems = mutableListOf<BatchMutationFailure>()
+            val cleanupRequiredPaths = mutableListOf<String>()
             for (path in paths) {
                 val file = File(path)
-                validatedDestructiveRef(file).onFailure { return@withContext Result.failure(it) }
+                val validation = validatedDestructiveRef(file)
+                if (validation.isFailure) {
+                    val error = validation.exceptionOrNull() ?: IllegalArgumentException("Invalid path")
+                    failedItems += error.toBatchFailure(file)
+                    continue
+                }
 
-                if (!file.exists()) continue
+                if (!file.exists()) {
+                    skippedPaths += path
+                    continue
+                }
 
                 val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
                 if (!success) {
-                    if (scannedPaths.isNotEmpty()) {
-                        finalizeMutation(*scannedPaths.toTypedArray())
-                    }
-                    return@withContext Result.failure(Exception("Failed to permanently delete file: ${file.name}"))
+                    failedItems += BatchMutationFailure(
+                        path = path,
+                        displayName = file.name.ifBlank { path },
+                        message = "Failed to permanently delete file: ${file.name}",
+                        causeType = "DeleteFailed",
+                        cleanupRequired = true
+                    )
+                    cleanupRequiredPaths += path
+                    continue
                 }
-                scannedPaths.add(path)
+                succeededPaths.add(path)
             }
-            finalizeMutation(*scannedPaths.toTypedArray())
-            Result.success(Unit)
+            finalizeMutation(*succeededPaths.toTypedArray())
+            Result.success(
+                BatchMutationResult(
+                    succeededPaths = succeededPaths,
+                    skippedPaths = skippedPaths,
+                    failedItems = failedItems,
+                    cleanupRequiredPaths = cleanupRequiredPaths
+                )
+            )
         } catch (e: SecurityException) {
             Result.failure(FileOperationException.AccessDenied(cause = e))
         } catch (e: java.io.IOException) {
@@ -294,28 +327,62 @@ class DefaultFileSystemDataSource(
         }
     }
 
-    override suspend fun shred(paths: List<String>): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun shred(paths: List<String>): Result<Unit> =
+        shredDetailed(paths).fold(
+            onSuccess = { it.requireCompleteSuccess("Secure shred") },
+            onFailure = { Result.failure(it) }
+        )
+
+    override suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> = withContext(dispatchers.io) {
         try {
-            val scannedPaths = mutableListOf<String>()
+            val succeededPaths = mutableListOf<String>()
+            val skippedPaths = mutableListOf<String>()
+            val failedItems = mutableListOf<BatchMutationFailure>()
+            val cleanupRequiredPaths = mutableListOf<String>()
             for (path in paths) {
                 val file = File(path)
-                validatedDestructiveRef(file).onFailure { return@withContext Result.failure(it) }
+                val validation = validatedDestructiveRef(file)
+                if (validation.isFailure) {
+                    val error = validation.exceptionOrNull() ?: IllegalArgumentException("Invalid path")
+                    failedItems += error.toBatchFailure(file)
+                    continue
+                }
 
-                if (!file.exists()) continue
+                if (!file.exists()) {
+                    skippedPaths += path
+                    continue
+                }
 
-                shredRecursively(file)
+                val shredError = runCatching { shredRecursively(file) }.exceptionOrNull()
+                if (shredError != null) {
+                    failedItems += shredError.toBatchFailure(file, cleanupRequired = true)
+                    cleanupRequiredPaths += path
+                    continue
+                }
 
                 val success = if (file.isDirectory) file.deleteRecursively() else file.delete()
                 if (!success) {
-                    if (scannedPaths.isNotEmpty()) {
-                        finalizeMutation(*scannedPaths.toTypedArray())
-                    }
-                    return@withContext Result.failure(Exception("Failed to securely shred file: ${file.name}"))
+                    failedItems += BatchMutationFailure(
+                        path = path,
+                        displayName = file.name.ifBlank { path },
+                        message = "Failed to securely shred file: ${file.name}",
+                        causeType = "ShredDeleteFailed",
+                        cleanupRequired = true
+                    )
+                    cleanupRequiredPaths += path
+                    continue
                 }
-                scannedPaths.add(path)
+                succeededPaths.add(path)
             }
-            finalizeMutation(*scannedPaths.toTypedArray())
-            Result.success(Unit)
+            finalizeMutation(*succeededPaths.toTypedArray())
+            Result.success(
+                BatchMutationResult(
+                    succeededPaths = succeededPaths,
+                    skippedPaths = skippedPaths,
+                    failedItems = failedItems,
+                    cleanupRequiredPaths = cleanupRequiredPaths
+                )
+            )
         } catch (e: SecurityException) {
             Result.failure(FileOperationException.AccessDenied(cause = e))
         } catch (e: java.io.IOException) {
@@ -325,6 +392,15 @@ class DefaultFileSystemDataSource(
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
+
+    private fun Throwable.toBatchFailure(file: File, cleanupRequired: Boolean = false): BatchMutationFailure =
+        BatchMutationFailure(
+            path = file.absolutePath,
+            displayName = file.name.ifBlank { file.absolutePath },
+            message = message ?: javaClass.simpleName,
+            causeType = javaClass.simpleName,
+            cleanupRequired = cleanupRequired
+        )
 
     private fun shredRecursively(file: File) {
         if (file.isDirectory) {

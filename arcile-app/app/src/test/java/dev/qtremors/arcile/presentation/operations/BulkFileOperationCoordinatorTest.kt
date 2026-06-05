@@ -134,6 +134,23 @@ class BulkFileOperationCoordinatorTest {
     }
 
     @Test
+    fun `constructor classifies queued running and cancelling interrupted operations as cleanup required`() {
+        listOf(OperationPhase.QUEUED, OperationPhase.RUNNING, OperationPhase.CANCELLING).forEach { phase ->
+            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            val journal = DefaultOperationJournal(context)
+            journal.upsertActive(request("op-${phase.name.lowercase()}").toJournalRecord(phase))
+
+            val recoveredCoordinator = ForegroundBulkFileOperationCoordinator(context, journal)
+
+            val recovery = recoveredCoordinator.recoveryRecords.value.single()
+            assertEquals("op-${phase.name.lowercase()}", recovery.request.operationId)
+            assertEquals(OperationPhase.CLEANUP_REQUIRED.name, recovery.phase)
+            assertTrue(recovery.error.orEmpty().contains("cleanup", ignoreCase = true))
+            assertNull(journal.activeRecord())
+        }
+    }
+
+    @Test
     fun `retry recovered operation starts original request when idle`() {
         val journal = DefaultOperationJournal(context)
         val request = request("op-retry")

@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 0.9.0 | **Last Updated:** 2026-05-28
+**Version:** 1.0.0 | **Last Updated:** 2026-06-05
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -71,7 +71,6 @@ arcile/
 │   │   ├── src/main/java/dev/qtremors/arcile/
 │   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
 │   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
-│   │   │   ├── feature/                         # App-specific UI features (onboarding, storage stats, cleaner)
 │   │   │   ├── navigation/                      # Serializable typed routes & navigation graph
 │   │   │   └── di/                              # Dagger Hilt dependency injection modules
 │   ├── core/                                    # Shared business logic and UI frameworks
@@ -86,7 +85,11 @@ arcile/
 │   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
 │       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
 │       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
+│       ├── onboarding/                          # First-run setup and permission guidance
+│       ├── quickaccess/                         # Pinned folders, SAF handoffs, and folder shortcuts
 │       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
+│       ├── storagecleaner/                      # Cleanup scanner and review workflow
+│       ├── storageusage/                        # Storage dashboard and usage-map UI
 │       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
 ├── docs/                                        # Promotional landing page website
 ├── CHANGELOG.md                                 # Release logs and history
@@ -356,8 +359,8 @@ Prioritize self-documenting names. A file, function, or component should reveal 
 | `compileSdk` | 37 |
 | `targetSdk` | 36 |
 | `minSdk` | 30 |
-| `versionCode` | 74 |
-| `versionName` | `0.9.0` |
+| `versionCode` | 100 |
+| `versionName` | `1.0.0` |
 | Java / Kotlin target | JVM 11 |
 | Android Gradle Plugin | 9.1.1 |
 | Kotlin | 2.2.10 |
@@ -492,13 +495,13 @@ Robolectric-backed Compose tests are pinned to SDK 35 with `@Config(sdk = [35])`
 Debug APK naming is normalized to:
 
 ```text
-app/build/outputs/apk/debug/Arcile-0.9.0-debug.apk
+app/build/outputs/apk/debug/Arcile-1.0.0-debug.apk
 ```
 
 Release APK naming is normalized to:
 
 ```text
-app/build/outputs/apk/release/Arcile-0.9.0.apk
+app/build/outputs/apk/release/Arcile-1.0.0.apk
 ```
 
 ---
