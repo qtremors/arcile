@@ -2,9 +2,116 @@
 
 > **Project:** Arcile
 > **Version:** 0.9.9
-> **Last Updated:** 2026-06-04
+> **Last Updated:** 2026-06-05
 
 ---
+
+## Audit Remediation Backlog
+
+### Reliability Tasks
+
+- [ ] **REL-0001 - Cancel stale browser loads** `[High]`
+  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/NavigationDelegate.kt`
+  - **Problem:** `loadDirectory`, `loadCategory`, and `loadArchiveEntries` each start a new `viewModelScope.launch` without retaining or cancelling the previous load job. A fast folder change, refresh, archive navigation, or volume change can leave an older collector updating `BrowserState.files`, loading flags, cached folder stats, and errors after the user has moved to a different location.
+  - **Impact:** Browser contents, selection state, folder stats, and error messages can be overwritten by stale work, which is especially risky during file operations and rapid navigation through large directories.
+  - **Fix:** Track the active navigation/listing job, cancel it before starting another load, and gate state updates by a monotonically increasing request id or target location so old pages cannot mutate the current screen.
+  - **Verification:** Add a `NavigationDelegate` or `BrowserViewModel` test with a delayed first listing and a faster second navigation, proving that only the newest path updates `files`, `currentPath`, `isLoading`, and errors.
+
+- [ ] **REL-0002 - Make foreground operation recovery executable, not just visible** `[High]`
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationCoordinator.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/OperationJournal.kt`
+  - **Problem:** The service returns `START_NOT_STICKY`; if the process is killed mid-copy, move, delete, archive, or extraction, the operation is only exposed later as a recovered record that requires manual retry or cleanup. There is no startup repair policy that distinguishes safe resume, rollback, or mandatory cleanup per operation phase.
+  - **Impact:** Long-running or destructive operations can be interrupted with partial outputs, staged files, or stale UI state, leaving users to infer the right recovery action.
+  - **Fix:** Extend journal records with operation phase checkpoints, temp output paths, completed targets, and retry safety. On app startup, run a recovery coordinator that either resumes idempotent work, rolls back staged outputs, or presents a specific repair action with consequences.
+  - **Verification:** Add tests that kill/recreate the coordinator with active copy, move, replace, archive extraction, and trash operations, then verify the recovered action, cleanup result, and UI message for each phase.
+
+- [ ] **REL-0003 - Prevent partial permanent deletes from silently succeeding** `[High]`
+  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt`
+  - **Problem:** `deletePermanently` and `shred` iterate paths one by one and return failure after the first delete/shred failure, but any earlier paths are already deleted and only `finalizeMutation` is called for those scanned paths. The result model is `Result<Unit>`, so callers cannot report which items were removed, which failed, or what recovery is possible.
+  - **Impact:** Batch destructive operations can partially complete while the UI shows a generic failure, eroding user trust and making recovery or support difficult.
+  - **Fix:** Return a typed batch mutation result that records succeeded, skipped, failed, and cleanup-required paths. Use it in the foreground service and confirmation UI so partial success is explicit and retry targets are precise.
+  - **Verification:** Add unit tests for mixed delete/shred batches where the second item fails, asserting that completed paths, failed paths, mutation finalization, user message, and retry payload are all correct.
+
+### Security / Privacy Tasks
+
+- [ ] **SEC-0002 - Harden Save to Arcile against hostile share intents** `[High]`
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/SaveToArcileActivity.kt` `arcile-app/app/src/main/AndroidManifest.xml`
+  - **Problem:** The exported `SaveToArcileActivity` accepts `ACTION_SEND` and `ACTION_SEND_MULTIPLE` from any app, reads every stream immediately, and only sanitizes `/` and `\` in display names. It does not validate URI schemes, item count, filename length, control characters, reserved names, reported size, destination free space, or provider read failures before copying.
+  - **Impact:** Malicious or buggy share providers can trigger disk-filling copies, confusing filenames, long-running foreground-less work, or partial imports with weak user feedback.
+  - **Fix:** Add an import preflight that accepts only `content://` and safe `file://` sources where appropriate, enforces item and byte limits, normalizes filenames through the shared file-name validator, checks destination capacity when size is known, and reports per-item failures.
+  - **Verification:** Add Robolectric tests for malicious display names, unsupported schemes, huge batches, unknown sizes, stream-open failures, duplicate names, and insufficient-space simulation.
+
+- [ ] **SEC-0003 - Bound archive-entry thumbnail decoding** `[Medium]`
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/image/ArchiveEntryImageFetcher.kt`
+  - **Problem:** ZIP entry thumbnails are decoded with `BitmapFactory.decodeStream` directly from archive data. The code checks extension and `entry.size`, but ZIP metadata can be missing or misleading, and the decoder does not first read bounds or apply `inSampleSize`.
+  - **Impact:** A crafted archive image can cause excessive memory use or UI jank while browsing archive entries.
+  - **Fix:** Decode bounds first, reject images above a pixel-count limit, sample to `options.size`, and enforce a counting input stream cap independent of ZIP metadata.
+  - **Verification:** Add tests with unknown-size entries and oversized image dimensions, and manually browse a ZIP containing large images while monitoring memory and thumbnail behavior.
+
+### Data / Storage / Platform Tasks
+
+- [ ] **STORAGE-0001 - Reduce reliance on `MediaStore.DATA` raw paths** `[High]`
+  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreQueryHelpers.kt` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreClient.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/image/VideoThumbnailFetcher.kt` `arcile-app/app/src/main/java/dev/qtremors/arcile/image/AudioAlbumArtFetcher.kt`
+  - **Problem:** Media queries project and filter on `MediaStore.Files.FileColumns.DATA`, then convert results into raw filesystem-backed `FileModel`s. The app targets SDK 36, where raw data paths are increasingly fragile across scoped storage, removable volumes, cloud-backed providers, and media rows without stable local paths.
+  - **Impact:** Recent files, category browsing, search, thumbnails, and delete/rescan flows can miss items or break on providers that expose content URIs rather than durable filesystem paths.
+  - **Fix:** Store MediaStore `_ID`, volume name, relative path, display name, and content URI in the storage model. Use content URIs for thumbnail and metadata reads, and only attach raw paths when they are verified local files inside active storage roots.
+  - **Verification:** Add contract tests for rows with null/empty `DATA`, removable-volume names, and content-URI-only media; verify recent files, category search, audio art, and video thumbnails still work.
+
+- [ ] **STORAGE-0002 - Validate archive replacement rollback for directories and partial writes** `[Medium]`
+  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/ArchiveSupport.kt` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/ZipArchiveHandler.kt` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/SevenZipHandler.kt`
+  - **Problem:** Archive extraction backs up existing replacement targets only when `target.isFile`; directory conflicts and nested partial writes rely on `createdOutputs` cleanup and do not have the same rollback guarantees. Directory entries also call `mkdirs()` after conflict resolution without explicit handling for an existing file at that path.
+  - **Impact:** Failed extraction with replace or keep-both conflicts can leave mixed old/new directory contents or unclear failure states.
+  - **Fix:** Add a conflict plan for files and directories before extraction, stage replaced directories safely, and make rollback semantics explicit for directory/file collisions.
+  - **Verification:** Add archive extraction tests for file-over-directory, directory-over-file, nested replace failure, cancellation mid-directory, and rollback after password or IO failure.
+
+### Performance Tasks
+
+- [ ] **PERF-0001 - Keep storage usage scans within their advertised limits** `[Medium]`
+  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageUsageScanner.kt` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/FolderStatsCalculator.kt`
+  - **Problem:** When `StorageUsageScanner.scanFile` hits `maxDepth` or `maxNodes`, it calls `FolderStatsCalculator.calculate` for that subtree with a separate node limit. This can add large extra traversals after the scan has already reached its own budget.
+  - **Impact:** Usage-map scans can run longer than expected on deep or huge folders, increasing battery, thermal load, and UI wait time.
+  - **Fix:** Share a single scan budget across the usage scanner and fallback folder stats, or replace the fallback traversal with a bounded partial node that reports unknown/partial size without recursively scanning again.
+  - **Verification:** Add a stress test with a deep tree and low `StorageUsageScanLimits`, asserting total visited nodes and elapsed time remain bounded.
+
+- [ ] **PERF-0002 - Move large file-row UI model derivation out of composition** `[Medium]`
+  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt` `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt` `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserDisplayState.kt`
+  - **Problem:** `FileList` and `FileGrid` map every visible-directory `FileModel` into `FileRowUiModel` inside composition whenever `files`, folder stats, formatter, or thumbnail size changes. Large directories and frequent folder-stat updates can repeatedly format dates, subtitles, thumbnail keys, and display metadata on the UI path.
+  - **Impact:** Large folders can suffer avoidable recomposition and frame-time cost, especially while folder stats stream in or thumbnail policy changes.
+  - **Fix:** Derive stable row UI models in the ViewModel/display-state layer, update only affected rows when folder stats arrive, and pass immutable row lists to list/grid composables.
+  - **Verification:** Add a Compose benchmark or macrobenchmark for a 5,000-item folder with folder-stat updates, comparing recomposition counts and frame timing before and after.
+
+### UI / UX Tasks
+
+- [ ] **UI-0001 - Make browser paging globally sorted while pages stream** `[Medium]`
+  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt` `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/NavigationDelegate.kt`
+  - **Problem:** `DefaultFileSystemDataSource.list` chunks the raw `listFiles()` array, sorts each chunk independently, and emits pages that `NavigationDelegate` appends. Until all pages are loaded and display sorting catches up, streamed folder contents can appear in locally sorted blocks rather than a stable global order.
+  - **Impact:** Users can see list rows jump or appear out of order in large folders, and range selection can be confusing while pages are still arriving.
+  - **Fix:** Sort the complete child list once before chunking, or keep streaming but merge pages through a globally sorted accumulator in `BrowserDisplayState`.
+  - **Verification:** Add a paging test with deliberately unsorted filesystem children across multiple pages, asserting each emitted/visible accumulated list is globally sorted according to the active sort.
+
+### Testing / Release Tasks
+
+- [ ] **BUILD-0001 - Replace private AGP output API usage** `[Medium]`
+  - **Location:** `arcile-app/app/build.gradle.kts`
+  - **Problem:** APK renaming checks `output is com.android.build.api.variant.impl.VariantOutputImpl`, which is an internal AGP implementation class rather than a stable public Variant API.
+  - **Impact:** Android Gradle Plugin upgrades can break release builds even when app code is unchanged.
+  - **Fix:** Use the public Android Components output API or a dedicated copy/rename task wired to `assemble` artifacts instead of casting to an internal implementation.
+  - **Verification:** Run `./gradlew :app:assembleDebug :app:assembleRelease` after the change and verify APK names without references to `com.android.build.api.variant.impl`.
+
+- [ ] **TEST-0001 - Expand production string checks beyond the app module** `[Medium]`
+  - **Location:** `arcile-app/app/build.gradle.kts` `arcile-app/feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerScreen.kt` `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserArchiveDialogs.kt`
+  - **Problem:** `checkProductionStrings` scans only `app/src/main/java`, but production UI in feature and core modules still contains hardcoded strings such as archive encoding/conflict labels and destination-field labels.
+  - **Impact:** Localization, consistency, and review gates can regress silently outside the app module.
+  - **Fix:** Move the string guard to a convention plugin or root verification task that scans all production Android source sets while preserving targeted allowlists for tests and non-user-facing constants.
+  - **Verification:** Run the expanded check, migrate current feature-module hardcoded strings to resources, and ensure `./gradlew checkProductionStrings` or its replacement fails on a new hardcoded feature string.
+
+### Documentation Tasks
+
+- [ ] **DOC-0001 - Align README version and structure docs with the current project** `[Low]`
+  - **Location:** `README.md` `TASKS.md`
+  - **Problem:** `TASKS.md` and Gradle report version `0.9.9`, while the README badge still says `0.9.0`. The README project tree also references older app-internal feature locations even though feature modules now live under `arcile-app/feature/*`.
+  - **Impact:** Setup, release review, and contributor onboarding can start from stale project facts.
+  - **Fix:** Update the README badge and project-structure section to match the current Gradle version and module layout, and add a lightweight release checklist item that keeps docs in sync with `versionName`.
+  - **Verification:** Compare README version/module references against `app/build.gradle.kts` and `settings.gradle.kts`, then run markdown link checking if available.
 
 ## Backlog / Future Ideas
 
