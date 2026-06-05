@@ -169,7 +169,11 @@ fun BrowserState.withUpdatedDisplayState(): BrowserState = copy(
         currentVolumeId = currentVolumeId,
         storageVolumes = storageVolumes,
         showHiddenFiles = showHiddenFiles,
-        allFilesLabel = ALL_FILES_LABEL
+        allFilesLabel = ALL_FILES_LABEL,
+        folderStatsByPath = folderStatsByPath,
+        browserListZoom = browserListZoom,
+        browserGridMinCellSize = browserGridMinCellSize,
+        previousDisplayState = displayState
     )
 )
 

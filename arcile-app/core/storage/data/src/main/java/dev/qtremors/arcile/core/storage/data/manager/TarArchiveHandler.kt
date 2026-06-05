@@ -93,13 +93,10 @@ internal class TarArchiveHandler(
                     continue
                 }
                 if (entry.isDirectory) {
-                    rememberCreatedOutput(target, createdOutputs)
-                    target.mkdirs()
+                    prepareDirectoryTarget(target, createdOutputs, replacementBackups)
                 } else {
-                    rememberCreatedOutput(target, createdOutputs)
-                    target.parentFile?.mkdirs()
+                    prepareFileTarget(target, createdOutputs, replacementBackups)
                     validateMutationPath(target).getOrThrow()
-                    rememberReplacementBackup(target, replacementBackups)
                     BufferedOutputStream(target.outputStream()).use { output ->
                         copied += copyWithProgress(tar::read, output::write) {
                             onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, name, copied + it, totalBytes))
@@ -172,10 +169,8 @@ internal class TarArchiveHandler(
         val outputName = archive.singleStreamOutputName(format)
         if (!outputName.matchesPrefix(entryPrefix)) return
         val target = extractionContext.resolveTarget(destination, outputName, directory = false, resolutions) ?: return
-        rememberCreatedOutput(target, createdOutputs)
-        target.parentFile?.mkdirs()
+        prepareFileTarget(target, createdOutputs, replacementBackups)
         validateMutationPath(target).getOrThrow()
-        rememberReplacementBackup(target, replacementBackups)
         val totalBytes = archive.length().coerceAtLeast(1L)
         compressedInput(archive, format).use { input ->
             BufferedInputStream(input).use { buffered ->

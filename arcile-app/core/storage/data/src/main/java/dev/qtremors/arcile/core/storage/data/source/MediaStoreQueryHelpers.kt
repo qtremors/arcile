@@ -1,14 +1,17 @@
 package dev.qtremors.arcile.core.storage.data.source
 
 import android.database.Cursor
+import android.content.ContentUris
 import android.provider.MediaStore
 import dev.qtremors.arcile.core.storage.data.util.matchesScope
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import java.io.File
 
 internal data class MediaStoreFileRow(
+    val id: Long,
     val rawPath: String?,
     val displayName: String,
     val relativePath: String?,
@@ -18,15 +21,27 @@ internal data class MediaStoreFileRow(
     val mimeType: String?
 ) {
     val extension: String
-        get() = rawPath?.substringAfterLast('.', "")
-            ?: displayName.substringAfterLast('.', "")
+        get() = displayName.substringAfterLast('.', "")
+            .ifBlank { rawPath?.substringAfterLast('.', "").orEmpty() }
+
+    val contentUri: String?
+        get() = if (id > 0L) {
+            ContentUris.withAppendedId(
+                MediaStore.Files.getContentUri(volumeName ?: MediaStore.VOLUME_EXTERNAL),
+                id
+            ).toString()
+        } else {
+            null
+        }
+
+    fun verifiedLocalPath(volumes: List<StorageVolume>): String? =
+        rawPath?.takeIf { it.isNotBlank() }
+            ?.takeIf { path -> !isHiddenPath(path) }
+            ?.takeIf { path -> pathBelongsToActiveVolume(path, volumes) }
 
     fun displayPath(volumes: List<StorageVolume>): String {
-        rawPath?.let { return it }
-        val volume = volumeName?.let { name ->
-            volumes.firstOrNull { it.mediaStoreVolumeNames().contains(name) }
-        } ?: volumes.firstOrNull { it.isPrimary } ?: volumes.firstOrNull()
-
+        verifiedLocalPath(volumes)?.let { return it }
+        val volume = matchingVolume(volumes)
         val root = volume?.path?.trimEnd('/')
         val relative = relativePath.orEmpty().trim('/').trimEnd('/')
         return when {
@@ -38,6 +53,9 @@ internal data class MediaStoreFileRow(
 
     fun toFileModel(volumes: List<StorageVolume>): FileModel {
         val path = displayPath(volumes)
+        val localPath = verifiedLocalPath(volumes)
+        val volume = matchingVolume(volumes)
+        val uri = contentUri
         return FileModel(
             name = displayName,
             absolutePath = path,
@@ -46,9 +64,28 @@ internal data class MediaStoreFileRow(
             isDirectory = false,
             extension = extension,
             isHidden = displayName.startsWith(".") || path.contains("/."),
-            mimeType = mimeType
+            mimeType = mimeType,
+            nodeRef = if (uri != null) {
+                StorageNodeRef.mediaStore(
+                    id = id,
+                    volumeName = volumeName,
+                    contentUri = uri,
+                    displayPath = path,
+                    volumeId = volume?.id,
+                    localPath = localPath
+                )
+            } else {
+                StorageNodeRef.local(path = path, volumeId = volume?.id)
+            }
         )
     }
+
+    private fun matchingVolume(volumes: List<StorageVolume>): StorageVolume? =
+        volumeName?.let { name ->
+            volumes.firstOrNull { it.mediaStoreVolumeNames().contains(name) }
+        } ?: volumes.firstOrNull { volume ->
+            rawPath?.let { path -> pathBelongsToVolume(path, volume) } == true
+        } ?: volumes.firstOrNull { it.isPrimary } ?: volumes.firstOrNull()
 }
 
 internal fun StorageVolume.mediaStoreVolumeNames(): Set<String> {
@@ -61,7 +98,7 @@ internal fun StorageVolume.mediaStoreVolumeNames(): Set<String> {
             names += it.lowercase()
             names += it.uppercase()
         }
-    path.substringAfterLast('/', "")
+    path.replace('\\', '/').substringAfterLast('/', "")
         .takeIf { it.isNotBlank() }
         ?.let {
             names += it
@@ -84,6 +121,7 @@ internal fun mediaProjection(): Array<String> = arrayOf(
 )
 
 internal fun Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
+    val idCol = optionalColumn(MediaStore.Files.FileColumns._ID)
     val dataCol = optionalColumn(MediaStore.Files.FileColumns.DATA)
     val nameCol = optionalColumn(MediaStore.Files.FileColumns.DISPLAY_NAME)
     val sizeCol = optionalColumn(MediaStore.Files.FileColumns.SIZE)
@@ -101,6 +139,7 @@ internal fun Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
     val dateModified = getOptionalLong(dateModifiedCol) * 1000L
 
     return MediaStoreFileRow(
+        id = getOptionalLong(idCol),
         rawPath = path,
         displayName = name,
         relativePath = getOptionalString(relativePathCol),
@@ -113,8 +152,11 @@ internal fun Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
 
 internal fun rowMatchesScope(row: MediaStoreFileRow, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
     if (row.displayName.startsWith(".")) return false
-    row.rawPath?.let { path ->
+    row.verifiedLocalPath(volumes)?.let { path ->
         return !path.contains("/.") && matchesScope(path, scope, volumes)
+    }
+    if (!row.rawPath.isNullOrBlank() && row.volumeName == null) {
+        return scope is StorageScope.AllStorage
     }
 
     val volumeName = row.volumeName
@@ -148,9 +190,8 @@ internal fun appendVolumeSelection(
             clauses += "${MediaStore.MediaColumns.VOLUME_NAME} = ?"
             selectionArgs += volumeName
         }
-        clauses += "${MediaStore.Files.FileColumns.DATA} LIKE ?"
-        selectionArgs += volume.path.trimEnd('/') + "/%"
     }
+    clauses += "${MediaStore.MediaColumns.VOLUME_NAME} IS NULL"
     if (clauses.isNotEmpty()) {
         selectionParts += clauses.joinToString(
             separator = " OR ",
@@ -168,3 +209,20 @@ private fun Cursor.getOptionalString(index: Int): String? =
 
 private fun Cursor.getOptionalLong(index: Int, default: Long = 0L): Long =
     if (index >= 0 && !isNull(index)) getLong(index) else default
+
+private fun isHiddenPath(path: String): Boolean =
+    path.split('/', '\\').any { it.startsWith(".") }
+
+private fun pathBelongsToActiveVolume(path: String, volumes: List<StorageVolume>): Boolean =
+    volumes.any { volume -> pathBelongsToVolume(path, volume) }
+
+private fun pathBelongsToVolume(path: String, volume: StorageVolume): Boolean {
+    val root = File(volume.path).canonicalPathOrAbsolute().trimEnd(File.separatorChar, '/', '\\')
+    val candidate = File(path).canonicalPathOrAbsolute()
+    return candidate == root ||
+        candidate.startsWith(root + File.separator) ||
+        candidate.startsWith(root + "/")
+}
+
+private fun File.canonicalPathOrAbsolute(): String =
+    runCatching { canonicalPath }.getOrDefault(absolutePath)

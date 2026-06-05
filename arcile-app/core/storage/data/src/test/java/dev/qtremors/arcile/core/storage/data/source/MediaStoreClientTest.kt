@@ -11,6 +11,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import io.mockk.every
@@ -155,6 +156,68 @@ class MediaStoreClientTest {
         assertEquals(fsPath("storage", "emulated", "0", "DCIM", "Camera", "photo.jpg"), result.single().absolutePath)
         assertEquals("jpg", result.single().extension)
         assertEquals("image/jpeg", result.single().mimeType)
+        assertEquals(StorageNodeRef.MEDIA_STORE_BACKEND_ID, result.single().nodeRef.backendId)
+        assertTrue(result.single().nodeRef.contentUri.orEmpty().contains("/external_primary/file/42"))
+    }
+
+    @Test
+    fun `getFilesByCategory includes content only removable volume rows`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val sdRoot = fsPath("storage", "1234-5678")
+        val resolver = mockk<ContentResolver>()
+        every {
+            resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
+        } returns mediaCursor(
+            MediaRow(
+                id = 77L,
+                data = "",
+                displayName = "clip.mp4",
+                relativePath = "Movies/",
+                volumeName = "1234-5678",
+                size = 2048L,
+                mimeType = "video/mp4"
+            )
+        )
+        val context = TestContext(baseContext, temporaryFolder.root, resolver)
+        val client = DefaultMediaStoreClient(
+            context = context,
+            volumeProvider = FakeVolumeProvider(listOf(storageVolume("sd", sdRoot, isPrimary = false)))
+        )
+
+        val result = client.getFilesByCategory(StorageScope.Volume("sd"), "Videos").getOrThrow()
+
+        assertEquals(1, result.size)
+        assertEquals(fsPath("storage", "1234-5678", "Movies", "clip.mp4"), result.single().absolutePath)
+        assertEquals(StorageNodeRef.MEDIA_STORE_BACKEND_ID, result.single().nodeRef.backendId)
+        assertTrue(result.single().nodeRef.contentUri.orEmpty().contains("/1234-5678/file/77"))
+    }
+
+    @Test
+    fun `raw data outside active roots is treated as display fallback only`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val primaryRoot = fsPath("storage", "emulated", "0")
+        val resolver = mockk<ContentResolver>()
+        every {
+            resolver.query(any(), any(), any<Bundle>(), isNull())
+        } returns recentCursor(
+            id = 84L,
+            data = fsPath("outside", "provider", "photo.jpg"),
+            displayName = "photo.jpg",
+            relativePath = "Pictures/",
+            volumeName = MediaStore.VOLUME_EXTERNAL_PRIMARY,
+            size = 512L,
+            mimeType = "image/jpeg"
+        )
+        val context = TestContext(baseContext, temporaryFolder.root, resolver)
+        val client = DefaultMediaStoreClient(
+            context = context,
+            volumeProvider = FakeVolumeProvider(listOf(storageVolume("primary", primaryRoot, isPrimary = true)))
+        )
+
+        val result = client.getRecentFiles(StorageScope.AllStorage, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()
+
+        assertEquals(fsPath("storage", "emulated", "0", "Pictures", "photo.jpg"), result.single().absolutePath)
+        assertEquals(StorageNodeRef.MEDIA_STORE_BACKEND_ID, result.single().nodeRef.backendId)
     }
 
     private fun assertCategorySize(data: List<CategoryStorage>, name: String, expectedSize: Long) {
@@ -176,6 +239,7 @@ class MediaStoreClientTest {
     }
 
     private fun recentCursor(
+        id: Long = 42L,
         data: String?,
         displayName: String,
         relativePath: String,
@@ -198,7 +262,7 @@ class MediaStoreClientTest {
         ).apply {
             addRow(
                 arrayOf<Any?>(
-                    42L,
+                    id,
                     data,
                     displayName,
                     size,
@@ -209,6 +273,48 @@ class MediaStoreClientTest {
                     volumeName
                 )
             )
+        }
+    }
+
+    private data class MediaRow(
+        val id: Long,
+        val data: String?,
+        val displayName: String,
+        val relativePath: String,
+        val volumeName: String,
+        val size: Long,
+        val mimeType: String
+    )
+
+    private fun mediaCursor(vararg rows: MediaRow): Cursor {
+        return MatrixCursor(
+            arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DATA,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.DATE_MODIFIED,
+                MediaStore.Files.FileColumns.DATE_ADDED,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                MediaStore.MediaColumns.VOLUME_NAME
+            )
+        ).apply {
+            rows.forEach { row ->
+                addRow(
+                    arrayOf<Any?>(
+                        row.id,
+                        row.data,
+                        row.displayName,
+                        row.size,
+                        1_700_000_000L,
+                        1_700_000_100L,
+                        row.mimeType,
+                        row.relativePath,
+                        row.volumeName
+                    )
+                )
+            }
         }
     }
 

@@ -364,8 +364,7 @@ class DefaultMediaStoreClient(
             }
 
             category.extensions.forEach { ext ->
-                clauses.add("(${MediaStore.Files.FileColumns.DATA} LIKE ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?)")
-                selectionArgs.add("%.${ext}")
+                clauses.add("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
                 selectionArgs.add("%.${ext}")
             }
 
@@ -494,8 +493,7 @@ class DefaultMediaStoreClient(
                         }
 
                         category.extensions.forEach { ext ->
-                            categoryClauses.add("(${MediaStore.Files.FileColumns.DATA} LIKE ? OR ${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?)")
-                            selectionArgs.add("%.${ext}")
+                            categoryClauses.add("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
                             selectionArgs.add("%.${ext}")
                         }
 

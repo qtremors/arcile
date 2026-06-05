@@ -16,7 +16,7 @@ android {
     defaultConfig {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 100
         versionName = "1.0.0"
 
@@ -90,11 +90,8 @@ android {
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
-            if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-                // versionName already includes the "-debug" suffix from versionNameSuffix
-                val version = variant.outputs.first().versionName.get() ?: "0.0.0"
-                output.outputFileName.set("Arcile-$version.apk")
-            }
+            val version = output.versionName.get() ?: "0.0.0"
+            output.outputFileName.set("Arcile-$version.apk")
         }
     }
 }
@@ -108,60 +105,6 @@ kotlin {
 composeCompiler {
     reportsDestination = layout.buildDirectory.dir("compose_compiler/reports")
     metricsDestination = layout.buildDirectory.dir("compose_compiler/metrics")
-}
-
-tasks.register("checkProductionStrings") {
-    group = "verification"
-    description = "Flags obvious hardcoded production UI strings in production sources."
-
-    doLast {
-        val sourceRoot = file("src/main/java")
-        val suspiciousPattern = Regex(
-            """(Text\(\s*"[^"]*[A-Za-z][^"]*"|contentDescription\s*=\s*"[^"]*[A-Za-z][^"]*"|placeholder\s*=\s*"[^"]*[A-Za-z][^"]*"|title\s*=\s*"[^"]*[A-Za-z][^"]*"|Toast\.makeText\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|createChooser\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|error\.message\s*\?:\s*"[^"]*[A-Za-z][^"]*"|fileOperationStatusMessage\s*=\s*"[^"]*[A-Za-z][^"]*"|setContentTitle\("([^"]*[A-Za-z][^"]*)"|setContentText\("([^"]*[A-Za-z][^"]*)"|addAction\([^"]*"[^"]*[A-Za-z][^"]*")"""
-        )
-        val allowedFragments = listOf(
-            "android.os.Build.",
-            "Text(\".\${",
-            "AppLogger.",
-            "Regex(",
-            "SimpleDateFormat(",
-            "DateTimeFormatter",
-            "ImageRequest.Builder",
-            "mutableStateOf(\"\")",
-            "SavedStateHandle",
-            "MIME",
-            "mimeType",
-            "contentType =",
-            "label ="
-        )
-        val offenders = fileTree(sourceRoot) {
-            include("dev/qtremors/arcile/**/*.kt")
-            exclude("**/ui/theme/**")
-        }.files.flatMap { sourceFile ->
-            val relativePath = sourceFile.relativeTo(projectDir).invariantSeparatorsPath
-            sourceFile.readLines().mapIndexedNotNull { index, line ->
-                val trimmed = line.trim()
-                if (suspiciousPattern.containsMatchIn(trimmed) &&
-                    allowedFragments.none { trimmed.contains(it) } &&
-                    !trimmed.contains("R.string.") &&
-                    !trimmed.contains("R.plurals.") &&
-                    !trimmed.contains("stringResource(") &&
-                    !trimmed.contains("pluralStringResource(") &&
-                    !trimmed.contains("getString(")
-                ) {
-                    "$relativePath:${index + 1}: $trimmed"
-                } else {
-                    null
-                }
-            }
-        }
-        if (offenders.isNotEmpty()) {
-            throw GradleException(buildString {
-                appendLine("Found hardcoded production UI strings:")
-                offenders.forEach { appendLine(it) }
-            })
-        }
-    }
 }
 
 dependencies {

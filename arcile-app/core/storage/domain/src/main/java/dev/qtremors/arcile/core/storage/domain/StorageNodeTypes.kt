@@ -30,6 +30,11 @@ value class StorageNodePath private constructor(val absolutePath: String) {
 @JvmInline
 value class CanonicalStorageIdentity private constructor(val value: String) {
     companion object {
+        fun of(value: String): CanonicalStorageIdentity {
+            require(value.isNotBlank()) { "Canonical storage identity must not be blank" }
+            return CanonicalStorageIdentity(value)
+        }
+
         fun fromPath(path: StorageNodePath): CanonicalStorageIdentity {
             val canonical = runCatching { File(path.absolutePath).canonicalPath }
                 .getOrDefault(File(path.absolutePath).absolutePath)
@@ -98,10 +103,13 @@ data class StorageNodeRef(
     val volumeId: StorageVolumeId? = null,
     val displayPath: StorageNodePath,
     val canonicalIdentity: CanonicalStorageIdentity = CanonicalStorageIdentity.fromPath(displayPath),
-    val capabilities: StorageNodeCapabilities = StorageNodeCapabilities()
+    val capabilities: StorageNodeCapabilities = StorageNodeCapabilities(),
+    val contentUri: String? = null,
+    val backendIdentity: String? = null
 ) {
     companion object {
         const val LOCAL_BACKEND_ID = "local"
+        const val MEDIA_STORE_BACKEND_ID = "mediastore"
 
         fun local(
             path: String,
@@ -117,6 +125,37 @@ data class StorageNodeRef(
                 displayPath = nodePath,
                 canonicalIdentity = CanonicalStorageIdentity.fromPath(nodePath),
                 capabilities = capabilities
+            )
+        }
+
+        fun mediaStore(
+            id: Long,
+            volumeName: String?,
+            contentUri: String,
+            displayPath: String,
+            volumeId: String? = null,
+            localPath: String? = null,
+            capabilities: StorageNodeCapabilities = StorageNodeCapabilities(
+                canRead = true,
+                canWrite = false,
+                canDelete = true,
+                canTrash = false,
+                canArchive = false
+            )
+        ): StorageNodeRef {
+            val nodePath = StorageNodePath.of(displayPath)
+            val identity = "mediastore:${volumeName.orEmpty()}:$id"
+            return StorageNodeRef(
+                backendId = MEDIA_STORE_BACKEND_ID,
+                volumeId = volumeId?.takeIf { it.isNotBlank() }?.let(StorageVolumeId::of),
+                displayPath = nodePath,
+                canonicalIdentity = localPath
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { CanonicalStorageIdentity.fromPath(StorageNodePath.of(it)) }
+                    ?: CanonicalStorageIdentity.of(identity),
+                capabilities = capabilities,
+                contentUri = contentUri,
+                backendIdentity = identity
             )
         }
     }

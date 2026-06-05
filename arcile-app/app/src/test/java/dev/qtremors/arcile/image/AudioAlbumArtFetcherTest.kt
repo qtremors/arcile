@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.database.MatrixCursor
 import android.graphics.Bitmap
+import android.net.Uri
 import android.provider.MediaStore
 import android.util.Size
 import androidx.test.core.app.ApplicationProvider
@@ -69,6 +70,40 @@ class AudioAlbumArtFetcherTest {
 
         assertEquals(1, queryCount)
         assertEquals(Size(320, 320), lastRequestedSize)
+        assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
+    }
+
+    @Test
+    fun `fetch uses content uri directly when thumbnail key has media store uri`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val expectedBitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        val resolver = mockk<ContentResolver>()
+        var queryCount = 0
+        var requestedUri: Uri? = null
+        every {
+            resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
+        } answers {
+            queryCount += 1
+            MatrixCursor(arrayOf(MediaStore.Audio.Media._ID))
+        }
+        every { resolver.loadThumbnail(any(), any(), any()) } answers {
+            requestedUri = arg(0)
+            expectedBitmap
+        }
+        val context = ThumbnailContext(baseContext, resolver)
+        val options = mockk<Options> {
+            every { this@mockk.context } returns context
+            every { size } returns CoilSize(320, 320)
+        }
+
+        val result = AudioAlbumArtFetcher(
+            File("/storage/emulated/0/Music/song.mp3"),
+            options,
+            contentUri = "content://media/external_primary/audio/media/42"
+        ).fetch() as DrawableResult
+
+        assertEquals(0, queryCount)
+        assertEquals("content://media/external_primary/audio/media/42", requestedUri.toString())
         assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
     }
 

@@ -43,9 +43,9 @@ import dev.qtremors.arcile.shared.ui.Breadcrumbs
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.FolderTabsRow
-import dev.qtremors.arcile.shared.ui.lists.FileGrid
+import dev.qtremors.arcile.shared.ui.lists.FileGridRows
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
-import dev.qtremors.arcile.shared.ui.lists.FileList
+import dev.qtremors.arcile.shared.ui.lists.FileListRows
 import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
 import dev.qtremors.arcile.shared.ui.rememberDateOnlyFormatter
 import dev.qtremors.arcile.ui.theme.spacing
@@ -349,8 +349,8 @@ private fun BrowserListingContent(
             modifier = Modifier.fillMaxSize()
         )
     } else if (state.browserViewMode == BrowserViewMode.GRID) {
-        FileGrid(
-            files = displayedFiles,
+        FileGridRows(
+            rows = state.displayState.visibleGridRows,
             selectedFiles = state.selectedFiles,
             onNavigateTo = actions.onNavigateTo,
             onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
@@ -361,7 +361,6 @@ private fun BrowserListingContent(
             modifier = Modifier.fillMaxSize(),
             gridState = gridState,
             minCellSize = state.browserGridMinCellSize.dp,
-            folderStatsByPath = state.folderStatsByPath,
             folderStatsLoadingPaths = state.folderStatsLoadingPaths,
             contentPadding = PaddingValues(
                 top = 8.dp,
@@ -371,8 +370,8 @@ private fun BrowserListingContent(
             )
         )
     } else {
-        FileList(
-            files = displayedFiles,
+        FileListRows(
+            rows = state.displayState.visibleListRows,
             selectedFiles = state.selectedFiles,
             onNavigateTo = actions.onNavigateTo,
             onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
@@ -383,7 +382,6 @@ private fun BrowserListingContent(
             modifier = Modifier.fillMaxSize(),
             listState = listState,
             zoom = state.browserListZoom,
-            folderStatsByPath = state.folderStatsByPath,
             folderStatsLoadingPaths = state.folderStatsLoadingPaths,
             contentPadding = PaddingValues(
                 top = 8.dp,

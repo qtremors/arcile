@@ -16,12 +16,26 @@
 - **Stale Browser Load Cancellation:** Cancelled superseded directory, category, archive, and volume-root loads with generation-gated state updates so older listings cannot overwrite the current browser path, files, loading state, or errors after rapid navigation.
 - **Executable Operation Recovery Policy:** Pinned interrupted queued, running, and cancelling foreground operations to cleanup-required recovery records while preserving user-triggered retry and cleanup actions.
 - **Partial Permanent Delete Reporting:** Added detailed delete/shred batch results that record succeeded, skipped, failed, and cleanup-required paths, and surfaced partial destructive batches as explicit failed foreground operations with retry-target detail.
+- **MediaStore Content URI Resilience:** Reduced reliance on fragile `MediaStore.DATA` paths by carrying MediaStore IDs, volume names, display metadata, and content URIs through storage models, while treating raw paths as trusted only when they resolve under active storage roots.
+- **Content-Based Media Thumbnails:** Routed audio album art and video thumbnails through MediaStore content URIs when available, preserving local-file fallbacks for verified filesystem-backed files.
+- **Transactional Archive Replacement:** Hardened ZIP, 7z, TAR, and single-stream extraction so file and directory replacements are staged, directory/file collisions are handled consistently, keep-both directory children follow the renamed target, and failed extractions restore replaced trees.
+- **Bounded Storage Usage Scans:** Stopped partial storage-usage nodes from launching an extra recursive fallback after scan depth or node limits are reached, keeping large-tree scans within their configured traversal budget.
+- **Stable Directory Paging:** Sorted full directory listings before paging streamed results so every accumulated browser page remains globally directory-first and name-sorted across page boundaries.
+
+### Performance
+- **Precomputed Browser Rows:** Moved list and grid row UI model derivation into browser display state with thumbnail-size and folder-stat-aware reuse, reducing repeated row work during unrelated recompositions.
 
 ### Release
 - **1.0.0 Version Sync:** Bumped the Android app to `versionName` `1.0.0` and `versionCode` `100`, then synchronized release-facing documentation and metadata.
+- **Android 17 Target SDK:** Updated the app target SDK to Android 17 / API 37 after confirming the project already uses `compileSdk` 37, AGP 9.2.1, KSP 2.3.2, and Gradle 9.4.1.
+- **Public APK Output Naming:** Replaced AGP internal output API usage with the public variant output filename API while preserving `Arcile-$version.apk` release artifacts.
+- **Expanded Production String Guard:** Moved the hardcoded production string check into build logic, expanded it across Android production source sets, and migrated archive UI labels to shared string resources.
 
 ### Verification
 - **Regression Coverage:** Added browser ViewModel tests for archive back navigation and selected-entry extraction, stale-load cancellation tests, accent palette and monochrome scheme tests, utility catalog and preference tests, Home visibility coverage, share-target parsing and manifest tests, carousel-limit persistence tests, notification progress and partial-delete failure tests, interrupted-operation recovery classification tests, detailed delete/shred batch tests, and thumbnail sizing expectations. Verified with `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:core:storage:data:testDebugUnitTest`, `:app:testDebugUnitTest`, `:app:compileDebugKotlin`, targeted `:app:testDebugUnitTest :core:storage:data:testDebugUnitTest :core:ui:testDebugUnitTest`, `:feature:browser:testDebugUnitTest :core:storage:data:testDebugUnitTest :app:checkProductionStrings`, and `:app:checkProductionStrings`.
+- **Storage Platform Coverage:** Added MediaStore contract tests for null or empty `DATA`, removable volumes, content-only rows, and untrusted raw paths; added thumbnail tests for content URI routing; and added archive rollback tests for file/directory collisions, directory keep-both, nested replacement failure, and wrong-password preservation. Verified with `:core:storage:data:testDebugUnitTest` and `:app:testDebugUnitTest`.
+- **Performance and Release Coverage:** Added bounded storage usage scan, globally sorted paging, browser row reuse, and production string guard fixture coverage. Verified with `:core:storage:data:testDebugUnitTest`, `:feature:browser:testDebugUnitTest`, `:core:ui:testDebugUnitTest`, `:build-logic:test`, `checkProductionStrings`, `:app:assembleDebug`, and `:app:assembleRelease`.
+- **Android 17 Build Verification:** Confirmed the Android 17 target SDK bump with `:app:compileDebugKotlin`.
 - **Release Sync Verification:** Rechecked active version references across Gradle, README, release docs, development docs, task metadata, and the website, then verified the amended release with `:app:compileDebugKotlin` and `:app:checkProductionStrings`.
 
 ## [0.9.9] - 2026-06-03

@@ -8,12 +8,13 @@ data class ThumbnailKey(
     val path: String,
     val extension: String,
     val sizeBytes: Long,
-    val lastModifiedMillis: Long
+    val lastModifiedMillis: Long,
+    val contentUri: String? = null
 ) {
     val file: File get() = File(path)
 
     val cacheKey: String
-        get() = "thumbnail:$path:$extension:$sizeBytes:$lastModifiedMillis"
+        get() = "thumbnail:${contentUri ?: path}:$extension:$sizeBytes:$lastModifiedMillis"
 
     val type: ThumbnailType
         get() = when (extension.lowercase()) {
@@ -31,7 +32,8 @@ data class ThumbnailKey(
                 path = file.absolutePath,
                 extension = file.extension.lowercase(),
                 sizeBytes = file.size,
-                lastModifiedMillis = file.lastModified
+                lastModifiedMillis = file.lastModified,
+                contentUri = file.nodeRef.contentUri
             )
 
         fun from(file: File): ThumbnailKey =

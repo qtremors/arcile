@@ -678,14 +678,14 @@ private fun ArchiveEncodingDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.TextFields, contentDescription = null) },
-        title = { Text("Filename encoding") },
+        title = { Text(stringResource(R.string.archive_filename_encoding)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 ArchiveNameEncoding.entries.forEach { encoding ->
                     ListItem(
                         headlineContent = { Text(encoding.displayName) },
                         supportingContent = if (encoding == selected) {
-                            { Text("Selected") }
+                            { Text(stringResource(R.string.selected)) }
                         } else {
                             null
                         },
@@ -715,7 +715,7 @@ private fun ArchiveConflictDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
-        title = { Text("Resolve conflicts") },
+        title = { Text(stringResource(R.string.archive_resolve_conflicts)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
@@ -723,7 +723,7 @@ private fun ArchiveConflictDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.KEEP_BOTH) }) {
-                        Text("Keep both")
+                        Text(stringResource(R.string.action_keep_both))
                     }
                     TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.REPLACE) }) {
                         Text(stringResource(R.string.action_replace))
@@ -746,7 +746,7 @@ private fun ArchiveConflictDialog(
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.KEEP_BOTH) }) {
-                                    Text("Keep both")
+                                    Text(stringResource(R.string.action_keep_both))
                                 }
                                 TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.REPLACE) }) {
                                     Text(stringResource(R.string.action_replace))

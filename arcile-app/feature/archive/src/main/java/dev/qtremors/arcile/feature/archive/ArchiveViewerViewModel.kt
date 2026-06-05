@@ -1,9 +1,11 @@
 package dev.qtremors.arcile.feature.archive
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -15,6 +17,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,7 +84,8 @@ data class ArchiveViewerState(
 class ArchiveViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ArchiveRepository,
-    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
     private val archivePath = savedStateHandle.get<String>("archivePath").orEmpty()
 
@@ -293,7 +297,9 @@ class ArchiveViewerViewModel @Inject constructor(
                     }
                 },
                 onFailure = { error ->
-                    _state.update { it.copy(error = error.message ?: "Failed to inspect archive conflicts") }
+                    _state.update {
+                        it.copy(error = error.message ?: context.getString(R.string.archive_conflict_inspection_failed))
+                    }
                 }
             )
         }

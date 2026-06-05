@@ -175,15 +175,16 @@ class DefaultFileSystemDataSource(
 
             val boundedPageSize = pageSize.coerceIn(1, ListingPage.MAX_PAGE_SIZE)
             children.asSequence()
+                .map { it.toFileModel() }
+                .sortedWith(listingComparator)
                 .chunked(boundedPageSize)
                 .forEachIndexed { index, chunk ->
                     kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                    val files = chunk.map { it.toFileModel() }.sortedWith(listingComparator)
                     val complete = (index + 1) * boundedPageSize >= children.size
                     emit(
                         ListingPage(
                             path = path,
-                            files = files,
+                            files = chunk,
                             pageIndex = index,
                             isComplete = complete
                         )

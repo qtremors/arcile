@@ -65,14 +65,17 @@ class DefaultStorageUsageScanner @Inject constructor(
         }
 
         if (depth >= limits.maxDepth || progress.scannedNodes >= limits.maxNodes) {
-            val stats = FolderStatsCalculator.calculate(file, nodeLimit = max(1_000, limits.maxNodes / 2))
-            progress.scannedBytes += stats.totalBytes
+            val childCount = try {
+                file.listFiles()?.count { it.name != ".thumbnails" } ?: 0
+            } catch (_: Exception) {
+                0
+            }
             return StorageUsageNode(
                 name = file.name.ifBlank { file.absolutePath },
                 path = file.absolutePath,
-                sizeBytes = stats.totalBytes,
+                sizeBytes = 0L,
                 kind = StorageUsageNodeKind.Folder,
-                childCount = stats.fileCount.toInt().coerceAtLeast(0),
+                childCount = childCount,
                 status = StorageUsageScanStatus.Partial
             )
         }

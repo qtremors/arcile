@@ -105,6 +105,24 @@ class FileSystemDataSourceTest {
     }
 
     @Test
+    fun `list emits globally sorted accumulated pages`() = runTest {
+        File(root, "zeta.txt").createNewFile()
+        File(root, "beta.txt").createNewFile()
+        File(root, "alpha").mkdirs()
+        File(root, "gamma.txt").createNewFile()
+        File(root, "delta").mkdirs()
+
+        val pages = dataSource.list(StorageNodePath.of(root.absolutePath), pageSize = 2).toList()
+        val accumulated = mutableListOf<String>()
+
+        pages.forEach { page ->
+            accumulated += page.files.map { it.name }
+            assertEquals(accumulated.sortedWith(directoryFirstNameComparator(root)), accumulated)
+        }
+        assertEquals(listOf("alpha", "delta", "beta.txt", "gamma.txt", "zeta.txt"), accumulated)
+    }
+
+    @Test
     fun `listFiles compatibility returns globally sorted large directory`() = runTest {
         repeat(1_000) { index ->
             File(root, "file-${index.toString().padStart(4, '0')}.txt").createNewFile()
@@ -349,4 +367,8 @@ class FileSystemDataSourceTest {
         assertTrue(resultReplace.isSuccess)
         assertEquals("source", destFile.readText()) // replaced
     }
+
+    private fun directoryFirstNameComparator(parent: File): Comparator<String> =
+        compareBy<String> { !File(parent, it).isDirectory }
+            .thenBy { it.lowercase() }
 }

@@ -95,6 +95,40 @@ fun FileList(
             )
         }
     }
+    FileListRows(
+        rows = rows,
+        selectedFiles = selectedFiles,
+        onNavigateTo = onNavigateTo,
+        onOpenFile = onOpenFile,
+        onToggleSelection = onToggleSelection,
+        onSelectMultiple = onSelectMultiple,
+        modifier = modifier,
+        listState = listState,
+        zoom = zoom,
+        showThumbnails = showThumbnails,
+        thumbnailLoadingPaused = thumbnailLoadingPaused,
+        folderStatsLoadingPaths = folderStatsLoadingPaths,
+        contentPadding = contentPadding
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun FileListRows(
+    rows: List<FileRowUiModel>,
+    selectedFiles: Set<String>,
+    onNavigateTo: (String) -> Unit,
+    onOpenFile: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onSelectMultiple: (List<String>) -> Unit,
+    modifier: Modifier = Modifier,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    zoom: Float = 1f,
+    showThumbnails: Boolean = true,
+    thumbnailLoadingPaused: Boolean = false,
+    folderStatsLoadingPaths: Set<String> = emptySet(),
+    contentPadding: PaddingValues = PaddingValues(0.dp)
+) {
     val haptics = rememberArcileHaptics()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val visibleRange by remember {
@@ -105,7 +139,7 @@ fun FileList(
     }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(files) { lastInteractedIndex = null }
+    LaunchedEffect(rows) { lastInteractedIndex = null }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -146,7 +180,7 @@ fun FileList(
                     if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
                         val start = minOf(lastInteractedIndex!!, index)
                         val end = maxOf(lastInteractedIndex!!, index)
-                        onSelectMultiple(files.subList(start, end + 1).map { it.absolutePath })
+                        onSelectMultiple(rows.subList(start, end + 1).map { it.absolutePath })
                         haptics.selectionChanged()
                     } else {
                         val wasEmpty = selectedFiles.isEmpty()

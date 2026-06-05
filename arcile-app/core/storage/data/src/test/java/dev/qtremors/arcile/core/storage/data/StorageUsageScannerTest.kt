@@ -81,6 +81,26 @@ class StorageUsageScannerTest {
     }
 
     @Test
+    fun `scanner does not run fallback traversal after reaching scan budget`() = runTest {
+        val root = temporaryFolder.newFolder("bounded")
+        var current = root
+        repeat(40) { depth ->
+            current = File(current, "level-$depth").apply { mkdirs() }
+            repeat(20) { index ->
+                File(current, "file-$index.bin").writeBytes(ByteArray(1))
+            }
+        }
+
+        val loaded = scanner.scanStorageUsage(
+            root.absolutePath,
+            StorageUsageScanLimits(maxDepth = 2, maxNodes = 8, maxChildrenPerFolder = 100)
+        ).loadedState()
+
+        assertEquals(StorageUsageScanStatus.Partial, loaded.root.status)
+        assertTrue(countReturnedNodes(loaded.root) <= 8)
+    }
+
+    @Test
     fun `scanner returns error for missing root`() = runTest {
         val missing = File(temporaryFolder.root, "missing")
         val states = mutableListOf<StorageUsageScanState>()
@@ -97,4 +117,7 @@ class StorageUsageScannerTest {
         }
         return requireNotNull(loaded)
     }
+
+    private fun countReturnedNodes(node: dev.qtremors.arcile.core.storage.domain.StorageUsageNode): Int =
+        1 + node.children.sumOf(::countReturnedNodes)
 }

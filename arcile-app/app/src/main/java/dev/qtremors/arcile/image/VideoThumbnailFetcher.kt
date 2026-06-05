@@ -2,6 +2,7 @@ package dev.qtremors.arcile.image
 
 import android.content.ContentUris
 import android.graphics.drawable.BitmapDrawable
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Size
@@ -21,6 +22,7 @@ import java.io.File
 class VideoThumbnailFetcher(
     private val file: File,
     private val options: Options,
+    private val contentUri: String? = null,
     private val ioContext: CoroutineContext = Dispatchers.IO
 ) : Fetcher {
     companion object {
@@ -42,6 +44,15 @@ class VideoThumbnailFetcher(
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 try {
+                    contentUri?.let { uri ->
+                        val bitmap = context.contentResolver.loadThumbnail(Uri.parse(uri), Size(targetSize, targetSize), null)
+                        return@withContext DrawableResult(
+                            drawable = BitmapDrawable(context.resources, bitmap),
+                            isSampled = true,
+                            dataSource = DataSource.DISK
+                        )
+                    }
+
                     val projection = arrayOf(MediaStore.Video.Media._ID)
                     val selection = "${MediaStore.Video.Media.DATA} = ?"
                     val selectionArgs = arrayOf(file.absolutePath)
@@ -83,7 +94,7 @@ class VideoThumbnailFetcher(
     class KeyFactory : Fetcher.Factory<ThumbnailKey> {
         override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.type == ThumbnailType.Video) {
-                VideoThumbnailFetcher(data.file, options)
+                VideoThumbnailFetcher(data.file, options, data.contentUri)
             } else {
                 null
             }

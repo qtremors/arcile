@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
 import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Size
@@ -23,6 +24,7 @@ import java.io.File
 class AudioAlbumArtFetcher(
     private val file: File,
     private val options: Options,
+    private val contentUri: String? = null,
     private val ioContext: CoroutineContext = Dispatchers.IO
 ) : Fetcher {
     override suspend fun fetch(): FetchResult? = withContext(ioContext) {
@@ -33,6 +35,15 @@ class AudioAlbumArtFetcher(
         // Use native loadThumbnail on API 29+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
+                contentUri?.let { uri ->
+                    val bitmap = context.contentResolver.loadThumbnail(Uri.parse(uri), Size(targetSize, targetSize), null)
+                    return@withContext DrawableResult(
+                        drawable = BitmapDrawable(context.resources, bitmap),
+                        isSampled = true,
+                        dataSource = DataSource.DISK
+                    )
+                }
+
                 val projection = arrayOf(MediaStore.Audio.Media._ID)
                 val selection = "${MediaStore.Audio.Media.DATA} = ?"
                 val selectionArgs = arrayOf(file.absolutePath)
@@ -59,7 +70,11 @@ class AudioAlbumArtFetcher(
 
         val retriever = MediaMetadataRetriever()
         try {
-            retriever.setDataSource(file.absolutePath)
+            if (contentUri != null) {
+                retriever.setDataSource(context, Uri.parse(contentUri))
+            } else {
+                retriever.setDataSource(file.absolutePath)
+            }
             val art = retriever.embeddedPicture
             if (art != null) {
                 // First decode bounds only to get dimensions
@@ -112,7 +127,7 @@ class AudioAlbumArtFetcher(
     class KeyFactory : Fetcher.Factory<ThumbnailKey> {
         override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.type == ThumbnailType.Audio) {
-                AudioAlbumArtFetcher(data.file, options)
+                AudioAlbumArtFetcher(data.file, options, data.contentUri)
             } else {
                 null
             }

@@ -453,6 +453,117 @@ class ArchiveManagerTest {
         assertTrue(destination.listFiles().orEmpty().none { it.name.contains(".arcile-replace-") })
     }
 
+    @Test
+    fun `archive extraction replaces directory with file and restores on success`() = runTest {
+        val archive = zipWithEntry("file-over-dir.zip", "target", "incoming file")
+        val destination = File(root, "file-over-dir-out").apply { mkdirs() }
+        File(destination, "target").apply { mkdirs() }
+        File(destination, "target/old.txt").writeText("old")
+
+        val result = manager.extractArchive(
+            archive.absolutePath,
+            destination.absolutePath,
+            resolutions = mapOf("target" to ConflictResolution.REPLACE)
+        )
+
+        assertTrue(result.isSuccess)
+        assertEquals("incoming file", File(destination, "target").readText())
+    }
+
+    @Test
+    fun `archive extraction replaces file with directory`() = runTest {
+        val archive = zipWithEntries(
+            "dir-over-file.zip",
+            "target/" to null,
+            "target/new.txt" to "incoming"
+        )
+        val destination = File(root, "dir-over-file-out").apply { mkdirs() }
+        File(destination, "target").writeText("old file")
+
+        val result = manager.extractArchive(
+            archive.absolutePath,
+            destination.absolutePath,
+            resolutions = mapOf("target" to ConflictResolution.REPLACE)
+        )
+
+        assertTrue(result.isSuccess)
+        assertTrue(File(destination, "target").isDirectory)
+        assertEquals("incoming", File(destination, "target/new.txt").readText())
+    }
+
+    @Test
+    fun `archive extraction keeps both directory conflicts with nested children`() = runTest {
+        val archive = zipWithEntries(
+            "dir-keep-both.zip",
+            "folder/" to null,
+            "folder/new.txt" to "incoming"
+        )
+        val destination = File(root, "dir-keep-both-out").apply { mkdirs() }
+        File(destination, "folder").mkdirs()
+        File(destination, "folder/old.txt").writeText("old")
+
+        val result = manager.extractArchive(archive.absolutePath, destination.absolutePath)
+
+        assertTrue(result.isSuccess)
+        assertEquals("old", File(destination, "folder/old.txt").readText())
+        assertEquals("incoming", File(destination, "folder (1)/new.txt").readText())
+    }
+
+    @Test
+    fun `failed nested directory replace restores old tree`() = runTest {
+        val archive = File(root, "dir-replace-partial.zip")
+        ZipArchiveOutputStream(archive).use { zip ->
+            zip.putArchiveEntry(ZipArchiveEntry("folder/"))
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("folder/new.txt"))
+            zip.write("incoming".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("../bad.txt"))
+            zip.write("bad".toByteArray())
+            zip.closeArchiveEntry()
+        }
+        val destination = File(root, "dir-replace-partial-out").apply { mkdirs() }
+        File(destination, "folder").mkdirs()
+        File(destination, "folder/old.txt").writeText("old")
+
+        val result = manager.extractArchive(
+            archive.absolutePath,
+            destination.absolutePath,
+            resolutions = mapOf("folder" to ConflictResolution.REPLACE)
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals("old", File(destination, "folder/old.txt").readText())
+        assertFalse(File(destination, "folder/new.txt").exists())
+        assertTrue(destination.listFiles().orEmpty().none { it.name.contains(".arcile-replace-") })
+    }
+
+    @Test
+    fun `wrong password extraction leaves existing replacement target intact`() = runTest {
+        val source = File(root, "protected.txt").apply { writeText("incoming secret") }
+        val archive = File(root, "protected.zip")
+        val destination = File(root, "protected-out").apply { mkdirs() }
+        File(destination, "protected.txt").writeText("existing")
+        assertTrue(
+            manager.createArchive(
+                listOf(source.absolutePath),
+                archive.absolutePath,
+                ArchiveFormat.ZIP,
+                password = "correct"
+            ).isSuccess
+        )
+
+        val result = manager.extractArchive(
+            archive.absolutePath,
+            destination.absolutePath,
+            password = "wrong",
+            resolutions = mapOf("protected.txt" to ConflictResolution.REPLACE)
+        )
+
+        assertTrue(result.isFailure)
+        assertEquals("existing", File(destination, "protected.txt").readText())
+    }
+
     private fun managerWith(policy: ArchiveSafetyPolicy): DefaultArchiveManager {
         return DefaultArchiveManager(volumeProvider, finalizer, policy, mutationJournal = mutationJournal)
     }
@@ -463,6 +574,18 @@ class ArchiveManagerTest {
             zip.putArchiveEntry(ZipArchiveEntry(entryName))
             zip.write(body.toByteArray())
             zip.closeArchiveEntry()
+        }
+        return archive
+    }
+
+    private fun zipWithEntries(name: String, vararg entries: Pair<String, String?>): File {
+        val archive = File(root, name)
+        ZipArchiveOutputStream(archive).use { zip ->
+            entries.forEach { (entryName, body) ->
+                zip.putArchiveEntry(ZipArchiveEntry(entryName))
+                body?.let { zip.write(it.toByteArray()) }
+                zip.closeArchiveEntry()
+            }
         }
         return archive
     }

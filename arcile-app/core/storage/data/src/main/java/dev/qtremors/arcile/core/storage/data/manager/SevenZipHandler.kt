@@ -62,13 +62,10 @@ internal class SevenZipHandler(
                     continue
                 }
                 if (entry.isDirectory) {
-                    rememberCreatedOutput(target, createdOutputs)
-                    target.mkdirs()
+                    prepareDirectoryTarget(target, createdOutputs, replacementBackups)
                 } else {
-                    rememberCreatedOutput(target, createdOutputs)
-                    target.parentFile?.mkdirs()
+                    prepareFileTarget(target, createdOutputs, replacementBackups)
                     validateMutationPath(target).getOrThrow()
-                    rememberReplacementBackup(target, replacementBackups)
                     BufferedOutputStream(target.outputStream()).use { output ->
                         val buffer = ByteArray(ARCHIVE_BUFFER_SIZE)
                         while (true) {

@@ -32,6 +32,9 @@ internal class ArchiveExtractionContext(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
+    private val directoryAliases = linkedMapOf<String, String>()
+    private val skippedDirectories = linkedSetOf<String>()
+
     fun resolveRequestedTarget(destination: File, rawEntryName: String): File {
         ArchiveSafetyTally(safetyPolicy).accept(rawEntryName, 0L, null)
         val normalized = rawEntryName.normalizeEntryName()
@@ -54,19 +57,40 @@ internal class ArchiveExtractionContext(
         directory: Boolean,
         resolutions: Map<String, ConflictResolution> = emptyMap()
     ): File? {
-        val requested = resolveRequestedTarget(destination, rawEntryName)
         val normalized = rawEntryName.normalizeEntryName()
+        val normalizedKey = normalized.trimEnd('/')
+        if (skippedDirectories.any { normalizedKey == it || normalizedKey.startsWith("$it/") }) return null
+        val effectiveName = applyDirectoryAliases(normalized)
+        val effectiveKey = effectiveName.trimEnd('/')
+        val requested = resolveRequestedTarget(destination, effectiveName)
+        val resolution = resolutions[normalizedKey] ?: resolutions[effectiveKey]
         val target = when {
-            directory || !requested.exists() -> requested
-            resolutions[normalized] == ConflictResolution.SKIP -> return null
-            resolutions[normalized] == ConflictResolution.REPLACE -> requested
+            !requested.exists() -> requested
+            resolution == ConflictResolution.SKIP -> {
+                if (directory) skippedDirectories += normalizedKey
+                return null
+            }
+            resolution == ConflictResolution.REPLACE -> requested
             else -> FileConflictNameGenerator.generateKeepBothTarget(
                 requireNotNull(requested.parentFile) { "Archive target has no parent folder" },
                 requested
             )
         }
         validateMutationPath(target).getOrThrow()
+        if (directory && target != requested) {
+            val alias = target.relativeTo(destination.canonicalFile).path.replace(File.separatorChar, '/')
+            directoryAliases[normalizedKey] = alias.normalizeEntryName().trimEnd('/')
+        }
         return target
+    }
+
+    private fun applyDirectoryAliases(normalizedName: String): String {
+        val match = directoryAliases.keys
+            .filter { normalizedName == it || normalizedName.startsWith("$it/") }
+            .maxByOrNull { it.length }
+            ?: return normalizedName
+        val suffix = normalizedName.removePrefix(match).trimStart('/')
+        return listOf(directoryAliases.getValue(match), suffix).filter { it.isNotBlank() }.joinToString("/")
     }
 }
 
@@ -105,6 +129,33 @@ internal fun rememberCreatedOutput(target: File, createdOutputs: MutableSet<File
     }
 }
 
+internal fun prepareDirectoryTarget(
+    target: File,
+    createdOutputs: MutableSet<File>,
+    replacementBackups: MutableMap<File, File>
+) {
+    if (target.exists() && target !in createdOutputs) {
+        rememberReplacementBackup(target, replacementBackups)
+    }
+    rememberCreatedDirectory(target, createdOutputs)
+    require(target.mkdirs() || target.isDirectory) { "Could not create directory: ${target.name}" }
+}
+
+internal fun prepareFileTarget(
+    target: File,
+    createdOutputs: MutableSet<File>,
+    replacementBackups: MutableMap<File, File>
+) {
+    rememberReplacementBackup(target, replacementBackups)
+    val parent = requireNotNull(target.parentFile) { "Archive target has no parent folder" }
+    if (parent.exists() && !parent.isDirectory) {
+        throw IllegalStateException("Archive target parent is not a directory: ${parent.name}")
+    }
+    rememberCreatedDirectory(parent, createdOutputs)
+    require(parent.mkdirs() || parent.isDirectory) { "Could not create parent folder: ${parent.name}" }
+    rememberCreatedOutput(target, createdOutputs)
+}
+
 internal fun cleanupCreatedOutputs(createdOutputs: Set<File>) {
     createdOutputs.toList().asReversed().forEach { output ->
         runCatching {
@@ -116,20 +167,30 @@ internal fun cleanupCreatedOutputs(createdOutputs: Set<File>) {
 }
 
 internal fun rememberReplacementBackup(target: File, replacementBackups: MutableMap<File, File>) {
-    if (!target.exists() || !target.isFile || replacementBackups.containsKey(target)) return
+    if (!target.exists() || replacementBackups.containsKey(target)) return
     val parent = requireNotNull(target.parentFile) { "Archive target has no parent folder" }
     var backup: File
     do {
         backup = File(parent, ".${target.name}.arcile-replace-${UUID.randomUUID()}.tmp")
     } while (backup.exists())
-    target.copyTo(backup, overwrite = false)
+    if (!target.renameTo(backup)) {
+        if (target.isDirectory) {
+            target.copyRecursively(backup, overwrite = false)
+            target.deleteRecursively()
+        } else {
+            target.copyTo(backup, overwrite = false)
+            target.delete()
+        }
+    }
     replacementBackups[target] = backup
 }
 
 internal fun cleanupReplacementBackups(replacementBackups: Map<File, File>) {
     replacementBackups.values.forEach { backup ->
         runCatching {
-            if (backup.exists()) backup.delete()
+            if (backup.exists()) {
+                if (backup.isDirectory) backup.deleteRecursively() else backup.delete()
+            }
         }
     }
 }
@@ -138,11 +199,30 @@ internal fun restoreReplacementBackups(replacementBackups: Map<File, File>) {
     replacementBackups.entries.toList().asReversed().forEach { (target, backup) ->
         runCatching {
             if (backup.exists()) {
-                backup.copyTo(target, overwrite = true)
-                backup.delete()
+                if (backup.isDirectory) {
+                    if (target.exists()) target.deleteRecursively()
+                    if (!backup.renameTo(target)) {
+                        backup.copyRecursively(target, overwrite = true)
+                        backup.deleteRecursively()
+                    }
+                } else {
+                    backup.copyTo(target, overwrite = true)
+                    backup.delete()
+                }
             }
         }
     }
+}
+
+private fun rememberCreatedDirectory(target: File, createdOutputs: MutableSet<File>) {
+    if (target.exists()) return
+    val missing = mutableListOf<File>()
+    var current: File? = target
+    while (current != null && !current.exists()) {
+        missing += current
+        current = current.parentFile
+    }
+    missing.asReversed().forEach { createdOutputs += it }
 }
 
 internal fun archiveSourceEntries(

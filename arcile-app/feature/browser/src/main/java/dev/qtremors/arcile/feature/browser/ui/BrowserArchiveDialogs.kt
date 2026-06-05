@@ -134,7 +134,7 @@ internal fun CreateArchiveDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     ArchiveDropdown(
-                        label = "Type",
+                        label = stringResource(R.string.archive_type),
                         selectedOption = format.displayName,
                         options = ArchiveFormat.creatableFormats().map { it.displayName },
                         onOptionSelected = { selected ->
@@ -144,7 +144,7 @@ internal fun CreateArchiveDialog(
                         modifier = Modifier.weight(1f)
                     )
                     ArchiveDropdown(
-                        label = "Compression",
+                        label = stringResource(R.string.archive_compression),
                         selectedOption = compressionLevel.displayName,
                         options = ArchiveCompressionLevel.entries.map { it.displayName },
                         onOptionSelected = { selected ->
@@ -270,7 +270,7 @@ internal fun ExtractArchiveDialog(
                     val label = when (option) {
                         ArchiveExtractionTarget.NAMED_FOLDER -> stringResource(R.string.archive_create_subfolder)
                         ArchiveExtractionTarget.SAME_FOLDER -> stringResource(R.string.archive_extract_here)
-                        ArchiveExtractionTarget.CUSTOM_FOLDER -> "Choose folder"
+                        ArchiveExtractionTarget.CUSTOM_FOLDER -> stringResource(R.string.archive_choose_folder)
                     }
                     Row(
                         modifier = Modifier
@@ -289,7 +289,7 @@ internal fun ExtractArchiveDialog(
                         onValueChange = { customDestination = it },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        label = { Text("Destination folder") }
+                        label = { Text(stringResource(R.string.archive_destination_folder)) }
                     )
                 }
             }

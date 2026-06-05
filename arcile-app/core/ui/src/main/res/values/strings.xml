@@ -322,6 +322,13 @@
     <string name="archive_create_subfolder">Create subfolder</string>
     <string name="archive_delete_after_extraction">Delete archive after extraction</string>
     <string name="archive_extract_title">Extract archive</string>
+    <string name="archive_choose_folder">Choose folder</string>
+    <string name="archive_destination_folder">Destination folder</string>
+    <string name="archive_type">Type</string>
+    <string name="archive_compression">Compression</string>
+    <string name="archive_filename_encoding">Filename encoding</string>
+    <string name="archive_resolve_conflicts">Resolve conflicts</string>
+    <string name="archive_conflict_inspection_failed">Failed to inspect archive conflicts</string>
     <string name="archive_ratio_unavailable">n/a</string>
     <string name="archive_summary_size_ratio">Archive %1$s • Ratio %2$s</string>
     <string name="archive_newest_modified">Newest %1$s</string>

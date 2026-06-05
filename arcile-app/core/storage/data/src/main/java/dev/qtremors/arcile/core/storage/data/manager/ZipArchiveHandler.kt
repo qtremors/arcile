@@ -104,13 +104,10 @@ internal class ZipArchiveHandler(
                     continue
                 }
                 if (entry.isDirectory) {
-                    rememberCreatedOutput(target, createdOutputs)
-                    target.mkdirs()
+                    prepareDirectoryTarget(target, createdOutputs, replacementBackups)
                 } else {
-                    rememberCreatedOutput(target, createdOutputs)
-                    target.parentFile?.mkdirs()
+                    prepareFileTarget(target, createdOutputs, replacementBackups)
                     validateMutationPath(target).getOrThrow()
-                    rememberReplacementBackup(target, replacementBackups)
                     zip.getInputStream(entry).use { input ->
                         BufferedInputStream(input).use { buffered ->
                             BufferedOutputStream(target.outputStream()).use { output ->
@@ -207,13 +204,10 @@ internal class ZipArchiveHandler(
                 continue
             }
             if (entry.isDirectory) {
-                rememberCreatedOutput(target, createdOutputs)
-                target.mkdirs()
+                prepareDirectoryTarget(target, createdOutputs, replacementBackups)
             } else {
-                rememberCreatedOutput(target, createdOutputs)
-                target.parentFile?.mkdirs()
+                prepareFileTarget(target, createdOutputs, replacementBackups)
                 validateMutationPath(target).getOrThrow()
-                rememberReplacementBackup(target, replacementBackups)
                 zip.getInputStream(entry).use { input ->
                     BufferedInputStream(input).use { buffered ->
                         BufferedOutputStream(target.outputStream()).use { output ->
