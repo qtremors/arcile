@@ -2,7 +2,7 @@ package dev.qtremors.arcile.presentation.utils
 
 import android.content.Context
 import android.content.Intent
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.utils.AppLogger
 import java.util.ArrayList
 

@@ -5,11 +5,13 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.database.MatrixCursor
 import android.graphics.Bitmap
+import android.net.Uri
 import android.provider.MediaStore
 import android.util.Size
 import androidx.test.core.app.ApplicationProvider
 import coil.fetch.DrawableResult
 import coil.request.Options
+import coil.size.Size as CoilSize
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -61,13 +63,66 @@ class AudioAlbumArtFetcherTest {
         val context = ThumbnailContext(baseContext, resolver)
         val options = mockk<Options> {
             every { this@mockk.context } returns context
+            every { size } returns CoilSize(320, 320)
         }
 
         val result = AudioAlbumArtFetcher(File("/storage/emulated/0/Music/song.mp3"), options).fetch() as DrawableResult
 
         assertEquals(1, queryCount)
-        assertEquals(Size(500, 500), lastRequestedSize)
+        assertEquals(Size(320, 320), lastRequestedSize)
         assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
+    }
+
+    @Test
+    fun `fetch uses content uri directly when thumbnail key has media store uri`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val expectedBitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+        val resolver = mockk<ContentResolver>()
+        var queryCount = 0
+        var requestedUri: Uri? = null
+        every {
+            resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
+        } answers {
+            queryCount += 1
+            MatrixCursor(arrayOf(MediaStore.Audio.Media._ID))
+        }
+        every { resolver.loadThumbnail(any(), any(), any()) } answers {
+            requestedUri = arg(0)
+            expectedBitmap
+        }
+        val context = ThumbnailContext(baseContext, resolver)
+        val options = mockk<Options> {
+            every { this@mockk.context } returns context
+            every { size } returns CoilSize(320, 320)
+        }
+
+        val result = AudioAlbumArtFetcher(
+            File("/storage/emulated/0/Music/song.mp3"),
+            options,
+            contentUri = "content://media/external_primary/audio/media/42"
+        ).fetch() as DrawableResult
+
+        assertEquals(0, queryCount)
+        assertEquals("content://media/external_primary/audio/media/42", requestedUri.toString())
+        assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
+    }
+
+    @Test
+    fun `fetch returns null when album art is unavailable`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val resolver = mockk<ContentResolver>()
+        every {
+            resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
+        } returns MatrixCursor(arrayOf(MediaStore.Audio.Media._ID))
+        val context = ThumbnailContext(baseContext, resolver)
+        val options = mockk<Options> {
+            every { this@mockk.context } returns context
+            every { size } returns CoilSize(128, 128)
+        }
+
+        val result = AudioAlbumArtFetcher(File("/storage/emulated/0/Music/missing.mp3"), options).fetch()
+
+        assertNull(result)
     }
 
     private class ThumbnailContext(

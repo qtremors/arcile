@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.clickable
@@ -46,13 +46,13 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.lists.VolumeRootList
+import dev.qtremors.arcile.shared.ui.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable

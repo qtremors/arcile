@@ -24,12 +24,17 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,16 +48,22 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
+import dev.qtremors.arcile.feature.trash.TrashViewModel
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.presentation.ui.components.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.asString
+import kotlinx.coroutines.flow.MutableSharedFlow
+
+private val FeedbackAboveActionsPadding = 88.dp
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -64,14 +75,43 @@ fun ArcileAppShell(
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route ?: AppRoutes.Home
+    val currentRoute = navBackStackEntry?.destination?.route
     val context = LocalContext.current
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val feedbackEvents = remember { MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 16) }
+    var currentFeedbackSeverity by remember { mutableStateOf(ArcileFeedbackSeverity.Info) }
+
+    LaunchedEffect(feedbackEvents, context) {
+        feedbackEvents.collect { event ->
+            currentFeedbackSeverity = event.severity
+            val result = snackbarHostState.showSnackbar(
+                message = event.message.asString(context),
+                actionLabel = event.actionLabel?.asString(context),
+                withDismissAction = event.actionLabel != null || event.severity == ArcileFeedbackSeverity.Error,
+                duration = SnackbarDuration.Short
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                event.onAction?.invoke()
+            } else {
+                event.onDismiss?.invoke()
+            }
+        }
+    }
+
+    LaunchedEffect(currentRoute) {
+        snackbarHostState.currentSnackbarData?.dismiss()
+    }
 
     androidx.compose.animation.SharedTransitionLayout {
         Scaffold(
-            snackbarHost = { ArcileSnackbarHost(hostState = snackbarHostState) },
+            snackbarHost = {
+                ArcileSnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
+                    severityFor = { currentFeedbackSeverity }
+                )
+            },
             containerColor = Color.Transparent,
             contentWindowInsets = WindowInsets(0, 0, 0, 0)
         ) { padding ->
@@ -85,7 +125,8 @@ fun ArcileAppShell(
                     currentThemeState = currentThemeState,
                     onThemeChange = onThemeChange,
                     onOpenFile = onOpenFile,
-                    onRestartApp = onRestartApp
+                    onRestartApp = onRestartApp,
+                    onFeedback = { feedbackEvents.tryEmit(it) }
                 )
             }
         }

@@ -5,22 +5,27 @@
 <h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>
 
 <p align="center">
-  A private, source-available Android file manager built with Kotlin, Jetpack Compose, and Material 3 Expressive.
+  A private, source-available Android file manager for local-first storage, safe file operations, archives, and Material 3 Expressive polish.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-0.8.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.0.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
 </p>
 
-> [!IMPORTANT]
-> **Beta Status** Arcile is currently in **Beta**. Development is active, but release cadence depends on available weekend time.
-
 > [!NOTE]
 > **Privacy Model** Arcile does not request `android.permission.INTERNET`. File management, indexing, archive handling, thumbnails, and preferences are designed to stay local to the device.
+
+---
+
+## Why Arcile
+
+Arcile is built for people who want a modern Android file manager without ads, telemetry, or network access. Version 1.0.0 is the first stable foundation, not the finish line: it already treats internal storage, SD cards, and USB OTG drives as distinct storage contexts, gives permanent volumes a recoverable Trash system, and keeps high-risk workflows like copy, move, archive extraction, sharing, and cleanup behind explicit safety checks.
+
+The 1.0.0 release is the first stable release after the beta cycle. It brings together the core browser, Home dashboard, recent files, quick access, storage usage tools, cleaner, archive workflows, recovery plumbing, and a modular Kotlin/Compose architecture, with more power-user features planned over future releases.
 
 ---
 
@@ -33,7 +38,7 @@
 | **Storage Dashboard** | Volume/category storage breakdown, Trash usage visibility, and a Filelight-inspired radial folder usage map (Usage Map) with breadcrumb drill-in. |
 | **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
 | **Recent Files** | Browse recents with scoped volume support, date grouping, search, filters, list/grid controls, thumbnails, selection, properties, and containing-folder jumps. |
-| **Storage Cleaner** | Early-access scanner for large files, duplicate-name candidate groups (segmented duplicate cards with details), APKs, downloads, videos, and conservative cache/junk cleanup routed through Trash. |
+| **Storage Cleaner** | Scanner for large files, duplicate-name candidate groups (segmented duplicate cards with details), APKs, downloads, videos, and conservative cache/junk cleanup routed through Trash. |
 | **Archive Workflows** | Create, browse, and extract ZIP and 7z archives, including password-protected ZIP/7z flows and safe extraction path checks. |
 | **Foreground File Operations** | Copy, move, archive, extract, fake-file generation, Trash, and delete flows run through foreground operation plumbing with progress events and a lightweight operation journal. |
 | **Conflict Resolution** | Smart paste detects top-level name collisions, compares metadata for conflicting files, and supports replace, keep both, skip, and batch resolution choices. |
@@ -79,15 +84,15 @@ Release builds enable R8 minification and resource shrinking.
 | Layer | Technology |
 |-------|------------|
 | **Language** | Kotlin 2.2.10 |
-| **Android Gradle Plugin** | 9.1.1 |
+| **Android Gradle Plugin** | 9.2.1 |
 | **UI** | Jetpack Compose BOM 2026.05.00, Material 3 1.5.0-alpha19, Material 3 Adaptive |
-| **Architecture** | Single-module MVVM with package boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
+| **Architecture** | Modular MVVM with Gradle boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
 | **Navigation** | Navigation Compose with `kotlinx.serialization` typed routes |
 | **Storage** | `java.io.File`, `StatFs`, MediaStore, FileProvider, foreground service operations |
 | **Persistence** | DataStore Preferences for theme, browser presentation, storage classification, quick access, and onboarding |
 | **Media** | Coil with custom APK icon, audio album art, PDF, and video thumbnail fetchers |
 | **Archives** | Apache Commons Compress, Tukaani XZ, and Zip4j |
-| **Min / Target / Compile SDK** | 30 / 36 / 37 |
+| **Min / Target / Compile SDK** | 30 / 37 / 37 |
 
 ---
 
@@ -96,34 +101,45 @@ Release builds enable R8 minification and resource shrinking.
 ```text
 arcile/
 ├── arcile-app/
-│   ├── app/
-│   │   ├── src/main/
-│   │   │   ├── AndroidManifest.xml
-│   │   │   ├── java/dev/qtremors/arcile/
-│   │   │   │   ├── ArcileApp.kt                 # Hilt app + Coil image loader
-│   │   │   │   ├── MainActivity.kt              # Splash, permissions, onboarding, app shell
-│   │   │   │   ├── data/                        # Repositories, stores, managers, data sources
-│   │   │   │   │   ├── manager/                 # Trash and archive managers
-│   │   │   │   │   ├── provider/                # Storage volume provider
-│   │   │   │   │   └── source/                  # FileSystem, MediaStore, transfer/conflict engines
-│   │   │   │   ├── di/                          # Hilt providers
-│   │   │   │   ├── domain/                      # Models, repository contracts, use cases
-│   │   │   │   ├── image/                       # Coil fetchers
-│   │   │   │   ├── navigation/                  # Serializable route definitions
-│   │   │   │   ├── presentation/                # ViewModels, delegates, operation service, UI
-│   │   │   │   ├── ui/theme/                    # Theme state, MaterialKolor integration, tokens
-│   │   │   │   └── utils/                       # Logging and formatting helpers
-│   │   │   ├── test/                            # JVM + Robolectric tests
-│   │   │   └── androidTest/                     # Device/emulator tests
-│   │   └── build.gradle.kts
-│   └── gradle/libs.versions.toml
-├── docs/                                        # GitHub Pages landing site
-├── CHANGELOG.md
-├── DEVELOPMENT.md
-├── LICENSE.md
-├── PRIVACY.md
-├── TASKS.md
-└── README.md
+│   ├── app/                                     # App entry point, Hilt composition, and shell UI
+│   │   ├── src/main/java/dev/qtremors/arcile/
+│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
+│   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
+│   │   │   ├── presentation/                    # ViewModels, screens, components, and AppNavigationGraph
+│   │   │   └── di/                              # Dagger Hilt dependency injection modules
+│   ├── core/                                    # Shared business logic and UI frameworks
+│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers
+│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose nodes
+│   │   │   └── testing/                         # Shared compose test theme helper (ArcileTestTheme)
+│   │   ├── navigation/
+│   │   │   └── api/                             # Serializable typed routes (AppRoutes)
+│   │   ├── presentation/
+│   │   │   └── api/                             # FolderTabs, LocalSearchHelper, DeleteFlowDelegate, PropertiesUiModel
+│   │   ├── testing/                             # Shared unit test fakes (FakeFileRepository, FakeBulkFileOperationCoordinator)
+│   │   ├── operation/                           # Foreground services and operation journal tracking
+│   │   │   ├── api/                             # Task progress events and operations interfaces
+│   │   │   └── src/                             # Concrete operation coordinator and background service
+│   │   └── storage/                             # File system data orchestrator
+│   │       ├── domain/                          # Domain models, volume references, and repository interfaces
+│   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
+│   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
+│       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
+│       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
+│       ├── onboarding/                          # First-run setup and permission guidance
+│       ├── quickaccess/                         # Pinned folders, SAF handoffs, and folder shortcuts
+│       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
+│       ├── storagecleaner/                      # Cleanup scanner and review workflow
+│       ├── storageusage/                        # Storage dashboard and usage-map UI
+│       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
+├── docs/                                        # Promotional landing page website
+├── beta/                                        # Beta phase archived changelog & releases
+│   ├── CHANGELOG-BETA.md                        # Archived beta changelog
+│   └── RELEASES-BETA.md                         # Archived beta release notes
+├── CHANGELOG.md                                 # Stable release changelog
+├── DEVELOPMENT.md                               # Architecture & development guide
+├── Releases.md                                  # Stable user-facing release notes
+├── TASKS.md                                     # Roadmap, tracker of issues and features
+└── README.md                                    # Main entry point overview
 ```
 
 ---
@@ -147,9 +163,9 @@ Current test surface:
 
 | Area | Coverage |
 |------|----------|
-| **JVM/Robolectric** | 74 Kotlin test files across data, domain, image, navigation, presentation, UI, operations, and utilities |
+| **JVM/Robolectric** | 92 Kotlin test files across data, domain, image, navigation, presentation, UI, operations, and utilities |
 | **Instrumented** | 3 Android test files for Home, Quick Access, and shared empty-state rendering |
-| **Approximate test declarations** | 641 `@Test`/test-style function hits |
+| **Approximate test declarations** | 462 `@Test` annotations |
 | **Key helpers** | `FakeFileRepository`, `FakeBulkFileOperationCoordinator`, `FakeBrowserPreferencesStore`, `MainDispatcherRule`, `ArcileTestTheme`, `TestFixtures` |
 
 ---
@@ -159,7 +175,9 @@ Current test surface:
 | Document | Description |
 |----------|-------------|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Architecture, storage model, testing, conventions, and maintenance notes |
-| [CHANGELOG.md](CHANGELOG.md) | Version history and release notes |
+| [CHANGELOG.md](CHANGELOG.md) | Stable version history and release notes |
+| [beta/CHANGELOG-BETA.md](beta/CHANGELOG-BETA.md) | Archived version history from the beta phase |
+| [beta/RELEASES-BETA.md](beta/RELEASES-BETA.md) | Archived release notes from the beta phase |
 | [TASKS.md](TASKS.md) | Audit findings, planned features, and known issues |
 | [PRIVACY.md](PRIVACY.md) | Privacy policy |
 | [LICENSE.md](LICENSE.md) | License terms and attribution |

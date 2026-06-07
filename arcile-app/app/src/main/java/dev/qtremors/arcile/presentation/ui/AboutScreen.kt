@@ -56,9 +56,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.launch
+import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
+import dev.qtremors.arcile.shared.ui.ArcileListSurface
 
 import coil.compose.AsyncImage
 
@@ -86,9 +89,8 @@ fun AboutScreen(
         }
     }
 
-    Scaffold(
+    ArcileScreenScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.about_title)) },
@@ -118,7 +120,7 @@ fun AboutScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     AsyncImage(
-                        model = R.mipmap.ic_launcher,
+                        model = dev.qtremors.arcile.R.mipmap.ic_launcher,
                         contentDescription = stringResource(R.string.app_name),
                         modifier = Modifier.size(96.dp)
                     )
@@ -219,18 +221,7 @@ fun AboutSection(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 8.dp)
-        )
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shape = ExpressiveShapes.large
-        ) {
-            Column(content = content, modifier = Modifier.padding(vertical = 4.dp))
-        }
+        ArcileSectionHeader(text = title)
+        ArcileListSurface(content = content)
     }
 }

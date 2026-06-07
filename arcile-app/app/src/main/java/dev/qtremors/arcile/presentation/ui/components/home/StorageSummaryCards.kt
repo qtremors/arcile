@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.ui.components.home
 
 import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,17 +58,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.R
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.isIndexed
-import dev.qtremors.arcile.domain.showTemporaryStorageBadge
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.components.shimmer
+import dev.qtremors.arcile.shared.ui.shimmer
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium
-import dev.qtremors.arcile.ui.theme.spacing
+
 import dev.qtremors.arcile.ui.theme.titleLargeBold
 import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.utils.formatFileSize
@@ -84,12 +86,18 @@ fun StorageSummaryCard(
     
     if (volumes.size > 1) {
         // Multi-storage layout
+        val indexedVolumes = volumes.filter { it.kind.isIndexed }
+        val soleIndexedVolumeId = indexedVolumes.singleOrNull()?.id
         Column(modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small)) {
             volumes.forEach { volume ->
+                val volumeCategories = state.categoryStoragesByVolume[volume.id]
+                    ?: if (volume.id == soleIndexedVolumeId) state.categoryStorages else emptyList()
+                val volumeTrashBytes = state.trashStorageUsage.byVolumeId[volume.id]
+                    ?: if (volume.id == soleIndexedVolumeId) state.trashStorageUsage.totalBytes else 0L
                 StorageVolumeCard(
                     volume = volume,
-                    categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
-                    trashBytes = state.trashStorageUsage.byVolumeId[volume.id] ?: 0L,
+                    categoryStorages = volumeCategories,
+                    trashBytes = volumeTrashBytes,
                     onClick = { onNavigateToPath(volume.path) },
                     onLongClick = {
                         if (volume.kind.isIndexed) {
@@ -110,12 +118,19 @@ fun StorageSummaryCard(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
+                .heightIn(min = 144.dp)
                 .padding(MaterialTheme.spacing.medium)
                 .clip(MaterialTheme.shapes.extraLarge)
-                    .combinedClickable(
-                        onClick = onOpenFileBrowser,
-                        onLongClick = { onOpenStorageDashboard(primaryVolume?.id) }
-                    ),
+                .combinedClickable(
+                    onClick = onOpenFileBrowser,
+                    onLongClick = { onOpenStorageDashboard(primaryVolume?.id) }
+                )
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -123,6 +138,10 @@ fun StorageSummaryCard(
             shape = MaterialTheme.shapes.extraLarge
         ) {
             Column(modifier = Modifier.padding(MaterialTheme.spacing.large)) {
+                val displayTotal = total.takeIf { it > 0L } ?: 1L
+                val displayFree = free.takeIf { total > 0L } ?: 1L
+                val displayUsed = used.takeIf { total > 0L } ?: 0L
+                val showPlaceholder = total <= 0L || state.isLoading || state.isCalculatingStorage
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -135,49 +154,88 @@ fun StorageSummaryCard(
                     Icon(Icons.Default.Storage, contentDescription = stringResource(R.string.desc_storage))
                 }
 
-                if (total > 0 || state.isCalculatingStorage) {
-                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
+                Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
 
-                    MultiColorStorageBar(
-                        totalBytes = total,
-                        freeBytes = free,
-                        categoryStorages = state.categoryStorages,
-                        trashBytes = state.trashStorageUsage.totalBytes,
-                        isCalculating = state.isCalculatingStorage
-                    )
+                MultiColorStorageBar(
+                    totalBytes = displayTotal,
+                    freeBytes = displayFree,
+                    categoryStorages = state.categoryStorages,
+                    trashBytes = state.trashStorageUsage.totalBytes,
+                    isCalculating = showPlaceholder
+                )
 
-                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                
+                if (!showPlaceholder && total > 0L) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "${formatFileSize(used)} used",
-                            style = MaterialTheme.typography.bodyMediumMedium
+                            text = "${formatFileSize(displayUsed)} used",
+                            style = MaterialTheme.typography.bodyMediumMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "${formatFileSize(free)} free",
+                            text = "${formatFileSize(displayFree)} free",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
-
-                    if (state.categoryStorages.isNotEmpty() || state.trashStorageUsage.totalBytes > 0L) {
-                        Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
-                        CategoryLegend(
-                            categoryStorages = state.categoryStorages,
-                            trashBytes = state.trashStorageUsage.totalBytes
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(96.dp)
+                                .height(16.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f))
+                                .shimmer(visible = true, highlightColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(96.dp)
+                                .height(16.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f))
+                                .shimmer(visible = true, highlightColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
                         )
                     }
-                } else {
-                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
-                    Text(
-                        text = stringResource(R.string.tap_to_browse),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                }
+
+                if ((state.categoryStorages.isNotEmpty() || state.trashStorageUsage.totalBytes > 0L) && !showPlaceholder) {
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                    CategoryLegend(
+                        categoryStorages = state.categoryStorages,
+                        trashBytes = state.trashStorageUsage.totalBytes
                     )
+                } else {
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                    CategoryLegendPlaceholder()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun CategoryLegendPlaceholder() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
+    ) {
+        repeat(3) {
+            Box(
+                modifier = Modifier
+                    .width(88.dp)
+                    .height(14.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f))
+                    .shimmer(visible = true, highlightColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
+            )
         }
     }
 }
@@ -185,7 +243,7 @@ fun StorageSummaryCard(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun StorageVolumeCard(
-    volume: dev.qtremors.arcile.domain.StorageVolume,
+    volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
     categoryStorages: List<CategoryStorage>,
     trashBytes: Long,
     onClick: () -> Unit,

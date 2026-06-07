@@ -1,14 +1,9 @@
 package dev.qtremors.arcile.presentation.ui
 
-import dev.qtremors.arcile.presentation.ui.components.ToolItem
-import dev.qtremors.arcile.presentation.ui.components.ToolCard
+import dev.qtremors.arcile.shared.ui.ToolItem
+import dev.qtremors.arcile.shared.ui.ToolCard
+import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -16,19 +11,14 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.R
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 
@@ -44,10 +34,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun ToolsScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToCleaner: () -> Unit
+    onNavigateToCleaner: () -> Unit,
+    onNavigateToTrash: () -> Unit,
+    homeUtilityIds: Set<String>,
+    onUtilityHomeVisibilityChange: (String, Boolean) -> Unit
 ) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+    ArcileScreenScaffold(
         topBar = {
             @OptIn(ExperimentalMaterial3Api::class)
             TopAppBar(
@@ -60,19 +52,6 @@ fun ToolsScreen(
             )
         }
     ) { padding ->
-        val tools = listOf(
-            ToolItem(stringResource(R.string.tool_ftp), Icons.Default.WifiTethering),
-            ToolItem(stringResource(R.string.tool_analyze), Icons.Default.PieChart),
-            ToolItem(stringResource(R.string.tool_clean), Icons.Default.CleaningServices, isImplemented = true),
-            ToolItem(stringResource(R.string.tool_duplicates), Icons.Default.FilterNone),
-            ToolItem(stringResource(R.string.tool_large), Icons.Default.ZoomIn),
-            ToolItem(stringResource(R.string.tool_manager), Icons.Default.Apps),
-            ToolItem(stringResource(R.string.tool_onlyfiles), Icons.Default.Lock),
-            ToolItem(stringResource(R.string.tool_share), Icons.Default.Dns)
-        )
-
-        val cleanName = stringResource(R.string.tool_clean)
-
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier
@@ -86,15 +65,56 @@ fun ToolsScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(tools) { tool ->
-                ToolCard(
-                    item = tool,
-                    onClick = {
-                        if (tool.name == cleanName) {
-                            onNavigateToCleaner()
+            items(ArcileUtilityCatalog, key = { it.id }) { definition ->
+                val tool = ToolItem(
+                    name = stringResource(definition.nameRes),
+                    icon = definition.icon,
+                    isImplemented = definition.isImplemented
+                )
+                Box {
+                    ToolCard(
+                        item = tool,
+                        onClick = {
+                            when (definition.action) {
+                                UtilityAction.Cleaner -> onNavigateToCleaner()
+                                UtilityAction.Trash -> onNavigateToTrash()
+                                UtilityAction.None -> Unit
+                            }
+                        }
+                    )
+                    if (definition.showOnHome) {
+                        val isShownOnHome = definition.id in homeUtilityIds
+                        IconButton(
+                            onClick = { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(8.dp)
+                                .size(36.dp)
+                        ) {
+                            Surface(
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                color = if (isShownOnHome) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceContainerHighest
+                                }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isShownOnHome) Icons.Default.Home else Icons.Outlined.Home,
+                                        contentDescription = stringResource(R.string.quick_access_show_on_home),
+                                        tint = if (isShownOnHome) {
+                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
-                )
+                }
             }
         }
     }

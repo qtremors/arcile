@@ -4,6 +4,17 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.navigation.NavBackStackEntry
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,15 +33,18 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.feature.archive.archiveViewerScreen
+import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
+import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.presentation.browser.BrowserViewModel
+import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
-import dev.qtremors.arcile.presentation.quickaccess.QuickAccessViewModel
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.presentation.storagecleaner.StorageCleanerViewModel
-import dev.qtremors.arcile.presentation.trash.TrashViewModel
+import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
+import dev.qtremors.arcile.feature.quickaccess.quickAccessScreen
+import dev.qtremors.arcile.feature.recentfiles.recentFilesScreen
+import dev.qtremors.arcile.feature.storagecleaner.storageCleanerScreen
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -40,43 +54,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import dev.qtremors.arcile.domain.BrowserPreferences
-import dev.qtremors.arcile.domain.ArchiveFormat
-import dev.qtremors.arcile.data.BrowserPreferencesStore
-import dev.qtremors.arcile.data.OnboardingPreferencesStore
-import dev.qtremors.arcile.presentation.archive.ArchiveViewerViewModel
-
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
-    private val browserPreferencesStore: BrowserPreferencesStore,
-    private val onboardingPreferencesStore: OnboardingPreferencesStore
-) : ViewModel() {
-    val browserPreferences = browserPreferencesStore.preferencesFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserPreferences())
-
-    fun updateShowThumbnails(show: Boolean) {
-        viewModelScope.launch {
-            val current = browserPreferences.value.globalPresentation
-            browserPreferencesStore.updateGlobalPresentation(current.copy(showThumbnails = show))
-        }
-    }
-
-    suspend fun resetOnboarding() {
-        onboardingPreferencesStore.resetOnboarding()
-    }
-}
-
-internal enum class BrowserBackFallback {
-    PopAppBackStack,
-    ShowHomePager
-}
-
-internal fun browserBackFallback(hasPreviousBackStackEntry: Boolean): BrowserBackFallback =
-    if (hasPreviousBackStackEntry) {
-        BrowserBackFallback.PopAppBackStack
-    } else {
-        BrowserBackFallback.ShowHomePager
-    }
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 
 @Composable
 fun AppNavigationGraph(
@@ -84,30 +67,78 @@ fun AppNavigationGraph(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
-    onRestartApp: () -> Unit
+    onRestartApp: () -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
     val openPath: (String) -> Unit = { path ->
-        if (ArchiveFormat.isSupported(path)) {
-            navController.navigate(AppRoutes.ArchiveViewer(path))
-        } else {
-            onOpenFile(path)
+        val archiveFormat = ArchiveFormat.fromPath(path)
+        when {
+            archiveFormat?.canBrowse == true -> {
+                navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
+                    popUpTo<AppRoutes.Main> { inclusive = true }
+                }
+            }
+            archiveFormat != null -> {
+                onFeedback(
+                    ArcileFeedbackEvent(
+                        message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.unsupported_archive_format),
+                        severity = ArcileFeedbackSeverity.Error
+                    )
+                )
+            }
+            else -> {
+                onOpenFile(path)
+            }
         }
     }
+
+    val reducedMotion = LocalReducedMotionEnabled.current
+
+    // Details Transitions: Horizontal Slide (e.g. StorageDashboard, ArchiveViewer)
+    val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val detailExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val detailPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val detailPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+
+    // Utility/Modal Transitions: Vertical Slide + Fade (e.g. Settings, Trash, etc.)
+    val utilityEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val utilityExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val utilityPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
+        if (reducedMotion) fadeIn(tween(0)) else fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+    val utilityPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
+        if (reducedMotion) fadeOut(tween(0)) else slideOutVertically(targetOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+    }
+
     NavHost(
-                    navController = navController,
-                    startDestination = AppRoutes.Main(),
-                    enterTransition = { slideInHorizontally(initialOffsetX = { it }) + fadeIn() },
-                    exitTransition = { slideOutHorizontally(targetOffsetX = { -it / 3 }) + fadeOut() },
-                    popEnterTransition = { slideInHorizontally(initialOffsetX = { -it / 3 }) + fadeIn() },
-                    popExitTransition = { slideOutHorizontally(targetOffsetX = { it }) + fadeOut() }
-                ) {
+        navController = navController,
+        startDestination = AppRoutes.Main(),
+        enterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
+        exitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
+        popEnterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
+        popExitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) }
+    ) {
                 composable<AppRoutes.Main> { backStackEntry ->
                     val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()
                     val homeViewModel = hiltViewModel<HomeViewModel>()
                     val browserViewModel = hiltViewModel<BrowserViewModel>()
                     val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
+                    val settingsViewModel = hiltViewModel<SettingsViewModel>()
                     val browserState by browserViewModel.state.collectAsStateWithLifecycle()
+                    val browserPrefs by settingsViewModel.browserPreferences.collectAsStateWithLifecycle()
                     val showBrowserPageRequest by backStackEntry.savedStateHandle
                         .getStateFlow("showBrowserPage", false)
                         .collectAsStateWithLifecycle()
@@ -133,12 +164,16 @@ fun AppNavigationGraph(
                     androidx.compose.runtime.LaunchedEffect(mainArgs) {
                         if (mainArgs.initialPage == 1) {
                             pendingExplicitBrowserEntry = true
+                            val path = mainArgs.path
+                            val archivePath = mainArgs.archivePath
+                            val category = mainArgs.category
                             when {
-                                !mainArgs.path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
-                                    mainArgs.path,
+                                !archivePath.isNullOrEmpty() -> browserViewModel.openArchive(archivePath)
+                                !path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
+                                    path,
                                     seedInitialPathHistory = mainArgs.seedInitialPathHistory
                                 )
-                                !mainArgs.category.isNullOrEmpty() -> browserViewModel.navigateToCategory(mainArgs.category, mainArgs.volumeId)
+                                !category.isNullOrEmpty() -> browserViewModel.navigateToCategory(category, mainArgs.volumeId)
                                 else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
                             }
                             pagerState.scrollToPage(1)
@@ -231,7 +266,12 @@ fun AppNavigationGraph(
                                     },
                                     onNavigateToSaf = { uriString ->
                                         if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
-                                            android.widget.Toast.makeText(context, context.getString(R.string.could_not_open_folder_files_app), android.widget.Toast.LENGTH_LONG).show()
+                                            onFeedback(
+                                                ArcileFeedbackEvent(
+                                                    message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.could_not_open_folder_files_app),
+                                                    severity = ArcileFeedbackSeverity.Error
+                                                )
+                                            )
                                         }
                                     },
                                     onNavigateToQuickAccess = {
@@ -247,6 +287,12 @@ fun AppNavigationGraph(
                                     onToggleSearchFilterMenu = { homeViewModel.toggleSearchFilterMenu(it) },
                                     onRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.MANUAL) },
                                     onResumeRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.SILENT) },
+                                    onShareRecentFile = { path ->
+                                        coroutineScope.launch {
+                                            dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                                        }
+                                    },
+                                    homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
                                     onSetVolumeClassification = { storageKey, kind -> homeViewModel.setVolumeClassification(storageKey, kind) },
                                     onHideClassificationPrompt = { storageKey -> homeViewModel.hideClassificationPrompt(storageKey) }
                                 )
@@ -256,7 +302,13 @@ fun AppNavigationGraph(
                                     state = browserState,
                                     onNavigateBack = navigateBackFromBrowser,
                                     onNavigateTo = { browserViewModel.navigateToFolder(it) },
-                                    onOpenFile = openPath,
+                                    onOpenFile = { path ->
+                                        if (ArchiveFormat.isSupported(path)) {
+                                            browserViewModel.openArchive(path)
+                                        } else {
+                                            openPath(path)
+                                        }
+                                    },
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
                                     onSelectMultiple = { browserViewModel.selectMultiple(it) },
                                     onClearSelection = { browserViewModel.clearSelection() },
@@ -266,6 +318,7 @@ fun AppNavigationGraph(
                                     onRequestDeleteSelected = { browserViewModel.requestDeleteSelected() },
                                     onConfirmDelete = { browserViewModel.confirmDeleteSelected() },
                                     onTogglePermanentDelete = { browserViewModel.togglePermanentDelete() },
+                                    onToggleShred = { browserViewModel.toggleShred() },
                                     onDismissDeleteConfirmation = { browserViewModel.dismissDeleteConfirmation() },
                                     onRenameFile = { path, newName -> browserViewModel.renameFile(path, newName) },
                                     onSearchQueryChange = { browserViewModel.updateBrowserSearchQuery(it) },
@@ -301,21 +354,47 @@ fun AppNavigationGraph(
                                     onInvertSelection = { browserViewModel.invertSelection(it) },
                                     onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
                                     onSelectFolderTab = { browserViewModel.selectFolderTab(it) },
-                                    onExtractSelectedArchive = { password -> browserViewModel.extractSelectedArchiveHere(password) },
-                                    onExtractSelectedArchiveToFolder = { password -> browserViewModel.extractSelectedArchiveToFolder(password) },
-                                    onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
-                                    onCreateArchiveFromSelection = { name, format, password ->
-                                        browserViewModel.createArchiveFromSelection(name, format, password)
+                                    onExtractArchive = { target, customDestination ->
+                                        browserViewModel.extractArchive(target, customDestination)
                                     },
+                                    onExtractSelectedArchiveEntries = { target, customDestination ->
+                                        browserViewModel.extractSelectedArchiveEntries(target, customDestination)
+                                    },
+                                    onExtractCurrentArchiveFolder = { target, customDestination ->
+                                        browserViewModel.extractCurrentArchiveFolder(target, customDestination)
+                                    },
+                                    onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
+                                    onCreateArchiveFromSelection = { name, format, compressionLevel, password ->
+                                        browserViewModel.createArchiveFromSelection(name, format, compressionLevel, password)
+                                    },
+                                    onSubmitArchivePassword = { password ->
+                                        if (browserState.archiveContext?.pendingPasswordAction == dev.qtremors.arcile.feature.browser.ArchivePasswordAction.EXTRACT) {
+                                            browserViewModel.submitArchiveExtractionPassword(password)
+                                        } else {
+                                            browserViewModel.submitArchivePassword(password)
+                                        }
+                                    },
+                                    onDismissArchivePassword = { browserViewModel.dismissArchivePasswordPrompt() },
                                     onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
                                     onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
+                                    onUndoLastOperation = { browserViewModel.undoLastOperation() },
+                                    onClearPendingUndo = { browserViewModel.clearPendingUndo() },
+                                    onRetryRecoveredOperation = { browserViewModel.retryRecoveredOperation(it) },
+                                    onCleanupRecoveredOperation = { browserViewModel.cleanupRecoveredOperation(it) },
+                                    onDismissRecoveredOperation = { browserViewModel.dismissRecoveredOperation(it) },
+                                    onFeedback = onFeedback,
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow
                                 )
                             }
                         }
                     }
                 }
-                composable<AppRoutes.StorageDashboard> { backStackEntry ->
+                composable<AppRoutes.StorageDashboard>(
+                    enterTransition = detailEnterTransition,
+                    exitTransition = detailExitTransition,
+                    popEnterTransition = detailPopEnterTransition,
+                    popExitTransition = detailPopExitTransition
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
@@ -323,6 +402,9 @@ fun AppNavigationGraph(
                     val state by viewModel.state.collectAsStateWithLifecycle()
                     val route = backStackEntry.toRoute<AppRoutes.StorageDashboard>()
                     val volumeId = route.volumeId?.takeIf { it.isNotBlank() }
+                    androidx.compose.runtime.LaunchedEffect(volumeId) {
+                        viewModel.loadDashboardCategoryBreakdown(volumeId)
+                    }
                     StorageDashboardScreen(
                         state = state,
                         selectedVolumeId = volumeId,
@@ -348,101 +430,76 @@ fun AppNavigationGraph(
                         popUpTo<AppRoutes.Main> { inclusive = true }
                     }
                 }
-                composable<AppRoutes.Trash> {
-                    val viewModel = hiltViewModel<TrashViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    TrashScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onToggleSelection = { viewModel.toggleSelection(it) },
-                        onClearSelection = { viewModel.clearSelection() },
-                        onRestoreSelected = { viewModel.restoreSelectedTrash() },
-                        onEmptyTrash = { viewModel.emptyTrash() },
-                        onClearError = { viewModel.clearError() },
-                        onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
-                        onRestoreToDestination = { ids, path -> viewModel.restoreToDestination(ids, path) },
-                        onPermanentlyDeleteSelected = { viewModel.deletePermanentlySelected() },
-                        onDismissPermanentDelete = { viewModel.dismissPermanentDeleteConfirmation() },
-                        onSelectAll = { viewModel.selectAll() },
-                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                        onClearSearch = { viewModel.updateSearchQuery("") },
-                        onSortChange = { viewModel.updateSortOption(it) },
-                        onFilterChange = { viewModel.updateFilter(it) },
-                        onOpenProperties = { viewModel.openPropertiesForSelection() },
-                        onDismissProperties = { viewModel.dismissProperties() },
-                        onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
-                        nativeRequestFlow = viewModel.nativeRequestFlow
-                    )
-
-                }
-                composable<AppRoutes.RecentFiles> { backStackEntry ->
-                    val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry<AppRoutes.Main>()
-                    }
-                    val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
-                    val viewModel = hiltViewModel<RecentFilesViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    val recentFilesCoroutineScope = rememberCoroutineScope()
-                    RecentFilesScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onOpenFile = openPath,
-                        onToggleSelection = { viewModel.toggleSelection(it) },
-                        onClearSelection = { viewModel.clearSelection() },
-                        onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
-                        onConfirmDelete = { viewModel.confirmDeleteSelected() },
-                        onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
-                        onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
-                        onShareSelected = {
-                            recentFilesCoroutineScope.launch {
-                                if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, state.selectedFiles.toList())) {
-                                    viewModel.clearSelection()
-                                }
-                            }
-                        },
-                        onSelectAll = { viewModel.selectAll() },
-                        onRefresh = { viewModel.loadRecentFiles() },
-                        onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-                        onClearSearch = { viewModel.updateSearchQuery("") },
-                        onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-                        onPresentationChange = { viewModel.updatePresentation(it) },
-                        onSelectMultiple = { viewModel.selectMultiple(it) },
-                        onLoadMore = { viewModel.loadMore() },
-                        onClearError = { viewModel.clearError() },
-                        onOpenProperties = { viewModel.openPropertiesForSelection() },
-                        onDismissProperties = { viewModel.dismissProperties() },
-                        onOpenContainingFolder = { path ->
-                            browserViewModel.navigateToSpecificFolder(path, seedInitialPathHistory = false)
-                            parentEntry.savedStateHandle["showBrowserPage"] = true
-                            navController.popBackStack<AppRoutes.Main>(inclusive = false)
-                        },
-                        nativeRequestFlow = viewModel.nativeRequestFlow
-                    )
-                }
-                composable<AppRoutes.Tools> {
+                trashScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onFeedback = onFeedback
+                )
+                recentFilesScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenFile = openPath,
+                    onShareSelected = { paths ->
+                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    },
+                    onOpenContainingFolder = { path ->
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
+                            popUpTo<AppRoutes.Main> { inclusive = true }
+                        }
+                    },
+                    onFeedback = onFeedback
+                )
+                composable<AppRoutes.Tools>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
+                    val viewModel = hiltViewModel<UtilityPreferencesViewModel>()
+                    val homeUtilityIds by viewModel.homeUtilityIds.collectAsStateWithLifecycle()
                     ToolsScreen(
                         onNavigateBack = { navController.popBackStack() },
-                        onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) }
+                        onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) },
+                        onNavigateToTrash = {
+                            navController.navigate(AppRoutes.Trash) {
+                                popUpTo<AppRoutes.Main> { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
+                        homeUtilityIds = homeUtilityIds,
+                        onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
                     )
                 }
-                composable<AppRoutes.StorageCleaner> {
-                    val viewModel = hiltViewModel<StorageCleanerViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    StorageCleanerScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onRefresh = { viewModel.scan() },
-                        onCleanFiles = { viewModel.clean(it) },
-                        onClearMessages = { viewModel.clearMessages() }
-                    )
-                }
-                composable<AppRoutes.Settings> {
+                storageCleanerScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onFeedback = onFeedback
+                )
+                composable<AppRoutes.Settings>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     val viewModel = hiltViewModel<SettingsViewModel>()
                     val browserPrefs by viewModel.browserPreferences.collectAsStateWithLifecycle()
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         showThumbnails = browserPrefs.globalPresentation.showThumbnails,
+                        homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
+                        showHiddenFiles = browserPrefs.showHiddenFiles,
                         onShowThumbnailsChange = { viewModel.updateShowThumbnails(it) },
+                        onHomeRecentCarouselLimitChange = { viewModel.updateHomeRecentCarouselLimit(it) },
+                        onShowHiddenFilesChange = { viewModel.updateShowHiddenFiles(it) },
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
@@ -451,7 +508,12 @@ fun AppNavigationGraph(
                         onRestartApp = onRestartApp
                     )
                 }
-                composable<AppRoutes.StorageManagement> { backStackEntry ->
+                composable<AppRoutes.StorageManagement>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) { backStackEntry ->
                     val parentEntry = remember(backStackEntry) {
                         navController.getBackStackEntry<AppRoutes.Main>()
                     }
@@ -464,63 +526,53 @@ fun AppNavigationGraph(
                         onResetVolumeClassification = { storageKey -> viewModel.resetVolumeClassification(storageKey) }
                     )
                 }
-                composable<AppRoutes.About> {
+                composable<AppRoutes.About>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     AboutScreen(
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToLicenses = { navController.navigate(AppRoutes.Licenses) }
                     )
                 }
-                composable<AppRoutes.Licenses> {
+                composable<AppRoutes.Licenses>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
                     LicensesScreen(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                composable<AppRoutes.QuickAccess> { backStackEntry ->
-                    val parentEntry = remember(backStackEntry) {
-                        navController.getBackStackEntry<AppRoutes.Main>()
-                    }
-                    val browserViewModel = hiltViewModel<BrowserViewModel>(parentEntry)
-                    val viewModel = hiltViewModel<QuickAccessViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    QuickAccessScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onNavigateToPath = { path ->
-                            browserViewModel.navigateToSpecificFolder(path, seedInitialPathHistory = false)
-                            parentEntry.savedStateHandle["showBrowserPage"] = true
-                            navController.popBackStack<AppRoutes.Main>(inclusive = false)
-                        },
-                        onNavigateToSaf = { uriString ->
-                            ExternalFileAccessHelper.openInFilesApp(context, uriString)
-                        },
-                        onTogglePin = { viewModel.togglePin(it) },
-                        onRemoveItem = { viewModel.removeCustomItem(it) },
-                        onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
-                        onAddSafFolder = { uri, label ->
-                            if (label == "Android/data" || label == "Android/obb") {
-                                viewModel.addExternalHandoffFolder(uri, label)
-                            } else {
-                                viewModel.addSafFolder(uri, label)
-                            }
+                quickAccessScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToPath = { path ->
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
+                            popUpTo<AppRoutes.Main> { inclusive = true }
                         }
-                    )
-                }
-                composable<AppRoutes.ArchiveViewer> {
-                    val viewModel = hiltViewModel<ArchiveViewerViewModel>()
-                    val state by viewModel.state.collectAsStateWithLifecycle()
-                    ArchiveViewerScreen(
-                        state = state,
-                        onNavigateBack = { navController.popBackStack() },
-                        onNavigateUpInArchive = { viewModel.navigateBack() },
-                        onOpenFolder = { viewModel.openFolder(it) },
-                        onExtractAll = { password -> viewModel.extractAll(password) },
-                        onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
-                        onSubmitPassword = { viewModel.submitPassword(it) },
-                        onClearError = { viewModel.clearError() },
-                        onCancelExtraction = { viewModel.cancelExtraction() },
-                        onClearOperationStatusMessage = { viewModel.clearOperationStatusMessage() },
-                        onClearActiveOperation = { viewModel.clearActiveOperation() }
-                    )
-                }
+                    },
+                    onNavigateToSaf = { uriString ->
+                        ExternalFileAccessHelper.openInFilesApp(context, uriString)
+                    }
+                )
+                archiveViewerScreen(
+                    enterTransition = detailEnterTransition,
+                    exitTransition = detailExitTransition,
+                    popEnterTransition = detailPopEnterTransition,
+                    popExitTransition = detailPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenArchiveInBrowser = { archivePath ->
+                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false)) {
+                            popUpTo<AppRoutes.Main> { inclusive = true }
+                        }
+                    }
+                )
             }
 }

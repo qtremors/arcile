@@ -1,7 +1,10 @@
 package dev.qtremors.arcile.image
 
-import dev.qtremors.arcile.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -58,6 +61,26 @@ class ThumbnailPolicyTest {
     fun `uses wider initial budget for grid before layout is available`() {
         assertTrue(policy.shouldLoad(input(viewMode = BrowserViewMode.GRID, itemIndex = 24, visibleRange = null)))
         assertFalse(policy.shouldLoad(input(viewMode = BrowserViewMode.LIST, itemIndex = 24, visibleRange = null)))
+    }
+
+    @Test
+    fun `thumbnail key preserves media store content uri`() {
+        val model = FileModel(
+            name = "clip.mp4",
+            absolutePath = "/storage/emulated/0/Movies/clip.mp4",
+            extension = "mp4",
+            nodeRef = StorageNodeRef.mediaStore(
+                id = 12L,
+                volumeName = "external_primary",
+                contentUri = "content://media/external_primary/file/12",
+                displayPath = "/storage/emulated/0/Movies/clip.mp4"
+            )
+        )
+
+        val key = ThumbnailKey.from(model)
+
+        assertEquals("content://media/external_primary/file/12", key.contentUri)
+        assertTrue(key.cacheKey.contains("content://media/external_primary/file/12"))
     }
 
     private fun input(

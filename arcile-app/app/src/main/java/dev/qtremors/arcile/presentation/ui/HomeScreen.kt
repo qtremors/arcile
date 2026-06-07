@@ -89,7 +89,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.combinedClickable
-import dev.qtremors.arcile.presentation.ui.components.TopBarAction
+import dev.qtremors.arcile.shared.ui.TopBarAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -110,29 +110,28 @@ import dev.qtremors.arcile.ui.theme.titleLargeBold
 import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium
-import dev.qtremors.arcile.presentation.ui.components.lists.FileItemRow
-import dev.qtremors.arcile.domain.CategoryStorage
-import dev.qtremors.arcile.domain.FileCategories
+import dev.qtremors.arcile.shared.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.filterAndSortFiles
-import dev.qtremors.arcile.presentation.ui.components.ArcileTopBar
-import dev.qtremors.arcile.presentation.ui.components.ToolCard
-import dev.qtremors.arcile.presentation.ui.components.ToolItem
+import dev.qtremors.arcile.shared.ui.ArcileTopBar
+import dev.qtremors.arcile.shared.ui.ToolCard
+import dev.qtremors.arcile.shared.ui.ToolItem
 import dev.qtremors.arcile.presentation.ui.components.home.StorageSummaryCard
 import dev.qtremors.arcile.presentation.ui.components.home.CategoryGrid
 import dev.qtremors.arcile.presentation.ui.components.home.QuickAccessGrid
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
-import dev.qtremors.arcile.presentation.ui.components.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.SearchTopBar
-import dev.qtremors.arcile.presentation.ui.components.shimmer
-import dev.qtremors.arcile.presentation.ui.components.SearchFiltersBottomSheet
-import dev.qtremors.arcile.domain.SearchFilters
+import dev.qtremors.arcile.shared.ui.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.SearchTopBar
+import dev.qtremors.arcile.shared.ui.shimmer
+import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -140,9 +139,9 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.domain.StorageKind
-import dev.qtremors.arcile.domain.isIndexed
-import dev.qtremors.arcile.domain.showTemporaryStorageBadge
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
@@ -153,11 +152,13 @@ import androidx.compose.ui.platform.LocalContext
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import dev.qtremors.arcile.presentation.ui.components.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailTargetSize
+import dev.qtremors.arcile.image.ThumbnailType
+import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 
-private const val HomeRecentFilesPreviewLimit = 12
 private const val HomeRecentFilesPreloadLimit = 6
-private const val HomeRecentFilesPreloadSizePx = 512
+private const val HomeRecentFilesPreloadSizePx = 384
 /**
  * Dashboard screen shown when the app first launches.
  *
@@ -182,8 +183,8 @@ private const val HomeRecentFilesPreloadSizePx = 512
 
 @Composable
 fun StorageClassificationPrompt(
-    volume: dev.qtremors.arcile.domain.StorageVolume,
-    onClassify: (dev.qtremors.arcile.domain.StorageKind) -> Unit,
+    volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
+    onClassify: (dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit,
     onDecideLater: () -> Unit
 ) {
     ElevatedCard(
@@ -265,6 +266,17 @@ fun StorageClassificationPrompt(
     }
 }
 
+private fun homeRecentPreloadCacheKey(file: FileModel): String =
+    buildString {
+        append("home-recent:")
+        append(file.absolutePath)
+        append(':')
+        append(file.lastModified)
+        append(':')
+        append(file.size)
+        append(':')
+        append(HomeRecentFilesPreloadSizePx)
+    }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
@@ -287,7 +299,9 @@ fun HomeScreen(
     onToggleSearchFilterMenu: (Boolean) -> Unit = {},
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
-    onSetVolumeClassification: (String, dev.qtremors.arcile.domain.StorageKind) -> Unit = { _, _ -> },
+    onShareRecentFile: (String) -> Unit = {},
+    homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
+    onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
     onNavigateToCleaner: () -> Unit = {}
 ) {
@@ -298,27 +312,32 @@ fun HomeScreen(
         onPauseOrDispose { }
     }
 
-    val displayedRecentFiles = remember(state.recentFiles, state.homeSearchQuery, state.homeSortOption, state.todayStart) {
-        val todayFiles = state.recentFiles.filter { it.lastModified >= state.todayStart }
-        filterAndSortFiles(todayFiles, state.homeSearchQuery, state.homeSortOption)
-            .take(HomeRecentFilesPreviewLimit)
-    }
+    val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+        .normalizeHomeRecentCarouselLimit(homeRecentCarouselLimit)
+    val displayedRecentFiles = state.displayState.todayRecentFiles.take(normalizedRecentLimit)
     LaunchedEffect(displayedRecentFiles) {
+        if (normalizedRecentLimit == 0) return@LaunchedEffect
         displayedRecentFiles
             .asSequence()
             .filter { file ->
-                val extension = file.extension.lowercase()
-                !file.isDirectory && (
-                    FileCategories.Images.extensions.contains(extension) ||
-                        FileCategories.Videos.extensions.contains(extension)
-                    )
+                !file.isDirectory && ThumbnailKey.from(file).type != ThumbnailType.Unsupported
             }
             .take(HomeRecentFilesPreloadLimit)
             .forEach { file ->
+                val thumbnailKey = ThumbnailKey.from(file)
+                val thumbnailData = when (thumbnailKey.type) {
+                    ThumbnailType.Audio,
+                    ThumbnailType.Video,
+                    ThumbnailType.Pdf,
+                    ThumbnailType.Apk -> thumbnailKey
+                    else -> File(file.absolutePath)
+                }
                 context.imageLoader.enqueue(
                     ImageRequest.Builder(context)
-                        .data(File(file.absolutePath))
-                        .size(HomeRecentFilesPreloadSizePx)
+                        .data(thumbnailData)
+                        .size(ThumbnailTargetSize.fromBounds(HomeRecentFilesPreloadSizePx))
+                        .memoryCacheKey(homeRecentPreloadCacheKey(file))
+                        .diskCacheKey(homeRecentPreloadCacheKey(file))
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
                         .crossfade(false)
@@ -328,7 +347,7 @@ fun HomeScreen(
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val dateFormatter = dev.qtremors.arcile.presentation.utils.rememberDateFormatter("MMM dd, yyyy")
+    val dateFormatter = dev.qtremors.arcile.shared.ui.rememberDateFormatter("MMM dd, yyyy")
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -421,7 +440,13 @@ fun HomeScreen(
                             )
                         )
                     }
-                    item { CategoryGrid(state.categoryStorages, onCategoryClick) }
+                    item {
+                        CategoryGrid(
+                            categoryStorages = state.categoryStorages,
+                            reserveSizeLine = state.isLoading || state.isCalculatingStorage || state.categoryStorages.isEmpty(),
+                            onCategoryClick = onCategoryClick
+                        )
+                    }
 
                     item {
                         Row(
@@ -454,6 +479,7 @@ fun HomeScreen(
                         )
                     }
 
+                    val displayedHomeUtilities = HomeUtilityCatalog.filter { it.id in state.homeUtilityIds }
                     item {
                         Row(
                             modifier = Modifier
@@ -477,78 +503,79 @@ fun HomeScreen(
                         }
                     }
 
-                    item {
-                        androidx.compose.foundation.lazy.LazyRow(
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
-                            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
-                        ) {
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.trash_bin),
-                                            Icons.Default.Delete,
-                                            isImplemented = true
-                                        ), onClick = onNavigateToTrash
-                                    )
-                                }
-                            }
-                            item {
-                                Box(modifier = Modifier.width(140.dp)) {
-                                    ToolCard(
-                                        ToolItem(
-                                            stringResource(R.string.tool_clean),
-                                            Icons.Default.CleaningServices,
-                                            isImplemented = true
-                                        ), onClick = onNavigateToCleaner
-                                    )
+                    if (displayedHomeUtilities.isNotEmpty()) {
+                        item {
+                            androidx.compose.foundation.lazy.LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                                contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
+                                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
+                            ) {
+                                items(displayedHomeUtilities, key = { it.id }) { definition ->
+                                    Box(modifier = Modifier.width(140.dp)) {
+                                        ToolCard(
+                                            ToolItem(
+                                                stringResource(definition.nameRes),
+                                                definition.icon,
+                                                isImplemented = definition.isImplemented
+                                            ),
+                                            onClick = {
+                                                when (definition.action) {
+                                                    UtilityAction.Trash -> onNavigateToTrash()
+                                                    UtilityAction.Cleaner -> onNavigateToCleaner()
+                                                    UtilityAction.None -> Unit
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    start = MaterialTheme.spacing.medium,
-                                    top = MaterialTheme.spacing.large,
-                                    end = MaterialTheme.spacing.medium,
-                                    bottom = MaterialTheme.spacing.small
-                                ),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.recent_files),
-                                style = MaterialTheme.typography.titleMediumBold
-                            )
-                            TextButton(onClick = onNavigateToRecentFiles) {
-                                Text(stringResource(R.string.see_all))
+                    if (normalizedRecentLimit > 0) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                        start = MaterialTheme.spacing.medium,
+                                        top = MaterialTheme.spacing.large,
+                                        end = MaterialTheme.spacing.medium,
+                                        bottom = MaterialTheme.spacing.small
+                                    ),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.recent_files),
+                                    style = MaterialTheme.typography.titleMediumBold
+                                )
+                                TextButton(onClick = onNavigateToRecentFiles) {
+                                    Text(stringResource(R.string.see_all))
+                                }
                             }
                         }
-                    }
 
-                    if (displayedRecentFiles.isEmpty() && !state.isLoading) {
-                        item {
-                            EmptyState(
-                                variant = EmptyStateVariant.Recent,
-                                title = stringResource(R.string.no_recent_files),
-                                description = stringResource(R.string.no_recent_files_description),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    } else if (displayedRecentFiles.isNotEmpty()) {
-                        item {
-                            dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
-                                files = displayedRecentFiles,
-                                onOpenFile = onOpenFile,
-                                onNavigateToPath = onNavigateToPath,
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                        if (displayedRecentFiles.isEmpty() && !state.isLoading) {
+                            item {
+                                EmptyState(
+                                    variant = EmptyStateVariant.Recent,
+                                    title = stringResource(R.string.no_recent_files),
+                                    description = stringResource(R.string.no_recent_files_description),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        } else if (displayedRecentFiles.isNotEmpty()) {
+                            item {
+                                dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
+                                    files = displayedRecentFiles,
+                                    onOpenFile = onOpenFile,
+                                    onNavigateToPath = onNavigateToPath,
+                                    onShareFile = onShareRecentFile,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
 

@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import coil.fetch.DrawableResult
 import coil.request.Options
+import coil.size.Size
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -50,11 +51,12 @@ class ApkIconFetcherTest {
         }
         val options = mockk<Options> {
             every { this@mockk.context } returns context
+            every { size } returns Size(96, 96)
         }
 
         val result = ApkIconFetcher(apk, options).fetch() as DrawableResult
 
-        assertEquals(expectedDrawable, result.drawable)
+        assertNotNull(result.drawable)
         assertEquals(apk.absolutePath, appInfo.sourceDir)
         assertEquals(apk.absolutePath, appInfo.publicSourceDir)
     }

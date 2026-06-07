@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.operations
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -10,12 +10,24 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
-import dev.qtremors.arcile.R
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.di.ArcileDispatchers
-import dev.qtremors.arcile.data.StorageWorkCoordinator
-import dev.qtremors.arcile.domain.FileRepository
-import dev.qtremors.arcile.domain.toArcileError
-import dev.qtremors.arcile.presentation.asString
+import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.BatchMutationPartialFailure
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
+import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.toArcileError
+import dev.qtremors.arcile.core.storage.domain.userMessage
+import dev.qtremors.arcile.core.ui.asString
+import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
@@ -31,7 +43,16 @@ import javax.inject.Inject
 class BulkFileOperationService : Service() {
 
     @Inject
-    lateinit var repository: FileRepository
+    lateinit var clipboardRepository: ClipboardRepository
+
+    @Inject
+    lateinit var trashRepository: TrashRepository
+
+    @Inject
+    lateinit var fileMutationRepository: FileMutationRepository
+
+    @Inject
+    lateinit var archiveRepository: ArchiveRepository
 
     @Inject
     lateinit var coordinator: BulkFileOperationCoordinator
@@ -63,6 +84,7 @@ class BulkFileOperationService : Service() {
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
     private var lastNotificationUpdateAt = 0L
+    private var notificationMetrics = NotificationMetrics()
     private val serviceOperationJournal: OperationJournal
         get() = if (::operationJournal.isInitialized) operationJournal else NoOpOperationJournal()
 
@@ -78,7 +100,7 @@ class BulkFileOperationService : Service() {
                     serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
                     coordinator.onOperationCancelling(request)
                     currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
-                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopForegroundSafely()
                     stopSelf(startId)
                 }
                 return START_NOT_STICKY
@@ -87,14 +109,15 @@ class BulkFileOperationService : Service() {
                 val requestJson = intent.getStringExtra(EXTRA_REQUEST_JSON) ?: return START_NOT_STICKY
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
-                serviceOperationJournal.upsert(request.toJournalRecord(OperationPhase.RUNNING))
+                notificationMetrics = NotificationMetrics(startedAtMillis = System.currentTimeMillis())
+                serviceOperationJournal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
                 startForeground(NOTIFICATION_ID, buildNotification(request))
                 storageWorkCoordinator.beginMutation()
                 val capturedStartId = startId
                 currentOperationJob = serviceScope.launch {
                     try {
                         val result = when (request.type) {
-                            BulkFileOperationType.COPY -> repository.copyFiles(
+                            BulkFileOperationType.COPY -> clipboardRepository.copyFiles(
                                 request.sourcePaths,
                                 requireNotNull(request.destinationPath) { "Destination path is required for copy" },
                                 request.resolutions
@@ -102,7 +125,7 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.MOVE -> repository.moveFiles(
+                            BulkFileOperationType.MOVE -> clipboardRepository.moveFiles(
                                 request.sourcePaths,
                                 requireNotNull(request.destinationPath) { "Destination path is required for move" },
                                 request.resolutions
@@ -110,12 +133,21 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.TRASH -> repository.moveToTrash(request.sourcePaths) { progress ->
+                            BulkFileOperationType.TRASH -> trashRepository.moveToTrash(request.sourcePaths) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.DELETE -> repository.deletePermanently(request.sourcePaths)
-                            BulkFileOperationType.CREATE_FAKE -> repository.createFakeFile(
+                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(request.sourcePaths)
+                                .fold(
+                                    onSuccess = { it.requireCompleteSuccess("Permanent delete") },
+                                    onFailure = { Result.failure(it) }
+                                )
+                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(request.sourcePaths)
+                                .fold(
+                                    onSuccess = { it.requireCompleteSuccess("Secure shred") },
+                                    onFailure = { Result.failure(it) }
+                                )
+                            BulkFileOperationType.CREATE_FAKE -> fileMutationRepository.createFakeFile(
                                 requireNotNull(request.destinationPath),
                                 request.sourcePaths.first(),
                                 requireNotNull(request.fakeFileSize)
@@ -123,20 +155,24 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.EXTRACT_ARCHIVE -> repository.extractArchive(
+                            BulkFileOperationType.EXTRACT_ARCHIVE -> archiveRepository.extractArchive(
                                 archivePath = request.sourcePaths.first(),
                                 destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
                                 entryPrefix = request.archiveEntryPrefix,
-                                password = request.archivePassword
+                                password = request.archivePassword,
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                resolutions = request.resolutions
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.CREATE_ARCHIVE -> repository.createArchive(
+                            BulkFileOperationType.CREATE_ARCHIVE -> archiveRepository.createArchive(
                                 sourcePaths = request.sourcePaths,
                                 destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
                                 format = requireNotNull(request.archiveFormat) { "Archive format is required" },
-                                password = request.archivePassword
+                                password = request.archivePassword,
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
                             ) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
@@ -154,7 +190,7 @@ class BulkFileOperationService : Service() {
                             }
                             coordinator.onOperationFailed(
                                 request,
-                                error.toArcileError().userMessage.asString(this@BulkFileOperationService)
+                                operationFailureMessage(error)
                             )
                             serviceOperationJournal.clearActive(request.operationId)
                         }
@@ -166,7 +202,8 @@ class BulkFileOperationService : Service() {
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
-                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        notificationMetrics = NotificationMetrics()
+                        stopForegroundSafely()
                         stopSelf(capturedStartId)
                     }
                 }
@@ -194,19 +231,30 @@ class BulkFileOperationService : Service() {
         )
     }
 
+    private fun operationFailureMessage(error: Throwable): String =
+        if (error is BatchMutationPartialFailure) {
+            error.message ?: getString(R.string.error_file_operation_failed)
+        } else {
+            error.toArcileError().userMessage.asString(this@BulkFileOperationService)
+        }
+
     private fun buildNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress? = null): Notification {
         ensureChannel()
         val title = operationTitle(request.type)
         val content = progress?.let(::progressContent)
-            ?: getString(R.string.file_operation_processing_background, request.sourcePaths.size)
+            ?: resources.getQuantityString(
+                R.plurals.file_operation_processing_background,
+                request.sourcePaths.size,
+                request.sourcePaths.size
+            )
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(dev.qtremors.arcile.R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(content)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(
-                R.drawable.ic_notification,
+                dev.qtremors.arcile.R.drawable.ic_notification,
                 getString(R.string.notification_action_cancel),
                 cancelPendingIntent(request)
             )
@@ -221,6 +269,7 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.MOVE -> getString(R.string.file_operation_moving_files)
             BulkFileOperationType.TRASH -> getString(R.string.file_operation_moving_files_to_trash)
             BulkFileOperationType.DELETE -> getString(R.string.file_operation_deleting_files)
+            BulkFileOperationType.SHRED -> getString(R.string.file_operation_shredding_files)
             BulkFileOperationType.CREATE_FAKE -> getString(R.string.file_operation_creating_fake_file)
             BulkFileOperationType.EXTRACT_ARCHIVE -> getString(R.string.file_operation_extracting_archive)
             BulkFileOperationType.CREATE_ARCHIVE -> getString(R.string.file_operation_creating_archive)
@@ -230,20 +279,49 @@ class BulkFileOperationService : Service() {
         val currentName = progress.currentPath
             ?.substringAfterLast('/')
             ?.takeIf { it.isNotBlank() }
+        val itemProgress = resources.getQuantityString(
+            R.plurals.file_operation_progress_items,
+            progress.totalItems,
+            progress.completedItems,
+            progress.totalItems
+        )
         val primary = if ((progress.totalBytes ?: 0L) > 0L) {
-            "${progressPercent(progress)}% • ${progress.completedItems}/${progress.totalItems} items"
+            getString(R.string.file_operation_progress_percent, progressPercent(progress), itemProgress)
         } else {
-            "${progress.completedItems}/${progress.totalItems} items"
+            itemProgress
         }
-        return listOfNotNull(primary, currentName).joinToString(" • ")
+        val metrics = notificationProgressDetails(progress, System.currentTimeMillis())
+        return listOfNotNull(primary, metrics, currentName).joinToString(" • ")
+    }
+
+    private fun notificationProgressDetails(progress: BulkFileOperationProgress, nowMillis: Long): String? {
+        val copied = progress.bytesCopied ?: return null
+        val total = progress.totalBytes?.takeIf { it > 0L } ?: return null
+        if (copied <= 0L) return null
+        val elapsedMillis = (nowMillis - notificationMetrics.startedAtMillis).coerceAtLeast(1L)
+        val bytesPerSecond = (copied * 1000L / elapsedMillis).coerceAtLeast(1L)
+        val speed = getString(R.string.transfer_speed_value, formatFileSize(bytesPerSecond))
+        val remainingBytes = (total - copied).coerceAtLeast(0L)
+        val eta = if (remainingBytes == 0L) {
+            null
+        } else {
+            val seconds = (remainingBytes / bytesPerSecond).coerceAtLeast(1L)
+            if (seconds >= 60L) {
+                getString(R.string.transfer_eta_minutes, (seconds / 60L).toInt(), (seconds % 60L).toInt())
+            } else {
+                getString(R.string.transfer_eta_seconds, seconds.toInt())
+            }
+        }
+        return listOfNotNull(speed, eta).joinToString(" • ")
     }
 
     private fun applyProgress(
         builder: NotificationCompat.Builder,
         progress: BulkFileOperationProgress?
     ) {
+        val totalBytes = progress?.totalBytes
         when {
-            progress?.totalBytes != null && progress.totalBytes > 0L -> {
+            totalBytes != null && totalBytes > 0L -> {
                 builder.setProgress(100, progressPercent(progress), false)
             }
             progress != null && progress.totalItems > 0 -> {
@@ -285,6 +363,12 @@ class BulkFileOperationService : Service() {
         manager.createNotificationChannel(channel)
     }
 
+    private fun stopForegroundSafely() {
+        runCatching {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
+    }
+
     companion object {
         const val ACTION_START = "dev.qtremors.arcile.action.START_BULK_FILE_OPERATION"
         const val ACTION_CANCEL = "dev.qtremors.arcile.action.CANCEL_BULK_FILE_OPERATION"
@@ -295,4 +379,8 @@ class BulkFileOperationService : Service() {
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_UPDATE_THROTTLE_MS = 500L
     }
+
+    private data class NotificationMetrics(
+        val startedAtMillis: Long = 0L
+    )
 }

@@ -1,7 +1,10 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.operations
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -28,7 +31,7 @@ class OperationJournalTest {
     @Test
     fun `upsert and hydrate active operation`() {
         val request = request("op-1")
-        journal.upsert(request.toJournalRecord(OperationPhase.RUNNING))
+        journal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
 
         val hydrated = DefaultOperationJournal(context).activeRecord()
 
@@ -39,7 +42,7 @@ class OperationJournalTest {
     @Test
     fun `update persists progress and cancellation state`() {
         val request = request("op-2")
-        journal.upsert(request.toJournalRecord(OperationPhase.RUNNING))
+        journal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
         val progress = BulkFileOperationProgress(
             completedItems = 1,
             totalItems = 2,
@@ -57,17 +60,57 @@ class OperationJournalTest {
 
     @Test
     fun `recoverInterrupted marks running operation cleanup required`() {
-        journal.upsert(request("op-3").toJournalRecord(OperationPhase.RUNNING))
+        journal.upsertActive(request("op-3").toJournalRecord(OperationPhase.RUNNING))
 
         val recovered = journal.recoverInterrupted()
 
-        assertEquals(OperationPhase.CLEANUP_REQUIRED, recovered?.phase)
-        assertTrue(recovered?.error?.contains("interrupted") == true)
+        assertNull(journal.activeRecord())
+        assertEquals(OperationPhase.CLEANUP_REQUIRED, recovered.singleOrNull()?.phase)
+        assertTrue(recovered.singleOrNull()?.error?.contains("interrupted") == true)
+    }
+
+    @Test
+    fun `recoverInterrupted converts non-terminal active operations into recovery records`() {
+        listOf(OperationPhase.QUEUED, OperationPhase.RUNNING, OperationPhase.CANCELLING).forEach { phase ->
+            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            journal.upsertActive(request("op-${phase.name}").toJournalRecord(phase))
+
+            val recovered = journal.recoverInterrupted()
+
+            assertNull(journal.activeRecord())
+            assertEquals("op-${phase.name}", recovered.single().request.operationId)
+            assertEquals(OperationPhase.CLEANUP_REQUIRED, recovered.single().phase)
+        }
+    }
+
+    @Test
+    fun `recoverInterrupted does not convert terminal active operations`() {
+        listOf(OperationPhase.COMPLETED, OperationPhase.FAILED, OperationPhase.CANCELLED).forEach { phase ->
+            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            journal.upsertActive(request("op-${phase.name}").toJournalRecord(phase))
+
+            val recovered = journal.recoverInterrupted()
+
+            assertTrue(recovered.isEmpty())
+            assertNull(journal.activeRecord())
+        }
+    }
+
+    @Test
+    fun `dismissRecovery removes only matching recovery record`() {
+        journal.upsertActive(request("op-a").toJournalRecord(OperationPhase.RUNNING))
+        journal.recoverInterrupted()
+        journal.upsertActive(request("op-b").toJournalRecord(OperationPhase.RUNNING))
+        journal.recoverInterrupted()
+
+        journal.dismissRecovery("op-a")
+
+        assertEquals(listOf("op-b"), journal.recoveryRecords().map { it.request.operationId })
     }
 
     @Test
     fun `clearActive removes matching operation`() {
-        journal.upsert(request("op-4").toJournalRecord(OperationPhase.COMPLETED))
+        journal.upsertActive(request("op-4").toJournalRecord(OperationPhase.COMPLETED))
 
         journal.clearActive("op-4")
 
@@ -82,4 +125,3 @@ class OperationJournalTest {
             destinationPath = null
         )
 }
-

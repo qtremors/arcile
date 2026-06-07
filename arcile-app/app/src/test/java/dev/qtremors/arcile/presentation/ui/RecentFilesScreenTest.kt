@@ -6,11 +6,12 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import dev.qtremors.arcile.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.domain.BrowserViewMode
-import dev.qtremors.arcile.domain.FileModel
-import dev.qtremors.arcile.presentation.FileSortOption
-import dev.qtremors.arcile.presentation.recentfiles.RecentFilesState
+import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
+import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test

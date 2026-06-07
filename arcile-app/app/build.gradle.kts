@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.serialization)
+    id("arcile.android.application.conventions")
 }
 
 android {
@@ -15,9 +16,9 @@ android {
     defaultConfig {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
-        targetSdk = 36
-        versionCode = 64
-        versionName = "0.8.0"
+        targetSdk = 37
+        versionCode = 100
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -89,11 +90,8 @@ android {
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
-            if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-                // versionName already includes the "-debug" suffix from versionNameSuffix
-                val version = variant.outputs.first().versionName.get() ?: "0.0.0"
-                output.outputFileName.set("Arcile-$version.apk")
-            }
+            val version = output.versionName.get() ?: "0.0.0"
+            output.outputFileName.set("Arcile-$version.apk")
         }
     }
 }
@@ -104,61 +102,29 @@ kotlin {
     }
 }
 
-tasks.register("checkProductionStrings") {
-    group = "verification"
-    description = "Flags obvious hardcoded production UI strings in production sources."
-
-    doLast {
-        val sourceRoot = file("src/main/java")
-        val suspiciousPattern = Regex(
-            """(Text\(\s*"[^"]*[A-Za-z][^"]*"|contentDescription\s*=\s*"[^"]*[A-Za-z][^"]*"|placeholder\s*=\s*"[^"]*[A-Za-z][^"]*"|title\s*=\s*"[^"]*[A-Za-z][^"]*"|Toast\.makeText\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|createChooser\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|error\.message\s*\?:\s*"[^"]*[A-Za-z][^"]*"|fileOperationStatusMessage\s*=\s*"[^"]*[A-Za-z][^"]*"|setContentTitle\("([^"]*[A-Za-z][^"]*)"|setContentText\("([^"]*[A-Za-z][^"]*)"|addAction\([^"]*"[^"]*[A-Za-z][^"]*")"""
-        )
-        val allowedFragments = listOf(
-            "android.os.Build.",
-            "Text(\".\${",
-            "AppLogger.",
-            "Regex(",
-            "SimpleDateFormat(",
-            "DateTimeFormatter",
-            "ImageRequest.Builder",
-            "mutableStateOf(\"\")",
-            "SavedStateHandle",
-            "MIME",
-            "mimeType",
-            "contentType =",
-            "label ="
-        )
-        val offenders = fileTree(sourceRoot) {
-            include("dev/qtremors/arcile/**/*.kt")
-            exclude("**/ui/theme/**")
-        }.files.flatMap { sourceFile ->
-            val relativePath = sourceFile.relativeTo(projectDir).invariantSeparatorsPath
-            sourceFile.readLines().mapIndexedNotNull { index, line ->
-                val trimmed = line.trim()
-                if (suspiciousPattern.containsMatchIn(trimmed) &&
-                    allowedFragments.none { trimmed.contains(it) } &&
-                    !trimmed.contains("R.string.") &&
-                    !trimmed.contains("R.plurals.") &&
-                    !trimmed.contains("stringResource(") &&
-                    !trimmed.contains("pluralStringResource(") &&
-                    !trimmed.contains("getString(")
-                ) {
-                    "$relativePath:${index + 1}: $trimmed"
-                } else {
-                    null
-                }
-            }
-        }
-        if (offenders.isNotEmpty()) {
-            throw GradleException(buildString {
-                appendLine("Found hardcoded production UI strings:")
-                offenders.forEach { appendLine(it) }
-            })
-        }
-    }
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose_compiler/reports")
+    metricsDestination = layout.buildDirectory.dir("compose_compiler/metrics")
 }
 
 dependencies {
+    implementation(project(":core:runtime"))
+    implementation(project(":core:navigation:api"))
+    implementation(project(":core:operation:api"))
+    implementation(project(":core:operation"))
+    implementation(project(":core:presentation:api"))
+    implementation(project(":core:storage:domain"))
+    implementation(project(":core:storage:data"))
+    implementation(project(":core:ui"))
+    implementation(project(":feature:browser"))
+    implementation(project(":feature:trash"))
+    implementation(project(":feature:archive"))
+    implementation(project(":feature:recentfiles"))
+    implementation(project(":feature:onboarding"))
+    implementation(project(":feature:quickaccess"))
+    implementation(project(":feature:storagecleaner"))
+    implementation(project(":feature:storageusage"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -175,11 +141,13 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.collections.immutable)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
     implementation(libs.kotlinx.serialization.json)
+
     implementation(libs.material.kolor)
     implementation(libs.apache.commons.compress)
     implementation(libs.tukaani.xz)
@@ -191,9 +159,12 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
 
+    testImplementation(project(":core:testing"))
+    testImplementation(project(":core:ui:testing"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
+    testImplementation(libs.archunit.junit4)
     testImplementation(libs.app.cash.turbine)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)

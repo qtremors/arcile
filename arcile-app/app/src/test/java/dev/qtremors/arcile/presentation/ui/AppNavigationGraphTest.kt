@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.feature.browser.ui.BrowserBackAction
+import dev.qtremors.arcile.feature.browser.ui.BrowserBackState
+import dev.qtremors.arcile.feature.browser.ui.resolveBrowserBackAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

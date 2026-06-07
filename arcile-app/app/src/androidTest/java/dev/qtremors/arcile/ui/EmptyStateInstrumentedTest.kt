@@ -4,7 +4,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import dev.qtremors.arcile.presentation.ui.components.EmptyState
+import dev.qtremors.arcile.shared.ui.EmptyState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Warning
 import org.junit.Rule

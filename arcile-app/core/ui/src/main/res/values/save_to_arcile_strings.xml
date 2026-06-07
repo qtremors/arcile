@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="save_to_arcile_title">Save to Arcile</string>
+    <string name="save_to_arcile_choose_storage">Choose storage</string>
+    <string name="save_to_arcile_save_here">Save here</string>
+    <string name="save_to_arcile_no_files">No shared files found</string>
+    <string name="save_to_arcile_failed">Could not save shared files: %1$s</string>
+    <string name="save_to_arcile_invalid_destination">Choose a valid folder</string>
+    <string name="save_to_arcile_failed_open_stream">Could not open shared file stream</string>
+    <string name="save_to_arcile_partial_saved">Saved %1$d file(s); %2$d failed</string>
+    <string name="save_to_arcile_insufficient_space">Not enough free space in the selected folder</string>
+    <string name="save_to_arcile_too_many_files">Save to Arcile supports up to %1$d files at once</string>
+    <string name="save_to_arcile_too_large">Shared files exceed the 10 GB import limit</string>
+    <string name="save_to_arcile_external_file_uri">This app shared a direct file path that Arcile cannot safely import</string>
+    <string name="save_to_arcile_unsupported_source">This shared item uses an unsupported source type</string>
+</resources>

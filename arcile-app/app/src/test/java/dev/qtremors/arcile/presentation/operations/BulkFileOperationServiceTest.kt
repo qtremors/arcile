@@ -1,23 +1,39 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.operations
 
 import android.content.Context
 import android.content.Intent
 import android.app.Notification
 import android.app.NotificationManager
 import androidx.test.core.app.ApplicationProvider
-import dev.qtremors.arcile.data.DefaultStorageWorkCoordinator
-import dev.qtremors.arcile.domain.ConflictResolution
-import dev.qtremors.arcile.testutil.FakeFileRepository
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
+import dev.qtremors.arcile.testutil.FakeArchiveRepository
+import dev.qtremors.arcile.testutil.FakeClipboardRepository
+import dev.qtremors.arcile.testutil.FakeFileMutationRepository
+import dev.qtremors.arcile.testutil.FakeTrashRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -37,7 +53,10 @@ class BulkFileOperationServiceTest {
 
     private lateinit var context: Context
     private lateinit var coordinator: BulkFileOperationCoordinator
-    private lateinit var repository: FakeFileRepository
+    private lateinit var clipboardRepository: FakeClipboardRepository
+    private lateinit var trashRepository: FakeTrashRepository
+    private lateinit var fileMutationRepository: FakeFileMutationRepository
+    private lateinit var archiveRepository: FakeArchiveRepository
     private lateinit var storageWorkCoordinator: DefaultStorageWorkCoordinator
     private lateinit var serviceController: ServiceController<BulkFileOperationService>
     private lateinit var service: BulkFileOperationService
@@ -47,13 +66,19 @@ class BulkFileOperationServiceTest {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
         coordinator = mockk(relaxed = true)
-        repository = FakeFileRepository()
+        clipboardRepository = FakeClipboardRepository()
+        trashRepository = FakeTrashRepository()
+        fileMutationRepository = FakeFileMutationRepository()
+        archiveRepository = FakeArchiveRepository()
         storageWorkCoordinator = DefaultStorageWorkCoordinator()
 
         serviceController = Robolectric.buildService(BulkFileOperationService::class.java)
         service = serviceController.get()
         service.coordinator = coordinator
-        service.repository = repository
+        service.clipboardRepository = clipboardRepository
+        service.trashRepository = trashRepository
+        service.fileMutationRepository = fileMutationRepository
+        service.archiveRepository = archiveRepository
         service.storageWorkCoordinator = storageWorkCoordinator
         service.operationJournal = DefaultOperationJournal(context)
     }
@@ -79,7 +104,7 @@ class BulkFileOperationServiceTest {
         serviceController.withIntent(intent).startCommand(0, 1)
 
         verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
-        assertEquals(listOf(listOf("/test.txt")), repository.moveToTrashRequests)
+        assertEquals(listOf(listOf("/test.txt")), trashRepository.moveToTrashRequests)
         awaitInactiveMutation()
         assertEquals(null, DefaultOperationJournal(context).activeRecord())
     }
@@ -127,7 +152,7 @@ class BulkFileOperationServiceTest {
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         val progressSent = CountDownLatch(1)
         val finishOperation = CountDownLatch(1)
-        repository.copyFilesResultProvider = { _, _, _, onProgress ->
+        clipboardRepository.copyFilesResultProvider = { _, _, _, onProgress ->
             onProgress?.invoke(
                 BulkFileOperationProgress(
                     completedItems = 1,
@@ -157,9 +182,96 @@ class BulkFileOperationServiceTest {
 
             assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TITLE) == "Copying files" })
             assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("50%") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("1 / 2 items") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("a.txt") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("/s") })
+            assertTrue(notifications.any { it.extras.getString(Notification.EXTRA_TEXT).orEmpty().contains("remaining") })
             assertTrue(notifications.any { notification -> notification.actions.any { it.title == "Cancel" } })
         } finally {
             finishOperation.countDown()
+            verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+            awaitInactiveMutation()
+        }
+    }
+
+    @Test
+    fun `service notification uses singular initial item text`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-initial-singular",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val operationStarted = CountDownLatch(1)
+        val finishOperation = CountDownLatch(1)
+        clipboardRepository.copyFilesResultProvider = { _, _, _, _ ->
+            operationStarted.countDown()
+            finishOperation.await(2, TimeUnit.SECONDS)
+            Result.success(Unit)
+        }
+
+        try {
+            serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+            assertTrue(operationStarted.await(2, TimeUnit.SECONDS))
+
+            val notificationManager = context.getSystemService(NotificationManager::class.java)
+            val notifications = shadowOf(notificationManager).allNotifications
+
+            assertTrue(notifications.any {
+                it.extras.getString(Notification.EXTRA_TEXT) == "Processing 1 item in the background"
+            })
+        } finally {
+            finishOperation.countDown()
+            verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+            awaitInactiveMutation()
+        }
+    }
+
+    @Test
+    fun `service notification pluralizes item-only progress`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-item-progress",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val progressSent = CountDownLatch(1)
+        val finishOperation = CountDownLatch(1)
+        clipboardRepository.copyFilesResultProvider = { _, _, _, onProgress ->
+            onProgress?.invoke(
+                BulkFileOperationProgress(
+                    completedItems = 1,
+                    totalItems = 2,
+                    currentPath = "/source/b.txt",
+                    bytesCopied = null,
+                    totalBytes = null
+                )
+            )
+            progressSent.countDown()
+            finishOperation.await(2, TimeUnit.SECONDS)
+            Result.success(Unit)
+        }
+
+        try {
+            serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+            assertTrue(progressSent.await(2, TimeUnit.SECONDS))
+
+            val notificationManager = context.getSystemService(NotificationManager::class.java)
+            val notifications = shadowOf(notificationManager).allNotifications
+
+            assertTrue(notifications.any {
+                it.extras.getString(Notification.EXTRA_TEXT) == "1 / 2 items • b.txt"
+            })
+        } finally {
+            finishOperation.countDown()
+            verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+            awaitInactiveMutation()
         }
     }
 
@@ -174,7 +286,7 @@ class BulkFileOperationServiceTest {
             fakeFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
-        repository.copyFilesResultProvider = { _, _, _, _ ->
+        clipboardRepository.copyFilesResultProvider = { _, _, _, _ ->
             assertTrue(storageWorkCoordinator.isMutationActive.value)
             Result.success(Unit)
         }
@@ -183,6 +295,72 @@ class BulkFileOperationServiceTest {
 
         verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
         awaitInactiveMutation()
+    }
+
+    @Test
+    fun `service reports partial permanent delete as failed operation`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-partial-delete",
+            type = BulkFileOperationType.DELETE,
+            sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
+            destinationPath = null,
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        val recordingCoordinator = RecordingBulkFileOperationCoordinator(request)
+        service.coordinator = recordingCoordinator
+        fileMutationRepository.deletePermanentlyDetailedResultProvider = {
+            Result.success(
+                BatchMutationResult(
+                    succeededPaths = listOf("/source/a.txt"),
+                    failedItems = listOf(
+                        BatchMutationFailure(
+                            path = "/source/b.txt",
+                            displayName = "b.txt",
+                            message = "Access denied",
+                            causeType = "AccessDenied"
+                        )
+                    ),
+                    cleanupRequiredPaths = listOf("/source/b.txt")
+                )
+            )
+        }
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        val deadline = System.currentTimeMillis() + 2_000
+        while (recordingCoordinator.failedMessage == null && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10)
+        }
+        assertNotNull(recordingCoordinator.failedMessage)
+        assertTrue(recordingCoordinator.failedMessage.orEmpty().contains("1 succeeded"))
+        assertTrue(recordingCoordinator.failedMessage.orEmpty().contains("1 failed"))
+        assertTrue(recordingCoordinator.failedMessage.orEmpty().contains("b.txt"))
+        awaitInactiveMutation()
+    }
+
+    @Test
+    fun `service passes archive encoding and conflict resolutions to extraction`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-extract",
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf("/source/archive.zip"),
+            destinationPath = "/dest",
+            resolutions = mapOf("same.txt" to ConflictResolution.REPLACE),
+            archiveEntryPrefix = "folder",
+            archivePassword = "secret",
+            archiveNameEncoding = ArchiveNameEncoding.WINDOWS_1252
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        val extractRequest = archiveRepository.extractArchiveRequests.single()
+        assertEquals(ArchiveNameEncoding.WINDOWS_1252, extractRequest.nameEncoding)
+        assertEquals(mapOf("same.txt" to ConflictResolution.REPLACE), extractRequest.resolutions)
+        assertEquals("folder", extractRequest.entryPrefix)
+        assertEquals("secret", extractRequest.password)
     }
 
     private fun awaitInactiveMutation() {
@@ -198,4 +376,38 @@ class BulkFileOperationServiceTest {
             action = BulkFileOperationService.ACTION_START
             putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, Json.encodeToString(request))
         }
+
+    private class RecordingBulkFileOperationCoordinator(
+        active: BulkFileOperationRequest
+    ) : BulkFileOperationCoordinator {
+        override val activeRequest: StateFlow<BulkFileOperationRequest?> = MutableStateFlow(active)
+        override val recoveryRecords = MutableStateFlow(emptyList<dev.qtremors.arcile.core.operation.OperationRecoveryRecord>())
+        override val events: SharedFlow<dev.qtremors.arcile.core.operation.BulkFileOperationEvent> = MutableSharedFlow()
+        var failedMessage: String? = null
+
+        override fun startOperation(
+            type: BulkFileOperationType,
+            sourcePaths: List<String>,
+            destinationPath: String?,
+            resolutions: Map<String, ConflictResolution>,
+            fakeFileSize: Long?,
+            archiveFormat: ArchiveFormat?,
+            archiveEntryPrefix: String?,
+            archivePassword: String?,
+            archiveNameEncoding: ArchiveNameEncoding?,
+            archiveCompressionLevel: ArchiveCompressionLevel?
+        ): Boolean = false
+
+        override fun cancelActiveOperation() = Unit
+        override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+        override fun onOperationCancelling(request: BulkFileOperationRequest) = Unit
+        override fun onOperationCompleted(request: BulkFileOperationRequest) = Unit
+        override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {
+            failedMessage = message
+        }
+        override fun onOperationCancelled(request: BulkFileOperationRequest?) = Unit
+        override fun retryRecoveredOperation(operationId: String): Boolean = false
+        override fun cleanupRecoveredOperation(operationId: String) = Unit
+        override fun dismissRecoveredOperation(operationId: String) = Unit
+    }
 }

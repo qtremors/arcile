@@ -1,7 +1,11 @@
-package dev.qtremors.arcile.presentation.operations
+package dev.qtremors.arcile.operations
 
 import android.content.Context
-import dev.qtremors.arcile.domain.toArcileError
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
+import dev.qtremors.arcile.core.storage.domain.toArcileError
+import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.Serializable
@@ -10,22 +14,28 @@ import kotlinx.serialization.json.Json
 
 interface OperationJournal {
     fun activeRecord(): OperationJournalRecord?
-    fun upsert(record: OperationJournalRecord)
+    fun upsertActive(record: OperationJournalRecord)
     fun update(operationId: String, transform: (OperationJournalRecord) -> OperationJournalRecord)
     fun clearActive(operationId: String)
-    fun recoverInterrupted(): OperationJournalRecord?
+    fun recoveryRecords(): List<OperationJournalRecord>
+    fun dismissRecovery(operationId: String)
+    fun recoverInterrupted(): List<OperationJournalRecord>
 }
 
 class NoOpOperationJournal : OperationJournal {
     override fun activeRecord(): OperationJournalRecord? = null
-    override fun upsert(record: OperationJournalRecord) = Unit
+    override fun upsertActive(record: OperationJournalRecord) = Unit
     override fun update(operationId: String, transform: (OperationJournalRecord) -> OperationJournalRecord) = Unit
     override fun clearActive(operationId: String) = Unit
-    override fun recoverInterrupted(): OperationJournalRecord? = null
+    override fun recoveryRecords(): List<OperationJournalRecord> = emptyList()
+    override fun dismissRecovery(operationId: String) = Unit
+    override fun recoverInterrupted(): List<OperationJournalRecord> = emptyList()
 }
 
 class DefaultOperationJournal(context: Context) : OperationJournal {
-    private val preferences = context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE)
+    private val preferences by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE)
+    }
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -41,7 +51,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
             }
     }
 
-    override fun upsert(record: OperationJournalRecord) {
+    override fun upsertActive(record: OperationJournalRecord) {
         preferences.edit().putString(KEY_ACTIVE, json.encodeToString(record)).apply()
     }
 
@@ -49,7 +59,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
         synchronized(preferences) {
             val current = activeRecord() ?: return
             if (current.request.operationId != operationId) return
-            upsert(transform(current).copy(updatedAtMillis = System.currentTimeMillis()))
+            upsertActive(transform(current).copy(updatedAtMillis = System.currentTimeMillis()))
         }
     }
 
@@ -60,20 +70,46 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
         }
     }
 
-    override fun recoverInterrupted(): OperationJournalRecord? {
-        val current = activeRecord() ?: return null
-        if (current.phase.isTerminal) return current
+    override fun recoveryRecords(): List<OperationJournalRecord> {
+        val encoded = preferences.getString(KEY_RECOVERY, null) ?: return emptyList()
+        return runCatching { json.decodeFromString<List<OperationJournalRecord>>(encoded) }
+            .getOrElse {
+                AppLogger.w("OperationJournal", "Dropping unreadable operation recovery journal", it)
+                preferences.edit().remove(KEY_RECOVERY).apply()
+                emptyList()
+            }
+    }
+
+    override fun dismissRecovery(operationId: String) {
+        writeRecoveryRecords(recoveryRecords().filterNot { it.request.operationId == operationId })
+    }
+
+    override fun recoverInterrupted(): List<OperationJournalRecord> {
+        val current = activeRecord()
+        if (current == null) return recoveryRecords()
+        if (current.phase.isTerminal) {
+            clearActive(current.request.operationId)
+            return recoveryRecords()
+        }
         val recovered = current.copy(
             phase = OperationPhase.CLEANUP_REQUIRED,
             error = "File operation was interrupted and needs cleanup.",
             updatedAtMillis = System.currentTimeMillis()
         )
-        upsert(recovered)
-        return recovered
+        writeRecoveryRecords(
+            recoveryRecords().filterNot { it.request.operationId == recovered.request.operationId } + recovered
+        )
+        clearActive(current.request.operationId)
+        return recoveryRecords()
+    }
+
+    private fun writeRecoveryRecords(records: List<OperationJournalRecord>) {
+        preferences.edit().putString(KEY_RECOVERY, json.encodeToString(records)).apply()
     }
 
     private companion object {
         const val KEY_ACTIVE = "active_operation"
+        const val KEY_RECOVERY = "recovery_operations"
     }
 }
 
@@ -113,5 +149,18 @@ fun BulkFileOperationRequest.toJournalRecord(phase: OperationPhase): OperationJo
         updatedAtMillis = now
     )
 }
+
+fun OperationJournalRecord.toRecoveryRecord(): OperationRecoveryRecord =
+    OperationRecoveryRecord(
+        request = request,
+        phase = phase.name,
+        startedAtMillis = startedAtMillis,
+        updatedAtMillis = updatedAtMillis,
+        progress = progress,
+        stagedPaths = stagedPaths,
+        rollbackHints = rollbackHints,
+        trashResultIds = trashResultIds,
+        error = error
+    )
 
 fun Throwable.toOperationMessage(): String = toArcileError().userMessage.toString()

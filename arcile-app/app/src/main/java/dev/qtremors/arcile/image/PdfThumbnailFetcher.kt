@@ -30,9 +30,7 @@ class PdfThumbnailFetcher(
                 PdfRenderer(descriptor).use { renderer ->
                     if (renderer.pageCount <= 0) return@withContext null
                     renderer.openPage(0).use { page ->
-                        val requestedWidth = (options.size.width as? coil.size.Dimension.Pixels)?.px ?: 512
-                        val requestedHeight = (options.size.height as? coil.size.Dimension.Pixels)?.px ?: 512
-                        val maxSize = maxOf(requestedWidth, requestedHeight).coerceIn(128, 1024)
+                        val maxSize = ThumbnailTargetSize.fromOptions(options)
                         val scale = minOf(
                             maxSize.toFloat() / page.width.coerceAtLeast(1),
                             maxSize.toFloat() / page.height.coerceAtLeast(1)
