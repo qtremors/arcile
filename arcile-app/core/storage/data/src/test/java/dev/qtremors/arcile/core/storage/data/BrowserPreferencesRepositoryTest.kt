@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -67,8 +68,8 @@ class BrowserPreferencesRepositoryTest {
         assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
         assertEquals(BrowserPresentationPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
-        assertEquals(12, preferences.homeRecentCarouselLimit)
-        assertEquals(false, preferences.showHiddenFiles)
+        assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
+        assertEquals(true, preferences.showHiddenFiles)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.pathPresentationOptions)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.exactPathPresentationOptions)
     }

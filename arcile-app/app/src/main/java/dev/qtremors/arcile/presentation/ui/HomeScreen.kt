@@ -300,7 +300,7 @@ fun HomeScreen(
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
     onShareRecentFile: (String) -> Unit = {},
-    homeRecentCarouselLimit: Int = 12,
+    homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
     onNavigateToCleaner: () -> Unit = {}

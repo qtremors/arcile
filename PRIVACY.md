@@ -1,6 +1,6 @@
 # Privacy Policy for Arcile
 
-**Last Updated:** 2026-05-24
+**Last Updated:** 2026-06-07
 
 Arcile is a personal project built with a privacy-first mindset. This policy explains how the application handles your information.
 

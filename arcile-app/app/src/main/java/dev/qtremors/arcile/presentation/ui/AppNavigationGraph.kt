@@ -72,12 +72,24 @@ fun AppNavigationGraph(
 ) {
     val context = LocalContext.current
     val openPath: (String) -> Unit = { path ->
-        if (ArchiveFormat.isSupported(path)) {
-            navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
-                popUpTo<AppRoutes.Main> { inclusive = true }
+        val archiveFormat = ArchiveFormat.fromPath(path)
+        when {
+            archiveFormat?.canBrowse == true -> {
+                navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
+                    popUpTo<AppRoutes.Main> { inclusive = true }
+                }
             }
-        } else {
-            onOpenFile(path)
+            archiveFormat != null -> {
+                onFeedback(
+                    ArcileFeedbackEvent(
+                        message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.unsupported_archive_format),
+                        severity = ArcileFeedbackSeverity.Error
+                    )
+                )
+            }
+            else -> {
+                onOpenFile(path)
+            }
         }
     }
 
@@ -124,7 +136,9 @@ fun AppNavigationGraph(
                     val homeViewModel = hiltViewModel<HomeViewModel>()
                     val browserViewModel = hiltViewModel<BrowserViewModel>()
                     val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
+                    val settingsViewModel = hiltViewModel<SettingsViewModel>()
                     val browserState by browserViewModel.state.collectAsStateWithLifecycle()
+                    val browserPrefs by settingsViewModel.browserPreferences.collectAsStateWithLifecycle()
                     val showBrowserPageRequest by backStackEntry.savedStateHandle
                         .getStateFlow("showBrowserPage", false)
                         .collectAsStateWithLifecycle()
@@ -278,6 +292,7 @@ fun AppNavigationGraph(
                                             dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
                                         }
                                     },
+                                    homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
                                     onSetVolumeClassification = { storageKey, kind -> homeViewModel.setVolumeClassification(storageKey, kind) },
                                     onHideClassificationPrompt = { storageKey -> homeViewModel.hideClassificationPrompt(storageKey) }
                                 )

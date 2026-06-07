@@ -52,10 +52,10 @@ fun DeleteConfirmationDialog(
         irreversible = isPermanentDeleteChecked
     )
     val irreversible = resolvedDecision.irreversible || isPermanentDeleteChecked
-    val effectiveDestination = if (isPermanentDeleteChecked) {
-        DeleteDestination.Permanent
-    } else {
-        resolvedDecision.destination
+    val effectiveDestination = when {
+        resolvedDecision.destination == DeleteDestination.MixedBlocked -> DeleteDestination.MixedBlocked
+        isPermanentDeleteChecked -> DeleteDestination.Permanent
+        else -> resolvedDecision.destination
     }
     val destinationLabel = when (effectiveDestination) {
         DeleteDestination.Trash -> stringResource(R.string.delete_destination_trash)

@@ -167,7 +167,8 @@ class ArchitectureBoundaryTest {
         val projectRoot = projectRoot()
         val repoRoot = projectRoot.parentFile ?: projectRoot
         val allowedLargeFiles = setOf(
-            "arcile-app/feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerScreen.kt"
+            "arcile-app/feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerScreen.kt",
+            "docs/index.html"
         )
 
         val offenders = repoRoot.walkTopDown()

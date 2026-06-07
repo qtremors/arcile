@@ -20,8 +20,9 @@ out/
 build/
 **/build/
 
-# Local properties (machine-specific SDK paths)
+# Local properties and signing credentials
 local.properties
+signing.properties
 
 # IntelliJ / Android Studio
 .idea/
@@ -36,9 +37,12 @@ local.properties
 captures/
 *.perfetto
 
-# Keystore files (security)
+# Android signing material (security)
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
 
 # External native build
 .externalNativeBuild/
@@ -60,4 +64,3 @@ desktop.ini
 
 # TempDocs (templates, not part of the app)
 TempDocs/
-signing.properties

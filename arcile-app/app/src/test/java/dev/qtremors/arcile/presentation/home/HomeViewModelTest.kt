@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -167,7 +168,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `rapid storage volume emissions are debounced to prevent redundant data loads`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `storage volume emissions update home volumes immediately`() = runTest(mainDispatcherRule.dispatcher) {
         val volume1 = homeVolume("v1", "v1", "Vol1", "/v1", StorageKind.INTERNAL, true, false)
         val volume2 = homeVolume("v2", "v2", "Vol2", "/v2", StorageKind.SD_CARD, false, true)
 
@@ -180,20 +181,20 @@ class HomeViewModelTest {
         advanceTimeBy(1_000)
         advanceUntilIdle()
 
-        val initialCalls = repository.requestedStorageInfoScopes.size
-
         repository.emitVolumes(listOf(volume1))
-        advanceTimeBy(500)
+        runCurrent()
+
+        assertEquals(listOf(volume1), viewModel.state.value.allStorageVolumes)
+
         repository.emitVolumes(listOf(volume1, volume2))
-        advanceTimeBy(500)
+        runCurrent()
+
+        assertEquals(listOf(volume1, volume2), viewModel.state.value.allStorageVolumes)
+
         repository.emitVolumes(listOf(volume2))
+        runCurrent()
 
-        assertEquals(initialCalls, repository.requestedStorageInfoScopes.size)
-
-        advanceTimeBy(1_000)
-        advanceUntilIdle()
-
-        assertEquals(initialCalls + 1, repository.requestedStorageInfoScopes.size)
+        assertEquals(listOf(volume2), viewModel.state.value.allStorageVolumes)
     }
 
     @Test

@@ -41,13 +41,13 @@ data class BrowserPreferences(
     val pathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
     val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
     val homeRecentCarouselLimit: Int = DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
-    val showHiddenFiles: Boolean = false,
+    val showHiddenFiles: Boolean = true,
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null
 ) {
     companion object {
         const val MIN_HOME_RECENT_CAROUSEL_LIMIT = 0
-        const val DEFAULT_HOME_RECENT_CAROUSEL_LIMIT = 12
+        const val DEFAULT_HOME_RECENT_CAROUSEL_LIMIT = 20
         const val MAX_HOME_RECENT_CAROUSEL_LIMIT = 48
 
         fun normalizeHomeRecentCarouselLimit(limit: Int): Int =

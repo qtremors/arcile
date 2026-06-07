@@ -163,7 +163,7 @@ class BrowserPreferencesRepository(
                 homeRecentCarouselLimit = BrowserPreferences.normalizeHomeRecentCarouselLimit(
                     prefs[HOME_RECENT_CAROUSEL_LIMIT_KEY] ?: BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
                 ),
-                showHiddenFiles = prefs[SHOW_HIDDEN_FILES_KEY] ?: false,
+                showHiddenFiles = prefs[SHOW_HIDDEN_FILES_KEY] ?: BrowserPreferences().showHiddenFiles,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )

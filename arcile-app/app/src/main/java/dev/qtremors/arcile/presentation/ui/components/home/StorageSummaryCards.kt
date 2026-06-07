@@ -86,12 +86,18 @@ fun StorageSummaryCard(
     
     if (volumes.size > 1) {
         // Multi-storage layout
+        val indexedVolumes = volumes.filter { it.kind.isIndexed }
+        val soleIndexedVolumeId = indexedVolumes.singleOrNull()?.id
         Column(modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small)) {
             volumes.forEach { volume ->
+                val volumeCategories = state.categoryStoragesByVolume[volume.id]
+                    ?: if (volume.id == soleIndexedVolumeId) state.categoryStorages else emptyList()
+                val volumeTrashBytes = state.trashStorageUsage.byVolumeId[volume.id]
+                    ?: if (volume.id == soleIndexedVolumeId) state.trashStorageUsage.totalBytes else 0L
                 StorageVolumeCard(
                     volume = volume,
-                    categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
-                    trashBytes = state.trashStorageUsage.byVolumeId[volume.id] ?: 0L,
+                    categoryStorages = volumeCategories,
+                    trashBytes = volumeTrashBytes,
                     onClick = { onNavigateToPath(volume.path) },
                     onLongClick = {
                         if (volume.kind.isIndexed) {

@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.0.0 | **Last Updated:** 2026-06-05
+**Version:** 1.0.0 | **Last Updated:** 2026-06-07
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -71,11 +71,17 @@ arcile/
 │   │   ├── src/main/java/dev/qtremors/arcile/
 │   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
 │   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
-│   │   │   ├── navigation/                      # Serializable typed routes & navigation graph
+│   │   │   ├── presentation/                    # ViewModels, screens, components, and AppNavigationGraph
 │   │   │   └── di/                              # Dagger Hilt dependency injection modules
 │   ├── core/                                    # Shared business logic and UI frameworks
 │   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers
 │   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose nodes
+│   │   │   └── testing/                         # Shared compose test theme helper (ArcileTestTheme)
+│   │   ├── navigation/
+│   │   │   └── api/                             # Serializable typed routes (AppRoutes)
+│   │   ├── presentation/
+│   │   │   └── api/                             # FolderTabs, LocalSearchHelper, DeleteFlowDelegate, PropertiesUiModel
+│   │   ├── testing/                             # Shared unit test fakes (FakeFileRepository, FakeBulkFileOperationCoordinator)
 │   │   ├── operation/                           # Foreground services and operation journal tracking
 │   │   │   ├── api/                             # Task progress events and operations interfaces
 │   │   │   └── src/                             # Concrete operation coordinator and background service
@@ -92,9 +98,12 @@ arcile/
 │       ├── storageusage/                        # Storage dashboard and usage-map UI
 │       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
 ├── docs/                                        # Promotional landing page website
-├── CHANGELOG.md                                 # Release logs and history
+├── beta/                                        # Beta phase archived changelog & releases
+│   ├── CHANGELOG-BETA.md                        # Archived beta changelog
+│   └── RELEASES-BETA.md                         # Archived beta release notes
+├── CHANGELOG.md                                 # Stable release changelog
 ├── DEVELOPMENT.md                               # Architecture & development guide
-├── Releases.md                                  # Structured release notes
+├── Releases.md                                  # Stable user-facing release notes
 ├── TASKS.md                                     # Roadmap, tracker of issues and features
 └── README.md                                    # Main entry point overview
 ```
@@ -357,12 +366,12 @@ Prioritize self-documenting names. A file, function, or component should reveal 
 | `namespace` | `dev.qtremors.arcile` |
 | `applicationId` | `dev.qtremors.arcile` |
 | `compileSdk` | 37 |
-| `targetSdk` | 36 |
+| `targetSdk` | 37 |
 | `minSdk` | 30 |
 | `versionCode` | 100 |
 | `versionName` | `1.0.0` |
 | Java / Kotlin target | JVM 11 |
-| Android Gradle Plugin | 9.1.1 |
+| Android Gradle Plugin | 9.2.1 |
 | Kotlin | 2.2.10 |
 | Compose BOM | 2026.05.00 |
 | Material 3 | 1.5.0-alpha19 |
@@ -439,10 +448,10 @@ Arcile has a layered JVM and instrumented test suite.
 
 | Area | Current state |
 |------|---------------|
-| JVM/Robolectric tests | 74 Kotlin test files |
+| JVM/Robolectric tests | 92 Kotlin test files |
 | Instrumented tests | 3 Kotlin test files |
-| Approximate test declarations | 641 `@Test`/test-style hits |
-| String resources | 611 string resources and 12 plurals |
+| Approximate test declarations | 462 `@Test` annotations |
+| String resources | 710 string resources and 30 plurals |
 
 ### Covered Areas
 
@@ -515,7 +524,6 @@ Documented design choices that may look odd during review:
 | Shared `.arcile` trash roots | Trash lives on public volume roots instead of only app-private storage. | Preserves restore metadata across normal file-browsing workflows, but carries privacy/security tradeoffs that should remain visible in `TASKS.md`. |
 | Temporary volume deletes | OTG/unclassified temporary storage bypasses trash. | Temporary removable media should not be presented as durable trash-backed storage. |
 | Robolectric SDK pin | Compose JVM tests may use `@Config(sdk = [35])` while `compileSdk` is 37. | Robolectric platform support can lag compile SDK updates. |
-| Target SDK stays 36 | Project compiles with SDK 37 but targets SDK 36. | Allows build-readiness without opting into newer runtime behavior before verification. |
 | No internet permission | Some network-adjacent conveniences are intentionally absent. | Privacy guarantee is stronger when the permission is not requested at all. |
 | Archive keep-both extraction | Existing extraction targets are auto-renamed instead of overwritten. | Prevents archive extraction from silently destroying existing files. |
 

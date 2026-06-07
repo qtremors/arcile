@@ -1,50 +1,92 @@
+/* Material 3 Expressive System Custom Styles */
+
 body {
     background-color: #141218;
     color: #E6E0E9;
-    overflow-x: hidden;
 }
 
-/* Abstract Phone UI */
+/* Outer Scroll Wrapper to resolve overflow-x issues safely without body scroll locks */
+.scroll-wrapper {
+    overflow-x: hidden;
+    width: 100%;
+    position: relative;
+}
+
+/* Authentic M3 Card style with premium spring-physics lift & glow */
+.m3-card {
+    border: 1px solid rgba(73, 69, 79, 0.3);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.4s ease, 
+                border-color 0.4s ease, 
+                background-color 0.4s ease;
+}
+
+.m3-card:hover {
+    transform: translateY(-6px) scale(1.01);
+    border-color: rgba(208, 188, 255, 0.4);
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 
+                0 0 0 1px rgba(208, 188, 255, 0.15), 
+                0 0 50px -15px rgba(208, 188, 255, 0.25);
+}
+
+/* Abstract Phone UI Mockup with dynamic tilt rotation and ambient theme glow */
 .phone-mockup {
-    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.05);
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.9), 
+                0 0 0 1px rgba(255, 255, 255, 0.08), 
+                0 0 60px -20px rgba(208, 188, 255, 0.12);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.6s ease;
+}
+
+.phone-mockup:hover {
+    transform: scale(1.03) rotate(-1deg);
+    box-shadow: 0 35px 70px -10px rgba(0, 0, 0, 0.95), 
+                0 0 0 1.5px rgba(208, 188, 255, 0.25), 
+                0 0 80px -10px rgba(208, 188, 255, 0.25);
 }
 
 /* FAQ Accordion Transitions */
 .faq-content {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 0.3s ease-in-out;
+    transition: grid-template-rows 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 .faq-content.open {
     grid-template-rows: 1fr;
 }
+
 .faq-inner {
     overflow: hidden;
     padding-bottom: 0 !important;
 }
+
 .faq-inner > p {
     padding-bottom: 1.25rem;
 }
+
 .faq-icon {
-    transition: transform 0.3s ease-in-out;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
 .faq-icon.rotate {
     transform: rotate(180deg);
 }
 
-/* Hide Scrollbar for Gallery */
+/* Hide Scrollbar for carousels / galleries */
 .hide-scrollbar {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    scrollbar-width: none;
 }
+
 .hide-scrollbar::-webkit-scrollbar {
     display: none;
 }
 
 .material-symbols-outlined {
-  font-variation-settings:
-  'FILL' 0,
-  'wght' 400,
-  'GRAD' 0,
-  'opsz' 24;
+    font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
 }

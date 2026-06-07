@@ -57,7 +57,7 @@ class StorageScopeViewModelTest {
     }
 
     @Test
-    fun `home view model defers per-volume category scopes until dashboard requests them`() = runTest(dispatcher) {
+    fun `home view model loads indexed volume category scopes when multiple volumes are present`() = runTest(dispatcher) {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
         val sd = volume(id = "sd", name = "SD Card", path = "/storage/1234-5678", removable = true)
         val repository = FakeStorageRepositoryBundle(
@@ -66,6 +66,38 @@ class StorageScopeViewModelTest {
                 StorageScope.AllStorage to listOf(CategoryStorage("Images", 10L, setOf("jpg"))),
                 StorageScope.Volume("primary") to listOf(CategoryStorage("Images", 7L, setOf("jpg"))),
                 StorageScope.Volume("sd") to listOf(CategoryStorage("Images", 3L, setOf("jpg")))
+            )
+        )
+
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, FakeStorageClassificationStore(), quickAccessRepo)
+        advanceUntilIdle()
+
+        assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
+        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
+        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("primary")))
+        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
+        assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)
+        assertEquals(
+            listOf(CategoryStorage("Images", 7L, setOf("jpg"))),
+            viewModel.state.value.categoryStoragesByVolume["primary"]
+        )
+
+        viewModel.loadDashboardCategoryBreakdown()
+        advanceUntilIdle()
+
+        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
+        assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)
+    }
+
+    @Test
+    fun `home view model defers per-volume category scopes for a single storage volume`() = runTest(dispatcher) {
+        val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(internal),
+            initialCategorySizesByScope = mapOf(
+                StorageScope.AllStorage to listOf(CategoryStorage("Images", 10L, setOf("jpg"))),
+                StorageScope.Volume("primary") to listOf(CategoryStorage("Images", 7L, setOf("jpg")))
             )
         )
 

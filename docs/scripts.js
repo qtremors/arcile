@@ -37,23 +37,24 @@ tailwind.config = {
                     '0%, 100%': { transform: 'translateY(0)' },
                     '50%': { transform: 'translateY(-12px)' },
                 }
+            },
+            transitionTimingFunction: {
+                // M3 Expressive Spring Transition Curve
+                'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
             }
         }
     }
 }
-
-// Render Icons
-// Moved to DOMContentLoaded
 
 // Navbar surface tonal elevation effect on scroll
 const navbar = document.getElementById('navbar');
 window.addEventListener('scroll', () => {
     if (window.scrollY > 20) {
         navbar.classList.remove('bg-m3-bg');
-        navbar.classList.add('bg-m3-surfaceContainer', 'shadow-md');
+        navbar.classList.add('bg-m3-surfaceContainer/80', 'backdrop-blur-lg', 'shadow-lg', 'border-b', 'border-m3-outlineVariant/10');
     } else {
         navbar.classList.add('bg-m3-bg');
-        navbar.classList.remove('bg-m3-surfaceContainer', 'shadow-md');
+        navbar.classList.remove('bg-m3-surfaceContainer/80', 'backdrop-blur-lg', 'shadow-lg', 'border-b', 'border-m3-outlineVariant/10');
     }
 });
 
@@ -126,17 +127,23 @@ const mobileMenu = document.getElementById('mobile-menu');
 let isMobileMenuOpen = false;
 
 if (mobileMenuBtn && mobileMenu) {
+    const mobileMenuIcon = document.getElementById('mobile-menu-icon');
+    
     function toggleMobileMenu() {
         isMobileMenuOpen = !isMobileMenuOpen;
         if (isMobileMenuOpen) {
             mobileMenu.classList.remove('translate-x-full');
             mobileMenu.classList.add('translate-x-0');
-            mobileMenuBtn.innerHTML = '<i data-lucide="x" class="w-6 h-6"></i>';
+            if (mobileMenuIcon) {
+                mobileMenuIcon.setAttribute('data-lucide', 'x');
+            }
             document.body.style.overflow = 'hidden'; // Prevent scrolling
         } else {
             mobileMenu.classList.add('translate-x-full');
             mobileMenu.classList.remove('translate-x-0');
-            mobileMenuBtn.innerHTML = '<i data-lucide="menu" class="w-6 h-6"></i>';
+            if (mobileMenuIcon) {
+                mobileMenuIcon.setAttribute('data-lucide', 'menu');
+            }
             document.body.style.overflow = ''; // Restore scrolling
         }
         lucide.createIcons();

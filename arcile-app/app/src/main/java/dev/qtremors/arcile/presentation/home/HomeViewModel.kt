@@ -39,7 +39,6 @@ import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -155,12 +154,16 @@ class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            @OptIn(FlowPreview::class)
             volumeRepository.observeStorageVolumes()
-                .debounce(1000L)
                 .collectLatest { volumes ->
                     val currentState = _state.value
                     if (currentState.allStorageVolumes != volumes) {
+                        _state.update {
+                            it.copy(
+                                allStorageVolumes = volumes.toPersistentList(),
+                                storageInfo = StorageInfo(volumes)
+                            ).withUpdatedDisplayState()
+                        }
                         loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
                     }
                 }
@@ -245,7 +248,7 @@ class HomeViewModel @Inject constructor(
                 }
 
                 _state.update { currentState ->
-                    currentState.copy(
+                    val nextState = currentState.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
                         isCalculatingStorage = false,
@@ -258,6 +261,11 @@ class HomeViewModel @Inject constructor(
                         unclassifiedVolumes = unclassified.toPersistentList(),
                         showClassificationPrompt = unclassified.isNotEmpty()
                     ).withUpdatedDisplayState()
+                    nextState
+                }
+
+                if (!timedOut && allStorageVolumes.size > 1) {
+                    loadDashboardCategoryBreakdown()
                 }
             }
         }

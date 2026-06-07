@@ -48,8 +48,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
@@ -77,7 +77,6 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
 import kotlin.math.min
-import java.util.Locale
 
 private const val MAX_SUNBURST_DEPTH = 3
 private const val MAX_SUNBURST_SEGMENTS = 160
@@ -269,7 +268,6 @@ private fun StorageUsageSunburst(
     }
     val visibleSegments = remember(root) { root.children.take(MAX_SUNBURST_CHILDREN_PER_NODE) }
     val selectedForSemantics = selectedNode ?: root
-    val context = LocalContext.current
     val chartDescription = stringResource(R.string.storage_usage_map_chart_description, root.name)
     val selectedState = stringResource(
         R.string.storage_usage_map_selected_state,
@@ -277,10 +275,13 @@ private fun StorageUsageSunburst(
         formatFileSize(selectedForSemantics.sizeBytes),
         selectedForSemantics.childCount
     )
-    val segmentActions = remember(visibleSegments, context, onSelectNode) {
-        visibleSegments.map { node ->
+    val segmentActionLabels = visibleSegments.map { node ->
+        stringResource(R.string.storage_usage_map_select_segment, node.name)
+    }
+    val segmentActions = remember(visibleSegments, segmentActionLabels, onSelectNode) {
+        visibleSegments.zip(segmentActionLabels).map { (node, label) ->
             CustomAccessibilityAction(
-                label = context.getString(R.string.storage_usage_map_select_segment, node.name),
+                label = label,
                 action = {
                     onSelectNode(node)
                     true
@@ -447,6 +448,7 @@ private fun StorageUsageDetails(
     } else {
         0.0
     }
+    val locale = LocalLocale.current.platformLocale
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -484,7 +486,7 @@ private fun StorageUsageDetails(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StorageUsageMetric(stringResource(R.string.storage_usage_map_size), formatFileSize(node.sizeBytes))
-                StorageUsageMetric(stringResource(R.string.storage_usage_map_share), String.format(Locale.getDefault(), "%.1f%%", percent))
+                StorageUsageMetric(stringResource(R.string.storage_usage_map_share), String.format(locale, "%.1f%%", percent))
                 StorageUsageMetric(stringResource(R.string.storage_usage_map_items), node.childCount.toString())
             }
 

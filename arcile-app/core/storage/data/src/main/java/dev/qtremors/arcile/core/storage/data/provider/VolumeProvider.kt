@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Environment
 import android.os.StatFs
 import android.os.storage.StorageManager
@@ -165,19 +166,42 @@ class DefaultVolumeProvider(
                     emitVolumes()
                 }
             }
+            val volumeCallback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                object : StorageManager.StorageVolumeCallback() {
+                    override fun onStateChanged(volume: android.os.storage.StorageVolume) {
+                        invalidateCache()
+                        emitVolumes()
+                    }
+                }
+            } else {
+                null
+            }
 
             val filter = IntentFilter().apply {
                 addAction(Intent.ACTION_MEDIA_MOUNTED)
+                addAction(Intent.ACTION_MEDIA_CHECKING)
                 addAction(Intent.ACTION_MEDIA_UNMOUNTED)
                 addAction(Intent.ACTION_MEDIA_REMOVED)
                 addAction(Intent.ACTION_MEDIA_EJECT)
                 addAction(Intent.ACTION_MEDIA_BAD_REMOVAL)
+                addAction(Intent.ACTION_MEDIA_UNMOUNTABLE)
                 addDataScheme("file")
             }
 
             ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && volumeCallback != null) {
+                storageManager.registerStorageVolumeCallback(
+                    ContextCompat.getMainExecutor(appContext),
+                    volumeCallback
+                )
+            }
             emitVolumes()
-            awaitClose { appContext.unregisterReceiver(receiver) }
+            awaitClose {
+                appContext.unregisterReceiver(receiver)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && volumeCallback != null) {
+                    storageManager.unregisterStorageVolumeCallback(volumeCallback)
+                }
+            }
         }.distinctUntilChanged()
 
         return combine(
