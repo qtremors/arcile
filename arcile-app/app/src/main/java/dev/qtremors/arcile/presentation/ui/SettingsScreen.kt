@@ -224,6 +224,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.outlineVariant,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                             )
+                            ThumbnailCacheSettingsItem()
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()

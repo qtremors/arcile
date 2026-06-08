@@ -86,6 +86,7 @@ fun FileList(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
@@ -113,6 +114,7 @@ fun FileList(
         listState = listState,
         zoom = zoom,
         showThumbnails = showThumbnails,
+        showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         folderStatsLoadingPaths = folderStatsLoadingPaths,
         contentPadding = contentPadding
@@ -132,12 +134,21 @@ fun FileListRows(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(0.dp)
 ) {
     val haptics = rememberArcileHaptics()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val thumbnailSizePx = with(LocalDensity.current) {
+        ThumbnailTargetSize.fromBounds((64.dp * zoom).roundToPx())
+    }
+    val displayRows = remember(rows, thumbnailSizePx) {
+        rows.map { row ->
+            if (row.thumbnailSizePx == thumbnailSizePx) row else row.copy(thumbnailSizePx = thumbnailSizePx)
+        }
+    }
     val visibleRange by remember {
         derivedStateOf {
             val visible = listState.layoutInfo.visibleItemsInfo
@@ -146,7 +157,7 @@ fun FileListRows(
     }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(rows) { lastInteractedIndex = null }
+    LaunchedEffect(displayRows) { lastInteractedIndex = null }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -154,7 +165,7 @@ fun FileListRows(
         contentPadding = contentPadding
     ) {
         itemsIndexed(
-            items = rows,
+            items = displayRows,
             key = { _, row -> row.absolutePath },
             contentType = { _, row -> if (row.isDirectory) "directory" else "file" }
         ) { index, row ->
@@ -167,6 +178,7 @@ fun FileListRows(
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 zoom = zoom,
                 showThumbnails = showThumbnails,
+                showDetails = showDetails,
                 thumbnailLoadingPaused = thumbnailLoadingPaused,
                 itemIndex = index,
                 visibleRange = visibleRange,
@@ -187,7 +199,7 @@ fun FileListRows(
                     if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
                         val start = minOf(lastInteractedIndex!!, index)
                         val end = maxOf(lastInteractedIndex!!, index)
-                        onSelectMultiple(rows.subList(start, end + 1).map { it.absolutePath })
+                        onSelectMultiple(displayRows.subList(start, end + 1).map { it.absolutePath })
                         haptics.selectionChanged()
                     } else {
                         val wasEmpty = selectedFiles.isEmpty()
@@ -223,6 +235,7 @@ fun FileItemRow(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false
@@ -246,6 +259,7 @@ fun FileItemRow(
         modifier = modifier,
         zoom = zoom,
         showThumbnails = showThumbnails,
+        showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         isFolderStatsLoading = isFolderStatsLoading
     )
@@ -264,6 +278,7 @@ fun FileItemRow(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     itemIndex: Int = 0,
     visibleRange: IntRange? = null,
@@ -360,16 +375,19 @@ fun FileItemRow(
                         model = ImageRequest.Builder(context)
                             .data(row.thumbnailRequestData(archiveThumbnailData))
                             .size(row.thumbnailSizePx)
-                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
-                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
+                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey)
+                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey)
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .build(),
+                        onLoading = {
+                            thumbnailPolicy.recordInFlight(row.thumbnailKey, row.thumbnailSizePx)
+                        },
                         onSuccess = {
                             thumbnailPolicy.clearFailure(row.thumbnailKey)
-                            thumbnailPolicy.recordLoaded(row.thumbnailKey)
+                            thumbnailPolicy.recordLoaded(row.thumbnailKey, row.thumbnailSizePx)
                         },
-                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey) },
+                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) },
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
@@ -405,39 +423,41 @@ fun FileItemRow(
                 }
             }
 
-            Spacer(modifier = Modifier.width(contentPadding))
+            if (showDetails) {
+                Spacer(modifier = Modifier.width(contentPadding))
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = file.name,
-                    maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
-                    overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                    style = titleStyle,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = subtitleText,
-                        style = supportStyle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = file.name,
+                        maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
+                        overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        style = titleStyle,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                     )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = row.formattedDate,
-                        style = supportStyle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.End
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = subtitleText,
+                            style = supportStyle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = row.formattedDate,
+                            style = supportStyle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.End
+                        )
+                    }
                 }
             }
         }

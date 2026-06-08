@@ -16,6 +16,7 @@ class FakeBrowserPreferencesStore(
     var lastUpdatedRecentPresentation: BrowserPresentationPreferences? = null
     var lastUpdatedHomeRecentCarouselLimit: Int? = null
     var lastUpdatedShowHiddenFiles: Boolean? = null
+    var lastUpdatedImageGalleryShowFileDetails: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
 
@@ -38,6 +39,11 @@ class FakeBrowserPreferencesStore(
     override suspend fun updateShowHiddenFiles(show: Boolean) {
         lastUpdatedShowHiddenFiles = show
         preferences.value = preferences.value.copy(showHiddenFiles = show)
+    }
+
+    override suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
+        lastUpdatedImageGalleryShowFileDetails = show
+        preferences.value = preferences.value.copy(imageGalleryShowFileDetails = show)
     }
 
     override suspend fun updatePathPresentation(

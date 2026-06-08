@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="image_gallery_title">Images</string>
+    <string name="image_gallery_search_placeholder">Search images</string>
+    <string name="image_gallery_empty_title">No images found</string>
+    <string name="image_gallery_empty_description">Images indexed by Android will appear here.</string>
+    <string name="image_gallery_all_album">All (%1$d)</string>
+    <string name="image_gallery_view_sort_title">View and sort images</string>
+    <string name="image_gallery_show_file_details">Show file names and info</string>
+    <string name="image_gallery_show_file_details_description">Turn off for a clean image-only gallery.</string>
+    <string name="settings_thumbnail_cache">Thumbnail cache</string>
+    <string name="settings_thumbnail_cache_stats">%1$s disk • %2$d loaded • %3$d failed • %4$d in flight</string>
+    <string name="settings_clear_thumbnail_cache">Clear</string>
+</resources>

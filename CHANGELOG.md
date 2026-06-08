@@ -1,8 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.0
-> **Last Updated:** 2026-06-07
+> **Version:** 1.0.1
+> **Last Updated:** 2026-06-08
+
+---
+
+## [1.0.1] - 2026-06-08
+
+### Images Mini-App & Thumbnails
+- **Independent Images Category:** Detached the Images category from the browser category screen into a dedicated MediaStore-backed Images mini-app while keeping the existing Arcile list/grid presentation, search, sort/view bottom sheet, selection, share, delete, and properties flows.
+- **Thumbnail Reliability:** Added shared thumbnail load-state tracking with identity and size-bucket keys, density-aware request sizing, and safer in-flight behavior so thumbnails do not disappear after recomposition or scrolling.
+- **Album Scroll Isolation:** Prevented album/filter tabs in the Images screen from sharing the same scroll offset when switching between them.
+- **Cache Controls:** Added Settings controls to inspect and clear thumbnail cache state.
 
 ---
 

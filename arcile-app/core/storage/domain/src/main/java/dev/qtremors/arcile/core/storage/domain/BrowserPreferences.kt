@@ -42,6 +42,7 @@ data class BrowserPreferences(
     val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
     val homeRecentCarouselLimit: Int = DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     val showHiddenFiles: Boolean = true,
+    val imageGalleryShowFileDetails: Boolean = true,
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null
 ) {

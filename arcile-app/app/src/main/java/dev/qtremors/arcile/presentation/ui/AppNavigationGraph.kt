@@ -36,6 +36,7 @@ import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.archiveViewerScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
+import dev.qtremors.arcile.feature.imagegallery.imageGalleryScreen
 import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
@@ -57,6 +58,7 @@ import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
@@ -95,7 +97,6 @@ fun AppNavigationGraph(
 
     val reducedMotion = LocalReducedMotionEnabled.current
 
-    // Details Transitions: Horizontal Slide (e.g. StorageDashboard, ArchiveViewer)
     val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
         if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
     }
@@ -109,7 +110,6 @@ fun AppNavigationGraph(
         if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
     }
 
-    // Utility/Modal Transitions: Vertical Slide + Fade (e.g. Settings, Trash, etc.)
     val utilityEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
         if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
     }
@@ -160,7 +160,6 @@ fun AppNavigationGraph(
                         }
                     }
 
-                    // Handle incoming arguments for browser or deep links
                     androidx.compose.runtime.LaunchedEffect(mainArgs) {
                         if (mainArgs.initialPage == 1) {
                             pendingExplicitBrowserEntry = true
@@ -188,8 +187,6 @@ fun AppNavigationGraph(
                         }
                     }
 
-                    // Plain swipes are quick access into the persisted folder. Explicit
-                    // browser entries (category/path/root taps) keep their requested target.
                     androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
                         if (pagerState.currentPage == 1) {
                             if (pendingExplicitBrowserEntry) {
@@ -230,9 +227,16 @@ fun AppNavigationGraph(
                                     },
                                     onOpenFile = openPath,
                                     onCategoryClick = { categoryName ->
-                                        pendingExplicitBrowserEntry = true
-                                        browserViewModel.navigateToCategory(categoryName)
-                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        if (categoryName == FileCategories.Images.name) {
+                                            navController.navigate(AppRoutes.ImageGallery()) {
+                                                popUpTo<AppRoutes.Main> { saveState = true }
+                                                launchSingleTop = true
+                                            }
+                                        } else {
+                                            pendingExplicitBrowserEntry = true
+                                            browserViewModel.navigateToCategory(categoryName)
+                                            coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        }
                                     },
                                     onSettingsClick = {
                                         navController.navigate(AppRoutes.Settings)
@@ -410,7 +414,11 @@ fun AppNavigationGraph(
                         selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
+                            if (categoryName == FileCategories.Images.name) {
+                                navController.navigate(AppRoutes.ImageGallery(scopedVolumeId))
+                            } else {
+                                navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
+                            }
                         },
                         onOpenPath = { path ->
                             navController.navigate(AppRoutes.Main(initialPage = 1, path = path))
@@ -452,6 +460,18 @@ fun AppNavigationGraph(
                         navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
                             popUpTo<AppRoutes.Main> { inclusive = true }
                         }
+                    },
+                    onFeedback = onFeedback
+                )
+                imageGalleryScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenFile = openPath,
+                    onShareSelected = { paths ->
+                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
                     },
                     onFeedback = onFeedback
                 )

@@ -79,6 +79,7 @@ fun FileGrid(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
@@ -106,6 +107,7 @@ fun FileGrid(
         gridState = gridState,
         minCellSize = minCellSize,
         showThumbnails = showThumbnails,
+        showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         folderStatsLoadingPaths = folderStatsLoadingPaths,
         contentPadding = contentPadding
@@ -125,12 +127,21 @@ fun FileGridRows(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
     val haptics = rememberArcileHaptics()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val thumbnailSizePx = with(LocalDensity.current) {
+        ThumbnailTargetSize.fromBounds(minCellSize.roundToPx())
+    }
+    val displayRows = remember(rows, thumbnailSizePx) {
+        rows.map { row ->
+            if (row.thumbnailSizePx == thumbnailSizePx) row else row.copy(thumbnailSizePx = thumbnailSizePx)
+        }
+    }
     val visibleRange by remember {
         derivedStateOf {
             val visible = gridState.layoutInfo.visibleItemsInfo
@@ -139,7 +150,7 @@ fun FileGridRows(
     }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(rows) { lastInteractedIndex = null }
+    LaunchedEffect(displayRows) { lastInteractedIndex = null }
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = minCellSize),
@@ -150,7 +161,7 @@ fun FileGridRows(
         modifier = modifier.fillMaxWidth()
     ) {
         itemsIndexed(
-            items = rows,
+            items = displayRows,
             key = { _, row -> row.absolutePath },
             contentType = { _, row -> if (row.isDirectory) "directory" else "file" }
         ) { index, row ->
@@ -163,6 +174,7 @@ fun FileGridRows(
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 showThumbnails = showThumbnails,
+                showDetails = showDetails,
                 thumbnailLoadingPaused = thumbnailLoadingPaused,
                 itemIndex = index,
                 visibleRange = visibleRange,
@@ -182,7 +194,7 @@ fun FileGridRows(
                     if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
                         val start = minOf(lastInteractedIndex!!, index)
                         val end = maxOf(lastInteractedIndex!!, index)
-                        onSelectMultiple(rows.subList(start, end + 1).map { it.absolutePath })
+                        onSelectMultiple(displayRows.subList(start, end + 1).map { it.absolutePath })
                         haptics.selectionChanged()
                     } else {
                         val wasEmpty = selectedFiles.isEmpty()
@@ -215,6 +227,7 @@ fun FileGridItem(
     modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false,
@@ -237,6 +250,7 @@ fun FileGridItem(
         modifier = modifier,
         isInSelectionMode = isInSelectionMode,
         showThumbnails = showThumbnails,
+        showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         isFolderStatsLoading = isFolderStatsLoading,
         onOpenDirectly = onOpenDirectly,
@@ -254,6 +268,7 @@ fun FileGridItem(
     modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     itemIndex: Int = 0,
     visibleRange: IntRange? = null,
@@ -329,16 +344,19 @@ fun FileGridItem(
                         model = ImageRequest.Builder(context)
                             .data(row.thumbnailRequestData(archiveThumbnailData))
                             .size(row.thumbnailSizePx)
-                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
-                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
+                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey)
+                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey)
                             .diskCachePolicy(CachePolicy.ENABLED)
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .build(),
+                        onLoading = {
+                            thumbnailPolicy.recordInFlight(row.thumbnailKey, row.thumbnailSizePx)
+                        },
                         onSuccess = {
                             thumbnailPolicy.clearFailure(row.thumbnailKey)
-                            thumbnailPolicy.recordLoaded(row.thumbnailKey)
+                            thumbnailPolicy.recordLoaded(row.thumbnailKey, row.thumbnailSizePx)
                         },
-                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey) },
+                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) },
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -375,33 +393,35 @@ fun FileGridItem(
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = file.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
-                    overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                    modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                )
-                Text(
-                    text = subtitleText,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = row.formattedDate,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (showDetails) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = file.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
+                        overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
+                    )
+                    Text(
+                        text = subtitleText,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = row.formattedDate,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
