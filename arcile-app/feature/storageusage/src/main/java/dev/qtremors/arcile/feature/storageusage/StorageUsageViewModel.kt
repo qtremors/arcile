@@ -54,13 +54,15 @@ class StorageUsageViewModel @Inject constructor(
             bulkFileOperationCoordinator.events.collect { event ->
                 val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
                 if (request.type.refreshesStorageUsage()) {
-                    refresh()
+                    scanner.invalidateStorageUsage(request.sourcePaths)
+                    refresh(forceScan = false)
                 }
             }
         }
         viewModelScope.launch {
-            storageMutationNotifier.events.collect {
-                refresh()
+            storageMutationNotifier.events.collect { event ->
+                scanner.invalidateStorageUsage(event.paths)
+                refresh(forceScan = false)
             }
         }
     }
@@ -70,10 +72,10 @@ class StorageUsageViewModel @Inject constructor(
             return
         }
         _state.update { StorageUsageUiState(selectedVolumeId = selectedVolumeId) }
-        refresh()
+        refresh(forceScan = false)
     }
 
-    fun refresh() {
+    fun refresh(forceScan: Boolean = true) {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
             val volumes = volumeRepository.getStorageVolumes().getOrElse { error ->
@@ -107,6 +109,9 @@ class StorageUsageViewModel @Inject constructor(
                 return@launch
             }
 
+            if (forceScan) {
+                scanner.invalidateStorageUsage(listOf(volume.path))
+            }
             _state.update {
                 it.copy(
                     rootVolume = volume,

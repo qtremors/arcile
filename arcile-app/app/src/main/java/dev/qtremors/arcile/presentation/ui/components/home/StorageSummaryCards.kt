@@ -424,19 +424,29 @@ fun MultiColorStorageBar(
                 }
 
                 // Data Layer (Segments)
-                if (hasData && animationTrigger) {
+                val hasSegmentData = categoryStorages.any { it.sizeBytes > 0L } || trashBytes > 0L
+                if (hasData && animationTrigger && hasSegmentData) {
                     Row(modifier = Modifier.fillMaxSize()) {
-                        val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
-                        val boundedTrashBytes = trashBytes.coerceIn(0L, totalBytes)
-                        val actualUsedBytes = totalBytes - freeBytes
-                        val otherUsedBytes = (actualUsedBytes - categorizedBytes - boundedTrashBytes).coerceAtLeast(0)
+                        val actualUsedBytes = (totalBytes - freeBytes).coerceIn(0L, totalBytes)
+                        val rawCategories = categoryStorages
+                            .filter { it.sizeBytes > 0L }
+                            .sortedByDescending { it.sizeBytes }
+                        val rawSegmentBytes = rawCategories.sumOf { it.sizeBytes } + trashBytes.coerceAtLeast(0L)
+                        val scale = if (rawSegmentBytes > actualUsedBytes && rawSegmentBytes > 0L) {
+                            actualUsedBytes.toDouble() / rawSegmentBytes.toDouble()
+                        } else {
+                            1.0
+                        }
+                        val boundedTrashBytes = (trashBytes.coerceAtLeast(0L).toDouble() * scale).toLong()
+                        val categorizedBytes = rawCategories.sumOf { (it.sizeBytes.toDouble() * scale).toLong() }
+                        val otherUsedBytes = (actualUsedBytes - categorizedBytes - boundedTrashBytes).coerceAtLeast(0L)
 
                         val categoryColors = LocalCategoryColors.current
-                        val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
                         
-                        sortedCategories.forEach { cat ->
-                            if (cat.sizeBytes > 0) {
-                                val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
+                        rawCategories.forEach { cat ->
+                            val segmentBytes = (cat.sizeBytes.toDouble() * scale).toLong()
+                            if (segmentBytes > 0) {
+                                val fraction = segmentBytes.toFloat() / totalBytes.toFloat()
                                 val animatedFraction by animateFloatAsState(
                                     targetValue = fraction * revealProgress,
                                     animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
@@ -446,7 +456,7 @@ fun MultiColorStorageBar(
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .weight(animatedFraction.coerceAtLeast(0.005f)) // Minimum 0.5% weight for visibility
+                                        .weight(animatedFraction.coerceAtLeast(0.0001f))
                                         .padding(horizontal = 0.1.dp) // Even smaller gap
                                         .clip(CircleShape)
                                         .background(catColor)
@@ -464,7 +474,7 @@ fun MultiColorStorageBar(
                             Box(
                                 modifier = Modifier
                                     .fillMaxHeight()
-                                    .weight(animatedTrashFraction.coerceAtLeast(0.005f))
+                                    .weight(animatedTrashFraction.coerceAtLeast(0.0001f))
                                     .padding(horizontal = 0.1.dp)
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.error)
@@ -479,25 +489,13 @@ fun MultiColorStorageBar(
                                 label = "other_bytes_animation"
                             )
                             
-                            // Dynamic color logic for unindexed volumes (no categories)
-                            val otherColor = if (categoryStorages.isEmpty()) {
-                                val usedPercent = (actualUsedBytes * 100) / totalBytes
-                                when {
-                                    usedPercent >= 90 -> MaterialTheme.colorScheme.error
-                                    usedPercent >= 70 -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            }
-
                             Box(
                                 modifier = Modifier
                                     .fillMaxHeight()
-                                    .weight(animatedOtherFraction.coerceAtLeast(0.005f))
+                                    .weight(animatedOtherFraction.coerceAtLeast(0.0001f))
                                     .padding(horizontal = 0.1.dp)
                                     .clip(CircleShape)
-                                    .background(otherColor)
+                                    .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                             )
                         }
 

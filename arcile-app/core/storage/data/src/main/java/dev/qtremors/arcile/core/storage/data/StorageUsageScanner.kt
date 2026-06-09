@@ -14,20 +14,33 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import java.io.File
+import java.util.LinkedHashMap
 import javax.inject.Inject
 import kotlin.math.max
 
 class DefaultStorageUsageScanner @Inject constructor(
     private val dispatchers: ArcileDispatchers
 ) : StorageUsageScanner {
+    private val cacheLock = Any()
+    private val cachedScans = object : LinkedHashMap<CacheKey, CacheEntry>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, CacheEntry>?): Boolean =
+            size > MAX_CACHED_SCANS
+    }
+
     override fun scanStorageUsage(
         rootPath: String,
         limits: StorageUsageScanLimits
     ): Flow<StorageUsageScanState> = flow {
+        val normalizedRoot = File(rootPath).absolutePath
+        cached(normalizedRoot, limits)?.let { cached ->
+            emit(StorageUsageScanState.Loaded(cached))
+            return@flow
+        }
+
         val progress = Progress(rootPath)
         emit(StorageUsageScanState.Loading(progress.snapshot(null)))
 
-        val rootFile = File(rootPath)
+        val rootFile = File(normalizedRoot)
         if (!rootFile.exists() || !rootFile.isDirectory) {
             emit(StorageUsageScanState.Error("Folder is no longer available"))
             return@flow
@@ -36,8 +49,38 @@ class DefaultStorageUsageScanner @Inject constructor(
         val node = scanFile(rootFile, depth = 0, limits = limits, progress = progress) { currentPath ->
             emit(StorageUsageScanState.Loading(progress.snapshot(currentPath)))
         }
+        store(normalizedRoot, limits, node)
         emit(StorageUsageScanState.Loaded(node))
     }.flowOn(dispatchers.storage)
+
+    override fun invalidateStorageUsage(paths: Collection<String>) {
+        synchronized(cacheLock) {
+            if (paths.isEmpty()) {
+                cachedScans.clear()
+                return
+            }
+            val normalizedPaths = paths.map { File(it).absolutePath.trimEnd(File.separatorChar) }
+            cachedScans.entries.removeIf { entry ->
+                normalizedPaths.any { changed ->
+                    val root = entry.key.rootPath
+                    changed == root || changed.startsWith("$root${File.separator}") || root.startsWith("$changed${File.separator}")
+                }
+            }
+        }
+    }
+
+    private fun cached(rootPath: String, limits: StorageUsageScanLimits): StorageUsageNode? =
+        synchronized(cacheLock) {
+            cachedScans[CacheKey(rootPath, limits)]
+                ?.takeIf { System.currentTimeMillis() - it.cachedAt <= CACHE_TTL_MS }
+                ?.root
+        }
+
+    private fun store(rootPath: String, limits: StorageUsageScanLimits, root: StorageUsageNode) {
+        synchronized(cacheLock) {
+            cachedScans[CacheKey(rootPath, limits)] = CacheEntry(root, System.currentTimeMillis())
+        }
+    }
 
     private suspend fun scanFile(
         file: File,
@@ -180,5 +223,17 @@ class DefaultStorageUsageScanner @Inject constructor(
     private companion object {
         const val GROUPED_NODE_NAME = "Other small items"
         const val PROGRESS_GRANULARITY = 96
+        const val MAX_CACHED_SCANS = 8
+        const val CACHE_TTL_MS = 10 * 60 * 1000L
     }
+
+    private data class CacheKey(
+        val rootPath: String,
+        val limits: StorageUsageScanLimits
+    )
+
+    private data class CacheEntry(
+        val root: StorageUsageNode,
+        val cachedAt: Long
+    )
 }

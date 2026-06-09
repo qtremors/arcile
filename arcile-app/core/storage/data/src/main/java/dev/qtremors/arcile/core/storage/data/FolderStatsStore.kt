@@ -2,6 +2,9 @@ package dev.qtremors.arcile.core.storage.data
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
+import dev.qtremors.arcile.core.storage.data.db.FolderStatsDao
+import dev.qtremors.arcile.core.storage.data.db.FolderStatsEntity
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
@@ -21,11 +24,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,19 +37,11 @@ interface FolderStatsStore {
     fun invalidate(paths: Collection<String>)
 }
 
-@Serializable
-private data class FolderStatsCacheEntity(
-    val path: String,
-    val fileCount: Long,
-    val totalBytes: Long,
-    val cachedAt: Long,
-    val status: String
-)
-
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @Singleton
 class DefaultFolderStatsStore @Inject constructor(
     @ApplicationContext context: Context,
+    private val folderStatsDao: FolderStatsDao = ArcileDatabase.getInstance(context).folderStatsDao(),
     private val calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null,
@@ -71,8 +62,6 @@ class DefaultFolderStatsStore @Inject constructor(
         private const val MAX_UNAVAILABLE_RETRIES = 2
     }
 
-    private val json = Json { ignoreUnknownKeys = true }
-    private val cacheDir by lazy { File(context.cacheDir, "folder_stats").apply { mkdirs() } }
     private val memoryCache = ConcurrentHashMap<String, FolderStats>()
     private val queuedPaths = ConcurrentHashMap.newKeySet<String>()
     private val activeJobs = ConcurrentHashMap<String, Job>()
@@ -87,16 +76,22 @@ class DefaultFolderStatsStore @Inject constructor(
     override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = withContext(dispatchers.io) {
         if (paths.isEmpty()) return@withContext emptyMap()
         val result = LinkedHashMap<String, FolderStats>(paths.size)
-        paths.forEach { rawPath ->
-            val path = normalizePath(rawPath)
+        val normalizedPaths = paths.map(::normalizePath).distinct()
+        val missedPaths = mutableListOf<String>()
+        normalizedPaths.forEach { path ->
             memoryCache[path]?.let {
                 result[path] = it
                 return@forEach
             }
+            missedPaths += path
+        }
 
-            val stats = readFromDisk(path) ?: return@forEach
-            memoryCache[path] = stats
-            result[path] = stats
+        if (missedPaths.isNotEmpty()) {
+            folderStatsDao.get(missedPaths).forEach { entity ->
+                val stats = entity.toDomain()
+                memoryCache[entity.path] = stats
+                result[entity.path] = stats
+            }
         }
         result
     }
@@ -147,9 +142,12 @@ class DefaultFolderStatsStore @Inject constructor(
             activeJobs.remove(path)?.cancel()
             queuedPaths.remove(path)
             memoryCache.remove(path)
-            val file = cacheFile(path)
-            if (file.exists() && !file.delete()) {
-                AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path")
+            workerScope.launch {
+                runCatching { folderStatsDao.delete(listOf(path)) }
+                    .onFailure { error ->
+                        if (error is kotlinx.coroutines.CancellationException) throw error
+                        AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path", error)
+                    }
             }
         }
     }
@@ -167,21 +165,9 @@ class DefaultFolderStatsStore @Inject constructor(
         }
     }
 
-    private fun persist(path: String, stats: FolderStats) {
+    private suspend fun persist(path: String, stats: FolderStats) {
         try {
-            if (!cacheDir.exists()) cacheDir.mkdirs()
-            val file = cacheFile(path)
-            file.writeText(
-                json.encodeToString(
-                    FolderStatsCacheEntity(
-                        path = path,
-                        fileCount = stats.fileCount,
-                        totalBytes = stats.totalBytes,
-                        cachedAt = stats.cachedAt,
-                        status = stats.status.name
-                    )
-                )
-            )
+            folderStatsDao.upsert(FolderStatsEntity.from(path, stats))
             pruneIfNeeded()
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
@@ -189,48 +175,15 @@ class DefaultFolderStatsStore @Inject constructor(
         }
     }
 
-    private fun readFromDisk(path: String): FolderStats? {
-        val file = cacheFile(path)
-        if (!file.exists()) return null
-        return try {
-            val entity = json.decodeFromString<FolderStatsCacheEntity>(file.readText())
-            if (normalizePath(entity.path) != path) {
-                file.delete()
-                null
-            } else {
-                FolderStats(
-                    fileCount = entity.fileCount,
-                    totalBytes = entity.totalBytes,
-                    cachedAt = entity.cachedAt,
-                    status = FolderStatsStatus.entries.find { it.name == entity.status } ?: FolderStatsStatus.Unavailable
-                )
-            }
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            file.delete()
-            null
+    private suspend fun pruneIfNeeded() {
+        val count = folderStatsDao.count()
+        if (count <= MAX_PERSISTED_ENTRIES) return
+        val overflow = count - MAX_PERSISTED_ENTRIES
+        val oldestPaths = folderStatsDao.oldestPaths(overflow)
+        if (oldestPaths.isNotEmpty()) {
+            folderStatsDao.delete(oldestPaths)
+            oldestPaths.forEach(memoryCache::remove)
         }
-    }
-
-    private fun pruneIfNeeded() {
-        val files = cacheDir.listFiles()?.filter { it.extension == "json" } ?: return
-        if (files.size <= MAX_PERSISTED_ENTRIES) return
-
-        files.sortedBy { it.lastModified() }
-            .take(files.size - MAX_PERSISTED_ENTRIES)
-            .forEach { file ->
-                if (!file.delete()) {
-                    AppLogger.w("FolderStatsStore", "Failed to prune old folder stats cache ${file.name}")
-                }
-            }
-    }
-
-    private fun cacheFile(path: String): File =
-        File(cacheDir, "${hashPath(path)}.json")
-
-    private fun hashPath(path: String): String {
-        val digest = MessageDigest.getInstance("SHA-256").digest(path.toByteArray(Charsets.UTF_8))
-        return digest.joinToString(separator = "") { "%02x".format(it) }
     }
 
     private fun normalizePath(path: String): String =

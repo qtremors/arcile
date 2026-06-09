@@ -20,6 +20,11 @@ open class ThumbnailFailureCache(
     }
 
     @Synchronized
+    fun restore(cacheKeys: Collection<String>) {
+        cacheKeys.forEach { failedKeys[it] = Unit }
+    }
+
+    @Synchronized
     fun hasFailure(key: ThumbnailKey): Boolean = failedKeys.containsKey(key.cacheKey)
 
     @Synchronized

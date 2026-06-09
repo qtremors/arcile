@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.storage.data
 
 import android.content.Context
 import android.media.MediaScannerConnection
+import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
@@ -13,14 +14,28 @@ class MutationFinalizer(
     private val mediaStoreClient: MediaStoreClient,
     private val volumeProvider: VolumeProvider,
     private val folderStatsStore: FolderStatsStore,
+    private val thumbnailCacheStore: ThumbnailCacheStore = NoOpThumbnailCacheStore,
+    private val storageNodeDao: StorageNodeDao? = null,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) {
     suspend fun finalize(vararg paths: String) {
         mediaStoreClient.invalidateCache(*paths)
         volumeProvider.invalidateCache()
         folderStatsStore.invalidate(paths.flatMap(::pathWithAncestors))
+        thumbnailCacheStore.invalidateSources(paths.toList())
+        invalidateStorageNodes(paths.toList())
         scanMediaFiles(*paths)
         storageMutationNotifier.notify(paths.toList())
+    }
+
+    private suspend fun invalidateStorageNodes(paths: List<String>) {
+        val dao = storageNodeDao ?: return
+        paths.forEach { path ->
+            dao.deleteTree(path, "$path/%")
+            java.io.File(path).parentFile?.absolutePath?.let { parentPath ->
+                dao.deleteChildren(parentPath)
+            }
+        }
     }
 
     private fun pathWithAncestors(path: String): List<String> {

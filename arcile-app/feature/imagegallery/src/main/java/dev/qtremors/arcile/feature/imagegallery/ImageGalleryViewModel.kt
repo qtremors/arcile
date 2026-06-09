@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import android.content.IntentSender
-import android.graphics.BitmapFactory
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -237,22 +236,10 @@ class ImageGalleryViewModel @Inject constructor(
                             albums = snapshot.albums.toPersistentList(),
                             isLoading = false,
                             isRefreshing = false,
-                            isSnapshotStale = snapshot.isStale
+                            isSnapshotStale = snapshot.isStale,
+                            aspectRatios = snapshot.aspectRatios.toPersistentMap()
                         )
                         next.withDisplayedFiles()
-                    }
-                    viewModelScope.launch {
-                        val decodedRatios = withContext(Dispatchers.IO) {
-                            snapshot.files.associate { file ->
-                                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                                BitmapFactory.decodeFile(file.absolutePath, options)
-                                val w = options.outWidth
-                                val h = options.outHeight
-                                val ratio = if (w > 0 && h > 0) w.toFloat() / h.toFloat() else 1f
-                                file.absolutePath to ratio
-                            }
-                        }
-                        _state.update { it.copy(aspectRatios = decodedRatios.toPersistentMap()) }
                     }
                     if (snapshot.isStale) {
                         loadImages(forceRefresh = true, silent = true)

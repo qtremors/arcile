@@ -48,6 +48,22 @@ class StorageUsageScannerTest {
     }
 
     @Test
+    fun `scanner reuses cached result until invalidated`() = runTest {
+        val root = temporaryFolder.newFolder("cached")
+        File(root, "one.bin").writeBytes(ByteArray(10))
+
+        val first = scanner.scanStorageUsage(root.absolutePath).loadedState()
+        File(root, "two.bin").writeBytes(ByteArray(20))
+        val cached = scanner.scanStorageUsage(root.absolutePath).loadedState()
+        scanner.invalidateStorageUsage(listOf(root.absolutePath))
+        val refreshed = scanner.scanStorageUsage(root.absolutePath).loadedState()
+
+        assertEquals(10L, first.root.sizeBytes)
+        assertEquals(10L, cached.root.sizeBytes)
+        assertEquals(30L, refreshed.root.sizeBytes)
+    }
+
+    @Test
     fun `scanner groups tiny children when folder exceeds child limit`() = runTest {
         val root = temporaryFolder.newFolder("many")
         repeat(8) { index ->

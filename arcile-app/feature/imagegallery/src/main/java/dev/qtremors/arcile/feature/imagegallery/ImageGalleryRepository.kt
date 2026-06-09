@@ -1,10 +1,8 @@
 package dev.qtremors.arcile.feature.imagegallery
 
-import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
-import dev.qtremors.arcile.core.storage.domain.StorageScope
 import kotlinx.coroutines.flow.Flow
 import java.io.File
 import javax.inject.Inject
@@ -18,6 +16,7 @@ interface ImageGalleryRepository {
 data class ImageGallerySnapshot(
     val files: List<FileModel>,
     val albums: List<ImageGalleryAlbum>,
+    val aspectRatios: Map<String, Float>,
     val isStale: Boolean
 )
 
@@ -28,7 +27,7 @@ data class ImageGalleryAlbum(
 )
 
 class DefaultImageGalleryRepository @Inject constructor(
-    private val searchRepository: SearchRepository,
+    private val imageCatalogRepository: ImageCatalogRepository,
     private val storageMutationNotifier: StorageMutationNotifier
 ) : ImageGalleryRepository {
     private val snapshotLock = Any()
@@ -39,17 +38,21 @@ class DefaultImageGalleryRepository @Inject constructor(
     override suspend fun loadImages(volumeId: String?, forceRefresh: Boolean): ImageGallerySnapshot {
         val key = volumeId.orEmpty()
         val cached = synchronized(snapshotLock) { snapshots[key] }
-        if (cached != null && !forceRefresh) return cached.copy(isStale = true)
+        if (cached != null && !forceRefresh) return cached.copy(isStale = false)
 
-        val scope = StorageScope.Category(volumeId?.takeIf { it.isNotBlank() }, FileCategories.Images.name)
-        val files = searchRepository.getFilesByCategory(scope, FileCategories.Images.name)
-            .getOrDefault(emptyList())
+        val catalog = imageCatalogRepository.loadImages(volumeId, forceRefresh).getOrThrow()
+        val files = catalog.items
+            .map { it.file }
             .distinctBy { it.absolutePath }
             .sortedByDescending { it.lastModified }
+        val aspectRatios = catalog.items
+            .mapNotNull { item -> item.aspectRatio?.let { item.file.absolutePath to it } }
+            .toMap()
         val snapshot = ImageGallerySnapshot(
             files = files,
             albums = buildAlbums(files),
-            isStale = false
+            aspectRatios = aspectRatios,
+            isStale = catalog.isStale
         )
         synchronized(snapshotLock) { snapshots[key] = snapshot }
         return snapshot
@@ -59,8 +62,10 @@ class DefaultImageGalleryRepository @Inject constructor(
         synchronized(snapshotLock) {
             if (paths.isEmpty()) {
                 snapshots.clear()
+                imageCatalogRepository.invalidate()
                 return
             }
+            imageCatalogRepository.invalidate(paths)
             val affected = paths.map { it.replace('\\', '/') }
             snapshots.entries.removeIf { entry ->
                 entry.value.files.any { file ->

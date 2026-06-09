@@ -31,12 +31,17 @@ import java.io.File
 class FakeStorageUsageScanner : StorageUsageScanner {
     val resultFlow = MutableStateFlow<StorageUsageScanState>(StorageUsageScanState.Idle)
     val scanRequests = mutableListOf<String>()
+    val invalidatedPaths = mutableListOf<List<String>>()
     override fun scanStorageUsage(
         rootPath: String,
         limits: StorageUsageScanLimits
     ): Flow<StorageUsageScanState> {
         scanRequests += rootPath
         return resultFlow
+    }
+
+    override fun invalidateStorageUsage(paths: Collection<String>) {
+        invalidatedPaths += paths.toList()
     }
 }
 
@@ -52,6 +57,7 @@ class StorageUsageViewModelTest {
         Dispatchers.setMain(dispatcher)
         operationCoordinator = FakeBulkFileOperationCoordinator()
         fakeScanner.scanRequests.clear()
+        fakeScanner.invalidatedPaths.clear()
         fakeScanner.resultFlow.value = StorageUsageScanState.Idle
     }
 

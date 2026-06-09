@@ -114,15 +114,19 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Precision
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailPolicy
+import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
@@ -1314,6 +1318,8 @@ fun GalleryImageItem(
     val context = LocalContext.current
     val haptics = rememberArcileHaptics()
     val formatter = rememberDateTimeFormatter()
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val thumbnailKey = remember(file) { ThumbnailKey.from(file) }
 
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 0.92f else 1.0f,
@@ -1341,48 +1347,11 @@ fun GalleryImageItem(
                         .fillMaxWidth()
                         .aspectRatio(aspectRatio)
                 ) {
-                    val archiveThumbnailData = ArchiveEntryThumbnailData.fromVirtualPath(
-                        path = file.absolutePath,
-                        sizeBytes = file.size,
-                        lastModifiedMillis = file.lastModified
-                    )
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(archiveThumbnailData ?: file.absolutePath)
-                            .diskCachePolicy(CachePolicy.ENABLED)
-                            .memoryCachePolicy(CachePolicy.ENABLED)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop,
-                        loading = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                            }
-                        },
-                        error = {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Image,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                            }
-                        }
+                    GalleryThumbnail(
+                        file = file,
+                        thumbnailKey = thumbnailKey,
+                        thumbnailPolicy = thumbnailPolicy,
+                        modifier = Modifier.fillMaxSize()
                     )
 
                     if (isSelected) {
@@ -1452,48 +1421,11 @@ fun GalleryImageItem(
                     onLongClick = onLongClick
                 )
         ) {
-            val archiveThumbnailData = ArchiveEntryThumbnailData.fromVirtualPath(
-                path = file.absolutePath,
-                sizeBytes = file.size,
-                lastModifiedMillis = file.lastModified
-            )
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(archiveThumbnailData ?: file.absolutePath)
-                    .diskCachePolicy(CachePolicy.ENABLED)
-                    .memoryCachePolicy(CachePolicy.ENABLED)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                loading = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    }
-                },
-                error = {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                        )
-                    }
-                }
+            GalleryThumbnail(
+                file = file,
+                thumbnailKey = thumbnailKey,
+                thumbnailPolicy = thumbnailPolicy,
+                modifier = Modifier.fillMaxSize()
             )
 
             if (isSelected) {
@@ -1524,6 +1456,70 @@ fun GalleryImageItem(
     }
 }
 
+@Composable
+private fun GalleryThumbnail(
+    file: FileModel,
+    thumbnailKey: ThumbnailKey,
+    thumbnailPolicy: ThumbnailPolicy,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    BoxWithConstraints(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        val requestSizePx = remember(maxWidth, maxHeight, density) {
+            with(density) {
+                ThumbnailTargetSize.fromBounds(
+                    widthPx = maxWidth.roundToPx(),
+                    heightPx = maxHeight.roundToPx(),
+                    maxPx = GALLERY_MAX_THUMBNAIL_PX
+                )
+            }
+        }
+        val archiveThumbnailData = remember(file.absolutePath, file.size, file.lastModified) {
+            ArchiveEntryThumbnailData.fromVirtualPath(
+                path = file.absolutePath,
+                sizeBytes = file.size,
+                lastModifiedMillis = file.lastModified
+            )
+        }
+        val cacheKey = remember(archiveThumbnailData, thumbnailKey, requestSizePx) {
+            archiveThumbnailData?.cacheKey ?: thumbnailKey.variantKey(requestSizePx).cacheKey
+        }
+        val request = remember(context, archiveThumbnailData, file.absolutePath, cacheKey, requestSizePx) {
+            ImageRequest.Builder(context)
+                .data(archiveThumbnailData ?: file.absolutePath)
+                .size(requestSizePx)
+                .precision(Precision.INEXACT)
+                .memoryCacheKey(cacheKey)
+                .diskCacheKey(cacheKey)
+                .diskCachePolicy(CachePolicy.ENABLED)
+                .memoryCachePolicy(CachePolicy.ENABLED)
+                .networkCachePolicy(CachePolicy.DISABLED)
+                .build()
+        }
+        Icon(
+            imageVector = Icons.Default.Image,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+        AsyncImage(
+            model = request,
+            onLoading = { thumbnailPolicy.recordInFlight(thumbnailKey, requestSizePx) },
+            onSuccess = {
+                thumbnailPolicy.clearFailure(thumbnailKey)
+                thumbnailPolicy.recordLoaded(thumbnailKey, requestSizePx)
+            },
+            onError = { thumbnailPolicy.recordFailure(thumbnailKey, requestSizePx) },
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun GalleryImageListItem(
@@ -1536,6 +1532,9 @@ fun GalleryImageListItem(
 ) {
     val context = LocalContext.current
     val haptics = rememberArcileHaptics()
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val thumbnailKey = remember(file) { ThumbnailKey.from(file) }
+    val thumbnailSizePx = ThumbnailTargetSize.fromBounds((48 * zoom).roundToInt())
 
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 0.98f else 1.0f,
@@ -1555,28 +1554,52 @@ fun GalleryImageListItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val archiveThumbnailData = ArchiveEntryThumbnailData.fromVirtualPath(
-            path = file.absolutePath,
-            sizeBytes = file.size,
-            lastModifiedMillis = file.lastModified
-        )
         Box(
             modifier = Modifier
                 .size((48 * zoom).dp)
                 .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
         ) {
-            SubcomposeAsyncImage(
-                model = ImageRequest.Builder(context)
+            val archiveThumbnailData = remember(file.absolutePath, file.size, file.lastModified) {
+                ArchiveEntryThumbnailData.fromVirtualPath(
+                    path = file.absolutePath,
+                    sizeBytes = file.size,
+                    lastModifiedMillis = file.lastModified
+                )
+            }
+            val cacheKey = remember(archiveThumbnailData, thumbnailKey, thumbnailSizePx) {
+                archiveThumbnailData?.cacheKey ?: thumbnailKey.variantKey(thumbnailSizePx).cacheKey
+            }
+            val request = remember(context, archiveThumbnailData, file.absolutePath, cacheKey, thumbnailSizePx) {
+                ImageRequest.Builder(context)
                     .data(archiveThumbnailData ?: file.absolutePath)
+                    .size(thumbnailSizePx)
+                    .precision(Precision.INEXACT)
+                    .memoryCacheKey(cacheKey)
+                    .diskCacheKey(cacheKey)
                     .diskCachePolicy(CachePolicy.ENABLED)
                     .memoryCachePolicy(CachePolicy.ENABLED)
-                    .build(),
+                    .networkCachePolicy(CachePolicy.DISABLED)
+                    .build()
+            }
+            Icon(
+                imageVector = Icons.Default.Image,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(18.dp)
+            )
+            AsyncImage(
+                model = request,
+                onLoading = { thumbnailPolicy.recordInFlight(thumbnailKey, thumbnailSizePx) },
+                onSuccess = {
+                    thumbnailPolicy.clearFailure(thumbnailKey)
+                    thumbnailPolicy.recordLoaded(thumbnailKey, thumbnailSizePx)
+                },
+                onError = { thumbnailPolicy.recordFailure(thumbnailKey, thumbnailSizePx) },
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                loading = {
-                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
-                }
+                contentScale = ContentScale.Crop
             )
             if (isSelected) {
                 Box(
@@ -1651,3 +1674,5 @@ fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): 
         else -> TimeSection.OLDER
     }
 }
+
+private const val GALLERY_MAX_THUMBNAIL_PX = 512

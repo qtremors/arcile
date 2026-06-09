@@ -28,6 +28,14 @@ open class ThumbnailLoadStateStore {
         failedIdentities.add(key.identity.cacheKey)
     }
 
+    fun restore(
+        loadedVariantKeys: Collection<String>,
+        failedIdentityKeys: Collection<String>
+    ) {
+        loadedVariants.addAll(loadedVariantKeys)
+        failedIdentities.addAll(failedIdentityKeys)
+    }
+
     fun clear() {
         loadedVariants.clear()
         failedIdentities.clear()

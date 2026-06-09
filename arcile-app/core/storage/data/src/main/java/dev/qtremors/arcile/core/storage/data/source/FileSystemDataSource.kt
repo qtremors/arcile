@@ -6,6 +6,8 @@ import android.os.Environment
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
+import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
+import dev.qtremors.arcile.core.storage.data.db.StorageNodeEntity
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.di.ArcileDispatchers
@@ -59,6 +61,7 @@ class DefaultFileSystemDataSource(
         storage = Dispatchers.IO
     ),
     private val conflictDetector: FileConflictDetector = FileConflictDetector(),
+    private val storageNodeDao: StorageNodeDao? = null,
     mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val transferEngine: FileTransferEngine = FileTransferEngine(validatePath = { file ->
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
@@ -132,6 +135,49 @@ class DefaultFileSystemDataSource(
         )
     }
 
+    private fun File.toStorageNodeEntity(volumeId: String?, scannedAt: Long): StorageNodeEntity =
+        StorageNodeEntity(
+            path = absolutePath,
+            parentPath = parentFile?.absolutePath,
+            name = name,
+            extension = extension.lowercase(),
+            mimeType = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase()),
+            sizeBytes = if (isFile) length() else 0L,
+            lastModified = lastModified(),
+            isDirectory = isDirectory,
+            isHidden = isHidden,
+            contentUri = null,
+            mediaStoreId = null,
+            mediaStoreVolume = null,
+            volumeId = volumeId,
+            width = null,
+            height = null,
+            dateAdded = scannedAt,
+            scannedAt = scannedAt
+        )
+
+    private fun StorageNodeEntity.toFileModel(): FileModel =
+        FileModel(
+            name = name,
+            absolutePath = path,
+            size = sizeBytes,
+            lastModified = lastModified,
+            isDirectory = isDirectory,
+            extension = extension.orEmpty(),
+            isHidden = isHidden,
+            mimeType = mimeType,
+            nodeRef = StorageNodeRef.local(
+                path = path,
+                capabilities = StorageNodeCapabilities(
+                    canRead = true,
+                    canWrite = true,
+                    canDelete = true,
+                    canTrash = false,
+                    canArchive = !isDirectory
+                )
+            )
+        )
+
     private suspend fun finalizeMutation(vararg paths: String) {
         mutationFinalizer.finalize(*paths)
     }
@@ -162,6 +208,17 @@ class DefaultFileSystemDataSource(
                 return@flow
             }
 
+            storageNodeDao?.listChildren(directory.absolutePath)
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { cachedChildren ->
+                    emitPages(
+                        path = path,
+                        files = cachedChildren.map { it.toFileModel() },
+                        pageSize = pageSize
+                    ) { page -> emit(page) }
+                    return@flow
+                }
+
             val children = directory.listFiles()
                 ?: run {
                     emit(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
@@ -173,22 +230,26 @@ class DefaultFileSystemDataSource(
                 return@flow
             }
 
-            val boundedPageSize = pageSize.coerceIn(1, ListingPage.MAX_PAGE_SIZE)
-            children.asSequence()
-                .sortedWith(fileListingComparator)
-                .chunked(boundedPageSize)
-                .forEachIndexed { index, chunk ->
-                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                    val complete = (index + 1) * boundedPageSize >= children.size
-                    emit(
-                        ListingPage(
-                            path = path,
-                            files = chunk.map { it.toFileModel() },
-                            pageIndex = index,
-                            isComplete = complete
-                        )
+            val scannedAt = System.currentTimeMillis()
+            storageNodeDao?.run {
+                val volumes = volumeProvider.currentVolumes()
+                deleteChildren(directory.absolutePath)
+                upsert(children.map { child ->
+                    child.toStorageNodeEntity(
+                        volumeId = volumes.firstOrNull { volume -> child.absolutePath.startsWith(volume.path) }?.id,
+                        scannedAt = scannedAt
                     )
-                }
+                })
+            }
+
+            emitPages(
+                path = path,
+                files = children.asSequence()
+                .sortedWith(fileListingComparator)
+                .map { it.toFileModel() }
+                .toList(),
+                pageSize = pageSize
+            ) { page -> emit(page) }
         } catch (e: SecurityException) {
             emit(ListingPage.failed(path, FileOperationException.AccessDenied(cause = e)))
         } catch (e: java.io.IOException) {
@@ -198,6 +259,30 @@ class DefaultFileSystemDataSource(
             emit(ListingPage.failed(path, FileOperationException.Unknown(cause = e)))
         }
     }.flowOn(dispatchers.io)
+
+    private suspend fun emitPages(
+        path: StorageNodePath,
+        files: List<FileModel>,
+        pageSize: Int,
+        emitPage: suspend (ListingPage) -> Unit
+    ) {
+        if (files.isEmpty()) {
+            emitPage(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
+            return
+        }
+        val boundedPageSize = pageSize.coerceIn(1, ListingPage.MAX_PAGE_SIZE)
+        files.chunked(boundedPageSize).forEachIndexed { index, chunk ->
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+            emitPage(
+                ListingPage(
+                    path = path,
+                    files = chunk,
+                    pageIndex = index,
+                    isComplete = (index + 1) * boundedPageSize >= files.size
+                )
+            )
+        }
+    }
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {

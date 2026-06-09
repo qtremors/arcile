@@ -4,9 +4,13 @@ import dev.qtremors.arcile.core.storage.domain.FileOperationException
 
 import android.content.Context
 import android.provider.MediaStore
+import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
+import dev.qtremors.arcile.core.storage.data.db.CategorySummaryDao
+import dev.qtremors.arcile.core.storage.data.db.CategorySummaryEntity
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.indexedVolumesForScope
 import dev.qtremors.arcile.core.storage.data.util.matchesScope
+import dev.qtremors.arcile.core.storage.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileCategories
@@ -20,23 +24,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
-
-@Serializable
-data class CategoryCacheEntity(
-    val name: String,
-    val size: Long,
-    val extensions: List<String>
-)
-
-@Serializable
-data class CacheRootEntity(
-    val cachedAt: Long,
-    val data: List<CategoryCacheEntity>
-)
 
 interface MediaStoreClient {
     suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>>
@@ -49,6 +37,7 @@ interface MediaStoreClient {
 class DefaultMediaStoreClient(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
+    private val categorySummaryDao: CategorySummaryDao = ArcileDatabase.getInstance(context).categorySummaryDao(),
     private val dispatchers: ArcileDispatchers = ArcileDispatchers(
         io = Dispatchers.IO,
         default = Dispatchers.Default,
@@ -62,10 +51,7 @@ class DefaultMediaStoreClient(
         const val PATH_SEARCH_CANCELLATION_GRANULARITY = 32
         const val RECENT_FILES_QUERY_MULTIPLIER = 4
     }
-
-    private val appContext = context.applicationContext
     private val CACHE_TTL_MS = 5 * 60 * 1000L // 5 minutes
-    private val cacheDir by lazy { File(appContext.cacheDir, "analytics") }
 
     private fun File.toFileModel(mime: String? = null): FileModel {
         val ext = extension
@@ -85,59 +71,48 @@ class DefaultMediaStoreClient(
         )
     }
 
-    private fun saveCategorySizesToCache(scope: StorageScope, data: List<CategoryStorage>) {
+    private fun categoryCacheKey(scope: StorageScope): String? =
+        when (scope) {
+            StorageScope.AllStorage -> "global"
+            is StorageScope.Volume -> "volume_${scope.volumeId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
+            else -> null
+        }
+
+    private suspend fun saveCategorySizesToCache(scope: StorageScope, data: List<CategoryStorage>) {
         try {
-            if (!cacheDir.exists()) cacheDir.mkdirs()
-            val cacheKey = when (scope) {
-                StorageScope.AllStorage -> "global"
-                is StorageScope.Volume -> "volume_${scope.volumeId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
-                else -> return // Only cache global and volume-wide stats
-            }
-            val file = File(cacheDir, "$cacheKey.json")
-            
-            val cacheEntities = data.map { item ->
-                CategoryCacheEntity(
-                    name = item.name,
-                    size = item.sizeBytes,
-                    extensions = item.extensions.toList()
-                )
-            }
-            
-            val rootEntity = CacheRootEntity(
-                cachedAt = System.currentTimeMillis(),
-                data = cacheEntities
+            val cacheKey = categoryCacheKey(scope) ?: return
+            val now = System.currentTimeMillis()
+            categorySummaryDao.upsert(
+                data.map { item ->
+                    CategorySummaryEntity(
+                        scopeKey = cacheKey,
+                        categoryName = item.name,
+                        sizeBytes = item.sizeBytes,
+                        itemCount = 0,
+                        cachedAt = now
+                    )
+                }
             )
-            
-            val jsonFormat = Json { ignoreUnknownKeys = true }
-            file.writeText(jsonFormat.encodeToString(rootEntity))
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e("MediaStoreClient", "Failed to save category cache")
         }
     }
 
-    private fun getCategorySizesFromCache(scope: StorageScope): List<CategoryStorage>? {
+    private suspend fun getCategorySizesFromCache(scope: StorageScope): List<CategoryStorage>? {
         try {
-            val cacheKey = when (scope) {
-                StorageScope.AllStorage -> "global"
-                is StorageScope.Volume -> "volume_${scope.volumeId.replace(Regex("[^a-zA-Z0-9]"), "_")}"
-                else -> return null
-            }
-            val file = File(cacheDir, "$cacheKey.json")
-            if (!file.exists()) return null
-            
-            val jsonFormat = Json { ignoreUnknownKeys = true }
-            val rootEntity = jsonFormat.decodeFromString<CacheRootEntity>(file.readText())
-            
-            if (System.currentTimeMillis() - rootEntity.cachedAt > CACHE_TTL_MS) {
-                return null // Stale cache
-            }
-            
-            return rootEntity.data.map { entity ->
+            val cacheKey = categoryCacheKey(scope) ?: return null
+            val entities = categorySummaryDao.get(cacheKey)
+            if (entities.isEmpty()) return null
+            if (entities.any { System.currentTimeMillis() - it.cachedAt > CACHE_TTL_MS }) return null
+
+            val byName = entities.associateBy { it.categoryName }
+            return FileCategories.all.map { category ->
+                val entity = byName[category.name] ?: return null
                 CategoryStorage(
-                    name = entity.name,
-                    sizeBytes = entity.size,
-                    extensions = entity.extensions.toSet()
+                    name = category.name,
+                    sizeBytes = entity.sizeBytes,
+                    extensions = category.extensions
                 )
             }
         } catch (e: Exception) {
@@ -150,27 +125,17 @@ class DefaultMediaStoreClient(
     override suspend fun invalidateCache(vararg paths: String) = withContext(dispatchers.io) {
         try {
             if (paths.isEmpty()) {
-                cacheDir.listFiles()?.forEach { if (it.name.endsWith(".json")) it.delete() }
+                categorySummaryDao.clear()
                 return@withContext
             }
-            
+
             val volumes = volumeProvider.currentVolumes()
-            val affectedVolumeIds = paths.mapNotNull { path -> 
-                dev.qtremors.arcile.core.storage.data.util.resolveVolumeForPath(path, volumes)?.id 
+            val affectedVolumeIds = paths.mapNotNull { path ->
+                resolveVolumeForPath(path, volumes)?.id
             }.toSet()
-            
-            val globalFile = File(cacheDir, "global.json")
-            if (globalFile.exists() && !globalFile.delete()) {
-                 AppLogger.w("MediaStoreClient", "Failed to delete global cache")
-            }
-            
-            affectedVolumeIds.forEach { volId ->
-                val safeVolId = volId.replace(Regex("[^a-zA-Z0-9]"), "_")
-                val volFile = File(cacheDir, "volume_$safeVolId.json")
-                if (volFile.exists() && !volFile.delete()) {
-                    AppLogger.w("MediaStoreClient", "Failed to delete volume cache")
-                }
-            }
+            categorySummaryDao.delete(
+                listOf("global") + affectedVolumeIds.map { "volume_${it.replace(Regex("[^a-zA-Z0-9]"), "_")}" }
+            )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e("MediaStoreClient", "Cache invalidation error", e)

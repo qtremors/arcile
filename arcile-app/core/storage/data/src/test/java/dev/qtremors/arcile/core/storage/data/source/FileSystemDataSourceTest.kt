@@ -1,7 +1,10 @@
 package dev.qtremors.arcile.core.storage.data.source
 
 import android.content.Context
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
+import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
@@ -38,6 +41,8 @@ class FileSystemDataSourceTest {
     private lateinit var volumeProvider: VolumeProvider
     private lateinit var mediaStoreClient: MediaStoreClient
     private lateinit var folderStatsStore: FolderStatsStore
+    private lateinit var database: ArcileDatabase
+    private lateinit var storageNodeDao: StorageNodeDao
     private lateinit var dataSource: DefaultFileSystemDataSource
     private lateinit var root: File
 
@@ -52,6 +57,10 @@ class FileSystemDataSourceTest {
         every { volumeProvider.observeStorageVolumes() } returns flowOf(listOf(testVolume("test-vol", root.absolutePath)))
 
         mediaStoreClient = mockk(relaxed = true)
+        database = Room.inMemoryDatabaseBuilder(context, ArcileDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        storageNodeDao = database.storageNodeDao()
         folderStatsStore = object : FolderStatsStore {
             override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
             override fun observeUpdates() = emptyFlow<FolderStatUpdate>()
@@ -62,12 +71,20 @@ class FileSystemDataSourceTest {
         dataSource = DefaultFileSystemDataSource(
             context,
             volumeProvider,
-            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+            MutationFinalizer(
+                context = context,
+                mediaStoreClient = mediaStoreClient,
+                volumeProvider = volumeProvider,
+                folderStatsStore = folderStatsStore,
+                storageNodeDao = storageNodeDao
+            ),
+            storageNodeDao = storageNodeDao
         )
     }
 
     @After
     fun teardown() {
+        database.close()
         root.deleteRecursively()
     }
 
@@ -120,6 +137,30 @@ class FileSystemDataSourceTest {
             assertEquals(accumulated.sortedWith(directoryFirstNameComparator(root)), accumulated)
         }
         assertEquals(listOf("alpha", "delta", "beta.txt", "gamma.txt", "zeta.txt"), accumulated)
+    }
+
+    @Test
+    fun `list reuses cached directory rows without rescanning unchanged folder`() = runTest {
+        File(root, "cached.txt").createNewFile()
+
+        dataSource.list(StorageNodePath.of(root.absolutePath)).toList()
+        File(root, "cached.txt").delete()
+
+        val cached = dataSource.list(StorageNodePath.of(root.absolutePath)).toList().flatMap { it.files }
+
+        assertEquals(listOf("cached.txt"), cached.map { it.name })
+    }
+
+    @Test
+    fun `file creation invalidates cached parent listing`() = runTest {
+        File(root, "existing.txt").createNewFile()
+        dataSource.list(StorageNodePath.of(root.absolutePath)).toList()
+
+        val created = dataSource.createFile(root.absolutePath, "new.txt")
+        val refreshed = dataSource.list(StorageNodePath.of(root.absolutePath)).toList().flatMap { it.files }
+
+        assertTrue(created.isSuccess)
+        assertEquals(listOf("existing.txt", "new.txt"), refreshed.map { it.name })
     }
 
     @Test

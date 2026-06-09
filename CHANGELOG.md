@@ -1,10 +1,26 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.2
+> **Version:** 1.0.3
 > **Last Updated:** 2026-06-09
 
 ---
+
+## [1.0.3] - 2026-06-09
+
+- **Room Cache Foundation:** Added the first shared Room-backed cache database for storage metadata, with tables for folder stats, storage nodes, and category summaries to move Arcile away from scattered JSON cache files.
+- **Persistent Folder Stats:** Reworked folder statistics caching to persist through Room while preserving the existing low-priority queueing, cancellation, invalidation, and update flow.
+- **Image Catalog Backend:** Introduced a storage-domain image catalog repository and MediaStore-backed implementation that indexes Images category rows into the storage node cache.
+- **Gallery Metadata Pipeline:** Extended MediaStore image queries to capture width and height, allowing the Mini Gallery to receive aspect ratios from backend metadata instead of decoding every bitmap in the ViewModel.
+- **Persistent Thumbnail State:** Added Room-backed thumbnail identity and variant tracking so loaded variants and failed identities survive app restarts while Coil continues to own bitmap disk/memory caching.
+- **Thumbnail Invalidation:** Connected file mutations, Settings cache clearing, browser thumbnails, and Mini Gallery thumbnail requests to the persistent thumbnail state layer so stale thumbnails are ignored when files change.
+- **Cached Directory Listings:** Persisted filesystem directory rows in Room so repeat folder opens can render from the storage node cache, with mutation invalidation for parent listings and changed paths.
+- **Cached Category Summaries:** Moved category size summaries from JSON sidecar files into Room and kept the existing scoped TTL refresh behavior.
+- **External Storage Invalidation:** Added a MediaStore observer that clears cached listing/category metadata and notifies storage screens after external file changes.
+- **Gallery Cache Hits:** Stopped cached gallery snapshots from immediately force-refreshing, switched gallery tiles to cell-sized cached image requests, and replaced heavier subcomposed image loading in the gallery with plain cached image rendering.
+- **Storage Usage Cache:** Added scanner-level storage usage caching with mutation invalidation so reopening the dashboard can reuse the previous scan instead of walking storage from zero.
+- **Storage Bar Stability:** Prevented home and dashboard storage bars from drawing a temporary single-color used segment before real category data is available, and clamped segment totals so they cannot exceed actual used storage.
+- **Backend Wiring:** Added Hilt providers and Room dependencies so the new cache layer can be reused by category, listing, gallery, and thumbnail refresh work.
 
 ## [1.0.2] - 2026-06-09
 

@@ -38,15 +38,18 @@ class ThumbnailPolicy(
 
     fun recordLoaded(key: ThumbnailKey, thumbnailSizePx: Int) {
         loadStateStore.recordLoaded(key.variantKey(thumbnailSizePx))
+        GlobalThumbnailStatePersistence.delegate?.recordLoaded(key, thumbnailSizePx)
     }
 
     fun recordFailure(key: ThumbnailKey, thumbnailSizePx: Int) {
         failureCache.recordFailure(key)
         loadStateStore.recordFailure(key.variantKey(thumbnailSizePx))
+        GlobalThumbnailStatePersistence.delegate?.recordFailure(key, thumbnailSizePx)
     }
 
     fun clearFailure(key: ThumbnailKey) {
         failureCache.clearFailure(key)
+        GlobalThumbnailStatePersistence.delegate?.clearFailure(key)
     }
 
     private fun isInVisibleBudget(index: Int, visibleRange: IntRange?, viewMode: BrowserViewMode): Boolean {

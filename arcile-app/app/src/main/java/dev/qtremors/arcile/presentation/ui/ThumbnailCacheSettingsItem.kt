@@ -24,6 +24,7 @@ import coil.imageLoader
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.image.GlobalThumbnailFailureCache
 import dev.qtremors.arcile.image.GlobalThumbnailLoadStateStore
+import dev.qtremors.arcile.image.GlobalThumbnailStatePersistence
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -62,6 +63,7 @@ fun ThumbnailCacheSettingsItem() {
                             context.imageLoader.diskCache?.clear()
                             GlobalThumbnailFailureCache.clear()
                             GlobalThumbnailLoadStateStore.clear()
+                            GlobalThumbnailStatePersistence.delegate?.clear()
                         }
                         stats = withContext(Dispatchers.IO) { loadThumbnailCacheStats(context) }
                     }

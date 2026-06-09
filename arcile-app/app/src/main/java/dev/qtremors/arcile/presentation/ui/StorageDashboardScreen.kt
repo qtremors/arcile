@@ -289,6 +289,13 @@ private fun StorageSummaryTab(
         } else {
             items(volumes) { volume ->
                 val used = volume.totalBytes - volume.freeBytes
+                val volumeCategoryBreakdown = state.categoryStoragesByVolume[volume.id]
+                val isVolumeBreakdownReady = volumeCategoryBreakdown != null
+                val volumeTrashBytes = if (isVolumeBreakdownReady) {
+                    state.trashStorageUsage.byVolumeId[volume.id] ?: 0L
+                } else {
+                    0L
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -312,8 +319,9 @@ private fun StorageSummaryTab(
                         MultiColorStorageBar(
                             totalBytes = volume.totalBytes,
                             freeBytes = volume.freeBytes,
-                            categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
-                            trashBytes = state.trashStorageUsage.byVolumeId[volume.id] ?: 0L
+                            categoryStorages = volumeCategoryBreakdown.orEmpty(),
+                            trashBytes = volumeTrashBytes,
+                            isCalculating = state.isCalculatingStorage || !isVolumeBreakdownReady
                         )
                     }
                 }

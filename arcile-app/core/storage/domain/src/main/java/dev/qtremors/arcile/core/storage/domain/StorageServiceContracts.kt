@@ -74,6 +74,8 @@ interface StorageUsageScanner {
         rootPath: String,
         limits: StorageUsageScanLimits = StorageUsageScanLimits()
     ): Flow<StorageUsageScanState>
+
+    fun invalidateStorageUsage(paths: Collection<String> = emptyList())
 }
 
 interface StorageCleanerScanner {

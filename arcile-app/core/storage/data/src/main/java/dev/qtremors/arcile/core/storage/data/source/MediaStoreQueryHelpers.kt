@@ -18,6 +18,9 @@ internal data class MediaStoreFileRow(
     val volumeName: String?,
     val size: Long,
     val lastModified: Long,
+    val dateAdded: Long,
+    val width: Int?,
+    val height: Int?,
     val mimeType: String?
 ) {
     val extension: String
@@ -115,6 +118,8 @@ internal fun mediaProjection(): Array<String> = arrayOf(
     MediaStore.Files.FileColumns.SIZE,
     MediaStore.Files.FileColumns.DATE_MODIFIED,
     MediaStore.Files.FileColumns.DATE_ADDED,
+    MediaStore.MediaColumns.WIDTH,
+    MediaStore.MediaColumns.HEIGHT,
     MediaStore.Files.FileColumns.MIME_TYPE,
     MediaStore.MediaColumns.RELATIVE_PATH,
     MediaStore.MediaColumns.VOLUME_NAME
@@ -127,6 +132,8 @@ internal fun Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
     val sizeCol = optionalColumn(MediaStore.Files.FileColumns.SIZE)
     val dateAddedCol = optionalColumn(MediaStore.Files.FileColumns.DATE_ADDED)
     val dateModifiedCol = optionalColumn(MediaStore.Files.FileColumns.DATE_MODIFIED)
+    val widthCol = optionalColumn(MediaStore.MediaColumns.WIDTH)
+    val heightCol = optionalColumn(MediaStore.MediaColumns.HEIGHT)
     val mimeTypeCol = optionalColumn(MediaStore.Files.FileColumns.MIME_TYPE)
     val relativePathCol = optionalColumn(MediaStore.MediaColumns.RELATIVE_PATH)
     val volumeNameCol = optionalColumn(MediaStore.MediaColumns.VOLUME_NAME)
@@ -146,6 +153,9 @@ internal fun Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
         volumeName = getOptionalString(volumeNameCol),
         size = getOptionalLong(sizeCol),
         lastModified = maxOf(dateAdded, dateModified),
+        dateAdded = dateAdded,
+        width = getOptionalInt(widthCol)?.takeIf { it > 0 },
+        height = getOptionalInt(heightCol)?.takeIf { it > 0 },
         mimeType = getOptionalString(mimeTypeCol)
     )
 }
@@ -209,6 +219,9 @@ private fun Cursor.getOptionalString(index: Int): String? =
 
 private fun Cursor.getOptionalLong(index: Int, default: Long = 0L): Long =
     if (index >= 0 && !isNull(index)) getLong(index) else default
+
+private fun Cursor.getOptionalInt(index: Int): Int? =
+    if (index >= 0 && !isNull(index)) getInt(index) else null
 
 private fun isHiddenPath(path: String): Boolean =
     path.split('/', '\\').any { it.startsWith(".") }

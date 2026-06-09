@@ -37,6 +37,9 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.apache.commons.compress)
@@ -49,4 +52,5 @@ dependencies {
     testImplementation(libs.io.mockk.mockk)
     testImplementation(libs.org.robolectric.robolectric)
     testImplementation(libs.androidx.junit)
+    testImplementation(libs.androidx.room.testing)
 }

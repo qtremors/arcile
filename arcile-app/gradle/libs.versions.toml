@@ -28,6 +28,7 @@ commonsCompress = "1.28.0"
 xz = "1.12"
 zip4j = "2.11.6"
 archUnit = "1.4.2"
+room = "2.8.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -71,6 +72,10 @@ apache-commons-compress = { group = "org.apache.commons", name = "commons-compre
 tukaani-xz = { group = "org.tukaani", name = "xz", version.ref = "xz" }
 zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
 archunit-junit4 = { group = "com.tngtech.archunit", name = "archunit-junit4", version.ref = "archUnit" }
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
