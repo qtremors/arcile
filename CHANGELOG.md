@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.1
-> **Last Updated:** 2026-06-08
+> **Version:** 1.0.2
+> **Last Updated:** 2026-06-09
 
 ---
+
+## [1.0.2] - 2026-06-09
+
+- **Mini Gallery Transition:** Converted the Images category into a fully immersive Mini Gallery featuring edge-to-edge full-screen scrolling, borderless grid rendering, and floating controls that dynamically adapt to the selection and search state. Restored original card-based details layout showing filename, size, and modified date/time.
+- **Staggered Aspect Ratio Layout:** Added a staggered grid view option (Microsoft Photos style) that preserves natural image aspect ratios, decoded asynchronously in the background to prevent layout shifts.
+- **Chronological Grouping:** Introduced timeline grouping options to section images by time ("Today", "This Week", "This Month", and "Older").
+- **Unified Selection & Clipboard:** Integrated the gallery with global clipboard state and browser-aligned selection actions (Copy, Cut, Rename, Delete, Share, Properties, Compress ZIP), enabling items to be copied/cut from the gallery and pasted anywhere in the main file browser.
+- **Material 3 Expressive Polish:** Added spring-scale animations on selection, custom floating pill bars, and unified haptic feedback (using `rememberArcileHaptics`) to provide a highly tactile and premium Material 3 experience.
 
 ## [1.0.1] - 2026-06-08
 

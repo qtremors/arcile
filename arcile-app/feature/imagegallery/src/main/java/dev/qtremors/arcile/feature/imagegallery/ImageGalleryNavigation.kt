@@ -41,6 +41,7 @@ fun NavGraphBuilder.imageGalleryScreen(
             onToggleSelection = viewModel::toggleSelection,
             onClearSelection = viewModel::clearSelection,
             onSelectAll = viewModel::selectAll,
+            onInvertSelection = viewModel::invertSelection,
             onSelectMultiple = viewModel::selectMultiple,
             onShareSelected = {
                 coroutineScope.launch {
@@ -63,6 +64,12 @@ fun NavGraphBuilder.imageGalleryScreen(
             onPresentationChange = viewModel::updatePresentation,
             onShowFileDetailsChange = viewModel::setShowFileDetails,
             onClearError = viewModel::clearError,
+            onCopySelected = viewModel::copySelectedToClipboard,
+            onCutSelected = viewModel::cutSelectedToClipboard,
+            onRenameFile = viewModel::renameFile,
+            onCreateZipFromSelection = viewModel::createZipFromSelection,
+            onAspectRatioChange = viewModel::updateAspectRatio,
+            onSectionedChange = viewModel::updateSectioned,
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )

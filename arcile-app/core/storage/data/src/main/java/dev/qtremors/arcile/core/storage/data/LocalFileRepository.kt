@@ -38,6 +38,10 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -398,4 +402,11 @@ class LocalFileRepository(
 
     override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> =
         trashManager.deletePermanentlyFromTrash(trashIds)
+
+    private val _clipboardState = MutableStateFlow<ClipboardState?>(null)
+    override val clipboardState: StateFlow<ClipboardState?> = _clipboardState.asStateFlow()
+
+    override fun setClipboardState(state: ClipboardState?) {
+        _clipboardState.value = state
+    }
 }

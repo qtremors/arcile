@@ -43,6 +43,8 @@ data class BrowserPreferences(
     val homeRecentCarouselLimit: Int = DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     val showHiddenFiles: Boolean = true,
     val imageGalleryShowFileDetails: Boolean = true,
+    val imageGalleryAspectRatio: Boolean = false,
+    val imageGallerySectioned: Boolean = false,
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null
 ) {

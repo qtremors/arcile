@@ -37,9 +37,9 @@ class ClipboardDelegate(
         }
         
         if (selectedFiles.isNotEmpty()) {
+            clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, selectedFiles))
             state.update {
                 it.copy(
-                    clipboardState = ClipboardState(ClipboardOperation.COPY, selectedFiles),
                     selectedFiles = persistentSetOf(),
                     selectedFilesTotalSize = 0L
                 )
@@ -57,9 +57,9 @@ class ClipboardDelegate(
         }
         
         if (selectedFiles.isNotEmpty()) {
+            clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.CUT, selectedFiles))
             state.update {
                 it.copy(
-                    clipboardState = ClipboardState(ClipboardOperation.CUT, selectedFiles),
                     selectedFiles = persistentSetOf(),
                     selectedFilesTotalSize = 0L
                 )
@@ -69,18 +69,16 @@ class ClipboardDelegate(
 
     fun cancelClipboard() {
         bulkFileOperationCoordinator.cancelActiveOperation()
-        state.update { it.copy(clipboardState = null) }
+        clipboardRepository.clearClipboardState()
     }
 
     fun removeFromClipboard(path: String) {
-        state.update { currentState ->
-            val clipboard = currentState.clipboardState ?: return@update currentState
-            val updatedFiles = clipboard.files.filter { it.absolutePath != path }
-            if (updatedFiles.isEmpty()) {
-                currentState.copy(clipboardState = null)
-            } else {
-                currentState.copy(clipboardState = clipboard.copy(files = updatedFiles))
-            }
+        val clipboard = clipboardRepository.clipboardState.value ?: return
+        val updatedFiles = clipboard.files.filter { it.absolutePath != path }
+        if (updatedFiles.isEmpty()) {
+            clipboardRepository.clearClipboardState()
+        } else {
+            clipboardRepository.setClipboardState(clipboard.copy(files = updatedFiles))
         }
     }
 

@@ -271,6 +271,10 @@ interface SearchRepository {
 interface ClipboardRepository {
     // ─── Clipboard operations ─────────────────────────────────────────────────
 
+    val clipboardState: kotlinx.coroutines.flow.StateFlow<ClipboardState?>
+    fun setClipboardState(state: ClipboardState?)
+    fun clearClipboardState() { setClipboardState(null) }
+
     /**
      * Detects name conflicts that would occur when pasting [sourcePaths] into [destinationPath].
      *

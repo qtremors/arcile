@@ -17,6 +17,8 @@ class FakeBrowserPreferencesStore(
     var lastUpdatedHomeRecentCarouselLimit: Int? = null
     var lastUpdatedShowHiddenFiles: Boolean? = null
     var lastUpdatedImageGalleryShowFileDetails: Boolean? = null
+    var lastUpdatedImageGalleryAspectRatio: Boolean? = null
+    var lastUpdatedImageGallerySectioned: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
 
@@ -44,6 +46,16 @@ class FakeBrowserPreferencesStore(
     override suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
         lastUpdatedImageGalleryShowFileDetails = show
         preferences.value = preferences.value.copy(imageGalleryShowFileDetails = show)
+    }
+
+    override suspend fun updateImageGalleryAspectRatio(enabled: Boolean) {
+        lastUpdatedImageGalleryAspectRatio = enabled
+        preferences.value = preferences.value.copy(imageGalleryAspectRatio = enabled)
+    }
+
+    override suspend fun updateImageGallerySectioned(enabled: Boolean) {
+        lastUpdatedImageGallerySectioned = enabled
+        preferences.value = preferences.value.copy(imageGallerySectioned = enabled)
     }
 
     override suspend fun updatePathPresentation(

@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -33,6 +34,9 @@ import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import java.io.File
 
@@ -164,6 +168,13 @@ class FakeFileMutationRepository : FileMutationRepository {
 }
 
 class FakeClipboardRepository : ClipboardRepository {
+    private val _clipboardState = MutableStateFlow<ClipboardState?>(null)
+    override val clipboardState: StateFlow<ClipboardState?> = _clipboardState.asStateFlow()
+
+    override fun setClipboardState(state: ClipboardState?) {
+        _clipboardState.value = state
+    }
+
     var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null

@@ -11,4 +11,13 @@
     <string name="settings_thumbnail_cache">Thumbnail cache</string>
     <string name="settings_thumbnail_cache_stats">%1$s disk • %2$d loaded • %3$d failed • %4$d in flight</string>
     <string name="settings_clear_thumbnail_cache">Clear</string>
+    <string name="image_gallery_view_mode_aspect">Aspect ratio grid</string>
+    <string name="image_gallery_view_mode_square">Square grid</string>
+    <string name="image_gallery_group_time">Group by time</string>
+    <string name="image_gallery_section_today">Today</string>
+    <string name="image_gallery_section_week">This Week</string>
+    <string name="image_gallery_section_month">This Month</string>
+    <string name="image_gallery_section_older">Older</string>
+    <string name="image_gallery_grid_mode">Grid Mode</string>
+    <string name="image_gallery_grouping">Grouping</string>
 </resources>

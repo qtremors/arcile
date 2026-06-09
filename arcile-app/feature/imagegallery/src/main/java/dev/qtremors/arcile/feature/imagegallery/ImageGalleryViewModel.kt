@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import android.content.IntentSender
+import android.graphics.BitmapFactory
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -15,6 +16,12 @@ import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.UiText
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
@@ -23,10 +30,14 @@ import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
 import dev.qtremors.arcile.shared.presentation.toUiModel
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
+import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
+import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentSet
+import kotlinx.collections.immutable.toPersistentMap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,7 +47,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import java.io.File
 
 data class ImageGalleryState(
     val volumeId: String? = null,
@@ -66,13 +79,19 @@ data class ImageGalleryState(
     val isShredChecked: Boolean = false,
     val isPropertiesVisible: Boolean = false,
     val isPropertiesLoading: Boolean = false,
-    val properties: dev.qtremors.arcile.shared.presentation.PropertiesUiModel? = null
+    val properties: dev.qtremors.arcile.shared.presentation.PropertiesUiModel? = null,
+    val isAspectRatio: Boolean = false,
+    val isSectioned: Boolean = false,
+    val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
+    val clipboardState: ClipboardState? = null
 )
 
 @HiltViewModel
 class ImageGalleryViewModel @Inject constructor(
     private val repository: ImageGalleryRepository,
     private val fileBrowserRepository: FileBrowserRepository,
+    private val fileMutationRepository: FileMutationRepository,
+    private val clipboardRepository: ClipboardRepository,
     private val volumeRepository: VolumeRepository,
     private val browserPreferencesStore: BrowserPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
@@ -172,9 +191,16 @@ class ImageGalleryViewModel @Inject constructor(
                         ?: state.presentation.copy(showThumbnails = preferences.globalPresentation.showThumbnails)
                     state.copy(
                         presentation = persistedPresentation.normalized(),
-                        showFileDetails = preferences.imageGalleryShowFileDetails
+                        showFileDetails = preferences.imageGalleryShowFileDetails,
+                        isAspectRatio = preferences.imageGalleryAspectRatio,
+                        isSectioned = preferences.imageGallerySectioned
                     ).withDisplayedFiles()
                 }
+            }
+        }
+        viewModelScope.launch {
+            clipboardRepository.clipboardState.collectLatest { clipboard ->
+                _state.update { it.copy(clipboardState = clipboard) }
             }
         }
         viewModelScope.launch {
@@ -214,6 +240,19 @@ class ImageGalleryViewModel @Inject constructor(
                             isSnapshotStale = snapshot.isStale
                         )
                         next.withDisplayedFiles()
+                    }
+                    viewModelScope.launch {
+                        val decodedRatios = withContext(Dispatchers.IO) {
+                            snapshot.files.associate { file ->
+                                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                                BitmapFactory.decodeFile(file.absolutePath, options)
+                                val w = options.outWidth
+                                val h = options.outHeight
+                                val ratio = if (w > 0 && h > 0) w.toFloat() / h.toFloat() else 1f
+                                file.absolutePath to ratio
+                            }
+                        }
+                        _state.update { it.copy(aspectRatios = decodedRatios.toPersistentMap()) }
                     }
                     if (snapshot.isStale) {
                         loadImages(forceRefresh = true, silent = true)
@@ -277,6 +316,14 @@ class ImageGalleryViewModel @Inject constructor(
         _state.update { it.copy(selectedFiles = it.displayedFiles.map(FileModel::absolutePath).toPersistentSet()) }
     }
 
+    fun invertSelection() {
+        _state.update {
+            val allPaths = it.displayedFiles.map(FileModel::absolutePath).toSet()
+            val nextSelection = allPaths - it.selectedFiles
+            it.copy(selectedFiles = nextSelection.toPersistentSet(), isPropertiesVisible = false, properties = null)
+        }
+    }
+
     fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
     fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
     fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
@@ -306,6 +353,89 @@ class ImageGalleryViewModel @Inject constructor(
 
     fun dismissProperties() {
         _state.update { it.copy(isPropertiesVisible = false, isPropertiesLoading = false, properties = null) }
+    }
+
+    fun updateAspectRatio(enabled: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateImageGalleryAspectRatio(enabled)
+        }
+    }
+
+    fun updateSectioned(enabled: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateImageGallerySectioned(enabled)
+        }
+    }
+
+    fun copySelectedToClipboard() {
+        val selectedPaths = _state.value.selectedFiles
+        val selectedFiles = _state.value.files.filter { it.absolutePath in selectedPaths }
+        if (selectedFiles.isNotEmpty()) {
+            clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, selectedFiles))
+            clearSelection()
+        }
+    }
+
+    fun cutSelectedToClipboard() {
+        val selectedPaths = _state.value.selectedFiles
+        val selectedFiles = _state.value.files.filter { it.absolutePath in selectedPaths }
+        if (selectedFiles.isNotEmpty()) {
+            clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.CUT, selectedFiles))
+            clearSelection()
+        }
+    }
+
+    fun createZipFromSelection() {
+        val selected = _state.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+        val firstFile = File(selected.first())
+        val parentPath = firstFile.parent ?: return
+        val defaultBaseName = if (selected.size == 1) {
+            firstFile.nameWithoutExtension.ifBlank { "Archive" }
+        } else {
+            "Archive"
+        }
+        val targetZipPath = File(parentPath, "$defaultBaseName.zip").absolutePath.replace('\\', '/')
+
+        viewModelScope.launch {
+            val uniqueZipPath = withContext(Dispatchers.IO) {
+                var file = File(targetZipPath)
+                var counter = 1
+                var uniquePath = targetZipPath
+                while (file.exists()) {
+                    uniquePath = File(parentPath, "${defaultBaseName}_$counter.zip").absolutePath.replace('\\', '/')
+                    file = File(uniquePath)
+                    counter++
+                }
+                uniquePath
+            }
+
+            bulkFileOperationCoordinator.startOperation(
+                type = BulkFileOperationType.CREATE_ARCHIVE,
+                sourcePaths = selected,
+                destinationPath = uniqueZipPath,
+                resolutions = emptyMap(),
+                archiveFormat = ArchiveFormat.ZIP,
+                archiveCompressionLevel = ArchiveCompressionLevel.STORE
+            )
+            clearSelection()
+        }
+    }
+
+    fun renameFile(path: String, newName: String) {
+        val invalidChars = listOf('/', '\\', '\u0000')
+        if (newName.isBlank() || invalidChars.any { newName.contains(it) } || newName.contains("..")) {
+            _state.update { it.copy(error = UiText.StringResource(R.string.error_invalid_name)) }
+            return
+        }
+        viewModelScope.launch {
+            fileMutationRepository.renameFile(path, newName).onSuccess { renamed ->
+                clearSelection()
+                loadImages(forceRefresh = true, silent = true)
+            }.onFailure { error ->
+                _state.update { it.copy(error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_rename_file_failed)) }
+            }
+        }
     }
 
     fun clearError() {

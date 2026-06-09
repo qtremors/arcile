@@ -47,6 +47,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
         viewModel.toggleSelection("/storage/emulated/0/Download/source.txt")
         viewModel.copySelectedToClipboard()
+        advanceUntilIdle()
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
 
@@ -88,6 +89,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
         viewModel.toggleSelection("/storage/emulated/0/Download/source.txt")
         viewModel.cutSelectedToClipboard()
+        advanceUntilIdle()
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
 

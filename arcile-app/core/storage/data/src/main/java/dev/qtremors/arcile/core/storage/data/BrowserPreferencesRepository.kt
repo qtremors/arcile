@@ -48,6 +48,8 @@ class BrowserPreferencesRepository(
     private val HOME_RECENT_CAROUSEL_LIMIT_KEY = intPreferencesKey("home_recent_carousel_limit")
     private val SHOW_HIDDEN_FILES_KEY = booleanPreferencesKey("show_hidden_files")
     private val IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY = booleanPreferencesKey("image_gallery_show_file_details")
+    private val IMAGE_GALLERY_ASPECT_RATIO_KEY = booleanPreferencesKey("image_gallery_aspect_ratio")
+    private val IMAGE_GALLERY_SECTIONED_KEY = booleanPreferencesKey("image_gallery_sectioned")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
 
@@ -167,6 +169,10 @@ class BrowserPreferencesRepository(
                 showHiddenFiles = prefs[SHOW_HIDDEN_FILES_KEY] ?: BrowserPreferences().showHiddenFiles,
                 imageGalleryShowFileDetails = prefs[IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY]
                     ?: BrowserPreferences().imageGalleryShowFileDetails,
+                imageGalleryAspectRatio = prefs[IMAGE_GALLERY_ASPECT_RATIO_KEY]
+                    ?: BrowserPreferences().imageGalleryAspectRatio,
+                imageGallerySectioned = prefs[IMAGE_GALLERY_SECTIONED_KEY]
+                    ?: BrowserPreferences().imageGallerySectioned,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
@@ -210,6 +216,18 @@ class BrowserPreferencesRepository(
     override suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY] = show
+        }
+    }
+
+    override suspend fun updateImageGalleryAspectRatio(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_ASPECT_RATIO_KEY] = enabled
+        }
+    }
+
+    override suspend fun updateImageGallerySectioned(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_SECTIONED_KEY] = enabled
         }
     }
 
