@@ -3,15 +3,37 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
@@ -55,7 +77,16 @@ import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import dev.qtremors.arcile.shared.ui.SplitButtonGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -187,6 +218,21 @@ fun ImageGalleryScreen(
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var currentTab by rememberSaveable { mutableStateOf(GalleryTab.PHOTOS) }
+
+    var isTopBarVisible by rememberSaveable { mutableStateOf(true) }
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -15f) {
+                    isTopBarVisible = false
+                } else if (available.y > 15f) {
+                    isTopBarVisible = true
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -210,33 +256,158 @@ fun ImageGalleryScreen(
         }
     }
 
-    BackHandler(enabled = isSelectionMode || showSearchBar) {
-        if (isSelectionMode) {
-            onClearSelection()
-        } else {
-            showSearchBar = false
-            onClearSearch()
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+
+    val backEnabled = isSelectionMode || showSearchBar || (currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null)
+
+    PredictiveBackHandler(enabled = backEnabled) { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            if (isSelectionMode) {
+                onClearSelection()
+            } else if (showSearchBar) {
+                showSearchBar = false
+                onClearSearch()
+            } else if (currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null) {
+                onSelectAlbum(null)
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        val topPadding = if (isSelectionMode || showSearchBar) 88.dp else 144.dp
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .nestedScroll(nestedScrollConnection)
+    ) {
+        val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
 
-        ImageGalleryContent(
-            state = state,
-            contentPadding = PaddingValues(top = topPadding),
-            onOpenFile = onOpenFile,
-            onToggleSelection = onToggleSelection,
-            onSelectMultiple = onSelectMultiple,
-            onSelectAlbum = onSelectAlbum,
-            onRefresh = onRefresh
+        val viewState = when {
+            currentTab == GalleryTab.PHOTOS -> GalleryViewState.PHOTOS_TAB
+            state.selectedAlbumPath == null -> GalleryViewState.ALBUMS_TAB_GRID
+            else -> GalleryViewState.ALBUM_PHOTOS
+        }
+
+        AnimatedContent(
+            targetState = viewState,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (isBackPredicting) {
+                        if (viewState == GalleryViewState.ALBUM_PHOTOS) {
+                            val scale = 1f - (backProgress * 0.08f)
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = backProgress * 100.dp.toPx()
+                            alpha = 1f - (backProgress * 0.4f)
+                        } else if (showSearchBar || isSelectionMode) {
+                            val scale = 1f - (backProgress * 0.05f)
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = 1f - (backProgress * 0.2f)
+                        }
+                    }
+                },
+            transitionSpec = {
+                if (targetState == GalleryViewState.ALBUM_PHOTOS && initialState == GalleryViewState.ALBUMS_TAB_GRID) {
+                    // Opening album: slide in from right (forward transition)
+                    (slideInHorizontally(
+                        initialOffsetX = { it },
+                        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy)
+                    ) + fadeIn()).togetherWith(
+                        slideOutHorizontally(
+                            targetOffsetX = { -it / 3 },
+                            animationSpec = spring(stiffness = Spring.StiffnessLow)
+                        ) + fadeOut()
+                    )
+                } else if (initialState == GalleryViewState.ALBUM_PHOTOS && targetState == GalleryViewState.ALBUMS_TAB_GRID) {
+                    // Closing album: slide out to right (backward transition)
+                    (slideInHorizontally(
+                        initialOffsetX = { -it / 3 },
+                        animationSpec = spring(stiffness = Spring.StiffnessLow)
+                    ) + fadeIn()).togetherWith(
+                        slideOutHorizontally(
+                            targetOffsetX = { it },
+                            animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy)
+                        ) + fadeOut()
+                    )
+                } else {
+                    // Tab switch fade
+                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
+                        fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
+                }
+            },
+            label = "galleryViewTransition"
+        ) { targetViewState ->
+            when (targetViewState) {
+                GalleryViewState.ALBUMS_TAB_GRID -> {
+                    ImageGalleryAlbumsGrid(
+                        state = state,
+                        contentPadding = PaddingValues(
+                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
+                            bottom = bottomPadding
+                        ),
+                        onSelectAlbum = onSelectAlbum
+                    )
+                }
+                GalleryViewState.PHOTOS_TAB, GalleryViewState.ALBUM_PHOTOS -> {
+                    ImageGalleryContent(
+                        state = state,
+                        contentPadding = PaddingValues(
+                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
+                            bottom = bottomPadding
+                        ),
+                        onOpenFile = onOpenFile,
+                        onToggleSelection = onToggleSelection,
+                        onSelectMultiple = onSelectMultiple,
+                        onSelectAlbum = onSelectAlbum,
+                        onRefresh = onRefresh
+                    )
+                }
+            }
+        }
+
+        // Animated offsets & alpha for floating top bar components
+        val topBarOffset by animateDpAsState(
+            targetValue = if (isTopBarVisible || showSearchBar) 0.dp else (-120).dp,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "topBarOffset"
+        )
+        val topBarAlpha by animateFloatAsState(
+            targetValue = if (isTopBarVisible || showSearchBar) 1f else 0f,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "topBarAlpha"
         )
 
-        // Floating pill top bar & chips
-        Column(
+        // Floating top control row
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
+                .graphicsLayer {
+                    translationY = topBarOffset.toPx()
+                    alpha = topBarAlpha
+                    if (isBackPredicting) {
+                        if (isSelectionMode) {
+                            val scale = 1f - (backProgress * 0.15f)
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = topBarAlpha * (1f - backProgress)
+                            translationY = topBarOffset.toPx() - (backProgress * 40.dp.toPx())
+                        } else if (showSearchBar) {
+                            alpha = topBarAlpha * (1f - backProgress)
+                            translationY = topBarOffset.toPx() - (backProgress * 50.dp.toPx())
+                        }
+                    }
+                }
         ) {
             if (isSelectionMode) {
                 FloatingGallerySelectionTopBar(
@@ -253,9 +424,16 @@ fun ImageGalleryScreen(
                 FloatingGalleryTopBar(
                     state = state,
                     showSearchBar = showSearchBar,
+                    currentTab = currentTab,
                     onSearchClick = { showSearchBar = true },
                     onSortClick = { showPresentationSheet = true },
-                    onNavigateBack = onNavigateBack,
+                    onNavigateBack = {
+                        if (currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null) {
+                            onSelectAlbum(null)
+                        } else {
+                            onNavigateBack()
+                        }
+                    },
                     onClearSearch = {
                         showSearchBar = false
                         onClearSearch()
@@ -265,12 +443,6 @@ fun ImageGalleryScreen(
                     onSelectAll = onSelectAll,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (!showSearchBar) {
-                    ImageGalleryAlbumChips(
-                        state = state,
-                        onSelectAlbum = onSelectAlbum
-                    )
-                }
             }
         }
 
@@ -278,10 +450,8 @@ fun ImageGalleryScreen(
         val cutDesc = stringResource(R.string.action_cut)
         val deleteDesc = stringResource(R.string.action_delete_selected)
         val renameDesc = stringResource(R.string.action_rename)
-
         val errorColor = MaterialTheme.colorScheme.error
 
-        // Floating Bottom Selection Bar (M3 Expressive)
         val mainActions = remember(state.selectedFiles, onCopySelected, onCutSelected, onRequestDeleteSelected, copyDesc, cutDesc, deleteDesc, renameDesc, errorColor) {
             val list = mutableListOf<ToolbarAction>()
             list.add(
@@ -318,93 +488,192 @@ fun ImageGalleryScreen(
             list
         }
 
-        FloatingSelectionToolbar(
-            isVisible = isSelectionMode,
-            modifier = Modifier
+        // 3D Flip Rotation Animation (Vertical on X-axis)
+        val rotationX by animateFloatAsState(
+            targetValue = if (isSelectionMode) 180f else 0f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioLowBouncy,
+                stiffness = Spring.StiffnessLow
+            ),
+            label = "bottomNavFlip"
+        )
+
+        val density = LocalDensity.current
+
+        val bottomBarModifier = if (isSelectionMode) {
+            Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
-            actions = mainActions,
-            moreContent = {
-                var showSelectionMenu by rememberSaveable { mutableStateOf(false) }
-                Box {
-                    Surface(
-                        onClick = { showSelectionMenu = true },
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        shadowElevation = 4.dp,
-                        tonalElevation = 4.dp,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = stringResource(R.string.action_more_options),
-                                modifier = Modifier.size(28.dp)
-                            )
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .fillMaxWidth()
+        } else {
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+                .wrapContentSize()
+        }
+
+        // Floating dynamic bottom navigation with vertical 3D Flip on selection
+        Box(
+            modifier = bottomBarModifier.animateContentSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        this.rotationX = rotationX
+                        cameraDistance = 12f * density.density
+                        if (isBackPredicting && isSelectionMode) {
+                            val scale = 1f - (backProgress * 0.15f)
+                            scaleX = scale
+                            scaleY = scale
+                            alpha = 1f - backProgress
                         }
                     }
-                    DropdownMenu(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        expanded = showSelectionMenu,
-                        onDismissRequest = { showSelectionMenu = false }
-                    ) {
-                        val menuActions = remember {
-                            listOf<@Composable () -> Unit>(
-                                {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.archive_compress_zip)) },
-                                        leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-                                        onClick = {
-                                            showSelectionMenu = false
-                                            onCreateZipFromSelection()
-                                        }
-                                    )
-                                },
-                                {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.share)) },
-                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                        onClick = {
-                                            showSelectionMenu = false
-                                            onShareSelected()
-                                        }
-                                    )
-                                },
-                                {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.properties_title)) },
-                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                        onClick = {
-                                            showSelectionMenu = false
-                                            onOpenProperties()
-                                        }
-                                    )
-                                }
+                    .then(if (isSelectionMode) Modifier.fillMaxWidth() else Modifier.wrapContentSize())
+            ) {
+                if (rotationX <= 90f) {
+                    // Normal state: Photos & Albums tab bar
+                    Row(
+                        modifier = Modifier
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                                shape = CircleShape
                             )
-                        }
-
-                        menuActions.forEachIndexed { index, action ->
-                            val shape = when {
-                                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                                index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                                else -> MaterialTheme.shapes.menuGroupMiddle
+                            .padding(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TabItem(
+                            selected = currentTab == GalleryTab.PHOTOS,
+                            label = stringResource(R.string.image_gallery_tab_photos),
+                            icon = Icons.Default.Image,
+                            onClick = {
+                                currentTab = GalleryTab.PHOTOS
+                                onSelectAlbum(null)
                             }
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(shape)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            ) {
-                                action()
+                        )
+                        TabItem(
+                            selected = currentTab == GalleryTab.ALBUMS,
+                            label = stringResource(R.string.image_gallery_tab_albums),
+                            icon = Icons.Default.Folder,
+                            onClick = {
+                                currentTab = GalleryTab.ALBUMS
+                            }
+                        )
+                    }
+                } else {
+                    // Flipped selection state: Action buttons (counter-rotated vertical flip)
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer {
+                                this.rotationX = 180f
+                            }
+                            .fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Split actions button group (matching the browser style)
+                            SplitButtonGroup(
+                                actions = mainActions,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                contentColor = MaterialTheme.colorScheme.onSurface,
+                                height = 56.dp,
+                                minWidth = 56.dp,
+                                iconSize = 24.dp
+                            )
+
+                            // Detached options overflow circular button
+                            var showSelectionMenu by rememberSaveable { mutableStateOf(false) }
+                            Box {
+                                Surface(
+                                    onClick = { showSelectionMenu = true },
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    shadowElevation = 4.dp,
+                                    tonalElevation = 4.dp,
+                                    modifier = Modifier.size(56.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.MoreVert,
+                                            contentDescription = stringResource(R.string.action_more_options),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    shape = MaterialTheme.shapes.extraLarge,
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    expanded = showSelectionMenu,
+                                    onDismissRequest = { showSelectionMenu = false }
+                                ) {
+                                    val menuActions = remember {
+                                        listOf<@Composable () -> Unit>(
+                                            {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.archive_compress_zip)) },
+                                                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onCreateZipFromSelection()
+                                                    }
+                                                )
+                                            },
+                                            {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.share)) },
+                                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onShareSelected()
+                                                    }
+                                                )
+                                            },
+                                            {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.properties_title)) },
+                                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        onOpenProperties()
+                                                    }
+                                                )
+                                            }
+                                        )
+                                    }
+
+                                    menuActions.forEachIndexed { index, action ->
+                                        val shape = when {
+                                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                                            else -> MaterialTheme.shapes.menuGroupMiddle
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                .clip(shape)
+                                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                        ) {
+                                            action()
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-        )
+        }
     }
 
     if (showRenameDialog && state.selectedFiles.size == 1) {
@@ -467,6 +736,7 @@ fun ImageGalleryScreen(
 fun FloatingGalleryTopBar(
     state: ImageGalleryState,
     showSearchBar: Boolean,
+    currentTab: GalleryTab,
     onSearchClick: () -> Unit,
     onSortClick: () -> Unit,
     onNavigateBack: () -> Unit,
@@ -478,18 +748,18 @@ fun FloatingGalleryTopBar(
 ) {
     var showOverflowMenu by rememberSaveable { mutableStateOf(false) }
 
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 4.dp,
-        shadowElevation = 4.dp,
-        modifier = modifier
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .height(56.dp)
-    ) {
-        if (showSearchBar) {
+    if (showSearchBar) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 4.dp,
+            shadowElevation = 4.dp,
+            modifier = modifier
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .height(56.dp)
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -524,35 +794,57 @@ fun FloatingGalleryTopBar(
                     }
                 }
             }
-        } else {
-            Row(
+        }
+    } else {
+        Box(
+            modifier = modifier
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .height(56.dp)
+        ) {
+            Surface(
+                onClick = onNavigateBack,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 4.dp,
+                shadowElevation = 4.dp,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .size(48.dp)
+                    .align(Alignment.CenterStart)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.image_gallery_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier.size(24.dp)
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            }
+
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                tonalElevation = 4.dp,
+                shadowElevation = 4.dp,
+                modifier = Modifier
+                    .height(48.dp)
+                    .align(Alignment.CenterEnd)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
                     IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
+                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search), modifier = Modifier.size(22.dp))
                     }
                     IconButton(onClick = onSortClick) {
-                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.action_sort))
+                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.action_sort), modifier = Modifier.size(22.dp))
                     }
                     Box {
                         IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options), modifier = Modifier.size(22.dp))
                         }
                         DropdownMenu(
                             shape = MaterialTheme.shapes.extraLarge,
@@ -636,50 +928,73 @@ fun FloatingGallerySelectionTopBar(
     onInvertSelection: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        tonalElevation = 6.dp,
-        shadowElevation = 6.dp,
+    Box(
         modifier = modifier
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .height(56.dp)
     ) {
-        Row(
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            tonalElevation = 6.dp,
+            shadowElevation = 6.dp,
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .height(48.dp)
+                .align(Alignment.CenterStart)
         ) {
-            IconButton(onClick = onClearSelection) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 4.dp, end = 16.dp)
+            ) {
+                IconButton(onClick = onClearSelection) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), modifier = Modifier.size(24.dp))
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Column(verticalArrangement = Arrangement.Center) {
+                    Text(
+                        text = stringResource(R.string.selected_count, selectedCount),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = selectedSize,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.selected_count, selectedCount),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = selectedSize,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                )
-            }
-            IconButton(onClick = onSelectAll) {
-                Icon(
-                    imageVector = Icons.Default.GridView,
-                    contentDescription = stringResource(R.string.select_all)
-                )
-            }
-            IconButton(onClick = onInvertSelection) {
-                Icon(
-                    imageVector = Icons.Default.SelectAll,
-                    contentDescription = stringResource(R.string.invert_selection)
-                )
+        }
+
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            tonalElevation = 6.dp,
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .height(48.dp)
+                .align(Alignment.CenterEnd)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            ) {
+                IconButton(onClick = onSelectAll) {
+                    Icon(
+                        imageVector = Icons.Default.GridView,
+                        contentDescription = stringResource(R.string.select_all),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                IconButton(onClick = onInvertSelection) {
+                    Icon(
+                        imageVector = Icons.Default.SelectAll,
+                        contentDescription = stringResource(R.string.invert_selection),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
@@ -1025,10 +1340,10 @@ private fun ImageGalleryContent(
     val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val gridStatesByAlbum = remember { mutableMapOf<String, LazyGridState>() }
     val listStatesByAlbum = remember { mutableMapOf<String, LazyListState>() }
+    val staggeredGridStatesByAlbum = remember { mutableMapOf<String, LazyStaggeredGridState>() }
     val albumScrollKey = state.selectedAlbumPath ?: "__all__"
 
-    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-        if (state.selectedFiles.isNotEmpty()) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter
+    val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
 
     val groupedFiles = remember(state.displayedFiles, state.isSectioned) {
         if (state.isSectioned) {
@@ -1124,127 +1439,69 @@ private fun ImageGalleryContent(
                 )
             }
             else -> {
-                if (state.presentation.viewMode == BrowserViewMode.GRID) {
-                    if (state.isAspectRatio) {
-                        LazyVerticalStaggeredGrid(
-                            columns = StaggeredGridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
-                            state = rememberLazyStaggeredGridState(),
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 12.dp,
-                                top = contentPadding.calculateTopPadding() + 8.dp,
-                                end = 12.dp,
-                                bottom = bottomPadding
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalItemSpacing = 8.dp
-                        ) {
-                            if (state.isSectioned) {
-                                groupedFiles.forEach { (section, filesInSection) ->
-                                    if (filesInSection.isNotEmpty()) {
-                                        item(span = StaggeredGridItemSpan.FullLine) {
-                                            GallerySectionHeader(section.toDisplayString())
-                                        }
-                                        items(filesInSection, key = { it.absolutePath }) { file ->
-                                            GalleryImageItem(
-                                                file = file,
-                                                isSelected = file.absolutePath in state.selectedFiles,
-                                                aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
-                                                showDetails = state.showFileDetails,
-                                                onClick = { onClickItem(file) },
-                                                onLongClick = { onLongClickItem(file) }
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                items(state.displayedFiles, key = { it.absolutePath }) { file ->
-                                    GalleryImageItem(
-                                        file = file,
-                                        isSelected = file.absolutePath in state.selectedFiles,
-                                        aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
-                                        showDetails = state.showFileDetails,
-                                        onClick = { onClickItem(file) },
-                                        onLongClick = { onLongClickItem(file) }
-                                    )
-                                }
-                            }
+                val scrollbarState = when {
+                    state.presentation.viewMode == BrowserViewMode.GRID && state.isAspectRatio -> {
+                        val staggeredGridState = remember(albumScrollKey) {
+                            staggeredGridStatesByAlbum.getOrPut(albumScrollKey) { LazyStaggeredGridState() }
                         }
-                    } else {
+                        LazyStaggeredGridScrollbarState(staggeredGridState)
+                    }
+                    state.presentation.viewMode == BrowserViewMode.GRID -> {
                         val gridState = remember(albumScrollKey) {
                             gridStatesByAlbum.getOrPut(albumScrollKey) { LazyGridState() }
                         }
-                        LazyVerticalGrid(
-                            columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
-                            state = gridState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 12.dp,
-                                top = contentPadding.calculateTopPadding() + 8.dp,
-                                end = 12.dp,
-                                bottom = bottomPadding
-                            ),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            if (state.isSectioned) {
-                                groupedFiles.forEach { (section, filesInSection) ->
-                                    if (filesInSection.isNotEmpty()) {
-                                        item(span = { GridItemSpan(maxLineSpan) }) {
-                                            GallerySectionHeader(section.toDisplayString())
-                                        }
-                                        items(filesInSection, key = { it.absolutePath }) { file ->
-                                            GalleryImageItem(
-                                                file = file,
-                                                isSelected = file.absolutePath in state.selectedFiles,
-                                                aspectRatio = 1f,
-                                                showDetails = state.showFileDetails,
-                                                onClick = { onClickItem(file) },
-                                                onLongClick = { onLongClickItem(file) }
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                items(state.displayedFiles, key = { it.absolutePath }) { file ->
-                                    GalleryImageItem(
-                                        file = file,
-                                        isSelected = file.absolutePath in state.selectedFiles,
-                                        aspectRatio = 1f,
-                                        showDetails = state.showFileDetails,
-                                        onClick = { onClickItem(file) },
-                                        onLongClick = { onLongClickItem(file) }
-                                    )
-                                }
-                            }
+                        LazyGridScrollbarState(gridState)
+                    }
+                    else -> {
+                        val listState = remember(albumScrollKey) {
+                            listStatesByAlbum.getOrPut(albumScrollKey) { LazyListState() }
                         }
+                        LazyListScrollbarState(listState)
                     }
-                } else {
-                    val listState = remember(albumScrollKey) {
-                        listStatesByAlbum.getOrPut(albumScrollKey) { LazyListState() }
-                    }
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            top = contentPadding.calculateTopPadding(),
-                            bottom = bottomPadding
-                        )
-                    ) {
-                        if (state.isSectioned) {
-                            groupedFiles.forEach { (section, filesInSection) ->
-                                if (filesInSection.isNotEmpty()) {
-                                    item {
-                                        GallerySectionHeader(
-                                            title = section.toDisplayString(),
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                                        )
+                }
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (state.presentation.viewMode == BrowserViewMode.GRID) {
+                        if (state.isAspectRatio) {
+                            val staggeredGridState = (scrollbarState as LazyStaggeredGridScrollbarState).state
+                            LazyVerticalStaggeredGrid(
+                                columns = StaggeredGridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
+                                state = staggeredGridState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 12.dp,
+                                    top = contentPadding.calculateTopPadding() + 8.dp,
+                                    end = 12.dp,
+                                    bottom = bottomPadding
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalItemSpacing = 8.dp
+                            ) {
+                                if (state.isSectioned) {
+                                    groupedFiles.forEach { (section, filesInSection) ->
+                                        if (filesInSection.isNotEmpty()) {
+                                            item(span = StaggeredGridItemSpan.FullLine) {
+                                                GallerySectionHeader(section.toDisplayString())
+                                            }
+                                            items(filesInSection, key = { it.absolutePath }) { file ->
+                                                GalleryImageItem(
+                                                    file = file,
+                                                    isSelected = file.absolutePath in state.selectedFiles,
+                                                    aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
+                                                    showDetails = state.showFileDetails,
+                                                    onClick = { onClickItem(file) },
+                                                    onLongClick = { onLongClickItem(file) }
+                                                )
+                                            }
+                                        }
                                     }
-                                    items(filesInSection, key = { it.absolutePath }) { file ->
-                                        GalleryImageListItem(
+                                } else {
+                                    items(state.displayedFiles, key = { it.absolutePath }) { file ->
+                                        GalleryImageItem(
                                             file = file,
                                             isSelected = file.absolutePath in state.selectedFiles,
-                                            zoom = state.presentation.listZoom,
+                                            aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
+                                            showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
                                             onLongClick = { onLongClickItem(file) }
                                         )
@@ -1252,17 +1509,107 @@ private fun ImageGalleryContent(
                                 }
                             }
                         } else {
-                            items(state.displayedFiles, key = { it.absolutePath }) { file ->
-                                GalleryImageListItem(
-                                    file = file,
-                                    isSelected = file.absolutePath in state.selectedFiles,
-                                    zoom = state.presentation.listZoom,
-                                    onClick = { onClickItem(file) },
-                                    onLongClick = { onLongClickItem(file) }
-                                )
+                            val gridState = (scrollbarState as LazyGridScrollbarState).state
+                            LazyVerticalGrid(
+                                columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
+                                state = gridState,
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(
+                                    start = 12.dp,
+                                    top = contentPadding.calculateTopPadding() + 8.dp,
+                                    end = 12.dp,
+                                    bottom = bottomPadding
+                                ),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                if (state.isSectioned) {
+                                    groupedFiles.forEach { (section, filesInSection) ->
+                                        if (filesInSection.isNotEmpty()) {
+                                            item(span = { GridItemSpan(maxLineSpan) }) {
+                                                GallerySectionHeader(section.toDisplayString())
+                                            }
+                                            items(filesInSection, key = { it.absolutePath }) { file ->
+                                                GalleryImageItem(
+                                                    file = file,
+                                                    isSelected = file.absolutePath in state.selectedFiles,
+                                                    aspectRatio = 1f,
+                                                    showDetails = state.showFileDetails,
+                                                    onClick = { onClickItem(file) },
+                                                    onLongClick = { onLongClickItem(file) }
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    items(state.displayedFiles, key = { it.absolutePath }) { file ->
+                                        GalleryImageItem(
+                                            file = file,
+                                            isSelected = file.absolutePath in state.selectedFiles,
+                                            aspectRatio = 1f,
+                                            showDetails = state.showFileDetails,
+                                            onClick = { onClickItem(file) },
+                                            onLongClick = { onLongClickItem(file) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        val listState = (scrollbarState as LazyListScrollbarState).state
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                top = contentPadding.calculateTopPadding(),
+                                bottom = bottomPadding
+                            )
+                        ) {
+                            if (state.isSectioned) {
+                                groupedFiles.forEach { (section, filesInSection) ->
+                                    if (filesInSection.isNotEmpty()) {
+                                        item {
+                                            GallerySectionHeader(
+                                                title = section.toDisplayString(),
+                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                            )
+                                        }
+                                        items(filesInSection, key = { it.absolutePath }) { file ->
+                                            GalleryImageListItem(
+                                                file = file,
+                                                isSelected = file.absolutePath in state.selectedFiles,
+                                                zoom = state.presentation.listZoom,
+                                                onClick = { onClickItem(file) },
+                                                onLongClick = { onLongClickItem(file) }
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                items(state.displayedFiles, key = { it.absolutePath }) { file ->
+                                    GalleryImageListItem(
+                                        file = file,
+                                        isSelected = file.absolutePath in state.selectedFiles,
+                                        zoom = state.presentation.listZoom,
+                                        onClick = { onClickItem(file) },
+                                        onLongClick = { onLongClickItem(file) }
+                                    )
+                                }
                             }
                         }
                     }
+
+                    FastScrollbar(
+                        scrollbarState = scrollbarState,
+                        displayedFiles = state.displayedFiles,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight(),
+                        contentPadding = PaddingValues(
+                            top = contentPadding.calculateTopPadding() + 8.dp,
+                            bottom = bottomPadding + 16.dp
+                        )
+                    )
                 }
             }
         }
@@ -1676,3 +2023,336 @@ fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): 
 }
 
 private const val GALLERY_MAX_THUMBNAIL_PX = 512
+
+enum class GalleryTab {
+    PHOTOS, ALBUMS
+}
+
+@Composable
+fun TabItem(
+    selected: Boolean,
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    val backgroundColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        label = "tabBg"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "tabContent"
+    )
+    val horizontalPadding by animateDpAsState(
+        targetValue = if (selected) 16.dp else 12.dp,
+        label = "tabPadding"
+    )
+
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = backgroundColor,
+        contentColor = contentColor,
+        modifier = Modifier.height(44.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = horizontalPadding)
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            AnimatedVisibility(
+                visible = selected,
+                enter = expandHorizontally() + fadeIn(),
+                exit = shrinkHorizontally() + fadeOut()
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageGalleryAlbumsGrid(
+    state: ImageGalleryState,
+    contentPadding: PaddingValues,
+    onSelectAlbum: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 160.dp),
+        contentPadding = contentPadding,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+    ) {
+        items(state.albums, key = { it.path ?: it.label }) { album ->
+            val coverFile = remember(album.path, state.files) {
+                state.files.firstOrNull { java.io.File(it.absolutePath).parent == album.path }
+            }
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelectAlbum(album.path) }
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        if (coverFile != null) {
+                            GalleryThumbnail(
+                                file = coverFile,
+                                thumbnailKey = ThumbnailKey.from(coverFile),
+                                thumbnailPolicy = thumbnailPolicy,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Folder,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(48.dp)
+                                )
+                            }
+                        }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = album.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(R.string.image_gallery_album_count, album.count),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+interface ScrollbarState {
+    val firstVisibleItemIndex: Int
+    val totalItemsCount: Int
+    val firstVisibleItemScrollOffset: Int
+    suspend fun scrollToItem(index: Int)
+}
+
+class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
+    override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
+    override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
+    override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
+    override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
+}
+
+class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
+    override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
+    override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
+    override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
+    override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
+}
+
+class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : ScrollbarState {
+    override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
+    override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
+    override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
+    override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
+}
+
+@Composable
+fun FastScrollbar(
+    scrollbarState: ScrollbarState,
+    displayedFiles: List<FileModel>,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues()
+) {
+    val totalItems = scrollbarState.totalItemsCount
+    if (totalItems <= 1) return
+
+    val firstVisibleIndex = scrollbarState.firstVisibleItemIndex
+    val firstVisibleOffset = scrollbarState.firstVisibleItemScrollOffset
+
+    var isDragging by remember { mutableStateOf(false) }
+    var dragPositionFraction by remember { mutableStateOf(0f) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    val scrollFraction = remember(firstVisibleIndex, firstVisibleOffset, totalItems) {
+        if (totalItems > 1) {
+            firstVisibleIndex.toFloat() / (totalItems - 1).toFloat()
+        } else {
+            0f
+        }
+    }
+
+    val activeFraction = if (isDragging) dragPositionFraction else scrollFraction
+
+    val targetIndex = (activeFraction * (displayedFiles.size - 1)).toInt().coerceIn(0, displayedFiles.size - 1)
+    val targetFile = displayedFiles.getOrNull(targetIndex)
+    val formatter = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()) }
+    val dateText = remember(targetFile) {
+        if (targetFile != null) {
+            formatter.format(java.util.Date(targetFile.lastModified))
+        } else {
+            ""
+        }
+    }
+
+    val thumbWidth by animateDpAsState(
+        targetValue = if (isDragging) 10.dp else 6.dp,
+        label = "scrollbarThumbWidth"
+    )
+    val thumbColor by animateColorAsState(
+        targetValue = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        label = "scrollbarThumbColor"
+    )
+
+    val tooltipAlpha by animateFloatAsState(
+        targetValue = if (isDragging && dateText.isNotEmpty()) 1f else 0f,
+        label = "scrollbarTooltipAlpha"
+    )
+
+    BoxWithConstraints(
+        modifier = modifier
+            .width(64.dp)
+            .padding(contentPadding)
+    ) {
+        val trackHeight = maxHeight
+        val density = LocalDensity.current
+
+        val dragModifier = Modifier.pointerInput(totalItems) {
+            detectDragGestures(
+                onDragStart = { offset ->
+                    isDragging = true
+                    val y = offset.y.coerceIn(0f, size.height.toFloat())
+                    dragPositionFraction = y / size.height.toFloat()
+                    val targetIdx = (dragPositionFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
+                    coroutineScope.launch {
+                        scrollbarState.scrollToItem(targetIdx)
+                    }
+                },
+                onDragEnd = {
+                    isDragging = false
+                },
+                onDragCancel = {
+                    isDragging = false
+                },
+                onDrag = { change, dragAmount ->
+                    change.consume()
+                    val currentY = change.position.y.coerceIn(0f, size.height.toFloat())
+                    dragPositionFraction = currentY / size.height.toFloat()
+                    val targetIdx = (dragPositionFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
+                    coroutineScope.launch {
+                        scrollbarState.scrollToItem(targetIdx)
+                    }
+                }
+            )
+        }.pointerInput(totalItems) {
+            detectTapGestures { offset ->
+                val y = offset.y.coerceIn(0f, size.height.toFloat())
+                val tapFraction = y / size.height.toFloat()
+                val targetIdx = (tapFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
+                coroutineScope.launch {
+                    scrollbarState.scrollToItem(targetIdx)
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(48.dp)
+                .align(Alignment.CenterEnd)
+                .then(dragModifier)
+        ) {
+            if (isDragging) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(4.dp)
+                        .align(Alignment.Center)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), CircleShape)
+                )
+            }
+
+            val thumbHeight = 48.dp
+            val maxOffset = trackHeight - thumbHeight
+            val thumbOffset = maxOffset * activeFraction
+
+            Box(
+                modifier = Modifier
+                    .offset(y = thumbOffset)
+                    .width(thumbWidth)
+                    .height(thumbHeight)
+                    .align(Alignment.TopCenter)
+                    .background(thumbColor, CircleShape)
+            )
+
+            if (tooltipAlpha > 0f) {
+                val tooltipOffset = thumbOffset + (thumbHeight / 2) - 20.dp
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                    modifier = Modifier
+                        .offset(
+                            x = (-100).dp,
+                            y = tooltipOffset
+                        )
+                        .graphicsLayer {
+                            alpha = tooltipAlpha
+                            scaleX = tooltipAlpha
+                            scaleY = tooltipAlpha
+                        }
+                        .align(Alignment.TopCenter)
+                ) {
+                    Text(
+                        text = dateText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+enum class GalleryViewState {
+    PHOTOS_TAB, ALBUMS_TAB_GRID, ALBUM_PHOTOS
+}

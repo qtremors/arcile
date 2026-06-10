@@ -37,6 +37,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.archiveViewerScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.imagegallery.imageGalleryScreen
+import dev.qtremors.arcile.feature.imagegallery.imageViewerScreen
 import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
@@ -73,8 +74,10 @@ fun AppNavigationGraph(
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val openPath: (String) -> Unit = { path ->
         val archiveFormat = ArchiveFormat.fromPath(path)
+        val extension = path.substringAfterLast('.', "").lowercase()
         when {
             archiveFormat?.canBrowse == true -> {
                 navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
@@ -88,6 +91,9 @@ fun AppNavigationGraph(
                         severity = ArcileFeedbackSeverity.Error
                     )
                 )
+            }
+            extension in FileCategories.Images.extensions -> {
+                navController.navigate(AppRoutes.ImageViewer(initialPath = path))
             }
             else -> {
                 onOpenFile(path)
@@ -474,6 +480,19 @@ fun AppNavigationGraph(
                         dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
                     },
                     onFeedback = onFeedback
+                )
+                imageViewerScreen(
+                    navController = navController,
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onShareFile = { path ->
+                        coroutineScope.launch {
+                            dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                        }
+                    }
                 )
                 composable<AppRoutes.Tools>(
                     enterTransition = utilityEnterTransition,

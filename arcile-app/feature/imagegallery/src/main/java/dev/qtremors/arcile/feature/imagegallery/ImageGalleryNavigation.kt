@@ -4,12 +4,15 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
@@ -72,6 +75,42 @@ fun NavGraphBuilder.imageGalleryScreen(
             onSectionedChange = viewModel::updateSectioned,
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
+        )
+    }
+}
+
+fun NavGraphBuilder.imageViewerScreen(
+    navController: NavHostController,
+    enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
+    exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
+    popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
+    popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
+    onNavigateBack: () -> Unit,
+    onShareFile: (String) -> Unit
+) {
+    composable<AppRoutes.ImageViewer>(
+        enterTransition = enterTransition,
+        exitTransition = exitTransition,
+        popEnterTransition = popEnterTransition,
+        popExitTransition = popExitTransition
+    ) { backStackEntry ->
+        val route = backStackEntry.toRoute<AppRoutes.ImageViewer>()
+
+        // Try to obtain the active ImageGalleryViewModel from parent backstack entry
+        val parentEntry = remember(backStackEntry) {
+            runCatching { navController.getBackStackEntry<AppRoutes.ImageGallery>() }.getOrNull()
+        }
+        val viewModel = if (parentEntry != null) {
+            hiltViewModel<ImageGalleryViewModel>(parentEntry)
+        } else {
+            hiltViewModel<ImageGalleryViewModel>()
+        }
+
+        ImageViewerScreen(
+            initialPath = route.initialPath,
+            viewModel = viewModel,
+            onNavigateBack = onNavigateBack,
+            onShareFile = onShareFile
         )
     }
 }

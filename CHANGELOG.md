@@ -1,10 +1,26 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.3
-> **Last Updated:** 2026-06-09
+> **Version:** 1.0.4
+> **Last Updated:** 2026-06-10
 
 ---
+
+## [1.0.4] - 2026-06-10
+
+- **Native Expressive Image Viewer**: Introduced an immersive full-screen photo viewer with pinch-to-zoom spring mechanics, elastic vertical swipe-to-dismiss gestures, bouncy visual 90-degree rotations, and integrated deletion workflows.
+- **Material 3 Expressive Gallery Revamp:** Redesigned the gallery screen layout to prioritize modern, high-end design aesthetics and immersive scrolling behavior.
+- **Scroll-Linked Floating Controls:** Hidden and revealed the floating gallery action controls on vertical scroll gestures, freeing up screen real estate for photos.
+- **Compact Floating Pill Bars:** Split the full-width top bar into individual circular back buttons and compact right-aligned action pills (Search, Sort, and Menu) to minimize space usage.
+- **Floating Dynamic Bottom Navigation:** Added a centered floating glassmorphic bottom navigation bar displaying "Photos" and "Albums" tabs with smooth active tab transitions.
+- **Albums List View:** Introduced a structured albums folder grid featuring cover photo previews and metadata indicators.
+- **Vertical 3D Flip Selection Bar:** Integrated a spring-animated vertical 3D card flip transition (X-axis rotation) on selection mode change that expands dynamically to fill the available width.
+- **Split Selection Toolbar:** Aligned the selection actions toolbar with the browser, utilizing a `SplitButtonGroup` for primary actions (Copy, Cut, Delete, Edit) and a detached circular dropdown menu button.
+- **Draggable Fast Scrollbar:** Added a custom draggable fast scrollbar that coordinates with staggered grids, uniform grids, and lists, showcasing a floating date tooltip bubble (month/year) when scrolling.
+- **Fluid Album Transitions:** Integrated horizontal spring slide/fade animations for folder opening and closing (connecting cleanly with the system back press and predictive back gestures).
+- **Detached Action Button Group:** Removed the full-width background container overlay behind selection action buttons, allowing the split buttons and overflow option FAB to float freely on the screen, matching the browser style.
+- **Collapsible Bottom Navigation Labels:** Refined bottom navigation items to collapse labels for inactive tabs while expanding the active tab, presenting a cleaner icon-only view for inactive options.
+- **Predictive Back Gesture Animations:** Replaced old back handling with `PredictiveBackHandler` to support progressive gesture progress tracking, scaling/sliding gallery sub-pages and floating toolbars dynamically on back swipe.
 
 ## [1.0.3] - 2026-06-09
 
