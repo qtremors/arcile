@@ -7,6 +7,13 @@ enum class BrowserViewMode {
     GRID
 }
 
+enum class ImageGalleryGrouping {
+    NONE,
+    DAY,
+    WEEK,
+    MONTH
+}
+
 data class BrowserPresentationPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
     val viewMode: BrowserViewMode = DEFAULT_VIEW_MODE,
@@ -45,6 +52,13 @@ data class BrowserPreferences(
     val imageGalleryShowFileDetails: Boolean = true,
     val imageGalleryAspectRatio: Boolean = false,
     val imageGallerySectioned: Boolean = false,
+    val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+        sortOption = FileSortOption.NAME_ASC,
+        viewMode = BrowserViewMode.GRID,
+        gridMinCellSize = 160f
+    ),
+    val albumAspectRatio: Boolean = false,
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null
 ) {

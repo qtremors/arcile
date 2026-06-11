@@ -80,7 +80,9 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
@@ -153,6 +155,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.image.ThumbnailKey
@@ -165,6 +168,7 @@ import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.shared.ui.ToolbarAction
+import dev.qtremors.arcile.shared.ui.ArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
@@ -177,6 +181,7 @@ import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -210,6 +215,9 @@ fun ImageGalleryScreen(
     onCreateZipFromSelection: () -> Unit = {},
     onAspectRatioChange: (Boolean) -> Unit = {},
     onSectionedChange: (Boolean) -> Unit = {},
+    onGroupingChange: (ImageGalleryGrouping) -> Unit = {},
+    onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
+    onAlbumAspectRatioChange: (Boolean) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: SharedFlow<android.content.IntentSender>? = null
 ) {
@@ -719,13 +727,18 @@ fun ImageGalleryScreen(
 
     if (showPresentationSheet) {
         GalleryViewOptionsDialog(
-            presentation = state.presentation,
+            currentTab = currentTab,
+            photosPresentation = state.presentation,
+            albumPresentation = state.albumPresentation,
             isAspectRatio = state.isAspectRatio,
-            isSectioned = state.isSectioned,
+            albumAspectRatio = state.albumAspectRatio,
+            grouping = state.imageGalleryGrouping,
             showFileDetails = state.showFileDetails,
-            onPresentationChange = onPresentationChange,
-            onAspectRatioChange = onAspectRatioChange,
-            onSectionedChange = onSectionedChange,
+            onPhotosPresentationChange = onPresentationChange,
+            onAlbumPresentationChange = onAlbumPresentationChange,
+            onPhotosAspectRatioChange = onAspectRatioChange,
+            onAlbumAspectRatioChange = onAlbumAspectRatioChange,
+            onGroupingChange = onGroupingChange,
             onShowFileDetailsChange = onShowFileDetailsChange,
             onDismiss = { showPresentationSheet = false }
         )
@@ -1003,24 +1016,35 @@ fun FloatingGallerySelectionTopBar(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalleryViewOptionsDialog(
-    presentation: BrowserPresentationPreferences,
+    currentTab: GalleryTab,
+    photosPresentation: BrowserPresentationPreferences,
+    albumPresentation: BrowserPresentationPreferences,
     isAspectRatio: Boolean,
-    isSectioned: Boolean,
+    albumAspectRatio: Boolean,
+    grouping: ImageGalleryGrouping,
     showFileDetails: Boolean,
-    onPresentationChange: (BrowserPresentationPreferences) -> Unit,
-    onAspectRatioChange: (Boolean) -> Unit,
-    onSectionedChange: (Boolean) -> Unit,
+    onPhotosPresentationChange: (BrowserPresentationPreferences) -> Unit,
+    onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit,
+    onPhotosAspectRatioChange: (Boolean) -> Unit,
+    onAlbumAspectRatioChange: (Boolean) -> Unit,
+    onGroupingChange: (ImageGalleryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var draftPreferences by remember(presentation) {
-        mutableStateOf(presentation.normalized())
+    var draftPhotosPreferences by remember(photosPresentation) {
+        mutableStateOf(photosPresentation.normalized())
     }
-    var draftAspectRatio by remember(isAspectRatio) {
+    var draftAlbumPreferences by remember(albumPresentation) {
+        mutableStateOf(albumPresentation.normalized())
+    }
+    var draftPhotosAspectRatio by remember(isAspectRatio) {
         mutableStateOf(isAspectRatio)
     }
-    var draftSectioned by remember(isSectioned) {
-        mutableStateOf(isSectioned)
+    var draftAlbumAspectRatio by remember(albumAspectRatio) {
+        mutableStateOf(albumAspectRatio)
+    }
+    var draftGrouping by remember(grouping) {
+        mutableStateOf(grouping)
     }
     var draftShowDetails by remember(showFileDetails) {
         mutableStateOf(showFileDetails)
@@ -1039,11 +1063,6 @@ fun GalleryViewOptionsDialog(
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
         ) {
-            val liveColumnCount = kotlin.math.max(
-                1,
-                kotlin.math.floor(((maxWidth.value - 32f) / draftPreferences.gridMinCellSize).toDouble()).toInt()
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1051,117 +1070,272 @@ fun GalleryViewOptionsDialog(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
-                    text = stringResource(R.string.image_gallery_view_sort_title),
+                    text = if (currentTab == GalleryTab.PHOTOS) stringResource(R.string.image_gallery_view_sort_title) else "View and sort albums",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
 
-                // 1. Layout View Mode (List vs Grid)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.browser_layout_view_mode),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
+                if (currentTab == GalleryTab.PHOTOS) {
+                    val livePhotosColumnCount = kotlin.math.max(
+                        1,
+                        kotlin.math.floor(((this@BoxWithConstraints.maxWidth.value - 32f) / draftPhotosPreferences.gridMinCellSize).toDouble()).toInt()
                     )
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        BrowserViewMode.entries.forEachIndexed { index, mode ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = BrowserViewMode.entries.size
-                                ),
-                                onClick = { draftPreferences = draftPreferences.copy(viewMode = mode) },
-                                selected = draftPreferences.viewMode == mode,
-                                icon = {
-                                    Icon(
-                                        imageVector = if (mode == BrowserViewMode.LIST) {
-                                            Icons.AutoMirrored.Filled.ViewList
-                                        } else {
-                                            Icons.Default.GridView
-                                        },
-                                        contentDescription = null
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        stringResource(
-                                            if (mode == BrowserViewMode.LIST) R.string.list_view else R.string.grid_view
+
+                    // 1. Layout View Mode (List vs Grid)
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.browser_layout_view_mode),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            BrowserViewMode.entries.forEachIndexed { index, mode ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(
+                                        index = index,
+                                        count = BrowserViewMode.entries.size
+                                    ),
+                                    onClick = { draftPhotosPreferences = draftPhotosPreferences.copy(viewMode = mode) },
+                                    selected = draftPhotosPreferences.viewMode == mode,
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (mode == BrowserViewMode.LIST) {
+                                                Icons.AutoMirrored.Filled.ViewList
+                                            } else {
+                                                Icons.Default.GridView
+                                            },
+                                            contentDescription = null
                                         )
+                                    },
+                                    label = {
+                                        Text(
+                                            stringResource(
+                                                if (mode == BrowserViewMode.LIST) R.string.list_view else R.string.grid_view
+                                            )
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // 2. Zoom / Column size sliders
+                    AnimatedContent(
+                        targetState = draftPhotosPreferences.viewMode,
+                        label = "gallery_layout_controls"
+                    ) { mode ->
+                        if (mode == BrowserViewMode.LIST) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.browser_layout_list_zoom),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            R.string.browser_layout_list_zoom_value,
+                                            (draftPhotosPreferences.listZoom * 100).roundToInt()
+                                        ),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
-                            )
-                        }
-                    }
-                }
-
-                // 2. Zoom / Column size sliders
-                AnimatedContent(
-                    targetState = draftPreferences.viewMode,
-                    label = "gallery_layout_controls"
-                ) { mode ->
-                    if (mode == BrowserViewMode.LIST) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.browser_layout_list_zoom),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = stringResource(
-                                        R.string.browser_layout_list_zoom_value,
-                                        (draftPreferences.listZoom * 100).roundToInt()
-                                    ),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
+                                Slider(
+                                    value = draftPhotosPreferences.listZoom,
+                                    onValueChange = {
+                                        draftPhotosPreferences = draftPhotosPreferences.copy(listZoom = it)
+                                    },
+                                    valueRange = BrowserPresentationPreferences.MIN_LIST_ZOOM..BrowserPresentationPreferences.MAX_LIST_ZOOM,
+                                    steps = 7
                                 )
                             }
-                            Slider(
-                                value = draftPreferences.listZoom,
-                                onValueChange = {
-                                    draftPreferences = draftPreferences.copy(listZoom = it)
-                                },
-                                valueRange = BrowserPresentationPreferences.MIN_LIST_ZOOM..BrowserPresentationPreferences.MAX_LIST_ZOOM,
-                                steps = 7
-                            )
-                        }
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.browser_layout_grid_size),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = stringResource(
-                                        R.string.browser_layout_grid_columns_value,
-                                        liveColumnCount
-                                    ),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.browser_layout_grid_size),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = stringResource(
+                                            R.string.browser_layout_grid_columns_value,
+                                            livePhotosColumnCount
+                                        ),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Slider(
+                                    value = draftPhotosPreferences.gridMinCellSize,
+                                    onValueChange = {
+                                        draftPhotosPreferences = draftPhotosPreferences.copy(gridMinCellSize = it)
+                                    },
+                                    valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
+                                    steps = 1
                                 )
                             }
-                            Slider(
-                                value = draftPreferences.gridMinCellSize,
-                                onValueChange = {
-                                    draftPreferences = draftPreferences.copy(gridMinCellSize = it)
-                                },
-                                valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
-                                steps = 1
-                            )
                         }
                     }
-                }
 
-                // 3. Grid Mode: Square vs Aspect Ratio (only in Grid View Mode)
-                if (draftPreferences.viewMode == BrowserViewMode.GRID) {
+                    // 3. Grid Mode: Square vs Aspect Ratio (only in Grid View Mode)
+                    if (draftPhotosPreferences.viewMode == BrowserViewMode.GRID) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = stringResource(R.string.image_gallery_grid_mode),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                FilterChip(
+                                    selected = !draftPhotosAspectRatio,
+                                    onClick = { draftPhotosAspectRatio = false },
+                                    label = { Text(stringResource(R.string.image_gallery_view_mode_square)) }
+                                )
+                                FilterChip(
+                                    selected = draftPhotosAspectRatio,
+                                    onClick = { draftPhotosAspectRatio = true },
+                                    label = { Text(stringResource(R.string.image_gallery_view_mode_aspect)) }
+                                )
+                            }
+                        }
+                    }
+
+                    // 4. Sort Options Section
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.action_sort),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortChip(FileSortOption.NAME_ASC, draftPhotosPreferences, Modifier.weight(1f)) {
+                                    draftPhotosPreferences = draftPhotosPreferences.copy(sortOption = it)
+                                }
+                                SortChip(FileSortOption.NAME_DESC, draftPhotosPreferences, Modifier.weight(1f)) {
+                                    draftPhotosPreferences = draftPhotosPreferences.copy(sortOption = it)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortChip(FileSortOption.DATE_NEWEST, draftPhotosPreferences, Modifier.weight(1f)) {
+                                    draftPhotosPreferences = draftPhotosPreferences.copy(sortOption = it)
+                                }
+                                SortChip(FileSortOption.DATE_OLDEST, draftPhotosPreferences, Modifier.weight(1f)) {
+                                    draftPhotosPreferences = draftPhotosPreferences.copy(sortOption = it)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortChip(FileSortOption.SIZE_LARGEST, draftPhotosPreferences, Modifier.weight(1f)) {
+                                    draftPhotosPreferences = draftPhotosPreferences.copy(sortOption = it)
+                                }
+                                SortChip(FileSortOption.SIZE_SMALLEST, draftPhotosPreferences, Modifier.weight(1f)) {
+                                    draftPhotosPreferences = draftPhotosPreferences.copy(sortOption = it)
+                                }
+                            }
+                        }
+                    }
+
+                    // 5. Grouping Section
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = stringResource(R.string.image_gallery_grouping),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ImageGalleryGrouping.entries.forEach { mode ->
+                                FilterChip(
+                                    selected = draftGrouping == mode,
+                                    onClick = { draftGrouping = mode },
+                                    label = {
+                                        Text(
+                                            text = when (mode) {
+                                                ImageGalleryGrouping.NONE -> "None"
+                                                ImageGalleryGrouping.DAY -> "Day"
+                                                ImageGalleryGrouping.WEEK -> "Week"
+                                                ImageGalleryGrouping.MONTH -> "Month"
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // 6. Details Section
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.image_gallery_show_file_details),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = stringResource(R.string.image_gallery_show_file_details_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = draftShowDetails,
+                            onCheckedChange = { draftShowDetails = it }
+                        )
+                    }
+                } else {
+                    val liveAlbumsColumnCount = kotlin.math.max(
+                        1,
+                        kotlin.math.floor(((this@BoxWithConstraints.maxWidth.value - 32f) / draftAlbumPreferences.gridMinCellSize).toDouble()).toInt()
+                    )
+
+                    // 1. Column size slider
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.browser_layout_grid_size),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.browser_layout_grid_columns_value,
+                                    liveAlbumsColumnCount
+                                ),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Slider(
+                            value = draftAlbumPreferences.gridMinCellSize,
+                            onValueChange = {
+                                draftAlbumPreferences = draftAlbumPreferences.copy(gridMinCellSize = it)
+                            },
+                            valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
+                            steps = 1
+                        )
+                    }
+
+                    // 2. Aspect Ratio Selector
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = stringResource(R.string.image_gallery_grid_mode),
@@ -1173,100 +1347,44 @@ fun GalleryViewOptionsDialog(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             FilterChip(
-                                selected = !draftAspectRatio,
-                                onClick = { draftAspectRatio = false },
+                                selected = !draftAlbumAspectRatio,
+                                onClick = { draftAlbumAspectRatio = false },
                                 label = { Text(stringResource(R.string.image_gallery_view_mode_square)) }
                             )
                             FilterChip(
-                                selected = draftAspectRatio,
-                                onClick = { draftAspectRatio = true },
+                                selected = draftAlbumAspectRatio,
+                                onClick = { draftAlbumAspectRatio = true },
                                 label = { Text(stringResource(R.string.image_gallery_view_mode_aspect)) }
                             )
                         }
                     }
-                }
 
-                // 4. Sort Options Section
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.action_sort),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
+                    // 3. Sort Options (Name / Count)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortChip(FileSortOption.NAME_ASC, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                        Text(
+                            text = stringResource(R.string.action_sort),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortChip(FileSortOption.NAME_ASC, draftAlbumPreferences, Modifier.weight(1f)) {
+                                    draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
+                                }
+                                SortChip(FileSortOption.NAME_DESC, draftAlbumPreferences, Modifier.weight(1f)) {
+                                    draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
+                                }
                             }
-                            SortChip(FileSortOption.NAME_DESC, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortChip(FileSortOption.DATE_NEWEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortChip(FileSortOption.DATE_OLDEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortChip(FileSortOption.SIZE_LARGEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortChip(FileSortOption.SIZE_LARGEST, draftAlbumPreferences, Modifier.weight(1f)) {
+                                    draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
+                                }
+                                SortChip(FileSortOption.SIZE_SMALLEST, draftAlbumPreferences, Modifier.weight(1f)) {
+                                    draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
+                                }
                             }
                         }
                     }
-                }
-
-                // 5. Grouping Section
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.image_gallery_grouping),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = stringResource(R.string.image_gallery_group_time),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Switch(
-                            checked = draftSectioned,
-                            onCheckedChange = { draftSectioned = it }
-                        )
-                    }
-                }
-
-                // 6. Details Section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.image_gallery_show_file_details),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = stringResource(R.string.image_gallery_show_file_details_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Switch(
-                        checked = draftShowDetails,
-                        onCheckedChange = { draftShowDetails = it }
-                    )
                 }
 
                 // 7. Action buttons (Apply/Cancel)
@@ -1281,10 +1399,15 @@ fun GalleryViewOptionsDialog(
                     Spacer(modifier = Modifier.width(8.dp))
                     FilledTonalButton(
                         onClick = {
-                            onPresentationChange(draftPreferences.normalized())
-                            onAspectRatioChange(draftAspectRatio)
-                            onSectionedChange(draftSectioned)
-                            onShowFileDetailsChange(draftShowDetails)
+                            if (currentTab == GalleryTab.PHOTOS) {
+                                onPhotosPresentationChange(draftPhotosPreferences.normalized())
+                                onPhotosAspectRatioChange(draftPhotosAspectRatio)
+                                onGroupingChange(draftGrouping)
+                                onShowFileDetailsChange(draftShowDetails)
+                            } else {
+                                onAlbumPresentationChange(draftAlbumPreferences.normalized())
+                                onAlbumAspectRatioChange(draftAlbumAspectRatio)
+                            }
                             onDismiss()
                         }
                     ) {
@@ -1345,20 +1468,58 @@ private fun ImageGalleryContent(
 
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
 
-    val groupedFiles = remember(state.displayedFiles, state.isSectioned) {
-        if (state.isSectioned) {
-            state.displayedFiles.groupBy { getTimeSection(it.lastModified) }
-                .toSortedMap(compareBy { it.ordinal })
+    val groupedFiles = remember(state.displayedFiles, state.imageGalleryGrouping) {
+        if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+            val dayFormatter = java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault())
+            val monthFormatter = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault())
+
+            state.displayedFiles.groupBy { file ->
+                val lastMod = file.lastModified
+                val label = when (state.imageGalleryGrouping) {
+                    ImageGalleryGrouping.DAY -> dayFormatter.format(java.util.Date(lastMod))
+                    ImageGalleryGrouping.WEEK -> getWeekLabel(lastMod)
+                    ImageGalleryGrouping.MONTH -> monthFormatter.format(java.util.Date(lastMod))
+                    ImageGalleryGrouping.NONE -> ""
+                }
+
+                val cal = java.util.Calendar.getInstance()
+                cal.timeInMillis = lastMod
+                when (state.imageGalleryGrouping) {
+                    ImageGalleryGrouping.DAY -> {
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                    }
+                    ImageGalleryGrouping.WEEK -> {
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                        val firstDayOfWeek = cal.firstDayOfWeek
+                        while (cal.get(java.util.Calendar.DAY_OF_WEEK) != firstDayOfWeek) {
+                            cal.add(java.util.Calendar.DAY_OF_MONTH, -1)
+                        }
+                    }
+                    ImageGalleryGrouping.MONTH -> {
+                        cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        cal.set(java.util.Calendar.MILLISECOND, 0)
+                    }
+                    else -> {}
+                }
+                GroupKey(label, cal.timeInMillis)
+            }.toSortedMap()
         } else {
             emptyMap()
         }
     }
 
-    val flatUiFiles = remember(state.displayedFiles, state.isSectioned) {
-        if (state.isSectioned) {
-            state.displayedFiles.groupBy { getTimeSection(it.lastModified) }
-                .toSortedMap(compareBy { it.ordinal })
-                .values.flatten()
+    val flatUiFiles = remember(state.displayedFiles, state.imageGalleryGrouping, groupedFiles) {
+        if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+            groupedFiles.values.flatten()
         } else {
             state.displayedFiles
         }
@@ -1464,10 +1625,21 @@ private fun ImageGalleryContent(
                     if (state.presentation.viewMode == BrowserViewMode.GRID) {
                         if (state.isAspectRatio) {
                             val staggeredGridState = (scrollbarState as LazyStaggeredGridScrollbarState).state
+                            val coroutineScope = rememberCoroutineScope()
                             LazyVerticalStaggeredGrid(
                                 columns = StaggeredGridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
                                 state = staggeredGridState,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .dragToSelect(
+                                        scrollbarState = scrollbarState,
+                                        flatUiFiles = flatUiFiles,
+                                        selectedFiles = state.selectedFiles,
+                                        onSelectMultiple = onSelectMultiple,
+                                        onToggleSelection = onToggleSelection,
+                                        haptics = haptics,
+                                        coroutineScope = coroutineScope
+                                    ),
                                 contentPadding = PaddingValues(
                                     start = 12.dp,
                                     top = contentPadding.calculateTopPadding() + 8.dp,
@@ -1477,11 +1649,11 @@ private fun ImageGalleryContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalItemSpacing = 8.dp
                             ) {
-                                if (state.isSectioned) {
+                                if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
                                     groupedFiles.forEach { (section, filesInSection) ->
                                         if (filesInSection.isNotEmpty()) {
                                             item(span = StaggeredGridItemSpan.FullLine) {
-                                                GallerySectionHeader(section.toDisplayString())
+                                                GallerySectionHeader(section.label)
                                             }
                                             items(filesInSection, key = { it.absolutePath }) { file ->
                                                 GalleryImageItem(
@@ -1490,7 +1662,8 @@ private fun ImageGalleryContent(
                                                     aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
                                                     showDetails = state.showFileDetails,
                                                     onClick = { onClickItem(file) },
-                                                    onLongClick = { onLongClickItem(file) }
+                                                    onLongClick = { onLongClickItem(file) },
+                                                    modifier = Modifier.animateItem()
                                                 )
                                             }
                                         }
@@ -1503,17 +1676,29 @@ private fun ImageGalleryContent(
                                             aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
                                             showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
-                                            onLongClick = { onLongClickItem(file) }
+                                            onLongClick = { onLongClickItem(file) },
+                                            modifier = Modifier.animateItem()
                                         )
                                     }
                                 }
                             }
                         } else {
                             val gridState = (scrollbarState as LazyGridScrollbarState).state
+                            val coroutineScope = rememberCoroutineScope()
                             LazyVerticalGrid(
                                 columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
                                 state = gridState,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .dragToSelect(
+                                        scrollbarState = scrollbarState,
+                                        flatUiFiles = flatUiFiles,
+                                        selectedFiles = state.selectedFiles,
+                                        onSelectMultiple = onSelectMultiple,
+                                        onToggleSelection = onToggleSelection,
+                                        haptics = haptics,
+                                        coroutineScope = coroutineScope
+                                    ),
                                 contentPadding = PaddingValues(
                                     start = 12.dp,
                                     top = contentPadding.calculateTopPadding() + 8.dp,
@@ -1523,11 +1708,11 @@ private fun ImageGalleryContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (state.isSectioned) {
+                                if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
                                     groupedFiles.forEach { (section, filesInSection) ->
                                         if (filesInSection.isNotEmpty()) {
                                             item(span = { GridItemSpan(maxLineSpan) }) {
-                                                GallerySectionHeader(section.toDisplayString())
+                                                GallerySectionHeader(section.label)
                                             }
                                             items(filesInSection, key = { it.absolutePath }) { file ->
                                                 GalleryImageItem(
@@ -1536,7 +1721,8 @@ private fun ImageGalleryContent(
                                                     aspectRatio = 1f,
                                                     showDetails = state.showFileDetails,
                                                     onClick = { onClickItem(file) },
-                                                    onLongClick = { onLongClickItem(file) }
+                                                    onLongClick = { onLongClickItem(file) },
+                                                    modifier = Modifier.animateItem()
                                                 )
                                             }
                                         }
@@ -1549,7 +1735,8 @@ private fun ImageGalleryContent(
                                             aspectRatio = 1f,
                                             showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
-                                            onLongClick = { onLongClickItem(file) }
+                                            onLongClick = { onLongClickItem(file) },
+                                            modifier = Modifier.animateItem()
                                         )
                                     }
                                 }
@@ -1557,20 +1744,31 @@ private fun ImageGalleryContent(
                         }
                     } else {
                         val listState = (scrollbarState as LazyListScrollbarState).state
+                        val coroutineScope = rememberCoroutineScope()
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .dragToSelect(
+                                    scrollbarState = scrollbarState,
+                                    flatUiFiles = flatUiFiles,
+                                    selectedFiles = state.selectedFiles,
+                                    onSelectMultiple = onSelectMultiple,
+                                    onToggleSelection = onToggleSelection,
+                                    haptics = haptics,
+                                    coroutineScope = coroutineScope
+                                ),
                             contentPadding = PaddingValues(
                                 top = contentPadding.calculateTopPadding(),
                                 bottom = bottomPadding
                             )
                         ) {
-                            if (state.isSectioned) {
+                            if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
                                 groupedFiles.forEach { (section, filesInSection) ->
                                     if (filesInSection.isNotEmpty()) {
                                         item {
                                             GallerySectionHeader(
-                                                title = section.toDisplayString(),
+                                                title = section.label,
                                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                             )
                                         }
@@ -1580,7 +1778,8 @@ private fun ImageGalleryContent(
                                                 isSelected = file.absolutePath in state.selectedFiles,
                                                 zoom = state.presentation.listZoom,
                                                 onClick = { onClickItem(file) },
-                                                onLongClick = { onLongClickItem(file) }
+                                                onLongClick = { onLongClickItem(file) },
+                                                modifier = Modifier.animateItem()
                                             )
                                         }
                                     }
@@ -1592,7 +1791,8 @@ private fun ImageGalleryContent(
                                         isSelected = file.absolutePath in state.selectedFiles,
                                         zoom = state.presentation.listZoom,
                                         onClick = { onClickItem(file) },
-                                        onLongClick = { onLongClickItem(file) }
+                                        onLongClick = { onLongClickItem(file) },
+                                        modifier = Modifier.animateItem()
                                     )
                                 }
                             }
@@ -2022,6 +2222,35 @@ fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): 
     }
 }
 
+data class GroupKey(val label: String, val timestamp: Long) : Comparable<GroupKey> {
+    override fun compareTo(other: GroupKey): Int {
+        return other.timestamp.compareTo(this.timestamp)
+    }
+}
+
+fun getWeekLabel(timestamp: Long): String {
+    val cal = java.util.Calendar.getInstance()
+    cal.timeInMillis = timestamp
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    
+    val firstDayOfWeek = cal.firstDayOfWeek
+    while (cal.get(java.util.Calendar.DAY_OF_WEEK) != firstDayOfWeek) {
+        cal.add(java.util.Calendar.DAY_OF_MONTH, -1)
+    }
+    val startDate = cal.time
+    
+    cal.add(java.util.Calendar.DAY_OF_MONTH, 6)
+    val endDate = cal.time
+    
+    val weekFormatter = java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault())
+    val yearFormatter = java.text.SimpleDateFormat("yyyy", java.util.Locale.getDefault())
+    
+    return "${weekFormatter.format(startDate)} - ${weekFormatter.format(endDate)}, ${yearFormatter.format(startDate)}"
+}
+
 private const val GALLERY_MAX_THUMBNAIL_PX = 512
 
 enum class GalleryTab {
@@ -2087,8 +2316,18 @@ private fun ImageGalleryAlbumsGrid(
     modifier: Modifier = Modifier
 ) {
     val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val sortedAlbums = remember(state.albums, state.albumPresentation.sortOption) {
+        when (state.albumPresentation.sortOption) {
+            FileSortOption.NAME_ASC -> state.albums.sortedBy { it.label.lowercase() }
+            FileSortOption.NAME_DESC -> state.albums.sortedByDescending { it.label.lowercase() }
+            FileSortOption.SIZE_LARGEST -> state.albums.sortedByDescending { it.count }
+            FileSortOption.SIZE_SMALLEST -> state.albums.sortedBy { it.count }
+            else -> state.albums.sortedBy { it.label.lowercase() }
+        }
+    }
+
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
+        columns = GridCells.Adaptive(minSize = state.albumPresentation.gridMinCellSize.dp),
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -2096,7 +2335,7 @@ private fun ImageGalleryAlbumsGrid(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        items(state.albums, key = { it.path ?: it.label }) { album ->
+        items(sortedAlbums, key = { it.path ?: it.label }) { album ->
             val coverFile = remember(album.path, state.files) {
                 state.files.firstOrNull { java.io.File(it.absolutePath).parent == album.path }
             }
@@ -2110,10 +2349,15 @@ private fun ImageGalleryAlbumsGrid(
                     .clickable { onSelectAlbum(album.path) }
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    val coverRatio = if (state.albumAspectRatio && coverFile != null) {
+                        state.aspectRatios[coverFile.absolutePath] ?: 1f
+                    } else {
+                        1f
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(1f)
+                            .aspectRatio(coverRatio)
                             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
@@ -2168,6 +2412,7 @@ interface ScrollbarState {
     val totalItemsCount: Int
     val firstVisibleItemScrollOffset: Int
     suspend fun scrollToItem(index: Int)
+    suspend fun scrollBy(value: Float): Float
 }
 
 class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
@@ -2175,6 +2420,7 @@ class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
+    override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
 
 class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
@@ -2182,6 +2428,7 @@ class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
+    override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
 
 class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : ScrollbarState {
@@ -2189,6 +2436,185 @@ class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : Scrol
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
+    override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
+}
+
+private fun LazyListState.getFileKeyAt(offset: Offset): String? {
+    val items = layoutInfo.visibleItemsInfo
+    val matchedItem = items.firstOrNull { item ->
+        val y = offset.y.toInt()
+        y >= item.offset && y <= (item.offset + item.size)
+    }
+    return matchedItem?.key as? String
+}
+
+private fun LazyGridState.getFileKeyAt(offset: Offset): String? {
+    val items = layoutInfo.visibleItemsInfo
+    val matchedItem = items.firstOrNull { item ->
+        val x = offset.x.toInt()
+        val y = offset.y.toInt()
+        x >= item.offset.x && x <= (item.offset.x + item.size.width) &&
+        y >= item.offset.y && y <= (item.offset.y + item.size.height)
+    }
+    return matchedItem?.key as? String
+}
+
+private fun LazyStaggeredGridState.getFileKeyAt(offset: Offset): String? {
+    val items = layoutInfo.visibleItemsInfo
+    val matchedItem = items.firstOrNull { item ->
+        val x = offset.x.toInt()
+        val y = offset.y.toInt()
+        x >= item.offset.x && x <= (item.offset.x + item.size.width) &&
+        y >= item.offset.y && y <= (item.offset.y + item.size.height)
+    }
+    return matchedItem?.key as? String
+}
+
+fun Modifier.dragToSelect(
+    scrollbarState: ScrollbarState,
+    flatUiFiles: List<FileModel>,
+    selectedFiles: Set<String>,
+    onSelectMultiple: (List<String>) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    haptics: ArcileHaptics,
+    coroutineScope: kotlinx.coroutines.CoroutineScope
+): Modifier = this.pointerInput(flatUiFiles, selectedFiles) {
+    var initialIndex: Int? = null
+    var lastSelectedIndex: Int? = null
+    var selectMode = true
+    
+    var dragPosition by androidx.compose.runtime.mutableStateOf<Offset?>(null)
+    
+    // Auto scroll effect
+    coroutineScope.launch {
+        while (true) {
+            val currentDragPos = dragPosition
+            if (currentDragPos != null) {
+                val y = currentDragPos.y
+                val height = size.height
+                val threshold = 100f // pixels
+                
+                if (y < threshold) {
+                    val speed = ((threshold - y) / threshold * 30f).coerceIn(5f, 40f)
+                    scrollbarState.scrollBy(-speed)
+                    
+                    // Trigger selection check after scrolling
+                    val key = when (scrollbarState) {
+                        is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
+                        is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
+                        is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
+                        else -> null
+                    }
+                    if (key != null) {
+                        val idx = flatUiFiles.indexOfFirst { it.absolutePath == key }
+                        if (idx != -1 && idx != lastSelectedIndex && initialIndex != null) {
+                            val start = minOf(initialIndex!!, idx)
+                            val end = maxOf(initialIndex!!, idx)
+                            val targetFiles = flatUiFiles.subList(start, end + 1).map { it.absolutePath }
+                            val newSelection = if (selectMode) {
+                                selectedFiles + targetFiles
+                            } else {
+                                selectedFiles - targetFiles.toSet()
+                            }
+                            onSelectMultiple(newSelection.toList())
+                            haptics.selectionChanged()
+                            lastSelectedIndex = idx
+                        }
+                    }
+                } else if (y > height - threshold) {
+                    val speed = ((y - (height - threshold)) / threshold * 30f).coerceIn(5f, 40f)
+                    scrollbarState.scrollBy(speed)
+                    
+                    // Trigger selection check after scrolling
+                    val key = when (scrollbarState) {
+                        is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
+                        is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
+                        is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
+                        else -> null
+                    }
+                    if (key != null) {
+                        val idx = flatUiFiles.indexOfFirst { it.absolutePath == key }
+                        if (idx != -1 && idx != lastSelectedIndex && initialIndex != null) {
+                            val start = minOf(initialIndex!!, idx)
+                            val end = maxOf(initialIndex!!, idx)
+                            val targetFiles = flatUiFiles.subList(start, end + 1).map { it.absolutePath }
+                            val newSelection = if (selectMode) {
+                                selectedFiles + targetFiles
+                            } else {
+                                selectedFiles - targetFiles.toSet()
+                            }
+                            onSelectMultiple(newSelection.toList())
+                            haptics.selectionChanged()
+                            lastSelectedIndex = idx
+                        }
+                    }
+                }
+            }
+            delay(16) // ~60fps scroll loop
+        }
+    }
+    
+    detectDragGesturesAfterLongPress(
+        onDragStart = { offset ->
+            val key = when (scrollbarState) {
+                is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
+                is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
+                is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
+                else -> null
+            }
+            if (key != null) {
+                val index = flatUiFiles.indexOfFirst { it.absolutePath == key }
+                if (index != -1) {
+                    initialIndex = index
+                    lastSelectedIndex = index
+                    selectMode = key !in selectedFiles
+                    onToggleSelection(key)
+                    if (selectMode) haptics.selectionStart() else haptics.selectionChanged()
+                    dragPosition = offset
+                }
+            }
+        },
+        onDragEnd = {
+            initialIndex = null
+            lastSelectedIndex = null
+            dragPosition = null
+        },
+        onDragCancel = {
+            initialIndex = null
+            lastSelectedIndex = null
+            dragPosition = null
+        },
+        onDrag = { change, dragAmount ->
+            change.consume()
+            val initialIdx = initialIndex ?: return@detectDragGesturesAfterLongPress
+            val offset = change.position
+            dragPosition = offset
+            
+            val key = when (scrollbarState) {
+                is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
+                is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
+                is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
+                else -> null
+            }
+            if (key != null) {
+                val index = flatUiFiles.indexOfFirst { it.absolutePath == key }
+                if (index != -1 && index != lastSelectedIndex) {
+                    val start = minOf(initialIdx, index)
+                    val end = maxOf(initialIdx, index)
+                    val targetFiles = flatUiFiles.subList(start, end + 1).map { it.absolutePath }
+                    
+                    val newSelection = if (selectMode) {
+                        selectedFiles + targetFiles
+                    } else {
+                        selectedFiles - targetFiles.toSet()
+                    }
+                    onSelectMultiple(newSelection.toList())
+                    haptics.selectionChanged()
+                    lastSelectedIndex = index
+                }
+            }
+        }
+    )
 }
 
 @Composable

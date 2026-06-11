@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.4
-> **Last Updated:** 2026-06-10
+> **Version:** 1.0.5
+> **Last Updated:** 2026-06-11
 
 ---
+
+## [1.0.5] - 2026-06-11
+
+- **Interactive Gesture-Driven Image Viewer**: Consolidated competing touch listeners in the image viewer to support zoom-responsive panning with boundary resistance, double-tap zoom targeting, and elastic drag-to-dismiss transitions with backdrop fading.
+- **Privacy EXIF Metadata Scrubbing**: Added a detailed EXIF bottom sheet utilizing `ExifInterface` to display rich camera parameters, paths, sizes, dates, and locations. Introduced a secure metadata scrubbing action to strip all geolocation and camera attributes.
+- **Photos Timeline Dynamic Grouping**: Supported user-selectable chronological photos grouping (None, Day, Week, Month) on the Photos screen.
+- **Multi-Select Drag Selection**: Integrated a long-press-and-drag range selection helper in standard/staggered grids and list layouts. Handled layout headers correctly using visible items' keys, added auto-scrolling near the viewport boundaries, and generated tactile haptic clicks on selection change.
+- **Customizable Album Settings**: Implemented a dynamic grid column sizing slider, customizable sorting criteria (Name, Size), and aspect ratio previews on the Albums tab.
 
 ## [1.0.4] - 2026-06-10
 

@@ -73,6 +73,9 @@ fun NavGraphBuilder.imageGalleryScreen(
             onCreateZipFromSelection = viewModel::createZipFromSelection,
             onAspectRatioChange = viewModel::updateAspectRatio,
             onSectionedChange = viewModel::updateSectioned,
+            onGroupingChange = viewModel::updateGrouping,
+            onAlbumPresentationChange = viewModel::updateAlbumPresentation,
+            onAlbumAspectRatioChange = viewModel::updateAlbumAspectRatio,
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )

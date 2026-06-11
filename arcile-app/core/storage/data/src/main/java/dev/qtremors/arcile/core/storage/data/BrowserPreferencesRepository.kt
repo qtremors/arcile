@@ -14,6 +14,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,11 @@ class BrowserPreferencesRepository(
     private val IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY = booleanPreferencesKey("image_gallery_show_file_details")
     private val IMAGE_GALLERY_ASPECT_RATIO_KEY = booleanPreferencesKey("image_gallery_aspect_ratio")
     private val IMAGE_GALLERY_SECTIONED_KEY = booleanPreferencesKey("image_gallery_sectioned")
+    private val IMAGE_GALLERY_GROUPING_KEY = stringPreferencesKey("image_gallery_grouping")
+    private val ALBUM_VIEW_MODE_KEY = stringPreferencesKey("album_view_mode")
+    private val ALBUM_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("album_grid_min_cell_size")
+    private val ALBUM_SORT_OPTION_KEY = stringPreferencesKey("album_sort_option")
+    private val ALBUM_ASPECT_RATIO_KEY = booleanPreferencesKey("album_aspect_ratio")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
 
@@ -158,6 +164,25 @@ class BrowserPreferencesRepository(
                 }
             }
 
+            val groupingStr = prefs[IMAGE_GALLERY_GROUPING_KEY]
+            val grouping = ImageGalleryGrouping.entries.find { it.name == groupingStr }
+                ?: BrowserPreferences().imageGalleryGrouping
+
+            val albumPresentation = BrowserPresentationPreferences(
+                sortOption = parseSortOption(
+                    prefs[ALBUM_SORT_OPTION_KEY],
+                    BrowserPreferences().albumPresentation.sortOption
+                ),
+                viewMode = parseViewMode(prefs[ALBUM_VIEW_MODE_KEY]),
+                listZoom = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+                gridMinCellSize = prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY]
+                    ?: BrowserPreferences().albumPresentation.gridMinCellSize,
+                showThumbnails = true
+            ).normalized()
+
+            val albumAspectRatio = prefs[ALBUM_ASPECT_RATIO_KEY]
+                ?: BrowserPreferences().albumAspectRatio
+
             BrowserPreferences(
                 globalPresentation = globalPresentation,
                 recentPresentation = recentPresentation,
@@ -173,6 +198,9 @@ class BrowserPreferencesRepository(
                     ?: BrowserPreferences().imageGalleryAspectRatio,
                 imageGallerySectioned = prefs[IMAGE_GALLERY_SECTIONED_KEY]
                     ?: BrowserPreferences().imageGallerySectioned,
+                imageGalleryGrouping = grouping,
+                albumPresentation = albumPresentation,
+                albumAspectRatio = albumAspectRatio,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
@@ -228,6 +256,27 @@ class BrowserPreferencesRepository(
     override suspend fun updateImageGallerySectioned(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_SECTIONED_KEY] = enabled
+        }
+    }
+
+    override suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_GROUPING_KEY] = grouping.name
+        }
+    }
+
+    override suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+        val normalized = presentation.normalized()
+        dataStore.edit { prefs ->
+            prefs[ALBUM_SORT_OPTION_KEY] = normalized.sortOption.name
+            prefs[ALBUM_VIEW_MODE_KEY] = normalized.viewMode.name
+            prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+        }
+    }
+
+    override suspend fun updateAlbumAspectRatio(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[ALBUM_ASPECT_RATIO_KEY] = enabled
         }
     }
 

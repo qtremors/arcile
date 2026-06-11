@@ -12,6 +12,8 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
@@ -81,6 +83,13 @@ data class ImageGalleryState(
     val properties: dev.qtremors.arcile.shared.presentation.PropertiesUiModel? = null,
     val isAspectRatio: Boolean = false,
     val isSectioned: Boolean = false,
+    val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+        sortOption = FileSortOption.NAME_ASC,
+        viewMode = BrowserViewMode.GRID,
+        gridMinCellSize = 160f
+    ),
+    val albumAspectRatio: Boolean = false,
     val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
     val clipboardState: ClipboardState? = null
 )
@@ -94,6 +103,7 @@ class ImageGalleryViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val browserPreferencesStore: BrowserPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val _state = MutableStateFlow(
@@ -192,7 +202,10 @@ class ImageGalleryViewModel @Inject constructor(
                         presentation = persistedPresentation.normalized(),
                         showFileDetails = preferences.imageGalleryShowFileDetails,
                         isAspectRatio = preferences.imageGalleryAspectRatio,
-                        isSectioned = preferences.imageGallerySectioned
+                        isSectioned = preferences.imageGallerySectioned,
+                        imageGalleryGrouping = preferences.imageGalleryGrouping,
+                        albumPresentation = preferences.albumPresentation,
+                        albumAspectRatio = preferences.albumAspectRatio
                     ).withDisplayedFiles()
                 }
             }
@@ -351,6 +364,39 @@ class ImageGalleryViewModel @Inject constructor(
     fun updateSectioned(enabled: Boolean) {
         viewModelScope.launch {
             browserPreferencesStore.updateImageGallerySectioned(enabled)
+        }
+    }
+
+    fun updateGrouping(grouping: ImageGalleryGrouping) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateImageGalleryGrouping(grouping)
+        }
+    }
+
+    fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateAlbumPresentation(presentation)
+        }
+    }
+
+    fun updateAlbumAspectRatio(enabled: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateAlbumAspectRatio(enabled)
+        }
+    }
+
+    fun eraseMetadata(filePath: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isRefreshing = true) }
+            val success = withContext(Dispatchers.IO) {
+                ExifMetadataReader.eraseMetadata(filePath, context)
+            }
+            if (success) {
+                repository.invalidate(listOf(filePath))
+                loadImages(forceRefresh = true, silent = true)
+            } else {
+                _state.update { it.copy(isRefreshing = false, error = UiText.Dynamic("Failed to erase metadata")) }
+            }
         }
     }
 

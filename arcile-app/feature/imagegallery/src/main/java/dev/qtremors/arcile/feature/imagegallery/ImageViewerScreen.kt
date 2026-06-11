@@ -11,6 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -41,6 +46,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -132,11 +140,19 @@ fun ImageViewerScreen(
         color = Color.Black
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
+            var currentScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+            LaunchedEffect(pagerState.currentPage) {
+                currentScale = 1f
+            }
+
+            var showMetadataSheet by remember { mutableStateOf(false) }
+            val currentFileForSheet = displayedFiles.getOrNull(pagerState.currentPage)
+
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 beyondViewportPageCount = 1,
-                userScrollEnabled = true
+                userScrollEnabled = currentScale <= 1.05f
             ) { page ->
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
@@ -145,7 +161,61 @@ fun ImageViewerScreen(
                         file = file,
                         rotation = rotation,
                         onDismiss = onNavigateBack,
-                        onTap = { isUiVisible = !isUiVisible }
+                        onTap = { isUiVisible = !isUiVisible },
+                        onScaleChanged = { scaleVal ->
+                            if (pagerState.currentPage == page) {
+                                currentScale = scaleVal
+                            }
+                        },
+                        onSwipeUp = {
+                            showMetadataSheet = true
+                        }
+                    )
+                }
+            }
+
+            if (showMetadataSheet && currentFileForSheet != null) {
+                var metadata by remember(currentFileForSheet.absolutePath, state.isRefreshing) {
+                    mutableStateOf<GalleryFileMetadata?>(null)
+                }
+                LaunchedEffect(currentFileForSheet.absolutePath, state.isRefreshing) {
+                    if (!state.isRefreshing) {
+                        val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            ExifMetadataReader.readMetadata(currentFileForSheet.absolutePath, currentFileForSheet.mimeType)
+                        }
+                        metadata = data
+                    }
+                }
+
+                var showEraseDialog by remember { mutableStateOf(false) }
+
+                MetadataSheet(
+                    file = currentFileForSheet,
+                    metadata = metadata,
+                    onEraseMetadata = { showEraseDialog = true },
+                    onDismiss = { showMetadataSheet = false }
+                )
+
+                if (showEraseDialog) {
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { showEraseDialog = false },
+                        title = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_title)) },
+                        text = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_message)) },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(
+                                onClick = {
+                                    showEraseDialog = false
+                                    viewModel.eraseMetadata(currentFileForSheet.absolutePath)
+                                }
+                            ) {
+                                Text(stringResource(R.string.settings_clear_thumbnail_cache), color = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = { showEraseDialog = false }) {
+                                Text(stringResource(R.string.cancel))
+                            }
+                        }
                     )
                 }
             }
@@ -310,6 +380,8 @@ fun ZoomableImageViewer(
     rotation: Float,
     onDismiss: () -> Unit,
     onTap: () -> Unit,
+    onScaleChanged: (Float) -> Unit,
+    onSwipeUp: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -353,82 +425,182 @@ fun ZoomableImageViewer(
         modifier = modifier
             .fillMaxSize()
             .pointerInput(file) {
-                // Handle pinch-to-zoom and pan interactions
-                detectTransformGestures { _, pan, zoom, _ ->
-                    coroutineScope.launch {
-                        val newScale = (scale.value * zoom).coerceIn(1f, 4f)
-                        scale.snapTo(newScale)
-
-                        if (newScale > 1f) {
-                            // Pan relative to active zoom bounds
-                            val maxX = (newScale - 1f) * size.width / 2f
-                            val maxY = (newScale - 1f) * size.height / 2f
-                            offsetX.snapTo((offsetX.value + pan.x).coerceIn(-maxX, maxX))
-                            offsetY.snapTo((offsetY.value + pan.y).coerceIn(-maxY, maxY))
-                        }
-                    }
-                }
-            }
-            .pointerInput(file) {
-                // Double-tap zoom and Single-tap HUD toggle and Vertical Swipe-to-Dismiss mechanics
-                detectTapGestures(
-                    onDoubleTap = { tapOffset ->
-                        coroutineScope.launch {
-                            if (scale.value > 1f) {
-                                // Zoom out to normal
-                                launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
-                                launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
-                                launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
-                            } else {
-                                // Zoom in to 2.5x
-                                launch { scale.animateTo(2.5f, spring(stiffness = Spring.StiffnessMedium)) }
-                                // Center zoom target to double tap location
-                                val targetX = (size.width / 2f - tapOffset.x) * 1.5f
-                                val targetY = (size.height / 2f - tapOffset.y) * 1.5f
-                                launch { offsetX.animateTo(targetX, spring(stiffness = Spring.StiffnessMedium)) }
-                                launch { offsetY.animateTo(targetY, spring(stiffness = Spring.StiffnessMedium)) }
-                            }
-                        }
-                    },
-                    onTap = { onTap() }
-                )
-            }
-            .pointerInput(file) {
-                // Elastic vertical swipe-to-dismiss gesture
-                detectTransformGestures { _, pan, _, _ ->
-                    // Only dismiss if scale is roughly 1
-                    if (scale.value <= 1.05f) {
-                        coroutineScope.launch {
-                            val newY = offsetY.value + pan.y
-                            offsetY.snapTo(newY)
-                            // Add slight visual drift on X-axis during swipe
-                            offsetX.snapTo(offsetX.value + pan.x * 0.3f)
-                        }
-                    }
-                }
-            }
-            .pointerInput(file) {
-                // Reset gesture tracking upon release
-                awaitPointerEventScope {
+                val touchSlop = viewConfiguration.touchSlop
+                val doubleTapTimeout = 300L
+                var lastTapTime = 0L
+                var lastTapPosition = Offset.Zero
+                
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val downTime = System.currentTimeMillis()
+                    val downPos = down.position
+                    
+                    var isMultiTouch = false
+                    var dragStarted = false
+                    var dragDirection: DragDirection? = null
+                    
                     while (true) {
                         val event = awaitPointerEvent()
-                        val allReleased = event.changes.all { !it.pressed }
-                        if (allReleased && scale.value <= 1.05f) {
-                            val dragY = offsetY.value
-                            if (abs(dragY) > screenHeightPx * 0.15f) {
-                                // Exit swipe gesture threshold crossed: Dismiss screen
-                                coroutineScope.launch {
-                                    val targetY = if (dragY > 0) screenHeightPx else -screenHeightPx
-                                    offsetY.animateTo(targetY, spring(stiffness = Spring.StiffnessMedium))
-                                    onDismiss()
+                        val pointers = event.changes
+                        if (pointers.isEmpty() || pointers.all { !it.pressed }) {
+                            break
+                        }
+                        
+                        if (pointers.size >= 2) {
+                            isMultiTouch = true
+                            pointers.forEach { it.consume() }
+                            
+                            val zoomChange = event.calculateZoom()
+                            val panChange = event.calculatePan()
+                            
+                            coroutineScope.launch {
+                                val rawScale = scale.value * zoomChange
+                                val constrainedScale = if (rawScale < 0.8f) {
+                                    0.8f
+                                } else if (rawScale > 5f) {
+                                    5f
+                                } else {
+                                    rawScale
                                 }
-                            } else {
-                                // Snap back to center
-                                coroutineScope.launch {
-                                    launch { offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                                scale.snapTo(constrainedScale)
+                                onScaleChanged(constrainedScale)
+                                
+                                val newX = offsetX.value + panChange.x
+                                val newY = offsetY.value + panChange.y
+                                offsetX.snapTo(newX)
+                                offsetY.snapTo(newY)
+                            }
+                        } else if (pointers.size == 1 && !isMultiTouch) {
+                            val change = pointers[0]
+                            if (change.pressed) {
+                                val currentPos = change.position
+                                val delta = currentPos - change.previousPosition
+                                val totalDelta = currentPos - downPos
+                                
+                                if (!dragStarted) {
+                                    if (totalDelta.getDistance() > touchSlop) {
+                                        dragStarted = true
+                                        dragDirection = if (abs(totalDelta.y) > abs(totalDelta.x)) {
+                                            DragDirection.VERTICAL
+                                        } else {
+                                            DragDirection.HORIZONTAL
+                                        }
+                                    }
+                                }
+                                
+                                if (dragStarted) {
+                                    if (scale.value > 1.05f) {
+                                        change.consume()
+                                        coroutineScope.launch {
+                                            val maxX = (scale.value - 1f) * size.width / 2f
+                                            val maxY = (scale.value - 1f) * size.height / 2f
+                                            
+                                            val targetX = offsetX.value + delta.x
+                                            val targetY = offsetY.value + delta.y
+                                            
+                                            val newX = if (targetX < -maxX) {
+                                                -maxX - (-maxX - targetX) * 0.4f
+                                            } else if (targetX > maxX) {
+                                                maxX + (targetX - maxX) * 0.4f
+                                            } else {
+                                                targetX
+                                            }
+                                            
+                                            val newY = if (targetY < -maxY) {
+                                                -maxY - (-maxY - targetY) * 0.4f
+                                            } else if (targetY > maxY) {
+                                                maxY + (targetY - maxY) * 0.4f
+                                            } else {
+                                                targetY
+                                            }
+                                            
+                                            offsetX.snapTo(newX)
+                                            offsetY.snapTo(newY)
+                                        }
+                                    } else {
+                                        if (dragDirection == DragDirection.VERTICAL) {
+                                            change.consume()
+                                            coroutineScope.launch {
+                                                offsetY.snapTo(offsetY.value + delta.y)
+                                                offsetX.snapTo(offsetX.value + delta.x * 0.3f)
+                                            }
+                                        }
+                                    }
                                 }
                             }
+                        }
+                    }
+                    
+                    val releaseTime = System.currentTimeMillis()
+                    val dragY = offsetY.value
+                    
+                    if (isMultiTouch || scale.value > 1.05f) {
+                        coroutineScope.launch {
+                            val targetScale = scale.value.coerceIn(1f, 4f)
+                            if (scale.value != targetScale) {
+                                launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
+                                onScaleChanged(targetScale)
+                            }
+                            
+                            val maxX = (targetScale - 1f) * size.width / 2f
+                            val maxY = (targetScale - 1f) * size.height / 2f
+                            val targetX = offsetX.value.coerceIn(-maxX, maxX)
+                            val targetY = offsetY.value.coerceIn(-maxY, maxY)
+                            
+                            if (offsetX.value != targetX) {
+                                launch { offsetX.animateTo(targetX, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                            }
+                            if (offsetY.value != targetY) {
+                                launch { offsetY.animateTo(targetY, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                            }
+                        }
+                    } else if (dragStarted && dragDirection == DragDirection.VERTICAL) {
+                        if (dragY > screenHeightPx * 0.15f) {
+                            coroutineScope.launch {
+                                offsetY.animateTo(screenHeightPx, spring(stiffness = Spring.StiffnessMedium))
+                                onDismiss()
+                            }
+                        } else if (dragY < -screenHeightPx * 0.08f) {
+                            coroutineScope.launch {
+                                launch { offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                                launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                            }
+                            onSwipeUp()
+                        } else {
+                            coroutineScope.launch {
+                                launch { offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                                launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                            }
+                        }
+                    } else if (!dragStarted && (releaseTime - downTime) < 300L) {
+                        val timeDiff = releaseTime - lastTapTime
+                        val distDiff = (downPos - lastTapPosition).getDistance()
+                        if (timeDiff < doubleTapTimeout && distDiff < touchSlop * 2) {
+                            coroutineScope.launch {
+                                if (scale.value > 1.05f) {
+                                    launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    onScaleChanged(1f)
+                                } else {
+                                    val targetScale = 2.5f
+                                    launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
+                                    onScaleChanged(targetScale)
+                                    
+                                    val maxX = (targetScale - 1f) * size.width / 2f
+                                    val maxY = (targetScale - 1f) * size.height / 2f
+                                    val targetX = ((size.width / 2f - downPos.x) * (targetScale - 1f)).coerceIn(-maxX, maxX)
+                                    val targetY = ((size.height / 2f - downPos.y) * (targetScale - 1f)).coerceIn(-maxY, maxY)
+                                    launch { offsetX.animateTo(targetX, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetY.animateTo(targetY, spring(stiffness = Spring.StiffnessMedium)) }
+                                }
+                            }
+                            lastTapTime = 0L
+                            lastTapPosition = Offset.Zero
+                        } else {
+                            onTap()
+                            lastTapTime = releaseTime
+                            lastTapPosition = downPos
                         }
                     }
                 }
@@ -469,4 +641,177 @@ private fun formatFileSize(size: Long): String {
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
     return String.format("%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MetadataSheet(
+    file: FileModel,
+    metadata: GalleryFileMetadata?,
+    onEraseMetadata: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.image_gallery_metadata_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+
+                val hasExif = remember(metadata) {
+                    metadata != null && (
+                        metadata.cameraMaker != null ||
+                        metadata.cameraModel != null ||
+                        metadata.latitude != null ||
+                        metadata.longitude != null ||
+                        metadata.dateTaken != null
+                    )
+                }
+
+                if (hasExif) {
+                    IconButton(onClick = onEraseMetadata) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.image_gallery_metadata_erase),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    MetadataSectionHeader(title = "File Information")
+                    MetadataRow(label = "Path", value = file.absolutePath)
+                    MetadataRow(label = "Size", value = formatFileSize(file.size))
+                    if (metadata != null && metadata.width > 0) {
+                        MetadataRow(
+                            label = "Dimensions",
+                            value = "${metadata.width} x ${metadata.height} (${metadata.megapixel} MP)"
+                        )
+                    }
+                    if (metadata?.mimeType != null) {
+                        MetadataRow(label = "Mime Type", value = metadata.mimeType)
+                    }
+                    if (metadata?.dateTaken != null) {
+                        MetadataRow(label = "Date Taken", value = metadata.dateTaken)
+                    }
+                }
+
+                if (metadata != null && (
+                    metadata.cameraMaker != null ||
+                    metadata.cameraModel != null ||
+                    metadata.lensModel != null ||
+                    metadata.iso != null ||
+                    metadata.exposureTime != null ||
+                    metadata.fNumber != null ||
+                    metadata.focalLength != null
+                )) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MetadataSectionHeader(title = "Camera & EXIF")
+                        if (metadata.cameraMaker != null || metadata.cameraModel != null) {
+                            MetadataRow(
+                                label = "Device",
+                                value = listOfNotNull(metadata.cameraMaker, metadata.cameraModel).joinToString(" ")
+                            )
+                        }
+                        if (metadata.lensModel != null) {
+                            MetadataRow(label = "Lens", value = metadata.lensModel)
+                        }
+                        if (metadata.exposureTime != null) {
+                            MetadataRow(label = "Exposure Time", value = metadata.exposureTime)
+                        }
+                        if (metadata.fNumber != null) {
+                            MetadataRow(label = "Aperture", value = "f/${metadata.fNumber}")
+                        }
+                        if (metadata.iso != null) {
+                            MetadataRow(label = "ISO", value = metadata.iso.toString())
+                        }
+                        if (metadata.focalLength != null) {
+                            MetadataRow(label = "Focal Length", value = "${metadata.focalLength} mm")
+                        }
+                        if (metadata.whiteBalance != null) {
+                            MetadataRow(label = "White Balance", value = metadata.whiteBalance)
+                        }
+                        if (metadata.flash != null) {
+                            MetadataRow(label = "Flash", value = metadata.flash)
+                        }
+                    }
+                }
+
+                if (metadata?.latitude != null && metadata.longitude != null) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        MetadataSectionHeader(title = "Location")
+                        MetadataRow(label = "Coordinates", value = "${metadata.latitude}, ${metadata.longitude}")
+                        if (metadata.altitude != null) {
+                            MetadataRow(label = "Altitude", value = "${metadata.altitude} m")
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MetadataSectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.primary,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(vertical = 8.dp)
+    )
+}
+
+@Composable
+fun MetadataRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(120.dp)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+private enum class DragDirection {
+    VERTICAL, HORIZONTAL
 }

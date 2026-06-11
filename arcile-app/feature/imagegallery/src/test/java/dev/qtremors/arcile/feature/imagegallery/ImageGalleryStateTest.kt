@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.imagegallery
 
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
@@ -33,6 +34,18 @@ class ImageGalleryStateTest {
         assertTrue(state.isAspectRatio)
         assertTrue(state.isSectioned)
         assertEquals(1.5f, state.aspectRatios["path/to/img"])
+    }
+
+    @Test
+    fun `dynamic image gallery grouping options are stored correctly in state`() {
+        val state = ImageGalleryState(
+            imageGalleryGrouping = ImageGalleryGrouping.DAY,
+            albumPresentation = BrowserPresentationPreferences(gridMinCellSize = 180f),
+            albumAspectRatio = true
+        )
+        assertEquals(ImageGalleryGrouping.DAY, state.imageGalleryGrouping)
+        assertEquals(180f, state.albumPresentation.gridMinCellSize)
+        assertTrue(state.albumAspectRatio)
     }
 
     @Test

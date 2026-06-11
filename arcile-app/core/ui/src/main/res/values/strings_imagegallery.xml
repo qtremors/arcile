@@ -23,4 +23,8 @@
     <string name="image_gallery_tab_photos">Photos</string>
     <string name="image_gallery_tab_albums">Albums</string>
     <string name="image_gallery_album_count">%1$d items</string>
+    <string name="image_gallery_metadata_title">Details</string>
+    <string name="image_gallery_metadata_erase">Erase EXIF metadata</string>
+    <string name="image_gallery_metadata_erase_dialog_title">Erase EXIF Metadata</string>
+    <string name="image_gallery_metadata_erase_dialog_message">Are you sure you want to permanently strip EXIF, camera details, and GPS tags from this file? This cannot be undone.</string>
 </resources>

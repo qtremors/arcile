@@ -58,6 +58,7 @@ dependencies {
     ksp(libs.hilt.compiler)
 
     implementation(libs.coil.compose)
+    implementation(libs.androidx.exifinterface)
 
     testImplementation(project(":core:testing"))
     testImplementation(libs.junit)
