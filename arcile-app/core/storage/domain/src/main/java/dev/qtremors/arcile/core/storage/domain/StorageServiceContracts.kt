@@ -23,6 +23,8 @@ interface BrowserPreferencesStore {
         applyToSubfolders: Boolean = false
     )
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
+    suspend fun updateFavorite(path: String, isFavorite: Boolean)
+    suspend fun updateAlbumCover(albumPath: String, coverPath: String)
 }
 
 interface OnboardingPreferencesStore {

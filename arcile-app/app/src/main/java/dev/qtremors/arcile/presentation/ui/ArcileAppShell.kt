@@ -71,6 +71,7 @@ fun ArcileAppShell(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
+    onOpenFileWith: (String) -> Unit,
     onRestartApp: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -125,6 +126,7 @@ fun ArcileAppShell(
                     currentThemeState = currentThemeState,
                     onThemeChange = onThemeChange,
                     onOpenFile = onOpenFile,
+                    onOpenFileWith = onOpenFileWith,
                     onRestartApp = onRestartApp,
                     onFeedback = { feedbackEvents.tryEmit(it) }
                 )

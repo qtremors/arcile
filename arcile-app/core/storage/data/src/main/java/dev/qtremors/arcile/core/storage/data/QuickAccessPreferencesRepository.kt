@@ -101,6 +101,14 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 isEnabled = true
             ),
             QuickAccessItem(
+                id = "standard_whatsapp_media",
+                label = "WhatsApp",
+                path = "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media",
+                type = QuickAccessType.STANDARD,
+                isPinned = true,
+                isEnabled = true
+            ),
+            QuickAccessItem(
                 id = "standard_pictures",
                 label = "Pictures",
                 path = File(root, Environment.DIRECTORY_PICTURES).absolutePath,

@@ -23,7 +23,8 @@ data class ImageGallerySnapshot(
 data class ImageGalleryAlbum(
     val path: String?,
     val label: String,
-    val count: Int
+    val count: Int,
+    val lastModified: Long
 )
 
 class DefaultImageGalleryRepository @Inject constructor(
@@ -81,10 +82,12 @@ class DefaultImageGalleryRepository @Inject constructor(
         return grouped.entries
             .sortedByDescending { it.value.size }
             .map { (path, albumFiles) ->
+                val lastModified = albumFiles.maxOfOrNull { it.lastModified } ?: 0L
                 ImageGalleryAlbum(
                     path = path,
                     label = path?.substringAfterLast(File.separatorChar)?.ifBlank { path } ?: "Unknown",
-                    count = albumFiles.size
+                    count = albumFiles.size,
+                    lastModified = lastModified
                 )
             }
     }

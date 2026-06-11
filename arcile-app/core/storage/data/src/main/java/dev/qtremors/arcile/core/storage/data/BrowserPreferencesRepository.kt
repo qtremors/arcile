@@ -22,6 +22,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import java.io.IOException
 
 val Context.browserDataStore by preferencesDataStore(name = "browser_prefs")
@@ -58,6 +61,8 @@ class BrowserPreferencesRepository(
     private val ALBUM_ASPECT_RATIO_KEY = booleanPreferencesKey("album_aspect_ratio")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
+    private val FAVORITE_FILES_KEY = stringPreferencesKey("gallery_favorites")
+    private val ALBUM_COVERS_KEY = stringPreferencesKey("gallery_album_covers")
 
     override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
@@ -73,7 +78,10 @@ class BrowserPreferencesRepository(
                     prefs[GLOBAL_SORT_KEY],
                     BrowserPresentationPreferences.DEFAULT_SORT_OPTION
                 ),
-                viewMode = parseViewMode(prefs[GLOBAL_VIEW_MODE_KEY]),
+                viewMode = parseViewMode(
+                    prefs[GLOBAL_VIEW_MODE_KEY],
+                    BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+                ),
                 listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
@@ -85,7 +93,10 @@ class BrowserPreferencesRepository(
                     prefs[RECENT_SORT_KEY],
                     BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION
                 ),
-                viewMode = parseViewMode(prefs[RECENT_VIEW_MODE_KEY]),
+                viewMode = parseViewMode(
+                    prefs[RECENT_VIEW_MODE_KEY],
+                    BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+                ),
                 listZoom = prefs[RECENT_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[RECENT_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
@@ -119,7 +130,7 @@ class BrowserPreferencesRepository(
                         pathMap[path] = currentPresentation(
                             pathMap[path],
                             globalPresentation
-                        ).copy(viewMode = parseViewMode(value))
+                        ).copy(viewMode = parseViewMode(value, BrowserPresentationPreferences.DEFAULT_VIEW_MODE))
                     }
 
                     key.name.startsWith("exact_path_view_mode_") && value is String -> {
@@ -127,7 +138,7 @@ class BrowserPreferencesRepository(
                         exactPathMap[path] = currentPresentation(
                             exactPathMap[path],
                             globalPresentation
-                        ).copy(viewMode = parseViewMode(value))
+                        ).copy(viewMode = parseViewMode(value, BrowserPresentationPreferences.DEFAULT_VIEW_MODE))
                     }
 
                     key.name.startsWith("path_list_zoom_") && value is Float -> {
@@ -173,7 +184,10 @@ class BrowserPreferencesRepository(
                     prefs[ALBUM_SORT_OPTION_KEY],
                     BrowserPreferences().albumPresentation.sortOption
                 ),
-                viewMode = parseViewMode(prefs[ALBUM_VIEW_MODE_KEY]),
+                viewMode = parseViewMode(
+                    prefs[ALBUM_VIEW_MODE_KEY],
+                    BrowserPreferences().albumPresentation.viewMode
+                ),
                 listZoom = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPreferences().albumPresentation.gridMinCellSize,
@@ -182,6 +196,20 @@ class BrowserPreferencesRepository(
 
             val albumAspectRatio = prefs[ALBUM_ASPECT_RATIO_KEY]
                 ?: BrowserPreferences().albumAspectRatio
+
+            val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
+            val favoriteFiles: Set<String> = if (!favoriteFilesStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
+            } else {
+                emptySet()
+            }
+
+            val albumCoversStr = prefs[ALBUM_COVERS_KEY]
+            val albumCovers: Map<String, String> = if (!albumCoversStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
 
             BrowserPreferences(
                 globalPresentation = globalPresentation,
@@ -201,6 +229,8 @@ class BrowserPreferencesRepository(
                 imageGalleryGrouping = grouping,
                 albumPresentation = albumPresentation,
                 albumAspectRatio = albumAspectRatio,
+                favoriteFiles = favoriteFiles,
+                albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
@@ -312,12 +342,46 @@ class BrowserPreferencesRepository(
         }
     }
 
+    override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
+        dataStore.edit { prefs ->
+            val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
+            val currentFavorites = if (!favoriteFilesStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
+            } else {
+                emptySet()
+            }
+            val newFavorites = if (isFavorite) {
+                currentFavorites + path
+            } else {
+                currentFavorites - path
+            }
+            prefs[FAVORITE_FILES_KEY] = Json.encodeToString(newFavorites)
+        }
+    }
+
+    override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
+        dataStore.edit { prefs ->
+            val albumCoversStr = prefs[ALBUM_COVERS_KEY]
+            val currentCovers = if (!albumCoversStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
+            val newCovers = if (coverPath.isEmpty()) {
+                currentCovers - albumPath
+            } else {
+                currentCovers + (albumPath to coverPath)
+            }
+            prefs[ALBUM_COVERS_KEY] = Json.encodeToString(newCovers)
+        }
+    }
+
     private fun parseSortOption(value: String?, fallback: FileSortOption): FileSortOption {
         return FileSortOption.entries.find { it.name == value } ?: fallback
     }
 
-    private fun parseViewMode(value: String?): BrowserViewMode {
-        return BrowserViewMode.entries.find { it.name == value } ?: BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+    private fun parseViewMode(value: String?, fallback: BrowserViewMode): BrowserViewMode {
+        return BrowserViewMode.entries.find { it.name == value } ?: fallback
     }
 
     private fun currentPresentation(

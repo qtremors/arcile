@@ -3,6 +3,9 @@ package dev.qtremors.arcile
 import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import coil.decode.GifDecoder
+import coil.decode.ImageDecoderDecoder
+import coil.decode.SvgDecoder
 import coil.decode.VideoFrameDecoder
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
@@ -70,6 +73,9 @@ class ArcileApp : Application(), ImageLoaderFactory {
                     .build()
             }
             .components {
+                add(ImageDecoderDecoder.Factory())
+                add(GifDecoder.Factory())
+                add(SvgDecoder.Factory())
                 add(PdfThumbnailFetcher.Factory())
                 add(PdfThumbnailFetcher.KeyFactory())
                 add(VideoThumbnailFetcher.Factory())

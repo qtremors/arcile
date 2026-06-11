@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
+import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import dev.qtremors.arcile.utils.AppLogger
@@ -31,6 +33,12 @@ object ExternalFileAccessHelper {
         val mimeType: String,
         val displayName: String,
         val sizeBytes: Long
+    )
+
+    private data class OpenTarget(
+        val uri: Uri,
+        val mimeType: String,
+        val displayName: String
     )
 
     internal var directOpenUriFactory: (Context, File) -> Uri = ::createFileProviderUri
@@ -151,6 +159,15 @@ object ExternalFileAccessHelper {
             .getMimeTypeFromExtension(file.extension.lowercase())
             ?: "*/*"
 
+    private fun mimeTypeForPath(path: String, fallback: String? = null): String =
+        fallback
+            ?: MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase())
+            ?: "*/*"
+
+    private fun isContentReference(reference: String): Boolean =
+        runCatching { Uri.parse(reference).scheme == "content" }.getOrDefault(false)
+
     private fun createFileProviderUri(context: Context, file: File): Uri =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
@@ -187,31 +204,92 @@ object ExternalFileAccessHelper {
     }
 
     suspend fun createOpenIntent(context: Context, path: String): Intent {
-        val sourceFile = File(path)
-        require(sourceFile.exists() && sourceFile.isFile) { "Source file does not exist" }
-        require(isAllowedUserFile(context, sourceFile)) { "Unsupported file path" }
-
-        val uri = runCatching {
-            directOpenUriFactory(context, sourceFile)
-        }.getOrElse { error ->
-            throw IllegalArgumentException("Unable to create file access grant", error)
+        val target = if (isContentReference(path)) {
+            val uri = Uri.parse(path)
+            OpenTarget(
+                uri = uri,
+                mimeType = context.contentResolver.getType(uri) ?: mimeTypeForPath(path),
+                displayName = displayNameForContentUri(context, uri) ?: uri.lastPathSegment ?: "File"
+            )
+        } else {
+            val sourceFile = File(path)
+            require(isAllowedUserFile(context, sourceFile)) { "Unsupported file path" }
+            if (sourceFile.exists() && sourceFile.isFile) {
+                val uri = runCatching {
+                    directOpenUriFactory(context, sourceFile)
+                }.getOrElse { error ->
+                    throw IllegalArgumentException("Unable to create file access grant", error)
+                }
+                OpenTarget(uri = uri, mimeType = mimeTypeFor(sourceFile), displayName = sourceFile.name)
+            } else {
+                resolveMediaStoreOpenTarget(context, path)
+                    ?: throw IllegalArgumentException("Source file does not exist")
+            }
         }
         return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, mimeTypeFor(sourceFile))
+            setDataAndType(target.uri, target.mimeType)
+            putExtra(Intent.EXTRA_TITLE, target.displayName)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
+
+    private suspend fun resolveMediaStoreOpenTarget(context: Context, path: String): OpenTarget? =
+        withContext(Dispatchers.IO) {
+            val projection = arrayOf(
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.MIME_TYPE,
+                MediaStore.MediaColumns.VOLUME_NAME
+            )
+            context.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                projection,
+                "${MediaStore.Files.FileColumns.DATA} = ?",
+                arrayOf(path),
+                null
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@withContext null
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID))
+                val name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME))
+                    ?: File(path).name
+                val mimeType = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE))
+                val volumeNameIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
+                val volumeName = if (volumeNameIndex >= 0 && !cursor.isNull(volumeNameIndex)) {
+                    cursor.getString(volumeNameIndex)
+                } else {
+                    MediaStore.VOLUME_EXTERNAL
+                }
+                OpenTarget(
+                    uri = android.content.ContentUris.withAppendedId(
+                        MediaStore.Files.getContentUri(volumeName ?: MediaStore.VOLUME_EXTERNAL),
+                        id
+                    ),
+                    mimeType = mimeTypeForPath(path, mimeType),
+                    displayName = name
+                )
+            }
+        }
 
     suspend fun createShareUris(context: Context, filePaths: List<String>): List<Uri> {
         return createShareTargets(context, filePaths).map { it.uri }
     }
 
     suspend fun createShareTargets(context: Context, filePaths: List<String>): List<ShareTarget> = withContext(Dispatchers.IO) {
-        val files = filePaths.map(::File)
+        val files = filePaths.filterNot(::isContentReference).map(::File)
         validateShareBatch(files)
 
-        files.mapNotNull { file ->
+        filePaths.mapNotNull { reference ->
             runCatching {
+                if (isContentReference(reference)) {
+                    val uri = Uri.parse(reference)
+                    return@runCatching ShareTarget(
+                        uri = uri,
+                        mimeType = context.contentResolver.getType(uri) ?: mimeTypeForPath(reference),
+                        displayName = displayNameForContentUri(context, uri) ?: uri.lastPathSegment ?: "File",
+                        sizeBytes = sizeForContentUri(context, uri) ?: 0L
+                    )
+                }
+                val file = File(reference)
                 val stagedFile = stageFile(context, file, SHARE_STAGING)
                 ShareTarget(
                     uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile),
@@ -221,10 +299,35 @@ object ExternalFileAccessHelper {
                 )
             }.getOrElse { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: ${file.absolutePath}")
+                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: $reference")
                 null
             }
         }
+    }
+
+    private fun displayNameForContentUri(context: Context, uri: Uri): String? =
+        queryContentUriColumn(context, uri, OpenableColumns.DISPLAY_NAME) { cursor, index ->
+            cursor.getString(index)
+        }
+
+    private fun sizeForContentUri(context: Context, uri: Uri): Long? =
+        queryContentUriColumn(context, uri, OpenableColumns.SIZE) { cursor, index ->
+            cursor.getLong(index)
+        }
+
+    private fun <T> queryContentUriColumn(
+        context: Context,
+        uri: Uri,
+        column: String,
+        read: (android.database.Cursor, Int) -> T
+    ): T? {
+        return runCatching {
+            context.contentResolver.query(uri, arrayOf(column), null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(column)
+                if (index < 0 || cursor.isNull(index)) null else read(cursor, index)
+            }
+        }.getOrNull()
     }
 
     fun openInFilesApp(context: Context, uriString: String): Boolean {

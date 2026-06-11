@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
@@ -98,6 +99,7 @@ fun StorageSummaryCard(
                     volume = volume,
                     categoryStorages = volumeCategories,
                     trashBytes = volumeTrashBytes,
+                    isLoading = state.isLoading || state.isCalculatingStorage,
                     onClick = { onNavigateToPath(volume.path) },
                     onLongClick = {
                         if (volume.kind.isIndexed) {
@@ -246,10 +248,12 @@ fun StorageVolumeCard(
     volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
     categoryStorages: List<CategoryStorage>,
     trashBytes: Long,
+    isLoading: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     val used = volume.totalBytes - volume.freeBytes
+    val showPlaceholder = isLoading || volume.totalBytes <= 0L
     
     Card(
         modifier = Modifier
@@ -318,11 +322,11 @@ fun StorageVolumeCard(
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
 
             MultiColorStorageBar(
-                totalBytes = volume.totalBytes,
-                freeBytes = volume.freeBytes,
+                totalBytes = volume.totalBytes.takeIf { it > 0L } ?: 1L,
+                freeBytes = volume.freeBytes.takeIf { volume.totalBytes > 0L } ?: 1L,
                 categoryStorages = categoryStorages,
                 trashBytes = trashBytes,
-                isCalculating = false // Individual volume status can be secondary or tied to global
+                isCalculating = showPlaceholder
             )
 
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
@@ -380,6 +384,7 @@ fun MultiColorStorageBar(
             .height(barHeight)
             .clip(barShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .testTag(if (isCalculating) "storage_bar_loading" else "storage_bar")
             .shimmer(visible = isCalculating, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
     ) {
         if (hasData || isCalculating) {

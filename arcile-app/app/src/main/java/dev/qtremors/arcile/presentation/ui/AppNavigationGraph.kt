@@ -70,6 +70,7 @@ fun AppNavigationGraph(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
+    onOpenFileWith: (String) -> Unit,
     onRestartApp: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
@@ -492,7 +493,8 @@ fun AppNavigationGraph(
                         coroutineScope.launch {
                             dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
                         }
-                    }
+                    },
+                    onOpenFileWith = onOpenFileWith
                 )
                 composable<AppRoutes.Tools>(
                     enterTransition = utilityEnterTransition,

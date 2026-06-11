@@ -27,4 +27,9 @@
     <string name="image_gallery_metadata_erase">Erase EXIF metadata</string>
     <string name="image_gallery_metadata_erase_dialog_title">Erase EXIF Metadata</string>
     <string name="image_gallery_metadata_erase_dialog_message">Are you sure you want to permanently strip EXIF, camera details, and GPS tags from this file? This cannot be undone.</string>
+    <string name="image_gallery_favorite">Favorite</string>
+    <string name="image_gallery_set_as_cover">Set as Album Cover</string>
+    <string name="image_gallery_cover_set_success">Album cover updated</string>
+    <string name="image_gallery_favorites_folder">Favorites</string>
+    <string name="image_gallery_open_with">Open with…</string>
 </resources>

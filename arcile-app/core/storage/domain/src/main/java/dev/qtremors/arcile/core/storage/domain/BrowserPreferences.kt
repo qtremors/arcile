@@ -59,6 +59,8 @@ data class BrowserPreferences(
         gridMinCellSize = 160f
     ),
     val albumAspectRatio: Boolean = false,
+    val favoriteFiles: Set<String> = emptySet(),
+    val albumCovers: Map<String, String> = emptyMap(),
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null
 ) {

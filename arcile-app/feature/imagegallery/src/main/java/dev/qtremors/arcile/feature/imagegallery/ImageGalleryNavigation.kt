@@ -71,6 +71,7 @@ fun NavGraphBuilder.imageGalleryScreen(
             onCutSelected = viewModel::cutSelectedToClipboard,
             onRenameFile = viewModel::renameFile,
             onCreateZipFromSelection = viewModel::createZipFromSelection,
+            onSetAlbumCover = viewModel::setAlbumCover,
             onAspectRatioChange = viewModel::updateAspectRatio,
             onSectionedChange = viewModel::updateSectioned,
             onGroupingChange = viewModel::updateGrouping,
@@ -89,7 +90,8 @@ fun NavGraphBuilder.imageViewerScreen(
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onShareFile: (String) -> Unit
+    onShareFile: (String) -> Unit,
+    onOpenFileWith: (String) -> Unit
 ) {
     composable<AppRoutes.ImageViewer>(
         enterTransition = enterTransition,
@@ -113,7 +115,8 @@ fun NavGraphBuilder.imageViewerScreen(
             initialPath = route.initialPath,
             viewModel = viewModel,
             onNavigateBack = onNavigateBack,
-            onShareFile = onShareFile
+            onShareFile = onShareFile,
+            onOpenWith = onOpenFileWith
         )
     }
 }

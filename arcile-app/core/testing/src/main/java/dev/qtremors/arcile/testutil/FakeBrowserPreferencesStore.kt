@@ -102,4 +102,25 @@ class FakeBrowserPreferencesStore(
     override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
         lastUpdatedPath = path
     }
+
+    override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
+        val currentFavorites = preferences.value.favoriteFiles
+        val newFavorites = if (isFavorite) {
+            currentFavorites + path
+        } else {
+            currentFavorites - path
+        }
+        preferences.value = preferences.value.copy(favoriteFiles = newFavorites)
+    }
+
+    override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
+        val currentCovers = preferences.value.albumCovers
+        val newCovers = if (coverPath.isEmpty()) {
+            currentCovers - albumPath
+        } else {
+            currentCovers + (albumPath to coverPath)
+        }
+        preferences.value = preferences.value.copy(albumCovers = newCovers)
+    }
+
 }

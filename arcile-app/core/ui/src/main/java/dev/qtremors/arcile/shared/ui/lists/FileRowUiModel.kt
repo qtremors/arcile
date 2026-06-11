@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.shared.ui.lists
 
 import androidx.compose.runtime.Immutable
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -82,7 +83,8 @@ fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any 
         ThumbnailType.Pdf,
         ThumbnailType.Apk -> thumbnailKey
         ThumbnailType.Image,
-        ThumbnailType.Unsupported -> File(file.absolutePath)
+        ThumbnailType.Unsupported -> file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+            ?: File(file.absolutePath)
     }
 
 @Composable

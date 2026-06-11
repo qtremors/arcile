@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 105
-        versionName = "1.0.5"
+        versionCode = 106
+        versionName = "1.0.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -147,6 +147,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
+    implementation(libs.coil.gif)
+    implementation(libs.coil.svg)
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.material.kolor)

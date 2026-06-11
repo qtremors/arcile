@@ -183,6 +183,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onOpenFile = { path -> openFile(path) },
+                            onOpenFileWith = { path -> openFileWith(path) },
                             onRestartApp = { restartApp() }
                         )
                     } else {
@@ -207,7 +208,9 @@ class MainActivity : ComponentActivity() {
     private fun openFile(path: String) {
         lifecycleScope.launch {
             try {
-                if (!ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))) {
+                if (!path.isContentReference() &&
+                    !ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))
+                ) {
                     Toast.makeText(this@MainActivity, getString(R.string.cannot_open_sensitive_files), Toast.LENGTH_SHORT).show()
                     return@launch
                 }
@@ -215,6 +218,27 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.e("Arcile", "Failed to open file", e)
+                val reason = e.localizedMessage ?: getString(R.string.no_app_found)
+                Toast.makeText(this@MainActivity, getString(R.string.cannot_open_file, reason), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun openFileWith(path: String) {
+        lifecycleScope.launch {
+            try {
+                if (!path.isContentReference() &&
+                    !ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))
+                ) {
+                    Toast.makeText(this@MainActivity, getString(R.string.cannot_open_sensitive_files), Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val intent = ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path)
+                val chooser = android.content.Intent.createChooser(intent, getString(R.string.image_gallery_open_with))
+                startActivity(chooser)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                AppLogger.e("Arcile", "Failed to open file with chooser", e)
                 val reason = e.localizedMessage ?: getString(R.string.no_app_found)
                 Toast.makeText(this@MainActivity, getString(R.string.cannot_open_file, reason), Toast.LENGTH_SHORT).show()
             }
@@ -275,5 +299,8 @@ class MainActivity : ComponentActivity() {
             Trace.endSection()
         }
     }
+
+    private fun String.isContentReference(): Boolean =
+        runCatching { android.net.Uri.parse(this).scheme == "content" }.getOrDefault(false)
 }
 

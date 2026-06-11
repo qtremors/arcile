@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.presentation.ui.components.home
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
@@ -24,14 +27,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
+
+private const val WHATSAPP_MEDIA_QUICK_ACCESS_ID = "standard_whatsapp_media"
+private const val WHATSAPP_PACKAGE_NAME = "com.whatsapp"
 
 @Composable
 fun QuickAccessGrid(
@@ -41,12 +51,16 @@ fun QuickAccessGrid(
     onNavigateToSaf: (String) -> Unit
 ) {
     fun getIconForItem(item: QuickAccessItem): ImageVector {
-        if (item.type == QuickAccessType.FILES_APP || item.type == QuickAccessType.EXTERNAL_HANDOFF) {
+        if (item.type == QuickAccessType.FILES_APP) {
+            return Icons.Outlined.Folder
+        }
+        if (item.type == QuickAccessType.EXTERNAL_HANDOFF) {
             return Icons.AutoMirrored.Outlined.OpenInNew
         }
         return when (item.label.lowercase()) {
             "dcim" -> Icons.Outlined.CameraAlt
             "downloads", "download" -> Icons.Outlined.Download
+            "whatsapp" -> Icons.Outlined.Chat
             "pictures", "images" -> Icons.Outlined.Image
             "documents", "docs" -> Icons.Outlined.Description
             "music", "audio" -> Icons.Outlined.MusicNote
@@ -54,6 +68,7 @@ fun QuickAccessGrid(
             else -> Icons.Outlined.Folder
         }
     }
+
 
     val allFilesLabel = stringResource(R.string.all_files)
     // Include "All Files" as the final fallback action
@@ -105,11 +120,10 @@ fun QuickAccessGrid(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = getIconForItem(folder),
-                                contentDescription = folder.label,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                            QuickAccessIcon(
+                                item = folder,
+                                packageName = packageNameForQuickAccessItem(folder),
+                                fallbackIcon = getIconForItem(folder)
                             )
                             val displayLabel = folder.label.trimEnd('/').let { cleaned ->
                                 val lastSlash = cleaned.lastIndexOf('/')
@@ -134,4 +148,43 @@ fun QuickAccessGrid(
             }
         }
     }
+}
+
+internal fun packageNameForQuickAccessItem(item: QuickAccessItem): String? {
+    return when (item.id) {
+        WHATSAPP_MEDIA_QUICK_ACCESS_ID -> WHATSAPP_PACKAGE_NAME
+        else -> null
+    }
+}
+
+@Composable
+private fun QuickAccessIcon(
+    item: QuickAccessItem,
+    packageName: String?,
+    fallbackIcon: ImageVector
+) {
+    val context = LocalContext.current
+    val appIcon = remember(context, packageName) {
+        packageName?.let { context.loadApplicationIconBitmap(it) }
+    }
+    if (appIcon != null) {
+        Image(
+            bitmap = appIcon.asImageBitmap(),
+            contentDescription = item.label,
+            modifier = Modifier.size(20.dp)
+        )
+    } else {
+        Icon(
+            imageVector = fallbackIcon,
+            contentDescription = item.label,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+internal fun Context.loadApplicationIconBitmap(packageName: String): android.graphics.Bitmap? {
+    return runCatching {
+        packageManager.getApplicationIcon(packageName).toBitmap(width = 48, height = 48)
+    }.getOrNull()
 }

@@ -44,7 +44,7 @@ class DefaultImageCatalogRepository @Inject constructor(
                 val normalizedVolumeId = volumeId?.takeIf { it.isNotBlank() }
                 if (!forceRefresh) {
                     val cached = cachedImages(normalizedVolumeId)
-                    if (cached.isNotEmpty()) {
+                    if (cached.isNotEmpty() && cached.all { it.hasReadableSource() }) {
                         return@runCatching ImageCatalogSnapshot(cached, isStale = false)
                     }
                 }
@@ -162,4 +162,7 @@ class DefaultImageCatalogRepository @Inject constructor(
             width = width,
             height = height
         )
+
+    private fun ImageCatalogItem.hasReadableSource(): Boolean =
+        !file.nodeRef.contentUri.isNullOrBlank() || File(file.absolutePath).exists()
 }

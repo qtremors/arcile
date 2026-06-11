@@ -127,6 +127,7 @@ class ArchitectureBoundaryTest {
             "browser.BrowserViewModel",
             "browser.ui.BrowserScreen",
             "imagegallery.imageGalleryScreen",
+            "imagegallery.imageViewerScreen",
             "quickaccess.QuickAccessViewModel",
             "quickaccess.quickAccessScreen",
             "recentfiles.recentFilesScreen",
@@ -171,6 +172,7 @@ class ArchitectureBoundaryTest {
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt",
             "arcile-app/feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerScreen.kt",
             "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryScreen.kt",
+            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerScreen.kt",
             "docs/index.html"
         )
 

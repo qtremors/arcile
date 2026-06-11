@@ -66,6 +66,7 @@ class BrowserPreferencesRepositoryTest {
 
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
         assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
+        assertEquals(BrowserViewMode.GRID, preferences.albumPresentation.viewMode)
         assertEquals(BrowserPresentationPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
@@ -140,6 +141,17 @@ class BrowserPreferencesRepositoryTest {
     }
 
     @Test
+    fun `invalid stored album view option falls back to album default`() = runBlocking {
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("album_view_mode")] = "NOPE"
+        }
+
+        val preferences = BrowserPreferencesRepository(context, dataStore).preferencesFlow.first()
+
+        assertEquals(BrowserViewMode.GRID, preferences.albumPresentation.viewMode)
+    }
+
+    @Test
     fun `home recent carousel limit is clamped when stored or updated`() = runBlocking {
         dataStore.edit { prefs ->
             prefs[intPreferencesKey("home_recent_carousel_limit")] = 200
@@ -161,4 +173,5 @@ class BrowserPreferencesRepositoryTest {
 
         assertEquals(true, repository.preferencesFlow.first().showHiddenFiles)
     }
+
 }

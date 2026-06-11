@@ -8,6 +8,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
@@ -46,6 +47,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -91,7 +94,9 @@ data class ImageGalleryState(
     ),
     val albumAspectRatio: Boolean = false,
     val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
-    val clipboardState: ClipboardState? = null
+    val clipboardState: ClipboardState? = null,
+    val favoriteFiles: PersistentSet<String> = persistentSetOf(),
+    val albumCovers: PersistentMap<String, String> = persistentMapOf()
 )
 
 @HiltViewModel
@@ -192,22 +197,11 @@ class ImageGalleryViewModel @Inject constructor(
     )
 
     init {
-        loadImages(forceRefresh = false)
         viewModelScope.launch {
-            browserPreferencesStore.preferencesFlow.collectLatest { preferences ->
-                _state.update { state ->
-                    val persistedPresentation = preferences.exactPathPresentationOptions[IMAGE_GALLERY_PREF_KEY]
-                        ?: state.presentation.copy(showThumbnails = preferences.globalPresentation.showThumbnails)
-                    state.copy(
-                        presentation = persistedPresentation.normalized(),
-                        showFileDetails = preferences.imageGalleryShowFileDetails,
-                        isAspectRatio = preferences.imageGalleryAspectRatio,
-                        isSectioned = preferences.imageGallerySectioned,
-                        imageGalleryGrouping = preferences.imageGalleryGrouping,
-                        albumPresentation = preferences.albumPresentation,
-                        albumAspectRatio = preferences.albumAspectRatio
-                    ).withDisplayedFiles()
-                }
+            applyPreferences(browserPreferencesStore.preferencesFlow.first())
+            loadImages(forceRefresh = false)
+            browserPreferencesStore.preferencesFlow.drop(1).collectLatest { preferences ->
+                applyPreferences(preferences)
             }
         }
         viewModelScope.launch {
@@ -228,6 +222,24 @@ class ImageGalleryViewModel @Inject constructor(
                     loadImages(forceRefresh = true, silent = true)
                 }
             }
+        }
+    }
+
+    private fun applyPreferences(preferences: BrowserPreferences) {
+        _state.update { state ->
+            val persistedPresentation = preferences.exactPathPresentationOptions[IMAGE_GALLERY_PREF_KEY]
+                ?: state.presentation.copy(showThumbnails = preferences.globalPresentation.showThumbnails)
+            state.copy(
+                presentation = persistedPresentation.normalized(),
+                showFileDetails = preferences.imageGalleryShowFileDetails,
+                isAspectRatio = preferences.imageGalleryAspectRatio,
+                isSectioned = preferences.imageGallerySectioned,
+                imageGalleryGrouping = preferences.imageGalleryGrouping,
+                albumPresentation = preferences.albumPresentation,
+                albumAspectRatio = preferences.albumAspectRatio,
+                favoriteFiles = preferences.favoriteFiles.toPersistentSet(),
+                albumCovers = preferences.albumCovers.toPersistentMap()
+            ).withDisplayedFiles()
         }
     }
 
@@ -475,10 +487,26 @@ class ImageGalleryViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
+    fun toggleFavorite(path: String) {
+        val isFav = path in _state.value.favoriteFiles
+        viewModelScope.launch {
+            browserPreferencesStore.updateFavorite(path, !isFav)
+        }
+    }
+
+    fun setAlbumCover(albumPath: String, coverPath: String) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateAlbumCover(albumPath, coverPath)
+        }
+    }
+
     private fun ImageGalleryState.withDisplayedFiles(): ImageGalleryState {
-        val albumFiltered = selectedAlbumPath?.let { albumPath ->
-            files.filter { java.io.File(it.absolutePath).parent == albumPath }
-        } ?: files
+        val albumFiltered = when (selectedAlbumPath) {
+            "__favorites__" -> files.filter { it.absolutePath in favoriteFiles }
+            null -> files
+            else -> files.filter { java.io.File(it.absolutePath).parent == selectedAlbumPath }
+        }
+
         return copy(displayedFiles = filterAndSortFiles(albumFiltered, searchQuery, presentation.sortOption).toPersistentList())
     }
 

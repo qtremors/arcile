@@ -2,6 +2,7 @@ package dev.qtremors.arcile.ui
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.qtremors.arcile.presentation.home.HomeState
@@ -58,5 +59,36 @@ class HomeScreenTest {
 
         // Verify Recent Files section title is present
         composeTestRule.onNodeWithText("Recent Files").fetchSemanticsNode()
+    }
+
+    @Test
+    fun homeScreen_showsStorageBarLoadingState() {
+        composeTestRule.setContent {
+            HomeScreen(
+                state = HomeState(isLoading = true),
+                onOpenFileBrowser = {},
+                onNavigateToPath = {},
+                onOpenFile = {},
+                onCategoryClick = {},
+                onSettingsClick = {},
+                onNavigateToTools = {},
+                onNavigateToAbout = {},
+                onNavigateToTrash = {},
+                onNavigateToRecentFiles = {},
+                onNavigateToQuickAccess = {},
+                onNavigateToSaf = {},
+                onOpenStorageDashboard = {},
+                onSearchQueryChange = {},
+                onSearchFiltersChange = {},
+                onToggleSearchFilterMenu = {},
+                onRefresh = {},
+                onResumeRefresh = {},
+                onSetVolumeClassification = { _, _ -> },
+                onHideClassificationPrompt = {},
+                onNavigateToCleaner = {}
+            )
+        }
+
+        composeTestRule.onNodeWithTag("storage_bar_loading").assertIsDisplayed()
     }
 }

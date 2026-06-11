@@ -14,11 +14,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -80,7 +77,6 @@ import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridS
 import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
@@ -108,6 +104,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -168,7 +168,6 @@ import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.ArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
@@ -181,7 +180,6 @@ import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -213,6 +211,7 @@ fun ImageGalleryScreen(
     onCutSelected: () -> Unit = {},
     onRenameFile: (String, String) -> Unit = { _, _ -> },
     onCreateZipFromSelection: () -> Unit = {},
+    onSetAlbumCover: (String, String) -> Unit = { _, _ -> },
     onAspectRatioChange: (Boolean) -> Unit = {},
     onSectionedChange: (Boolean) -> Unit = {},
     onGroupingChange: (ImageGalleryGrouping) -> Unit = {},
@@ -227,6 +226,13 @@ fun ImageGalleryScreen(
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var currentTab by rememberSaveable { mutableStateOf(GalleryTab.PHOTOS) }
+
+    var activePhotosGridCellSize by remember(state.presentation.gridMinCellSize) {
+        mutableStateOf(state.presentation.gridMinCellSize)
+    }
+    var activeAlbumsGridCellSize by remember(state.albumPresentation.gridMinCellSize) {
+        mutableStateOf(state.albumPresentation.gridMinCellSize)
+    }
 
     var isTopBarVisible by rememberSaveable { mutableStateOf(true) }
     val nestedScrollConnection = remember {
@@ -304,8 +310,7 @@ fun ImageGalleryScreen(
             else -> GalleryViewState.ALBUM_PHOTOS
         }
 
-        AnimatedContent(
-            targetState = viewState,
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -323,42 +328,17 @@ fun ImageGalleryScreen(
                             alpha = 1f - (backProgress * 0.2f)
                         }
                     }
-                },
-            transitionSpec = {
-                if (targetState == GalleryViewState.ALBUM_PHOTOS && initialState == GalleryViewState.ALBUMS_TAB_GRID) {
-                    // Opening album: slide in from right (forward transition)
-                    (slideInHorizontally(
-                        initialOffsetX = { it },
-                        animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy)
-                    ) + fadeIn()).togetherWith(
-                        slideOutHorizontally(
-                            targetOffsetX = { -it / 3 },
-                            animationSpec = spring(stiffness = Spring.StiffnessLow)
-                        ) + fadeOut()
-                    )
-                } else if (initialState == GalleryViewState.ALBUM_PHOTOS && targetState == GalleryViewState.ALBUMS_TAB_GRID) {
-                    // Closing album: slide out to right (backward transition)
-                    (slideInHorizontally(
-                        initialOffsetX = { -it / 3 },
-                        animationSpec = spring(stiffness = Spring.StiffnessLow)
-                    ) + fadeIn()).togetherWith(
-                        slideOutHorizontally(
-                            targetOffsetX = { it },
-                            animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy)
-                        ) + fadeOut()
-                    )
-                } else {
-                    // Tab switch fade
-                    fadeIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) togetherWith
-                        fadeOut(animationSpec = spring(stiffness = Spring.StiffnessMediumLow))
                 }
-            },
-            label = "galleryViewTransition"
-        ) { targetViewState ->
-            when (targetViewState) {
+        ) {
+            when (viewState) {
                 GalleryViewState.ALBUMS_TAB_GRID -> {
                     ImageGalleryAlbumsGrid(
                         state = state,
+                        gridMinCellSize = activeAlbumsGridCellSize,
+                        onAlbumsGridCellSizeChange = { activeAlbumsGridCellSize = it },
+                        onAlbumsGridCellSizeFinalized = { size ->
+                            onAlbumPresentationChange(state.albumPresentation.copy(gridMinCellSize = size))
+                        },
                         contentPadding = PaddingValues(
                             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
                             bottom = bottomPadding
@@ -369,6 +349,11 @@ fun ImageGalleryScreen(
                 GalleryViewState.PHOTOS_TAB, GalleryViewState.ALBUM_PHOTOS -> {
                     ImageGalleryContent(
                         state = state,
+                        gridMinCellSize = activePhotosGridCellSize,
+                        onPhotosGridCellSizeChange = { activePhotosGridCellSize = it },
+                        onPhotosGridCellSizeFinalized = { size ->
+                            onPresentationChange(state.presentation.copy(gridMinCellSize = size))
+                        },
                         contentPadding = PaddingValues(
                             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
                             bottom = bottomPadding
@@ -624,39 +609,57 @@ fun ImageGalleryScreen(
                                     expanded = showSelectionMenu,
                                     onDismissRequest = { showSelectionMenu = false }
                                 ) {
-                                    val menuActions = remember {
-                                        listOf<@Composable () -> Unit>(
-                                            {
+                                    val menuActions = remember(state.selectedFiles, state.selectedAlbumPath) {
+                                        val actions = mutableListOf<@Composable () -> Unit>()
+
+                                        actions.add {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.archive_compress_zip)) },
+                                                leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                                onClick = {
+                                                    showSelectionMenu = false
+                                                    onCreateZipFromSelection()
+                                                }
+                                            )
+                                        }
+
+                                        if (state.selectedFiles.size == 1 && state.selectedAlbumPath != null && state.selectedAlbumPath != "__favorites__") {
+                                            actions.add {
                                                 DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.archive_compress_zip)) },
-                                                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                                    text = { Text(stringResource(R.string.image_gallery_set_as_cover)) },
+                                                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
                                                     onClick = {
                                                         showSelectionMenu = false
-                                                        onCreateZipFromSelection()
-                                                    }
-                                                )
-                                            },
-                                            {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.share)) },
-                                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                                    onClick = {
-                                                        showSelectionMenu = false
-                                                        onShareSelected()
-                                                    }
-                                                )
-                                            },
-                                            {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.properties_title)) },
-                                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                                    onClick = {
-                                                        showSelectionMenu = false
-                                                        onOpenProperties()
+                                                        onSetAlbumCover(state.selectedAlbumPath, state.selectedFiles.first())
+                                                        onClearSelection()
                                                     }
                                                 )
                                             }
-                                        )
+                                        }
+
+                                        actions.add {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.share)) },
+                                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                                onClick = {
+                                                    showSelectionMenu = false
+                                                    onShareSelected()
+                                                }
+                                            )
+                                        }
+
+                                        actions.add {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.properties_title)) },
+                                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                                onClick = {
+                                                    showSelectionMenu = false
+                                                    onOpenProperties()
+                                                }
+                                            )
+                                        }
+
+                                        actions
                                     }
 
                                     menuActions.forEachIndexed { index, action ->
@@ -1383,6 +1386,14 @@ fun GalleryViewOptionsDialog(
                                     draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
                                 }
                             }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortChip(FileSortOption.DATE_NEWEST, draftAlbumPreferences, Modifier.weight(1f)) {
+                                    draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
+                                }
+                                SortChip(FileSortOption.DATE_OLDEST, draftAlbumPreferences, Modifier.weight(1f)) {
+                                    draftAlbumPreferences = draftAlbumPreferences.copy(sortOption = it)
+                                }
+                            }
                         }
                     }
                 }
@@ -1453,6 +1464,9 @@ private fun SortChip(
 @Composable
 private fun ImageGalleryContent(
     state: ImageGalleryState,
+    gridMinCellSize: Float,
+    onPhotosGridCellSizeChange: (Float) -> Unit,
+    onPhotosGridCellSizeFinalized: (Float) -> Unit,
     contentPadding: PaddingValues,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
@@ -1625,20 +1639,15 @@ private fun ImageGalleryContent(
                     if (state.presentation.viewMode == BrowserViewMode.GRID) {
                         if (state.isAspectRatio) {
                             val staggeredGridState = (scrollbarState as LazyStaggeredGridScrollbarState).state
-                            val coroutineScope = rememberCoroutineScope()
                             LazyVerticalStaggeredGrid(
-                                columns = StaggeredGridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
+                                columns = StaggeredGridCells.Adaptive(minSize = gridMinCellSize.dp),
                                 state = staggeredGridState,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .dragToSelect(
-                                        scrollbarState = scrollbarState,
-                                        flatUiFiles = flatUiFiles,
-                                        selectedFiles = state.selectedFiles,
-                                        onSelectMultiple = onSelectMultiple,
-                                        onToggleSelection = onToggleSelection,
-                                        haptics = haptics,
-                                        coroutineScope = coroutineScope
+                                    .pinchToResize(
+                                        currentCellSize = gridMinCellSize,
+                                        onSizeChanged = onPhotosGridCellSizeChange,
+                                        onSizeFinalized = onPhotosGridCellSizeFinalized
                                     ),
                                 contentPadding = PaddingValues(
                                     start = 12.dp,
@@ -1684,20 +1693,15 @@ private fun ImageGalleryContent(
                             }
                         } else {
                             val gridState = (scrollbarState as LazyGridScrollbarState).state
-                            val coroutineScope = rememberCoroutineScope()
                             LazyVerticalGrid(
-                                columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
+                                columns = GridCells.Adaptive(minSize = gridMinCellSize.dp),
                                 state = gridState,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .dragToSelect(
-                                        scrollbarState = scrollbarState,
-                                        flatUiFiles = flatUiFiles,
-                                        selectedFiles = state.selectedFiles,
-                                        onSelectMultiple = onSelectMultiple,
-                                        onToggleSelection = onToggleSelection,
-                                        haptics = haptics,
-                                        coroutineScope = coroutineScope
+                                    .pinchToResize(
+                                        currentCellSize = gridMinCellSize,
+                                        onSizeChanged = onPhotosGridCellSizeChange,
+                                        onSizeFinalized = onPhotosGridCellSizeFinalized
                                     ),
                                 contentPadding = PaddingValues(
                                     start = 12.dp,
@@ -1744,20 +1748,9 @@ private fun ImageGalleryContent(
                         }
                     } else {
                         val listState = (scrollbarState as LazyListScrollbarState).state
-                        val coroutineScope = rememberCoroutineScope()
                         LazyColumn(
                             state = listState,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .dragToSelect(
-                                    scrollbarState = scrollbarState,
-                                    flatUiFiles = flatUiFiles,
-                                    selectedFiles = state.selectedFiles,
-                                    onSelectMultiple = onSelectMultiple,
-                                    onToggleSelection = onToggleSelection,
-                                    haptics = haptics,
-                                    coroutineScope = coroutineScope
-                                ),
+                            modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
                                 top = contentPadding.calculateTopPadding(),
                                 bottom = bottomPadding
@@ -1859,7 +1852,7 @@ fun GalleryImageItem(
     aspectRatio: Float,
     showDetails: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -2035,9 +2028,12 @@ private fun GalleryThumbnail(
         val cacheKey = remember(archiveThumbnailData, thumbnailKey, requestSizePx) {
             archiveThumbnailData?.cacheKey ?: thumbnailKey.variantKey(requestSizePx).cacheKey
         }
-        val request = remember(context, archiveThumbnailData, file.absolutePath, cacheKey, requestSizePx) {
+        val requestData = remember(file, archiveThumbnailData) {
+            galleryThumbnailRequestDataFor(file, archiveThumbnailData)
+        }
+        val request = remember(context, requestData, cacheKey, requestSizePx) {
             ImageRequest.Builder(context)
-                .data(archiveThumbnailData ?: file.absolutePath)
+                .data(requestData)
                 .size(requestSizePx)
                 .precision(Precision.INEXACT)
                 .memoryCacheKey(cacheKey)
@@ -2074,7 +2070,7 @@ fun GalleryImageListItem(
     isSelected: Boolean,
     zoom: Float,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -2118,9 +2114,12 @@ fun GalleryImageListItem(
             val cacheKey = remember(archiveThumbnailData, thumbnailKey, thumbnailSizePx) {
                 archiveThumbnailData?.cacheKey ?: thumbnailKey.variantKey(thumbnailSizePx).cacheKey
             }
-            val request = remember(context, archiveThumbnailData, file.absolutePath, cacheKey, thumbnailSizePx) {
+            val requestData = remember(file, archiveThumbnailData) {
+                galleryThumbnailRequestDataFor(file, archiveThumbnailData)
+            }
+            val request = remember(context, requestData, cacheKey, thumbnailSizePx) {
                 ImageRequest.Builder(context)
-                    .data(archiveThumbnailData ?: file.absolutePath)
+                    .data(requestData)
                     .size(thumbnailSizePx)
                     .precision(Precision.INEXACT)
                     .memoryCacheKey(cacheKey)
@@ -2311,6 +2310,9 @@ fun TabItem(
 @Composable
 private fun ImageGalleryAlbumsGrid(
     state: ImageGalleryState,
+    gridMinCellSize: Float,
+    onAlbumsGridCellSizeChange: (Float) -> Unit,
+    onAlbumsGridCellSizeFinalized: (Float) -> Unit,
     contentPadding: PaddingValues,
     onSelectAlbum: (String?) -> Unit,
     modifier: Modifier = Modifier
@@ -2322,22 +2324,43 @@ private fun ImageGalleryAlbumsGrid(
             FileSortOption.NAME_DESC -> state.albums.sortedByDescending { it.label.lowercase() }
             FileSortOption.SIZE_LARGEST -> state.albums.sortedByDescending { it.count }
             FileSortOption.SIZE_SMALLEST -> state.albums.sortedBy { it.count }
-            else -> state.albums.sortedBy { it.label.lowercase() }
+            FileSortOption.DATE_NEWEST -> state.albums.sortedByDescending { it.lastModified }
+            FileSortOption.DATE_OLDEST -> state.albums.sortedBy { it.lastModified }
         }
     }
 
+    val favoritesLabel = stringResource(R.string.image_gallery_favorites_folder)
+    val albumsList = remember(sortedAlbums, state.files, state.favoriteFiles, favoritesLabel) {
+        buildVisibleAlbumTiles(
+            sortedAlbums = sortedAlbums,
+            files = state.files,
+            favoriteFiles = state.favoriteFiles,
+            favoritesLabel = favoritesLabel
+        )
+    }
+
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = state.albumPresentation.gridMinCellSize.dp),
+        columns = GridCells.Adaptive(minSize = gridMinCellSize.dp),
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier
             .fillMaxSize()
+            .pinchToResize(
+                currentCellSize = gridMinCellSize,
+                onSizeChanged = onAlbumsGridCellSizeChange,
+                onSizeFinalized = onAlbumsGridCellSizeFinalized
+            )
             .padding(horizontal = 16.dp)
     ) {
-        items(sortedAlbums, key = { it.path ?: it.label }) { album ->
-            val coverFile = remember(album.path, state.files) {
-                state.files.firstOrNull { java.io.File(it.absolutePath).parent == album.path }
+        items(albumsList, key = { it.path ?: it.label }) { album ->
+            val coverFile = remember(album.path, state.files, state.favoriteFiles, state.albumCovers) {
+                resolveAlbumCoverFile(
+                    albumPath = album.path,
+                    files = state.files,
+                    favoriteFiles = state.favoriteFiles,
+                    albumCovers = state.albumCovers
+                )
             }
             Card(
                 colors = CardDefaults.cardColors(
@@ -2378,6 +2401,24 @@ private fun ImageGalleryAlbumsGrid(
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                     modifier = Modifier.size(48.dp)
+                                )
+                            }
+                        }
+
+                        if (album.path == "__favorites__") {
+                            Box(
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                    .size(32.dp)
+                                    .align(Alignment.TopStart),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Favorite,
+                                    contentDescription = null,
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -2437,184 +2478,6 @@ class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : Scrol
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
     override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
-}
-
-private fun LazyListState.getFileKeyAt(offset: Offset): String? {
-    val items = layoutInfo.visibleItemsInfo
-    val matchedItem = items.firstOrNull { item ->
-        val y = offset.y.toInt()
-        y >= item.offset && y <= (item.offset + item.size)
-    }
-    return matchedItem?.key as? String
-}
-
-private fun LazyGridState.getFileKeyAt(offset: Offset): String? {
-    val items = layoutInfo.visibleItemsInfo
-    val matchedItem = items.firstOrNull { item ->
-        val x = offset.x.toInt()
-        val y = offset.y.toInt()
-        x >= item.offset.x && x <= (item.offset.x + item.size.width) &&
-        y >= item.offset.y && y <= (item.offset.y + item.size.height)
-    }
-    return matchedItem?.key as? String
-}
-
-private fun LazyStaggeredGridState.getFileKeyAt(offset: Offset): String? {
-    val items = layoutInfo.visibleItemsInfo
-    val matchedItem = items.firstOrNull { item ->
-        val x = offset.x.toInt()
-        val y = offset.y.toInt()
-        x >= item.offset.x && x <= (item.offset.x + item.size.width) &&
-        y >= item.offset.y && y <= (item.offset.y + item.size.height)
-    }
-    return matchedItem?.key as? String
-}
-
-fun Modifier.dragToSelect(
-    scrollbarState: ScrollbarState,
-    flatUiFiles: List<FileModel>,
-    selectedFiles: Set<String>,
-    onSelectMultiple: (List<String>) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    haptics: ArcileHaptics,
-    coroutineScope: kotlinx.coroutines.CoroutineScope
-): Modifier = this.pointerInput(flatUiFiles, selectedFiles) {
-    var initialIndex: Int? = null
-    var lastSelectedIndex: Int? = null
-    var selectMode = true
-    
-    var dragPosition by androidx.compose.runtime.mutableStateOf<Offset?>(null)
-    
-    // Auto scroll effect
-    coroutineScope.launch {
-        while (true) {
-            val currentDragPos = dragPosition
-            if (currentDragPos != null) {
-                val y = currentDragPos.y
-                val height = size.height
-                val threshold = 100f // pixels
-                
-                if (y < threshold) {
-                    val speed = ((threshold - y) / threshold * 30f).coerceIn(5f, 40f)
-                    scrollbarState.scrollBy(-speed)
-                    
-                    // Trigger selection check after scrolling
-                    val key = when (scrollbarState) {
-                        is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
-                        is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
-                        is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
-                        else -> null
-                    }
-                    if (key != null) {
-                        val idx = flatUiFiles.indexOfFirst { it.absolutePath == key }
-                        if (idx != -1 && idx != lastSelectedIndex && initialIndex != null) {
-                            val start = minOf(initialIndex!!, idx)
-                            val end = maxOf(initialIndex!!, idx)
-                            val targetFiles = flatUiFiles.subList(start, end + 1).map { it.absolutePath }
-                            val newSelection = if (selectMode) {
-                                selectedFiles + targetFiles
-                            } else {
-                                selectedFiles - targetFiles.toSet()
-                            }
-                            onSelectMultiple(newSelection.toList())
-                            haptics.selectionChanged()
-                            lastSelectedIndex = idx
-                        }
-                    }
-                } else if (y > height - threshold) {
-                    val speed = ((y - (height - threshold)) / threshold * 30f).coerceIn(5f, 40f)
-                    scrollbarState.scrollBy(speed)
-                    
-                    // Trigger selection check after scrolling
-                    val key = when (scrollbarState) {
-                        is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
-                        is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
-                        is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(currentDragPos)
-                        else -> null
-                    }
-                    if (key != null) {
-                        val idx = flatUiFiles.indexOfFirst { it.absolutePath == key }
-                        if (idx != -1 && idx != lastSelectedIndex && initialIndex != null) {
-                            val start = minOf(initialIndex!!, idx)
-                            val end = maxOf(initialIndex!!, idx)
-                            val targetFiles = flatUiFiles.subList(start, end + 1).map { it.absolutePath }
-                            val newSelection = if (selectMode) {
-                                selectedFiles + targetFiles
-                            } else {
-                                selectedFiles - targetFiles.toSet()
-                            }
-                            onSelectMultiple(newSelection.toList())
-                            haptics.selectionChanged()
-                            lastSelectedIndex = idx
-                        }
-                    }
-                }
-            }
-            delay(16) // ~60fps scroll loop
-        }
-    }
-    
-    detectDragGesturesAfterLongPress(
-        onDragStart = { offset ->
-            val key = when (scrollbarState) {
-                is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
-                is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
-                is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
-                else -> null
-            }
-            if (key != null) {
-                val index = flatUiFiles.indexOfFirst { it.absolutePath == key }
-                if (index != -1) {
-                    initialIndex = index
-                    lastSelectedIndex = index
-                    selectMode = key !in selectedFiles
-                    onToggleSelection(key)
-                    if (selectMode) haptics.selectionStart() else haptics.selectionChanged()
-                    dragPosition = offset
-                }
-            }
-        },
-        onDragEnd = {
-            initialIndex = null
-            lastSelectedIndex = null
-            dragPosition = null
-        },
-        onDragCancel = {
-            initialIndex = null
-            lastSelectedIndex = null
-            dragPosition = null
-        },
-        onDrag = { change, dragAmount ->
-            change.consume()
-            val initialIdx = initialIndex ?: return@detectDragGesturesAfterLongPress
-            val offset = change.position
-            dragPosition = offset
-            
-            val key = when (scrollbarState) {
-                is LazyGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
-                is LazyListScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
-                is LazyStaggeredGridScrollbarState -> scrollbarState.state.getFileKeyAt(offset)
-                else -> null
-            }
-            if (key != null) {
-                val index = flatUiFiles.indexOfFirst { it.absolutePath == key }
-                if (index != -1 && index != lastSelectedIndex) {
-                    val start = minOf(initialIdx, index)
-                    val end = maxOf(initialIdx, index)
-                    val targetFiles = flatUiFiles.subList(start, end + 1).map { it.absolutePath }
-                    
-                    val newSelection = if (selectMode) {
-                        selectedFiles + targetFiles
-                    } else {
-                        selectedFiles - targetFiles.toSet()
-                    }
-                    onSelectMultiple(newSelection.toList())
-                    haptics.selectionChanged()
-                    lastSelectedIndex = index
-                }
-            }
-        }
-    )
 }
 
 @Composable
@@ -2781,4 +2644,38 @@ fun FastScrollbar(
 
 enum class GalleryViewState {
     PHOTOS_TAB, ALBUMS_TAB_GRID, ALBUM_PHOTOS
+}
+
+fun Modifier.pinchToResize(
+    currentCellSize: Float,
+    minSize: Float = 96f,
+    maxSize: Float = 256f,
+    onSizeChanged: (Float) -> Unit,
+    onSizeFinalized: (Float) -> Unit
+): Modifier = this.pointerInput(currentCellSize) {
+    var accumulatedScale = 1f
+    var startCellSize = currentCellSize
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        accumulatedScale = 1f
+        startCellSize = currentCellSize
+        var isPinching = false
+
+        do {
+            val event = awaitPointerEvent()
+            val zoom = event.calculateZoom()
+            if (event.changes.size >= 2) {
+                isPinching = true
+                accumulatedScale *= zoom
+                val nextSize = (startCellSize * accumulatedScale).coerceIn(minSize, maxSize)
+                onSizeChanged(nextSize)
+                event.changes.forEach { it.consume() }
+            }
+        } while (event.changes.any { it.pressed })
+
+        if (isPinching) {
+            val finalSize = (startCellSize * accumulatedScale).coerceIn(minSize, maxSize)
+            onSizeFinalized(finalSize)
+        }
+    }
 }

@@ -38,12 +38,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateRight
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ModalBottomSheet
@@ -90,16 +94,19 @@ fun ImageViewerScreen(
     initialPath: String,
     viewModel: ImageGalleryViewModel,
     onNavigateBack: () -> Unit,
-    onShareFile: (String) -> Unit
+    onShareFile: (String) -> Unit,
+    onOpenWith: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
-    val displayedFiles = state.displayedFiles
+    val displayedFiles = remember(initialPath, state.displayedFiles, state.files) {
+        viewerFilesForInitialPath(initialPath, state.displayedFiles, state.files)
+    }
     val haptics = rememberArcileHaptics()
     val coroutineScope = rememberCoroutineScope()
 
     // Auto navigate back if dataset becomes empty (e.g. after deleting all files)
-    LaunchedEffect(displayedFiles.size) {
-        if (displayedFiles.isEmpty()) {
+    LaunchedEffect(displayedFiles.size, state.isLoading) {
+        if (displayedFiles.isEmpty() && !state.isLoading) {
             onNavigateBack()
         }
     }
@@ -111,24 +118,29 @@ fun ImageViewerScreen(
                 .background(Color.Black),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = stringResource(R.string.no_results_found),
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge
-            )
+            if (state.isLoading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Text(
+                    text = stringResource(R.string.no_results_found),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
         }
         return
     }
 
-    val initialIndex = remember(displayedFiles) {
-        val idx = displayedFiles.indexOfFirst { it.absolutePath == initialPath }
-        if (idx != -1) idx else 0
-    }
-
     val pagerState = rememberPagerState(
-        initialPage = initialIndex,
+        initialPage = 0,
         pageCount = { displayedFiles.size }
     )
+
+    LaunchedEffect(displayedFiles.size) {
+        if (displayedFiles.isNotEmpty() && pagerState.currentPage > displayedFiles.lastIndex) {
+            pagerState.scrollToPage(displayedFiles.lastIndex)
+        }
+    }
 
     // Store custom visual rotations (multiples of 90 degrees) per image path
     val rotationStates = remember { mutableStateMapOf<String, Float>() }
@@ -281,10 +293,40 @@ fun ImageViewerScreen(
                             )
                         }
 
+                        val isFavorite = currentFile != null && currentFile.absolutePath in state.favoriteFiles
                         IconButton(
                             onClick = {
                                 if (currentFile != null) {
-                                    onShareFile(currentFile.absolutePath)
+                                    haptics.selectionChanged()
+                                    viewModel.toggleFavorite(currentFile.absolutePath)
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                contentDescription = stringResource(R.string.image_gallery_favorite),
+                                tint = if (isFavorite) Color.Red else Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                if (currentFile != null) {
+                                    onOpenWith(currentFile.openableReference())
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = stringResource(R.string.image_gallery_open_with),
+                                tint = Color.White
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                if (currentFile != null) {
+                                    onShareFile(currentFile.openableReference())
                                 }
                             }
                         ) {
@@ -415,9 +457,10 @@ fun ZoomableImageViewer(
         offsetY.snapTo(0f)
     }
 
-    val request = remember(context, file.absolutePath) {
+    val requestData = remember(context, file) { imageRequestDataFor(context, file) }
+    val request = remember(context, requestData) {
         ImageRequest.Builder(context)
-            .data(file.absolutePath)
+            .data(requestData)
             .build()
     }
 
@@ -815,3 +858,32 @@ fun MetadataRow(label: String, value: String) {
 private enum class DragDirection {
     VERTICAL, HORIZONTAL
 }
+
+private fun viewerFilesForInitialPath(
+    initialPath: String,
+    displayedFiles: List<FileModel>,
+    allFiles: List<FileModel>
+): List<FileModel> {
+    val clickedFile = displayedFiles.firstOrNull { it.absolutePath == initialPath }
+        ?: allFiles.firstOrNull { it.absolutePath == initialPath }
+        ?: fileModelFromPath(initialPath)
+    return listOf(clickedFile) + displayedFiles.filterNot { it.absolutePath == initialPath }
+}
+
+private fun fileModelFromPath(path: String): FileModel {
+    val file = java.io.File(path)
+    return FileModel(
+        name = file.name.ifBlank { path.substringAfterLast('/').ifBlank { path } },
+        absolutePath = path,
+        size = file.takeIf { it.exists() }?.length() ?: 0L,
+        lastModified = file.takeIf { it.exists() }?.lastModified() ?: 0L,
+        isDirectory = false,
+        extension = path.substringAfterLast('/', path).substringAfterLast('.', "").lowercase(),
+        isHidden = file.name.startsWith("."),
+        mimeType = android.webkit.MimeTypeMap.getSingleton()
+            .getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase())
+    )
+}
+
+private fun FileModel.openableReference(): String =
+    nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: absolutePath

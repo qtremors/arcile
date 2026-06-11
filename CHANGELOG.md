@@ -1,10 +1,21 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.5
+> **Version:** 1.0.6
 > **Last Updated:** 2026-06-11
 
 ---
+
+## [1.0.6] - 2026-06-11
+
+- **Pinch-to-Resize Columns**: Implemented real-time interactive multi-touch pinch-to-resize column scaling directly on Photos and Albums grids.
+- **Custom Album Covers**: Added the ability to designate any image inside an album as its customized cover thumbnail.
+- **Favorites virtual album**: Added a Favorite (heart) action in the image viewer to bookmark media, and injected a virtual "Favorites" album at the top of the Albums tab using the latest favorited item as the cover.
+- **Gallery state reliability**: Prevented restored or direct-entry image viewers from closing before images finish loading, clamped the viewer pager after Favorites/delete changes, and kept Favorites album counts and custom album covers aligned with currently available files.
+- **Gallery startup and navigation smoothness**: Applied saved gallery preferences before the initial image load and removed heavyweight full-grid content animations between Photos, Albums, and album pages.
+- **Viewer external handoff reliability**: Preserved MediaStore `content://` grants for gallery Open With and Share actions instead of incorrectly treating them as filesystem paths.
+- **On-demand EXIF details**: Kept EXIF metadata loading scoped to the image viewer details sheet so gallery browsing stays lightweight.
+- **Chronological folder sorting**: Added full chronological sorting options (Newest/Oldest) to the Albums grid using updated folder modification dates.
 
 ## [1.0.5] - 2026-06-11
 
