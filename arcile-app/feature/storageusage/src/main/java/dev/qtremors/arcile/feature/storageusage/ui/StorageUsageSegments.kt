@@ -92,66 +92,112 @@ private const val MAX_SUNBURST_SEGMENTS = 160
 private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
 
 
-@Composable
-fun StorageUsageMap(
-    state: StorageUsageUiState,
-    onSelectNode: (StorageUsageNode) -> Unit,
-    onDrillInto: (StorageUsageNode) -> Unit,
-    onBreadcrumbClick: (Int) -> Unit,
-    onOpenPath: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        when {
-            state.unavailableVolume != null -> {
-                EmptyState(
-                    variant = EmptyStateVariant.StorageAccess,
-                    title = stringResource(R.string.storage_usage_map_unavailable_title),
-                    description = stringResource(R.string.storage_usage_map_unavailable_description)
-                )
-            }
-            state.scanState is StorageUsageScanState.Loading && state.currentRoot == null -> {
-                StorageUsageLoading(state.scanState)
-            }
-            state.scanState is StorageUsageScanState.Error -> {
-                StorageUsageError(message = state.scanState.message, onRefresh = onRefresh)
-            }
-            state.currentRoot != null -> {
-                StorageUsageBreadcrumbs(
-                    breadcrumbs = state.breadcrumbs,
-                    onBreadcrumbClick = onBreadcrumbClick
-                )
-                StorageUsageSunburst(
-                    root = state.currentRoot,
-                    selectedNode = state.selectedNode,
-                    onSelectNode = onSelectNode
-                )
-                StorageUsageSegmentList(
-                    root = state.currentRoot,
-                    selectedNode = state.selectedNode,
-                    onSelectNode = onSelectNode
-                )
-                StorageUsageDetails(
-                    root = state.currentRoot,
-                    node = state.selectedNode ?: state.currentRoot,
-                    isScanning = state.scanState is StorageUsageScanState.Loading,
-                    onDrillInto = onDrillInto,
-                    onOpenPath = onOpenPath,
-                    onOpenFile = onOpenFile,
-                    onRefresh = onRefresh
-                )
-            }
-            else -> {
-                StorageUsageLoading(StorageUsageScanState.Loading(
-                    dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress("", 0, 0L, null)
-                ))
-            }
+data class RingSegment(
+    val node: StorageUsageNode,
+    val startAngle: Float,
+    val sweepAngle: Float,
+    val innerRadius: Float,
+    val outerRadius: Float,
+    val color: Color
+)
+
+fun buildSegments(
+    root: StorageUsageNode,
+    colors: List<Color>,
+    centerRadius: Float,
+    ringWidth: Float,
+    maxDepth: Int,
+    maxSegments: Int,
+    maxChildrenPerNode: Int
+): List<RingSegment> {
+    val segments = mutableListOf<RingSegment>()
+    fun visit(node: StorageUsageNode, depth: Int, start: Float, sweep: Float) {
+        if (depth > maxDepth || node.children.isEmpty() || segments.size >= maxSegments) return
+        val childTotal = node.children.sumOf { it.sizeBytes }.coerceAtLeast(1L)
+        val visibleChildBudget = min(maxChildrenPerNode, maxSegments - segments.size).coerceAtLeast(0)
+        if (visibleChildBudget == 0) return
+        val visibleChildren = node.children.take(visibleChildBudget)
+        val hiddenChildren = node.children.drop(visibleChildBudget)
+        val chartChildren = if (hiddenChildren.isEmpty()) {
+            visibleChildren
+        } else {
+            visibleChildren + StorageUsageNode(
+                name = "Other small items",
+                path = "${node.path}/Other small items",
+                sizeBytes = hiddenChildren.sumOf { it.sizeBytes },
+                kind = StorageUsageNodeKind.Grouped,
+                childCount = hiddenChildren.sumOf { kotlin.math.max(1, it.childCount) },
+                status = if (hiddenChildren.any { it.status != StorageUsageScanStatus.Ready }) {
+                    StorageUsageScanStatus.Partial
+                } else {
+                    StorageUsageScanStatus.Ready
+                }
+            )
         }
+        var childStart = start
+        chartChildren.forEachIndexed { index, child ->
+            if (segments.size >= maxSegments) return@forEachIndexed
+            val childSweep = (sweep * (child.sizeBytes.toFloat() / childTotal.toFloat())).coerceAtLeast(0.4f)
+            val inner = centerRadius + (depth - 1) * ringWidth
+            val outer = inner + ringWidth
+            val color = colors[(index + depth) % colors.size]
+                .copy(alpha = (0.98f - depth * 0.08f).coerceAtLeast(0.62f))
+            segments += RingSegment(child, childStart, childSweep, inner, outer, color)
+            if (child.kind != StorageUsageNodeKind.Grouped) {
+                visit(child, depth + 1, childStart, childSweep)
+            }
+            childStart += childSweep
+        }
+    }
+    visit(root, depth = 1, start = -90f, sweep = 360f)
+    return segments
+}
+
+internal fun boundedStorageUsageSunburstSegmentCount(root: StorageUsageNode): Int =
+    buildSegments(
+        root = root,
+        colors = listOf(Color.Red, Color.Green, Color.Blue),
+        centerRadius = 10f,
+        ringWidth = 10f,
+        maxDepth = MAX_SUNBURST_DEPTH,
+        maxSegments = MAX_SUNBURST_SEGMENTS,
+        maxChildrenPerNode = MAX_SUNBURST_CHILDREN_PER_NODE
+    ).size
+
+fun StorageUsageNode.maxDepth(): Int {
+    if (children.isEmpty()) return 1
+    return 1 + (children.maxOfOrNull { it.maxDepth() } ?: 0)
+}
+
+fun findSegmentAt(
+    offset: Offset,
+    width: Float,
+    height: Float,
+    segments: List<RingSegment>
+): RingSegment? {
+    val center = Offset(width / 2f, height / 2f)
+    val dx = offset.x - center.x
+    val dy = offset.y - center.y
+    val radius = hypot(dx, dy)
+    val angle = normalizeAngle((atan2(dy, dx) * 180f / PI.toFloat()))
+    return segments
+        .filter { radius >= it.innerRadius && radius <= it.outerRadius && angleInSweep(angle, it.startAngle, it.sweepAngle) }
+        .maxByOrNull { it.innerRadius }
+}
+
+fun angleInSweep(angle: Float, startAngle: Float, sweepAngle: Float): Boolean {
+    val start = normalizeAngle(startAngle)
+    val end = normalizeAngle(startAngle + sweepAngle)
+    return if (sweepAngle >= 360f) {
+        true
+    } else if (start <= end) {
+        angle in start..end
+    } else {
+        angle >= start || angle <= end
     }
 }
 
+fun normalizeAngle(angle: Float): Float {
+    val normalized = angle % 360f
+    return if (normalized < 0f) normalized + 360f else normalized
+}

@@ -2,7 +2,6 @@ package dev.qtremors.arcile.shared.ui.lists
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -12,6 +11,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -291,10 +291,12 @@ fun FileItemRow(
     val marqueeEnabled = LocalMarqueeFilenames.current
     val animatedHorizontalPadding by animateDpAsState(
         targetValue = if (isSelected) 8.dp else 0.dp,
+        animationSpec = ArcileMotion.rememberSpring(stiffness = Spring.StiffnessMediumLow),
         label = "listItemHPadding"
     )
     val animatedVerticalPadding by animateDpAsState(
         targetValue = if (isSelected) 4.dp else 0.dp,
+        animationSpec = ArcileMotion.rememberSpring(stiffness = Spring.StiffnessMediumLow),
         label = "listItemVPadding"
     )
     val animatedScale by animateFloatAsState(targetValue = zoom, label = "listZoom")
@@ -310,7 +312,7 @@ fun FileItemRow(
     val reducedMotion = LocalReducedMotionEnabled.current
     val scale by animateFloatAsState(
         targetValue = if (isPressed && !reducedMotion) 0.98f else 1f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = ArcileMotion.rememberSpring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "fileItemScale"
     )
 
@@ -318,7 +320,10 @@ fun FileItemRow(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         modifier = modifier
-            .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
+            .padding(
+                horizontal = animatedHorizontalPadding.coerceAtLeast(0.dp),
+                vertical = animatedVerticalPadding.coerceAtLeast(0.dp)
+            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

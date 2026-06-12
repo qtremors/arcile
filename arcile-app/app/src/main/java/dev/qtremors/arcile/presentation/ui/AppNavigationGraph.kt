@@ -6,6 +6,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -105,38 +107,38 @@ fun AppNavigationGraph(
     val reducedMotion = LocalReducedMotionEnabled.current
 
     val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val detailExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val detailPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val detailPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
 
     val utilityEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val utilityExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val utilityPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val utilityPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else slideOutVertically(targetOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else slideOutVertically(targetOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
 
     NavHost(
         navController = navController,
         startDestination = AppRoutes.Main(),
-        enterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
-        exitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
-        popEnterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
-        popExitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) }
+        enterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) },
+        exitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) },
+        popEnterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) },
+        popExitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) }
     ) {
                 composable<AppRoutes.Main> { backStackEntry ->
                     val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()

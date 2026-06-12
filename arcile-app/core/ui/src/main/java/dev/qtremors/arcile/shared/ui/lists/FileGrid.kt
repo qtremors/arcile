@@ -2,13 +2,13 @@ package dev.qtremors.arcile.shared.ui.lists
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -286,7 +286,7 @@ fun FileGridItem(
     val reducedMotion = LocalReducedMotionEnabled.current
     val scale by animateFloatAsState(
         targetValue = if (isPressed && !reducedMotion) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = ArcileMotion.rememberSpring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "gridItemScale"
     )
     val subtitleText = row.displaySubtitle(isFolderStatsLoading)

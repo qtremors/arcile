@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.recentfiles.ui
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -146,17 +147,40 @@ fun RecentFilesScreen(
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
 
-    BackHandler(enabled = isSelectionMode || showSearchBar) {
-        if (isSelectionMode) {
-            onClearSelection()
-        } else {
-            showSearchBar = false
-            onClearSearch()
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+
+    PredictiveBackHandler(enabled = isSelectionMode || showSearchBar) { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            if (isSelectionMode) {
+                onClearSelection()
+            } else {
+                showSearchBar = false
+                onClearSearch()
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
         }
     }
 
     val filesToDisplay = if (showSearchBar) state.searchResults else state.displayedRecentFiles
     Scaffold(
+        modifier = Modifier.graphicsLayer {
+            if (isBackPredicting) {
+                val scale = 1f - (backProgress * 0.08f)
+                scaleX = scale
+                scaleY = scale
+                translationX = backProgress * 100.dp.toPx()
+                alpha = 1f - (backProgress * 0.4f)
+            }
+        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {

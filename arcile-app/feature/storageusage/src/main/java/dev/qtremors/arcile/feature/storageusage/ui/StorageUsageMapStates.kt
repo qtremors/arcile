@@ -93,63 +93,104 @@ private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
 
 
 @Composable
-fun StorageUsageMap(
-    state: StorageUsageUiState,
-    onSelectNode: (StorageUsageNode) -> Unit,
-    onDrillInto: (StorageUsageNode) -> Unit,
-    onBreadcrumbClick: (Int) -> Unit,
-    onOpenPath: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onRefresh: () -> Unit,
-    modifier: Modifier = Modifier
+fun StorageUsageBreadcrumbs(
+    breadcrumbs: List<StorageUsageNode>,
+    onBreadcrumbClick: (Int) -> Unit
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+    val scrollState = rememberScrollState()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        when {
-            state.unavailableVolume != null -> {
-                EmptyState(
-                    variant = EmptyStateVariant.StorageAccess,
-                    title = stringResource(R.string.storage_usage_map_unavailable_title),
-                    description = stringResource(R.string.storage_usage_map_unavailable_description)
-                )
-            }
-            state.scanState is StorageUsageScanState.Loading && state.currentRoot == null -> {
-                StorageUsageLoading(state.scanState)
-            }
-            state.scanState is StorageUsageScanState.Error -> {
-                StorageUsageError(message = state.scanState.message, onRefresh = onRefresh)
-            }
-            state.currentRoot != null -> {
-                StorageUsageBreadcrumbs(
-                    breadcrumbs = state.breadcrumbs,
-                    onBreadcrumbClick = onBreadcrumbClick
-                )
-                StorageUsageSunburst(
-                    root = state.currentRoot,
-                    selectedNode = state.selectedNode,
-                    onSelectNode = onSelectNode
-                )
-                StorageUsageSegmentList(
-                    root = state.currentRoot,
-                    selectedNode = state.selectedNode,
-                    onSelectNode = onSelectNode
-                )
-                StorageUsageDetails(
-                    root = state.currentRoot,
-                    node = state.selectedNode ?: state.currentRoot,
-                    isScanning = state.scanState is StorageUsageScanState.Loading,
-                    onDrillInto = onDrillInto,
-                    onOpenPath = onOpenPath,
-                    onOpenFile = onOpenFile,
-                    onRefresh = onRefresh
-                )
-            }
-            else -> {
-                StorageUsageLoading(StorageUsageScanState.Loading(
-                    dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress("", 0, 0L, null)
-                ))
+        breadcrumbs.forEachIndexed { index, node ->
+            AssistChip(
+                onClick = { onBreadcrumbClick(index) },
+                label = {
+                    Text(
+                        text = node.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surfaceContainer
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            CircularProgressIndicator()
+            Text(
+                text = stringResource(R.string.storage_usage_map_scanning),
+                style = MaterialTheme.typography.titleMediumBold
+            )
+            Text(
+                text = stringResource(
+                    R.string.storage_usage_map_scan_progress,
+                    scanState.progress.scannedNodes,
+                    formatFileSize(scanState.progress.scannedBytes)
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun StorageUsageError(
+    message: String,
+    onRefresh: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.errorContainer
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.storage_usage_map_error_title),
+                style = MaterialTheme.typography.titleMediumBold,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Text(
+                text = message.ifBlank { stringResource(R.string.storage_usage_map_error_description) },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            OutlinedButton(onClick = onRefresh) {
+                Icon(Icons.Default.Refresh, contentDescription = null)
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(stringResource(R.string.refresh))
             }
         }
     }

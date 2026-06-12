@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.6
-> **Last Updated:** 2026-06-11
+> **Version:** 1.0.7
+> **Last Updated:** 2026-06-13
 
 ---
+
+## [1.0.7] - 2026-06-12
+
+- **Material 3 Expressive Animations**: Customized standard spring animations to use under-damped bouncy physics and integrated volumetric slide-and-scale navigation transitions. Added responsive press-scaling effects with tactile haptic clicks to interactive list items, cards, and tab buttons.
+- **Progressive Predictive Back Navigation**: Integrated progressive predictive back gestures across core screens (Browser, Gallery, Recents, Trash, Archive Viewer), dynamically scaling, translating, and fading layouts in real-time response to back swipes.
+- **Bouncy Spring Padding Safeguards**: Coerced animated horizontal and vertical item list paddings to be non-negative, preventing runtime crashes caused by spring animation overshoots below zero during selection changes.
+- **Home Storage Bar Shimmering Loading**: Implemented a dynamic shimmering used-space loading bar that populates automatically on app start, morphs smoothly when storage details resolve, and crossfades seamlessly to full-category segmented colors once loaded.
+- **Gallery Module Refactor**: Split the oversized gallery screen and image viewer implementations into focused chrome, options, content, album, timeline, scrolling, zoom, metadata, and helper files while preserving existing public navigation entry points.
+- **Architecture Boundary Cleanup**: Refactored the remaining temporary large-file whitelist entries across archive viewer, storage usage map, and filesystem data source code so the architecture budget only exempts the website `docs/index.html`.
+- **Gallery Boundary Coverage**: Added the image gallery feature module to production class imports for architecture boundary checks.
 
 ## [1.0.6] - 2026-06-11
 

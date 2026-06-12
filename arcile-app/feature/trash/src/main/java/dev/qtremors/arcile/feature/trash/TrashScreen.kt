@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.feature.trash
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -202,12 +204,26 @@ fun TrashScreen(
         }
     }
 
-    BackHandler(enabled = isSelectionMode || showSearchBar) {
-        if (isSelectionMode) {
-            onClearSelection()
-        } else {
-            showSearchBar = false
-            onClearSearch()
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+
+    PredictiveBackHandler(enabled = isSelectionMode || showSearchBar) { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            if (isSelectionMode) {
+                onClearSelection()
+            } else {
+                showSearchBar = false
+                onClearSearch()
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
         }
     }
 
@@ -218,7 +234,17 @@ fun TrashScreen(
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier
+            .nestedScroll(scrollBehavior.nestedScrollConnection)
+            .graphicsLayer {
+                if (isBackPredicting) {
+                    val scale = 1f - (backProgress * 0.08f)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = backProgress * 100.dp.toPx()
+                    alpha = 1f - (backProgress * 0.4f)
+                }
+            },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {

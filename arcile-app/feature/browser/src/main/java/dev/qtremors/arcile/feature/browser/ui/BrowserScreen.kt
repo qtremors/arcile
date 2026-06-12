@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
@@ -292,9 +293,22 @@ fun BrowserScreen(
         }
     }
 
-    PredictiveBackHandler {
-        it.collect { }
-        handleBrowserBack()
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+
+    PredictiveBackHandler { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            handleBrowserBack()
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
+        }
     }
 
     LaunchedEffect(state.clipboardState) {
@@ -342,7 +356,17 @@ fun BrowserScreen(
     val layoutDirection = LocalLayoutDirection.current
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier
+            .nestedScroll(scrollBehavior.nestedScrollConnection)
+            .graphicsLayer {
+                if (isBackPredicting) {
+                    val scale = 1f - (backProgress * 0.08f)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = backProgress * 100.dp.toPx()
+                    alpha = 1f - (backProgress * 0.4f)
+                }
+            },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {

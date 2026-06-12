@@ -12,6 +12,9 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Spring
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,13 +29,18 @@ fun BoxScope.ArcilePullRefreshIndicator(
 ) {
     val pullDistance = state.distanceFraction
     val yOffset = (-40.dp + (80.dp * pullDistance)).coerceIn(-40.dp, 40.dp)
+    val animatedYOffset = animateDpAsState(
+        targetValue = if (isRefreshing) 40.dp else yOffset,
+        animationSpec = ArcileMotion.rememberSpring(stiffness = Spring.StiffnessMedium),
+        label = "pull_refresh_offset"
+    )
 
     if (isRefreshing || pullDistance > 0f) {
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .graphicsLayer {
-                    translationY = if (isRefreshing) 40.dp.toPx() else yOffset.toPx()
+                    translationY = animatedYOffset.value.toPx()
                     alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)
                 }
                 .padding(top = 8.dp)

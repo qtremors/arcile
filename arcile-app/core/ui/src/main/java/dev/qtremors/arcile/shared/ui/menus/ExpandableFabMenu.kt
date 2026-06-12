@@ -8,6 +8,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.shape.RoundedCornerShape
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -38,7 +42,12 @@ fun ExpandableFabMenu(
     fabIconRotation: Float,
     items: List<FabMenuItem>
 ) {
-    val fabShape = if (isExpanded) MaterialTheme.shapes.extraLarge else MaterialTheme.shapes.large
+    val animatedCornerSize = animateDpAsState(
+        targetValue = if (isExpanded) 28.dp else 24.dp,
+        animationSpec = ArcileMotion.rememberSpring(stiffness = Spring.StiffnessMediumLow),
+        label = "fab_corner_size"
+    )
+    val fabShape = RoundedCornerShape(animatedCornerSize.value)
 
     Column(horizontalAlignment = Alignment.End) {
         AnimatedVisibility(
