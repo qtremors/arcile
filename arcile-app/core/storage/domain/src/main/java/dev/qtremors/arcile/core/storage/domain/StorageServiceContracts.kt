@@ -15,6 +15,7 @@ interface BrowserPreferencesStore {
     suspend fun updateImageGalleryAspectRatio(enabled: Boolean)
     suspend fun updateImageGallerySectioned(enabled: Boolean)
     suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping)
+    suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab)
     suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences)
     suspend fun updateAlbumAspectRatio(enabled: Boolean)
     suspend fun updatePathPresentation(

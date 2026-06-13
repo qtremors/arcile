@@ -190,6 +190,7 @@ fun ImageGalleryAlbumsGrid(
     onAlbumsGridCellSizeFinalized: (Float) -> Unit,
     contentPadding: PaddingValues,
     onSelectAlbum: (String?) -> Unit,
+    gridState: LazyGridState,
     modifier: Modifier = Modifier
 ) {
     val thumbnailPolicy = remember { ThumbnailPolicy() }
@@ -216,6 +217,7 @@ fun ImageGalleryAlbumsGrid(
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = gridMinCellSize.dp),
+        state = gridState,
         contentPadding = contentPadding,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -247,15 +249,10 @@ fun ImageGalleryAlbumsGrid(
                     .clickable { onSelectAlbum(album.path) }
             ) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    val coverRatio = if (state.albumAspectRatio && coverFile != null) {
-                        state.aspectRatios[coverFile.absolutePath] ?: 1f
-                    } else {
-                        1f
-                    }
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .aspectRatio(coverRatio)
+                            .aspectRatio(1f)
                             .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {

@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import java.io.File
 
 internal const val FAVORITES_ALBUM_PATH = "__favorites__"
 
@@ -34,7 +33,7 @@ internal fun resolveAlbumCoverFile(
         return favoriteFiles.asSequence().mapNotNull(filesByPath::get).lastOrNull()
     }
 
-    val fallback = files.firstOrNull { File(it.absolutePath).parent == albumPath }
+    val fallback = files.firstOrNull { galleryParentPath(it.absolutePath) == albumPath }
     val customCoverPath = albumCovers[albumPath]
     return if (!customCoverPath.isNullOrEmpty()) {
         files.firstOrNull { it.absolutePath == customCoverPath } ?: fallback

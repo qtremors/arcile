@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.imagegallery
 import android.net.Uri
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
@@ -50,11 +51,13 @@ class ImageGalleryStateTest {
         val state = ImageGalleryState(
             imageGalleryGrouping = ImageGalleryGrouping.DAY,
             albumPresentation = BrowserPresentationPreferences(gridMinCellSize = 180f),
-            albumAspectRatio = true
+            imageGalleryDefaultTab = ImageGalleryDefaultTab.ALBUMS,
+            preferencesLoaded = true
         )
         assertEquals(ImageGalleryGrouping.DAY, state.imageGalleryGrouping)
         assertEquals(180f, state.albumPresentation.gridMinCellSize)
-        assertTrue(state.albumAspectRatio)
+        assertEquals(ImageGalleryDefaultTab.ALBUMS, state.imageGalleryDefaultTab)
+        assertTrue(state.preferencesLoaded)
     }
 
     @Test
@@ -293,5 +296,64 @@ class ImageGalleryStateTest {
         val archiveData = Any()
 
         assertEquals(archiveData, galleryThumbnailRequestDataFor(file, archiveData))
+    }
+
+    @Test
+    fun `viewer context preserves displayed order and initial clicked index`() {
+        val first = FileModel("one.jpg", "/photos/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val second = FileModel("two.jpg", "/photos/two.jpg", size = 100, lastModified = 200, isDirectory = false)
+        val third = FileModel("three.jpg", "/photos/three.jpg", size = 100, lastModified = 300, isDirectory = false)
+
+        val context = viewerFileContextForInitialPath(
+            initialPath = second.absolutePath,
+            displayedFiles = listOf(first, second, third),
+            allFiles = listOf(third, second, first)
+        )
+
+        assertEquals(listOf(first, second, third), context.files)
+        assertEquals(1, context.initialPage)
+    }
+
+    @Test
+    fun `viewer context uses loaded gallery when opened outside displayed filter`() {
+        val hiddenByFilter = FileModel("hidden.jpg", "/photos/hidden.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val visible = FileModel("visible.jpg", "/photos/visible.jpg", size = 100, lastModified = 200, isDirectory = false)
+
+        val context = viewerFileContextForInitialPath(
+            initialPath = hiddenByFilter.absolutePath,
+            displayedFiles = listOf(visible),
+            allFiles = listOf(hiddenByFilter, visible)
+        )
+
+        assertEquals(listOf(hiddenByFilter, visible), context.files)
+        assertEquals(0, context.initialPage)
+    }
+
+    @Test
+    fun `removing gallery paths updates displayed files favorites and album counts`() {
+        val kept = FileModel("kept.jpg", "/photos/album/kept.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val deleted = FileModel("deleted.jpg", "/photos/album/deleted.jpg", size = 100, lastModified = 200, isDirectory = false)
+        val other = FileModel("other.jpg", "/photos/other/other.jpg", size = 100, lastModified = 300, isDirectory = false)
+        val state = ImageGalleryState(
+            files = kotlinx.collections.immutable.persistentListOf(kept, deleted, other),
+            displayedFiles = kotlinx.collections.immutable.persistentListOf(deleted, kept, other),
+            albums = kotlinx.collections.immutable.persistentListOf(
+                ImageGalleryAlbum("/photos/album", "album", 2, 200),
+                ImageGalleryAlbum("/photos/other", "other", 1, 300)
+            ),
+            selectedAlbumPath = "/photos/album",
+            selectedFiles = kotlinx.collections.immutable.persistentSetOf(deleted.absolutePath),
+            favoriteFiles = kotlinx.collections.immutable.persistentSetOf(deleted.absolutePath, kept.absolutePath),
+            albumCovers = kotlinx.collections.immutable.persistentMapOf("/photos/album" to deleted.absolutePath)
+        )
+
+        val next = state.withoutGalleryPaths(listOf(deleted.absolutePath))
+
+        assertEquals(listOf(kept.absolutePath, other.absolutePath), next.files.map { it.absolutePath })
+        assertEquals(listOf(kept.absolutePath), next.displayedFiles.map { it.absolutePath })
+        assertEquals(setOf(kept.absolutePath), next.favoriteFiles)
+        assertTrue(next.selectedFiles.isEmpty())
+        assertTrue(next.albumCovers.isEmpty())
+        assertEquals(1, next.albums.first { it.path == "/photos/album" }.count)
     }
 }

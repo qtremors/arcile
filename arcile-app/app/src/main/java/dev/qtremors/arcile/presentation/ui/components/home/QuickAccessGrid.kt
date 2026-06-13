@@ -1,9 +1,7 @@
 package dev.qtremors.arcile.presentation.ui.components.home
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,21 +25,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
-
-private const val WHATSAPP_MEDIA_QUICK_ACCESS_ID = "standard_whatsapp_media"
-private const val WHATSAPP_PACKAGE_NAME = "com.whatsapp"
+import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
 
 @Composable
 fun QuickAccessGrid(
@@ -122,7 +114,6 @@ fun QuickAccessGrid(
                         ) {
                             QuickAccessIcon(
                                 item = folder,
-                                packageName = packageNameForQuickAccessItem(folder),
                                 fallbackIcon = getIconForItem(folder)
                             )
                             val displayLabel = folder.label.trimEnd('/').let { cleaned ->
@@ -150,41 +141,15 @@ fun QuickAccessGrid(
     }
 }
 
-internal fun packageNameForQuickAccessItem(item: QuickAccessItem): String? {
-    return when (item.id) {
-        WHATSAPP_MEDIA_QUICK_ACCESS_ID -> WHATSAPP_PACKAGE_NAME
-        else -> null
-    }
-}
-
 @Composable
 private fun QuickAccessIcon(
     item: QuickAccessItem,
-    packageName: String?,
     fallbackIcon: ImageVector
 ) {
-    val context = LocalContext.current
-    val appIcon = remember(context, packageName) {
-        packageName?.let { context.loadApplicationIconBitmap(it) }
-    }
-    if (appIcon != null) {
-        Image(
-            bitmap = appIcon.asImageBitmap(),
-            contentDescription = item.label,
-            modifier = Modifier.size(20.dp)
-        )
-    } else {
-        Icon(
-            imageVector = fallbackIcon,
-            contentDescription = item.label,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
-    }
-}
-
-internal fun Context.loadApplicationIconBitmap(packageName: String): android.graphics.Bitmap? {
-    return runCatching {
-        packageManager.getApplicationIcon(packageName).toBitmap(width = 48, height = 48)
-    }.getOrNull()
+    QuickAccessAppIcon(
+        item = item,
+        fallbackIcon = fallbackIcon,
+        modifier = Modifier.size(20.dp),
+        fallbackTint = MaterialTheme.colorScheme.primary
+    )
 }

@@ -13,6 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
@@ -87,17 +88,42 @@ data class ImageGalleryState(
     val isAspectRatio: Boolean = false,
     val isSectioned: Boolean = false,
     val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
+    val preferencesLoaded: Boolean = false,
     val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
         sortOption = FileSortOption.NAME_ASC,
         viewMode = BrowserViewMode.GRID,
         gridMinCellSize = 160f
     ),
-    val albumAspectRatio: Boolean = false,
     val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
     val clipboardState: ClipboardState? = null,
     val favoriteFiles: PersistentSet<String> = persistentSetOf(),
     val albumCovers: PersistentMap<String, String> = persistentMapOf()
 )
+
+internal fun ImageGalleryState.withoutGalleryPaths(paths: Collection<String>): ImageGalleryState {
+    if (paths.isEmpty()) return this
+    val removed = paths.map { it.replace('\\', '/') }.toSet()
+    fun isRemoved(path: String): Boolean = path.replace('\\', '/') in removed
+    val nextFiles = files.filterNot { isRemoved(it.absolutePath) }
+    return copy(
+        files = nextFiles.toPersistentList(),
+        albums = buildImageGalleryAlbums(nextFiles).toPersistentList(),
+        selectedFiles = selectedFiles.filterNot(::isRemoved).toPersistentSet(),
+        favoriteFiles = favoriteFiles.filterNot(::isRemoved).toPersistentSet(),
+        albumCovers = albumCovers.filterValues { !isRemoved(it) }.toPersistentMap()
+    ).withResolvedDisplayedFiles()
+}
+
+internal fun ImageGalleryState.withResolvedDisplayedFiles(): ImageGalleryState {
+    val albumFiltered = when (selectedAlbumPath) {
+        "__favorites__" -> files.filter { it.absolutePath in favoriteFiles }
+        null -> files
+        else -> files.filter { galleryParentPath(it.absolutePath) == selectedAlbumPath }
+    }
+
+    return copy(displayedFiles = filterAndSortFiles(albumFiltered, searchQuery, presentation.sortOption).toPersistentList())
+}
 
 @HiltViewModel
 class ImageGalleryViewModel @Inject constructor(
@@ -192,9 +218,14 @@ class ImageGalleryViewModel @Inject constructor(
             )
         },
         emitNativeRequest = { _nativeRequestFlow.emit(it) },
-        onSuccess = { loadImages(forceRefresh = true) },
+        onSuccess = {
+            _state.update { it.withoutGalleryPaths(pendingDeletePaths) }
+            pendingDeletePaths = emptyList()
+            loadImages(forceRefresh = true)
+        },
         onFailure = { loadImages(forceRefresh = true) }
     )
+    private var pendingDeletePaths: List<String> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -235,8 +266,9 @@ class ImageGalleryViewModel @Inject constructor(
                 isAspectRatio = preferences.imageGalleryAspectRatio,
                 isSectioned = preferences.imageGallerySectioned,
                 imageGalleryGrouping = preferences.imageGalleryGrouping,
+                imageGalleryDefaultTab = preferences.imageGalleryDefaultTab,
+                preferencesLoaded = true,
                 albumPresentation = preferences.albumPresentation,
-                albumAspectRatio = preferences.albumAspectRatio,
                 favoriteFiles = preferences.favoriteFiles.toPersistentSet(),
                 albumCovers = preferences.albumCovers.toPersistentMap()
             ).withDisplayedFiles()
@@ -336,8 +368,14 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
-    fun requestDeleteSelected() = deleteFlowDelegate.requestDeleteSelected()
-    fun confirmDeleteSelected() = deleteFlowDelegate.confirmDeleteSelected()
+    fun requestDeleteSelected() {
+        pendingDeletePaths = _state.value.selectedFiles.toList()
+        deleteFlowDelegate.requestDeleteSelected()
+    }
+    fun confirmDeleteSelected() {
+        pendingDeletePaths = _state.value.selectedFiles.toList().ifEmpty { pendingDeletePaths }
+        deleteFlowDelegate.confirmDeleteSelected()
+    }
     fun dismissDeleteConfirmation() = deleteFlowDelegate.dismissDeleteConfirmation()
     fun togglePermanentDelete() = deleteFlowDelegate.togglePermanentDelete()
     fun toggleShred() = deleteFlowDelegate.toggleShred()
@@ -385,15 +423,15 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
-    fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+    fun updateDefaultTab(tab: ImageGalleryDefaultTab) {
         viewModelScope.launch {
-            browserPreferencesStore.updateAlbumPresentation(presentation)
+            browserPreferencesStore.updateImageGalleryDefaultTab(tab)
         }
     }
 
-    fun updateAlbumAspectRatio(enabled: Boolean) {
+    fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
         viewModelScope.launch {
-            browserPreferencesStore.updateAlbumAspectRatio(enabled)
+            browserPreferencesStore.updateAlbumPresentation(presentation)
         }
     }
 
@@ -500,15 +538,7 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
-    private fun ImageGalleryState.withDisplayedFiles(): ImageGalleryState {
-        val albumFiltered = when (selectedAlbumPath) {
-            "__favorites__" -> files.filter { it.absolutePath in favoriteFiles }
-            null -> files
-            else -> files.filter { java.io.File(it.absolutePath).parent == selectedAlbumPath }
-        }
-
-        return copy(displayedFiles = filterAndSortFiles(albumFiltered, searchQuery, presentation.sortOption).toPersistentList())
-    }
+    private fun ImageGalleryState.withDisplayedFiles(): ImageGalleryState = withResolvedDisplayedFiles()
 
     companion object {
         private const val IMAGE_GALLERY_PREF_KEY = "image_gallery"

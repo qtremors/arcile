@@ -54,6 +54,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredWidthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -187,6 +188,7 @@ interface ScrollbarState {
     val firstVisibleItemIndex: Int
     val totalItemsCount: Int
     val firstVisibleItemScrollOffset: Int
+    val isScrollInProgress: Boolean
     suspend fun scrollToItem(index: Int)
     suspend fun scrollBy(value: Float): Float
 }
@@ -195,6 +197,7 @@ class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
     override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
     override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
@@ -203,6 +206,7 @@ class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
     override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
     override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
@@ -211,6 +215,7 @@ class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : Scrol
     override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
+    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
     override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
     override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
@@ -229,6 +234,7 @@ fun FastScrollbar(
     val firstVisibleOffset = scrollbarState.firstVisibleItemScrollOffset
 
     var isDragging by remember { mutableStateOf(false) }
+    var isPressed by remember { mutableStateOf(false) }
     var dragPositionFraction by remember { mutableStateOf(0f) }
 
     val coroutineScope = rememberCoroutineScope()
@@ -264,22 +270,27 @@ fun FastScrollbar(
     )
 
     val tooltipAlpha by animateFloatAsState(
-        targetValue = if (isDragging && dateText.isNotEmpty()) 1f else 0f,
+        targetValue = if ((isDragging || isPressed) && dateText.isNotEmpty()) 1f else 0f,
         label = "scrollbarTooltipAlpha"
+    )
+    val scrollbarAlpha by animateFloatAsState(
+        targetValue = if (isDragging || isPressed || scrollbarState.isScrollInProgress) 1f else 0f,
+        label = "scrollbarAlpha"
     )
 
     BoxWithConstraints(
         modifier = modifier
-            .width(64.dp)
+            .width(24.dp)
             .padding(contentPadding)
+            .graphicsLayer { alpha = scrollbarAlpha }
     ) {
         val trackHeight = maxHeight
-        val density = LocalDensity.current
 
         val dragModifier = Modifier.pointerInput(totalItems) {
             detectDragGestures(
                 onDragStart = { offset ->
                     isDragging = true
+                    isPressed = true
                     val y = offset.y.coerceIn(0f, size.height.toFloat())
                     dragPositionFraction = y / size.height.toFloat()
                     val targetIdx = (dragPositionFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
@@ -289,9 +300,11 @@ fun FastScrollbar(
                 },
                 onDragEnd = {
                     isDragging = false
+                    isPressed = false
                 },
                 onDragCancel = {
                     isDragging = false
+                    isPressed = false
                 },
                 onDrag = { change, dragAmount ->
                     change.consume()
@@ -304,29 +317,39 @@ fun FastScrollbar(
                 }
             )
         }.pointerInput(totalItems) {
-            detectTapGestures { offset ->
-                val y = offset.y.coerceIn(0f, size.height.toFloat())
-                val tapFraction = y / size.height.toFloat()
-                val targetIdx = (tapFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
-                coroutineScope.launch {
-                    scrollbarState.scrollToItem(targetIdx)
+            detectTapGestures(
+                onPress = {
+                    isPressed = true
+                    try {
+                        awaitRelease()
+                    } finally {
+                        isPressed = false
+                    }
+                },
+                onTap = { offset ->
+                    val y = offset.y.coerceIn(0f, size.height.toFloat())
+                    val tapFraction = y / size.height.toFloat()
+                    val targetIdx = (tapFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
+                    coroutineScope.launch {
+                        scrollbarState.scrollToItem(targetIdx)
+                    }
                 }
-            }
+            )
         }
 
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(48.dp)
+                .width(24.dp)
                 .align(Alignment.CenterEnd)
                 .then(dragModifier)
         ) {
-            if (isDragging) {
+            if (isDragging || isPressed) {
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(4.dp)
-                        .align(Alignment.Center)
+                        .align(Alignment.CenterEnd)
                         .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), CircleShape)
                 )
             }
@@ -340,7 +363,7 @@ fun FastScrollbar(
                     .offset(y = thumbOffset)
                     .width(thumbWidth)
                     .height(thumbHeight)
-                    .align(Alignment.TopCenter)
+                    .align(Alignment.TopEnd)
                     .background(thumbColor, CircleShape)
             )
 
@@ -354,21 +377,24 @@ fun FastScrollbar(
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                     modifier = Modifier
                         .offset(
-                            x = (-100).dp,
+                            x = (-132).dp,
                             y = tooltipOffset
                         )
+                        .requiredWidthIn(min = 112.dp, max = 156.dp)
                         .graphicsLayer {
                             alpha = tooltipAlpha
                             scaleX = tooltipAlpha
                             scaleY = tooltipAlpha
                         }
-                        .align(Alignment.TopCenter)
+                        .align(Alignment.TopEnd)
                 ) {
                     Text(
                         text = dateText,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                     )
                 }

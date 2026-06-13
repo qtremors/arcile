@@ -155,6 +155,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
@@ -193,6 +194,7 @@ fun FloatingGalleryTopBar(
     onClearSearch: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
+    onDefaultTabChange: (ImageGalleryDefaultTab) -> Unit,
     onSelectAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -300,20 +302,32 @@ fun FloatingGalleryTopBar(
                             shape = MaterialTheme.shapes.extraLarge,
                             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                             expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false }
+                            onDismissRequest = { showOverflowMenu = false },
+                            modifier = Modifier.width(260.dp)
                         ) {
-                            val menuActions = remember(state.presentation.viewMode, state.showFileDetails, state.displayedFiles.isNotEmpty()) {
+                            val menuActions = remember(
+                                state.presentation.viewMode,
+                                state.showFileDetails,
+                                state.imageGalleryDefaultTab,
+                                state.displayedFiles.isNotEmpty()
+                            ) {
                                 mutableListOf<@Composable () -> Unit>().apply {
                                     if (state.presentation.viewMode == BrowserViewMode.GRID) {
                                         add {
                                             DropdownMenuItem(
                                                 text = {
                                                     Column {
-                                                        Text(stringResource(R.string.image_gallery_show_file_details))
+                                                        Text(
+                                                            text = stringResource(R.string.image_gallery_show_file_details),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
                                                         Text(
                                                             text = stringResource(R.string.image_gallery_show_file_details_description),
                                                             style = MaterialTheme.typography.bodySmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 2,
+                                                            overflow = TextOverflow.Ellipsis
                                                         )
                                                     }
                                                 },
@@ -326,19 +340,69 @@ fun FloatingGalleryTopBar(
                                                 onClick = {
                                                     onShowFileDetailsChange(!state.showFileDetails)
                                                     showOverflowMenu = false
-                                                }
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                            )
+                                        }
+                                    }
+                                    ImageGalleryDefaultTab.entries.forEach { tab ->
+                                        add {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = stringResource(
+                                                            when (tab) {
+                                                                ImageGalleryDefaultTab.PHOTOS -> R.string.image_gallery_open_to_photos
+                                                                ImageGalleryDefaultTab.ALBUMS -> R.string.image_gallery_open_to_albums
+                                                            }
+                                                        ),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        imageVector = when (tab) {
+                                                            ImageGalleryDefaultTab.PHOTOS -> Icons.Default.Image
+                                                            ImageGalleryDefaultTab.ALBUMS -> Icons.Default.Folder
+                                                        },
+                                                        contentDescription = null
+                                                    )
+                                                },
+                                                trailingIcon = if (state.imageGalleryDefaultTab == tab) {
+                                                    {
+                                                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                                    }
+                                                } else {
+                                                    null
+                                                },
+                                                onClick = {
+                                                    onDefaultTabChange(tab)
+                                                    showOverflowMenu = false
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                             )
                                         }
                                     }
                                     if (state.displayedFiles.isNotEmpty()) {
                                         add {
                                             DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.select_all)) },
+                                                text = {
+                                                    Text(
+                                                        text = stringResource(R.string.select_all),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
                                                 leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
                                                 onClick = {
                                                     onSelectAll()
                                                     showOverflowMenu = false
-                                                }
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                                             )
                                         }
                                     }
@@ -354,6 +418,7 @@ fun FloatingGalleryTopBar(
                                 }
                                 Box(
                                     modifier = Modifier
+                                        .fillMaxWidth()
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                         .clip(shape)
                                         .background(MaterialTheme.colorScheme.surfaceContainerHighest)

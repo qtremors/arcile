@@ -75,8 +75,8 @@ fun NavGraphBuilder.imageGalleryScreen(
             onAspectRatioChange = viewModel::updateAspectRatio,
             onSectionedChange = viewModel::updateSectioned,
             onGroupingChange = viewModel::updateGrouping,
+            onDefaultTabChange = viewModel::updateDefaultTab,
             onAlbumPresentationChange = viewModel::updateAlbumPresentation,
-            onAlbumAspectRatioChange = viewModel::updateAlbumAspectRatio,
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )
@@ -100,6 +100,13 @@ fun NavGraphBuilder.imageViewerScreen(
         popExitTransition = popExitTransition
     ) { backStackEntry ->
         val route = backStackEntry.toRoute<AppRoutes.ImageViewer>()
+        val contextPaths = remember(backStackEntry) {
+            navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+                ?.toList()
+                .orEmpty()
+        }
 
         // Try to obtain the active ImageGalleryViewModel from parent backstack entry
         val parentEntry = remember(backStackEntry) {
@@ -110,11 +117,20 @@ fun NavGraphBuilder.imageViewerScreen(
         } else {
             hiltViewModel<ImageGalleryViewModel>()
         }
+        val navigateBack = {
+            if (route.returnToBrowserPage) {
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set("showBrowserPage", true)
+            }
+            onNavigateBack()
+        }
 
         ImageViewerScreen(
             initialPath = route.initialPath,
             viewModel = viewModel,
-            onNavigateBack = onNavigateBack,
+            contextPaths = contextPaths,
+            onNavigateBack = navigateBack,
             onShareFile = onShareFile,
             onOpenWith = onOpenFileWith
         )

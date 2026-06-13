@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
@@ -21,7 +22,7 @@ fun NavGraphBuilder.recentFilesScreen(
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onOpenFile: (String) -> Unit,
+    onOpenFile: (String, List<FileModel>) -> Unit,
     onShareSelected: suspend (List<String>) -> Boolean,
     onOpenContainingFolder: (String) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
@@ -35,10 +36,11 @@ fun NavGraphBuilder.recentFilesScreen(
         val viewModel = hiltViewModel<RecentFilesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val coroutineScope = rememberCoroutineScope()
+        val openFiles = if (state.searchQuery.isNotBlank()) state.searchResults else state.displayedRecentFiles
         RecentFilesScreen(
             state = state,
             onNavigateBack = onNavigateBack,
-            onOpenFile = onOpenFile,
+            onOpenFile = { path -> onOpenFile(path, openFiles) },
             onToggleSelection = { viewModel.toggleSelection(it) },
             onClearSelection = { viewModel.clearSelection() },
             onRequestDeleteSelected = { viewModel.requestDeleteSelected() },

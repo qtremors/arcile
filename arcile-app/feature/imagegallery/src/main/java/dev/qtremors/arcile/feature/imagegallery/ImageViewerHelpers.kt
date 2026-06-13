@@ -95,10 +95,30 @@ fun viewerFilesForInitialPath(
     displayedFiles: List<FileModel>,
     allFiles: List<FileModel>
 ): List<FileModel> {
-    val clickedFile = displayedFiles.firstOrNull { it.absolutePath == initialPath }
-        ?: allFiles.firstOrNull { it.absolutePath == initialPath }
-        ?: fileModelFromPath(initialPath)
-    return listOf(clickedFile) + displayedFiles.filterNot { it.absolutePath == initialPath }
+    return viewerFileContextForInitialPath(initialPath, displayedFiles, allFiles).files
+}
+
+data class ViewerFileContext(
+    val files: List<FileModel>,
+    val initialPage: Int
+)
+
+fun viewerFileContextForInitialPath(
+    initialPath: String,
+    displayedFiles: List<FileModel>,
+    allFiles: List<FileModel>
+): ViewerFileContext {
+    val displayedIndex = displayedFiles.indexOfFirst { it.absolutePath == initialPath }
+    if (displayedIndex >= 0) {
+        return ViewerFileContext(displayedFiles, displayedIndex)
+    }
+
+    val allIndex = allFiles.indexOfFirst { it.absolutePath == initialPath }
+    if (allIndex >= 0) {
+        return ViewerFileContext(allFiles, allIndex)
+    }
+
+    return ViewerFileContext(listOf(fileModelFromPath(initialPath)), 0)
 }
 
 fun fileModelFromPath(path: String): FileModel {

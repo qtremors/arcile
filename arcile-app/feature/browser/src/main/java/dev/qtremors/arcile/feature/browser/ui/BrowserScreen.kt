@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
@@ -117,7 +119,9 @@ fun BrowserScreen(
     onCleanupRecoveredOperation: (String) -> Unit = {},
     onDismissRecoveredOperation: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
-    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
+    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null,
+    listState: LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    gridState: LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
 ) {
     val haptics = rememberArcileHaptics()
     val dialogVisibility = rememberBrowserDialogVisibility()
@@ -234,13 +238,20 @@ fun BrowserScreen(
         }
     }
 
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
-    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-
-    LaunchedEffect(state.browserSortOption, state.currentPath, state.activeCategoryName) {
-        if (displayedFiles.isNotEmpty()) {
+    val scrollResetKey = "${state.browserSortOption}|${state.currentPath}|${state.activeCategoryName.orEmpty()}|${state.selectedFolderTabPath.orEmpty()}"
+    var lastScrollResetKey by rememberSaveable { mutableStateOf(scrollResetKey) }
+    var pendingScrollReset by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(scrollResetKey) {
+        if (scrollResetKey != lastScrollResetKey) {
+            pendingScrollReset = true
+            lastScrollResetKey = scrollResetKey
+        }
+    }
+    LaunchedEffect(scrollResetKey, displayedFiles.size) {
+        if (pendingScrollReset && displayedFiles.isNotEmpty()) {
             listState.scrollToItem(0)
             gridState.scrollToItem(0)
+            pendingScrollReset = false
         }
     }
 

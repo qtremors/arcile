@@ -14,6 +14,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -55,6 +56,7 @@ class BrowserPreferencesRepository(
     private val IMAGE_GALLERY_ASPECT_RATIO_KEY = booleanPreferencesKey("image_gallery_aspect_ratio")
     private val IMAGE_GALLERY_SECTIONED_KEY = booleanPreferencesKey("image_gallery_sectioned")
     private val IMAGE_GALLERY_GROUPING_KEY = stringPreferencesKey("image_gallery_grouping")
+    private val IMAGE_GALLERY_DEFAULT_TAB_KEY = stringPreferencesKey("image_gallery_default_tab")
     private val ALBUM_VIEW_MODE_KEY = stringPreferencesKey("album_view_mode")
     private val ALBUM_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("album_grid_min_cell_size")
     private val ALBUM_SORT_OPTION_KEY = stringPreferencesKey("album_sort_option")
@@ -178,6 +180,9 @@ class BrowserPreferencesRepository(
             val groupingStr = prefs[IMAGE_GALLERY_GROUPING_KEY]
             val grouping = ImageGalleryGrouping.entries.find { it.name == groupingStr }
                 ?: BrowserPreferences().imageGalleryGrouping
+            val defaultTabStr = prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY]
+            val defaultTab = ImageGalleryDefaultTab.entries.find { it.name == defaultTabStr }
+                ?: BrowserPreferences().imageGalleryDefaultTab
 
             val albumPresentation = BrowserPresentationPreferences(
                 sortOption = parseSortOption(
@@ -227,6 +232,7 @@ class BrowserPreferencesRepository(
                 imageGallerySectioned = prefs[IMAGE_GALLERY_SECTIONED_KEY]
                     ?: BrowserPreferences().imageGallerySectioned,
                 imageGalleryGrouping = grouping,
+                imageGalleryDefaultTab = defaultTab,
                 albumPresentation = albumPresentation,
                 albumAspectRatio = albumAspectRatio,
                 favoriteFiles = favoriteFiles,
@@ -292,6 +298,12 @@ class BrowserPreferencesRepository(
     override suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_GROUPING_KEY] = grouping.name
+        }
+    }
+
+    override suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY] = tab.name
         }
     }
 

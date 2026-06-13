@@ -212,9 +212,16 @@ fun StorageSummaryCard(
 
                 if ((state.categoryStorages.isNotEmpty() || state.trashStorageUsage.totalBytes > 0L) && !showPlaceholder) {
                     Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
-                    CategoryLegend(
+                    val systemBytes = systemInaccessibleBytes(
+                        totalBytes = total,
+                        freeBytes = free,
                         categoryStorages = state.categoryStorages,
                         trashBytes = state.trashStorageUsage.totalBytes
+                    )
+                    CategoryLegend(
+                        categoryStorages = state.categoryStorages,
+                        trashBytes = state.trashStorageUsage.totalBytes,
+                        systemBytes = systemBytes
                     )
                 } else {
                     Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
@@ -567,7 +574,8 @@ fun MultiColorStorageBar(
 @Composable
 fun CategoryLegend(
     categoryStorages: List<CategoryStorage>,
-    trashBytes: Long = 0L
+    trashBytes: Long = 0L,
+    systemBytes: Long = 0L
 ) {
     val scrollState = rememberScrollState()
     Row(
@@ -584,7 +592,16 @@ fun CategoryLegend(
                 val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                 Triple(cat.name, cat.sizeBytes, catColor)
             } + listOfNotNull(
-            if (trashBytes > 0L) Triple(stringResource(R.string.trash_bin), trashBytes, MaterialTheme.colorScheme.error) else null
+            if (trashBytes > 0L) Triple(stringResource(R.string.trash_bin), trashBytes, MaterialTheme.colorScheme.error) else null,
+            if (systemBytes > 0L) {
+                Triple(
+                    stringResource(R.string.other_files_system),
+                    systemBytes,
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            } else {
+                null
+            }
         )
 
         legendItems.forEach { (name, sizeBytes, color) ->
@@ -606,4 +623,15 @@ fun CategoryLegend(
             }
         }
     }
+}
+
+fun systemInaccessibleBytes(
+    totalBytes: Long,
+    freeBytes: Long,
+    categoryStorages: List<CategoryStorage>,
+    trashBytes: Long
+): Long {
+    val actualUsedBytes = (totalBytes - freeBytes).coerceAtLeast(0L)
+    val visibleBytes = categoryStorages.sumOf { it.sizeBytes } + trashBytes.coerceAtLeast(0L)
+    return (actualUsedBytes - visibleBytes).coerceAtLeast(0L)
 }

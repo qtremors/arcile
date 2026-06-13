@@ -128,8 +128,10 @@ fun StorageDashboardScreen(
             showLoading = false
         }
     }
-    LaunchedEffect(selectedVolumeId) {
-        storageUsageViewModel.load(selectedVolumeId)
+    LaunchedEffect(selectedTabIndex, selectedVolumeId) {
+        if (selectedTabIndex == 1) {
+            storageUsageViewModel.load(selectedVolumeId)
+        }
     }
 
     val displayCategories = categoryStorages

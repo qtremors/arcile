@@ -159,7 +159,7 @@
     <string name="insights_unavailable">Insights unavailable</string>
     <string name="no_indexed_volumes">"We couldn't find any indexed storage volumes to analyze."</string>
     <string name="categories_title">Categories</string>
-    <string name="other_files_system">"Other Files &amp; System"</string>
+    <string name="other_files_system">System &amp; inaccessible data</string>
     <string name="temp_storage_description">"This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card."</string>
     <string name="storage_dashboard_summary_tab">Summary</string>
     <string name="storage_dashboard_usage_map_tab">Usage Map</string>

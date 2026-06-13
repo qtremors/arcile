@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
@@ -50,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -65,6 +69,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
@@ -81,6 +86,7 @@ import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 
@@ -117,8 +123,8 @@ fun ImageGalleryScreen(
     onAspectRatioChange: (Boolean) -> Unit = {},
     onSectionedChange: (Boolean) -> Unit = {},
     onGroupingChange: (ImageGalleryGrouping) -> Unit = {},
+    onDefaultTabChange: (ImageGalleryDefaultTab) -> Unit = {},
     onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
-    onAlbumAspectRatioChange: (Boolean) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: SharedFlow<android.content.IntentSender>? = null
 ) {
@@ -128,6 +134,13 @@ fun ImageGalleryScreen(
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var currentTab by rememberSaveable { mutableStateOf(GalleryTab.PHOTOS) }
+    var defaultTabApplied by rememberSaveable { mutableStateOf(false) }
+    val albumsGridState = rememberLazyGridState()
+    val pagerState = rememberPagerState(
+        initialPage = if (currentTab == GalleryTab.ALBUMS) 1 else 0,
+        pageCount = { 2 }
+    )
+    val coroutineScope = rememberCoroutineScope()
 
     var activePhotosGridCellSize by remember(state.presentation.gridMinCellSize) {
         mutableStateOf(state.presentation.gridMinCellSize)
@@ -172,6 +185,25 @@ fun ImageGalleryScreen(
         }
     }
 
+    LaunchedEffect(state.preferencesLoaded, state.imageGalleryDefaultTab) {
+        if (!defaultTabApplied && state.preferencesLoaded) {
+            val targetTab = when (state.imageGalleryDefaultTab) {
+                ImageGalleryDefaultTab.PHOTOS -> GalleryTab.PHOTOS
+                ImageGalleryDefaultTab.ALBUMS -> GalleryTab.ALBUMS
+            }
+            currentTab = targetTab
+            pagerState.scrollToPage(if (targetTab == GalleryTab.ALBUMS) 1 else 0)
+            defaultTabApplied = true
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        currentTab = if (pagerState.currentPage == 1) GalleryTab.ALBUMS else GalleryTab.PHOTOS
+        if (pagerState.currentPage == 0 && state.selectedAlbumPath != null) {
+            onSelectAlbum(null)
+        }
+    }
+
     var backProgress by remember { mutableStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
@@ -209,12 +241,6 @@ fun ImageGalleryScreen(
     ) {
         val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
 
-        val viewState = when {
-            currentTab == GalleryTab.PHOTOS -> GalleryViewState.PHOTOS_TAB
-            state.selectedAlbumPath == null -> GalleryViewState.ALBUMS_TAB_GRID
-            else -> GalleryViewState.ALBUM_PHOTOS
-        }
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -228,8 +254,30 @@ fun ImageGalleryScreen(
                     }
                 }
         ) {
-            when (viewState) {
-                GalleryViewState.ALBUMS_TAB_GRID -> {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = !isSelectionMode
+            ) { page ->
+                if (page == 0) {
+                    ImageGalleryContent(
+                        state = state.copy(selectedAlbumPath = null).withResolvedDisplayedFiles(),
+                        gridMinCellSize = activePhotosGridCellSize,
+                        onPhotosGridCellSizeChange = { activePhotosGridCellSize = it },
+                        onPhotosGridCellSizeFinalized = { size ->
+                            onPresentationChange(state.presentation.copy(gridMinCellSize = size))
+                        },
+                        contentPadding = PaddingValues(
+                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
+                            bottom = bottomPadding
+                        ),
+                        onOpenFile = onOpenFile,
+                        onToggleSelection = onToggleSelection,
+                        onSelectMultiple = onSelectMultiple,
+                        onSelectAlbum = onSelectAlbum,
+                        onRefresh = onRefresh
+                    )
+                } else if (state.selectedAlbumPath == null) {
                     ImageGalleryAlbumsGrid(
                         state = state,
                         gridMinCellSize = activeAlbumsGridCellSize,
@@ -241,10 +289,10 @@ fun ImageGalleryScreen(
                             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
                             bottom = bottomPadding
                         ),
-                        onSelectAlbum = onSelectAlbum
+                        onSelectAlbum = onSelectAlbum,
+                        gridState = albumsGridState
                     )
-                }
-                GalleryViewState.PHOTOS_TAB, GalleryViewState.ALBUM_PHOTOS -> {
+                } else {
                     ImageGalleryContent(
                         state = state,
                         gridMinCellSize = activePhotosGridCellSize,
@@ -331,6 +379,7 @@ fun ImageGalleryScreen(
                     },
                     onSearchQueryChange = onSearchQueryChange,
                     onShowFileDetailsChange = onShowFileDetailsChange,
+                    onDefaultTabChange = onDefaultTabChange,
                     onSelectAll = onSelectAll,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -390,6 +439,16 @@ fun ImageGalleryScreen(
         )
 
         val density = LocalDensity.current
+        val bottomBarOffset by animateDpAsState(
+            targetValue = if (isTopBarVisible || isSelectionMode) 0.dp else 120.dp,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "bottomBarOffset"
+        )
+        val bottomBarAlpha by animateFloatAsState(
+            targetValue = if (isTopBarVisible || isSelectionMode) 1f else 0f,
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            label = "bottomBarAlpha"
+        )
 
         val bottomBarModifier = if (isSelectionMode) {
             Modifier
@@ -407,7 +466,12 @@ fun ImageGalleryScreen(
 
         // Floating dynamic bottom navigation with vertical 3D Flip on selection
         Box(
-            modifier = bottomBarModifier.animateContentSize(),
+            modifier = bottomBarModifier
+                .graphicsLayer {
+                    translationY = bottomBarOffset.toPx()
+                    alpha = bottomBarAlpha
+                }
+                .animateContentSize(),
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -443,6 +507,7 @@ fun ImageGalleryScreen(
                             onClick = {
                                 currentTab = GalleryTab.PHOTOS
                                 onSelectAlbum(null)
+                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
                             }
                         )
                         TabItem(
@@ -451,6 +516,7 @@ fun ImageGalleryScreen(
                             icon = Icons.Default.Folder,
                             onClick = {
                                 currentTab = GalleryTab.ALBUMS
+                                coroutineScope.launch { pagerState.animateScrollToPage(1) }
                             }
                         )
                     }
@@ -632,13 +698,11 @@ fun ImageGalleryScreen(
             photosPresentation = state.presentation,
             albumPresentation = state.albumPresentation,
             isAspectRatio = state.isAspectRatio,
-            albumAspectRatio = state.albumAspectRatio,
             grouping = state.imageGalleryGrouping,
             showFileDetails = state.showFileDetails,
             onPhotosPresentationChange = onPresentationChange,
             onAlbumPresentationChange = onAlbumPresentationChange,
             onPhotosAspectRatioChange = onAspectRatioChange,
-            onAlbumAspectRatioChange = onAlbumAspectRatioChange,
             onGroupingChange = onGroupingChange,
             onShowFileDetailsChange = onShowFileDetailsChange,
             onDismiss = { showPresentationSheet = false }

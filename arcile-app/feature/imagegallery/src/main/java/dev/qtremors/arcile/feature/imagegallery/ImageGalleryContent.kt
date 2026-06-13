@@ -197,9 +197,6 @@ fun ImageGalleryContent(
     onRefresh: () -> Unit
 ) {
     val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
-    val gridStatesByAlbum = remember { mutableMapOf<String, LazyGridState>() }
-    val listStatesByAlbum = remember { mutableMapOf<String, LazyListState>() }
-    val staggeredGridStatesByAlbum = remember { mutableMapOf<String, LazyStaggeredGridState>() }
     val albumScrollKey = state.selectedAlbumPath ?: "__all__"
 
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
@@ -338,20 +335,29 @@ fun ImageGalleryContent(
             else -> {
                 val scrollbarState = when {
                     state.presentation.viewMode == BrowserViewMode.GRID && state.isAspectRatio -> {
-                        val staggeredGridState = remember(albumScrollKey) {
-                            staggeredGridStatesByAlbum.getOrPut(albumScrollKey) { LazyStaggeredGridState() }
+                        val staggeredGridState = rememberSaveable(
+                            albumScrollKey,
+                            saver = LazyStaggeredGridState.Saver
+                        ) {
+                            LazyStaggeredGridState()
                         }
                         LazyStaggeredGridScrollbarState(staggeredGridState)
                     }
                     state.presentation.viewMode == BrowserViewMode.GRID -> {
-                        val gridState = remember(albumScrollKey) {
-                            gridStatesByAlbum.getOrPut(albumScrollKey) { LazyGridState() }
+                        val gridState = rememberSaveable(
+                            albumScrollKey,
+                            saver = LazyGridState.Saver
+                        ) {
+                            LazyGridState()
                         }
                         LazyGridScrollbarState(gridState)
                     }
                     else -> {
-                        val listState = remember(albumScrollKey) {
-                            listStatesByAlbum.getOrPut(albumScrollKey) { LazyListState() }
+                        val listState = rememberSaveable(
+                            albumScrollKey,
+                            saver = LazyListState.Saver
+                        ) {
+                            LazyListState()
                         }
                         LazyListScrollbarState(listState)
                     }

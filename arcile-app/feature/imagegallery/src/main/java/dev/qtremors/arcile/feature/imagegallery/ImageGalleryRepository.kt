@@ -4,7 +4,6 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import kotlinx.coroutines.flow.Flow
-import java.io.File
 import javax.inject.Inject
 
 interface ImageGalleryRepository {
@@ -51,7 +50,7 @@ class DefaultImageGalleryRepository @Inject constructor(
             .toMap()
         val snapshot = ImageGallerySnapshot(
             files = files,
-            albums = buildAlbums(files),
+            albums = buildImageGalleryAlbums(files),
             aspectRatios = aspectRatios,
             isStale = catalog.isStale
         )
@@ -77,18 +76,24 @@ class DefaultImageGalleryRepository @Inject constructor(
         }
     }
 
-    private fun buildAlbums(files: List<FileModel>): List<ImageGalleryAlbum> {
-        val grouped = files.groupBy { file -> File(file.absolutePath).parent }
-        return grouped.entries
-            .sortedByDescending { it.value.size }
-            .map { (path, albumFiles) ->
-                val lastModified = albumFiles.maxOfOrNull { it.lastModified } ?: 0L
-                ImageGalleryAlbum(
-                    path = path,
-                    label = path?.substringAfterLast(File.separatorChar)?.ifBlank { path } ?: "Unknown",
-                    count = albumFiles.size,
-                    lastModified = lastModified
-                )
-            }
-    }
+}
+
+internal fun buildImageGalleryAlbums(files: List<FileModel>): List<ImageGalleryAlbum> {
+    val grouped = files.groupBy { file -> galleryParentPath(file.absolutePath) }
+    return grouped.entries
+        .sortedByDescending { it.value.size }
+        .map { (path, albumFiles) ->
+            val lastModified = albumFiles.maxOfOrNull { it.lastModified } ?: 0L
+            ImageGalleryAlbum(
+                path = path,
+                label = path?.substringAfterLast('/')?.ifBlank { path } ?: "Unknown",
+                count = albumFiles.size,
+                lastModified = lastModified
+            )
+        }
+}
+
+internal fun galleryParentPath(path: String): String? {
+    val normalized = path.replace('\\', '/')
+    return normalized.substringBeforeLast('/', missingDelimiterValue = "").ifBlank { null }
 }

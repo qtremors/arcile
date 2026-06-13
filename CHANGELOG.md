@@ -1,10 +1,29 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.7
+> **Version:** 1.0.8
 > **Last Updated:** 2026-06-13
 
 ---
+
+## [1.0.8] - 2026-06-13
+
+- **Image Viewer Revamp**: Adapted a clean media viewer layout to Arcile's design system, adding a circular Back button in the top-left, a date/time info pill in the top-center, a horizontal scrolling thumbnail strip at the bottom, and a 3-dot overflow options menu in the bottom-right corner for secondary actions. Increased the size of viewer overlay and action buttons to 56.dp with 28.dp icons to improve touch targets.
+- **Quick Access App Icons**: Declared WhatsApp package visibility and resolved the Android Files/DocumentsUI package so Home and the Quick Access screen can show sharper installed app icons for WhatsApp, Files, Android/data, and Android/obb instead of always falling back to Material icons.
+- **Whole-Device Storage Usage**: Used Android platform storage statistics for primary internal storage and surfaced the non-browsable remainder as system and inaccessible data so Arcile usage totals better match Android Settings.
+- **Decimal Storage Units**: Switched displayed file sizes to decimal KB/MB/GB/TB units so storage totals align with Android Settings and device capacity labels.
+- **Gallery Album Defaults**: Removed the album aspect-ratio layout option, kept album covers square, and added a Photos/Albums default opening preference for the gallery. Polished the gallery and viewer dropdown overflow menus to set a consistent width, stretch option containers to full width, prevent text wrapping using ellipsis, and optimize content padding.
+- **Architecture Budget Tuning**: Raised the large-file and ViewModel line-count guardrails to 1000 lines to reduce churn from overly tight test limits.
+- **Storage Dashboard Reuse**: Reused already-loaded home storage breakdowns when opening the dashboard summary and delayed the heavier usage-map scan until the Usage Map tab is opened.
+- **Gallery Swipe Navigation**: Added horizontal swiping between Photos and Albums while preserving the existing floating tab controls.
+- **Gallery Scroll Polish**: Preserved gallery scroll position when returning from the image viewer, moved the fast scrollbar to the far-right edge, and made it appear only during scroll, press, or drag interactions.
+- **Gallery Chrome Behavior**: Hid and revealed the bottom Photos/Albums navigation with scroll, matching the existing floating control behavior while keeping selection actions visible.
+- **Gallery Delete Freshness**: Removed deleted images from gallery state, favorites, albums, and viewer paging immediately while the backing catalog refreshes.
+- **Transparent Image Rendering**: Stopped drawing the generic image icon behind successfully loaded transparent images and switched thumbnails to a neutral background.
+- **Viewer Context Awareness**: Preserved gallery ordering in the image viewer and opened the pager on the selected image instead of rebuilding the list around page zero.
+- **Cross-Screen Image Swiping**: Passed surrounding image context from Home recents, Recent Files, Browser folders, Browser categories, and Browser search results into the image viewer so users can swipe nearby images without returning to the source list.
+- **Browser Viewer Return**: Returned users to the active Browser folder after swiping through folder images in the viewer instead of landing back on Home.
+- **Browser Scroll Preservation**: Kept the Browser folder scroll position intact when returning from the image viewer instead of jumping back to the top of the folder.
 
 ## [1.0.7] - 2026-06-12
 

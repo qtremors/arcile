@@ -189,13 +189,11 @@ fun GalleryViewOptionsDialog(
     photosPresentation: BrowserPresentationPreferences,
     albumPresentation: BrowserPresentationPreferences,
     isAspectRatio: Boolean,
-    albumAspectRatio: Boolean,
     grouping: ImageGalleryGrouping,
     showFileDetails: Boolean,
     onPhotosPresentationChange: (BrowserPresentationPreferences) -> Unit,
     onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit,
     onPhotosAspectRatioChange: (Boolean) -> Unit,
-    onAlbumAspectRatioChange: (Boolean) -> Unit,
     onGroupingChange: (ImageGalleryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
@@ -208,9 +206,6 @@ fun GalleryViewOptionsDialog(
     }
     var draftPhotosAspectRatio by remember(isAspectRatio) {
         mutableStateOf(isAspectRatio)
-    }
-    var draftAlbumAspectRatio by remember(albumAspectRatio) {
-        mutableStateOf(albumAspectRatio)
     }
     var draftGrouping by remember(grouping) {
         mutableStateOf(grouping)
@@ -504,31 +499,7 @@ fun GalleryViewOptionsDialog(
                         )
                     }
 
-                    // 2. Aspect Ratio Selector
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = stringResource(R.string.image_gallery_grid_mode),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            FilterChip(
-                                selected = !draftAlbumAspectRatio,
-                                onClick = { draftAlbumAspectRatio = false },
-                                label = { Text(stringResource(R.string.image_gallery_view_mode_square)) }
-                            )
-                            FilterChip(
-                                selected = draftAlbumAspectRatio,
-                                onClick = { draftAlbumAspectRatio = true },
-                                label = { Text(stringResource(R.string.image_gallery_view_mode_aspect)) }
-                            )
-                        }
-                    }
-
-                    // 3. Sort Options (Name / Count)
+                    // 2. Sort Options (Name / Count)
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = stringResource(R.string.action_sort),
@@ -583,7 +554,6 @@ fun GalleryViewOptionsDialog(
                                 onShowFileDetailsChange(draftShowDetails)
                             } else {
                                 onAlbumPresentationChange(draftAlbumPreferences.normalized())
-                                onAlbumAspectRatioChange(draftAlbumAspectRatio)
                             }
                             onDismiss()
                         }

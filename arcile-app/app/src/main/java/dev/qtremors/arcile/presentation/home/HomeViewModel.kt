@@ -313,6 +313,21 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun ensureDashboardCategoryBreakdown(selectedVolumeId: String? = null) {
+        val currentState = _state.value
+        val indexedVolumes = currentState.storageInfo?.volumes
+            ?.filter { it.kind.isIndexed }
+            ?: currentState.allStorageVolumes.filter { it.kind.isIndexed }
+        val missingBreakdown = if (selectedVolumeId != null) {
+            indexedVolumes.any { it.id == selectedVolumeId && currentState.categoryStoragesByVolume[it.id] == null }
+        } else {
+            indexedVolumes.any { currentState.categoryStoragesByVolume[it.id] == null }
+        }
+        if (missingBreakdown) {
+            loadDashboardCategoryBreakdown(selectedVolumeId)
+        }
+    }
+
     fun setVolumeClassification(storageKey: String, kind: StorageKind) {
         _state.update { currentState ->
             val remaining = currentState.unclassifiedVolumes.filter { v -> v.storageKey != storageKey }

@@ -14,6 +14,11 @@ enum class ImageGalleryGrouping {
     MONTH
 }
 
+enum class ImageGalleryDefaultTab {
+    PHOTOS,
+    ALBUMS
+}
+
 data class BrowserPresentationPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
     val viewMode: BrowserViewMode = DEFAULT_VIEW_MODE,
@@ -53,6 +58,7 @@ data class BrowserPreferences(
     val imageGalleryAspectRatio: Boolean = false,
     val imageGallerySectioned: Boolean = false,
     val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
     val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
         sortOption = FileSortOption.NAME_ASC,
         viewMode = BrowserViewMode.GRID,

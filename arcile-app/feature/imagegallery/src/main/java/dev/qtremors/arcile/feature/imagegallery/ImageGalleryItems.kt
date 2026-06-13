@@ -343,8 +343,9 @@ fun GalleryThumbnail(
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    var showPlaceholder by remember(file.absolutePath, file.size, file.lastModified) { mutableStateOf(true) }
     BoxWithConstraints(
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier.background(MaterialTheme.colorScheme.surface),
         contentAlignment = Alignment.Center
     ) {
         val requestSizePx = remember(maxWidth, maxHeight, density) {
@@ -381,19 +382,28 @@ fun GalleryThumbnail(
                 .networkCachePolicy(CachePolicy.DISABLED)
                 .build()
         }
-        Icon(
-            imageVector = Icons.Default.Image,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-        )
+        if (showPlaceholder) {
+            Icon(
+                imageVector = Icons.Default.Image,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+        }
         AsyncImage(
             model = request,
-            onLoading = { thumbnailPolicy.recordInFlight(thumbnailKey, requestSizePx) },
+            onLoading = {
+                showPlaceholder = true
+                thumbnailPolicy.recordInFlight(thumbnailKey, requestSizePx)
+            },
             onSuccess = {
+                showPlaceholder = false
                 thumbnailPolicy.clearFailure(thumbnailKey)
                 thumbnailPolicy.recordLoaded(thumbnailKey, requestSizePx)
             },
-            onError = { thumbnailPolicy.recordFailure(thumbnailKey, requestSizePx) },
+            onError = {
+                showPlaceholder = true
+                thumbnailPolicy.recordFailure(thumbnailKey, requestSizePx)
+            },
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
@@ -439,9 +449,10 @@ fun GalleryImageListItem(
             modifier = Modifier
                 .size((48 * zoom).dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .background(MaterialTheme.colorScheme.surface),
             contentAlignment = Alignment.Center
         ) {
+            var showPlaceholder by remember(file.absolutePath, file.size, file.lastModified) { mutableStateOf(true) }
             val archiveThumbnailData = remember(file.absolutePath, file.size, file.lastModified) {
                 ArchiveEntryThumbnailData.fromVirtualPath(
                     path = file.absolutePath,
@@ -467,20 +478,29 @@ fun GalleryImageListItem(
                     .networkCachePolicy(CachePolicy.DISABLED)
                     .build()
             }
-            Icon(
-                imageVector = Icons.Default.Image,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(18.dp)
-            )
+            if (showPlaceholder) {
+                Icon(
+                    imageVector = Icons.Default.Image,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
             AsyncImage(
                 model = request,
-                onLoading = { thumbnailPolicy.recordInFlight(thumbnailKey, thumbnailSizePx) },
+                onLoading = {
+                    showPlaceholder = true
+                    thumbnailPolicy.recordInFlight(thumbnailKey, thumbnailSizePx)
+                },
                 onSuccess = {
+                    showPlaceholder = false
                     thumbnailPolicy.clearFailure(thumbnailKey)
                     thumbnailPolicy.recordLoaded(thumbnailKey, thumbnailSizePx)
                 },
-                onError = { thumbnailPolicy.recordFailure(thumbnailKey, thumbnailSizePx) },
+                onError = {
+                    showPlaceholder = true
+                    thumbnailPolicy.recordFailure(thumbnailKey, thumbnailSizePx)
+                },
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop

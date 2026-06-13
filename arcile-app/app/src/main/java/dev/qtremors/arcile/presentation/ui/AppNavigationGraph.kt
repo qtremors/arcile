@@ -29,6 +29,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
@@ -62,6 +64,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
@@ -78,7 +81,17 @@ fun AppNavigationGraph(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val openPath: (String) -> Unit = { path ->
+    val imageContextPathsFor: (List<FileModel>) -> ArrayList<String> = { files ->
+        ArrayList(
+            files.asSequence()
+                .filterNot { it.isDirectory }
+                .filter { FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images }
+                .map { it.absolutePath }
+                .distinct()
+                .toList()
+        )
+    }
+    val openPathWithContext: (String, List<FileModel>, Boolean) -> Unit = { path, surroundingFiles, returnToBrowserPage ->
         val archiveFormat = ArchiveFormat.fromPath(path)
         val extension = path.substringAfterLast('.', "").lowercase()
         when {
@@ -96,12 +109,23 @@ fun AppNavigationGraph(
                 )
             }
             extension in FileCategories.Images.extensions -> {
-                navController.navigate(AppRoutes.ImageViewer(initialPath = path))
+                val contextPaths = imageContextPathsFor(surroundingFiles)
+                val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+                if (contextPaths.size > 1 && contextPaths.contains(path)) {
+                    savedStateHandle?.set(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY, contextPaths)
+                } else {
+                    savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+                }
+                navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
             }
             else -> {
                 onOpenFile(path)
             }
         }
+    }
+    val openPath: (String) -> Unit = { path -> openPathWithContext(path, emptyList(), false) }
+    val openPathWithSurroundingImages: (String, List<FileModel>) -> Unit = { path, files ->
+        openPathWithContext(path, files, false)
     }
 
     val reducedMotion = LocalReducedMotionEnabled.current
@@ -156,6 +180,8 @@ fun AppNavigationGraph(
                         initialPage = mainArgs.initialPage,
                         pageCount = { 2 }
                     )
+                    val browserListState = rememberLazyListState()
+                    val browserGridState = rememberLazyGridState()
                     val coroutineScope = rememberCoroutineScope()
                     var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
                     val navigateBackFromBrowser: () -> Unit = {
@@ -235,6 +261,7 @@ fun AppNavigationGraph(
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
                                     onOpenFile = openPath,
+                                    onOpenFileWithContext = openPathWithSurroundingImages,
                                     onCategoryClick = { categoryName ->
                                         if (categoryName == FileCategories.Images.name) {
                                             navController.navigate(AppRoutes.ImageGallery()) {
@@ -319,7 +346,12 @@ fun AppNavigationGraph(
                                         if (ArchiveFormat.isSupported(path)) {
                                             browserViewModel.openArchive(path)
                                         } else {
-                                            openPath(path)
+                                            val browserImageContext = if (browserState.browserSearchQuery.isNotBlank()) {
+                                                browserState.searchResults
+                                            } else {
+                                                browserState.displayState.visibleFiles
+                                            }
+                                            openPathWithContext(path, browserImageContext, true)
                                         }
                                     },
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
@@ -396,7 +428,9 @@ fun AppNavigationGraph(
                                     onCleanupRecoveredOperation = { browserViewModel.cleanupRecoveredOperation(it) },
                                     onDismissRecoveredOperation = { browserViewModel.dismissRecoveredOperation(it) },
                                     onFeedback = onFeedback,
-                                    nativeRequestFlow = browserViewModel.nativeRequestFlow
+                                    nativeRequestFlow = browserViewModel.nativeRequestFlow,
+                                    listState = browserListState,
+                                    gridState = browserGridState
                                 )
                             }
                         }
@@ -416,7 +450,7 @@ fun AppNavigationGraph(
                     val route = backStackEntry.toRoute<AppRoutes.StorageDashboard>()
                     val volumeId = route.volumeId?.takeIf { it.isNotBlank() }
                     androidx.compose.runtime.LaunchedEffect(volumeId) {
-                        viewModel.loadDashboardCategoryBreakdown(volumeId)
+                        viewModel.ensureDashboardCategoryBreakdown(volumeId)
                     }
                     StorageDashboardScreen(
                         state = state,
@@ -461,7 +495,7 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onOpenFile = openPath,
+                    onOpenFile = openPathWithSurroundingImages,
                     onShareSelected = { paths ->
                         dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
                     },

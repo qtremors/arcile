@@ -20,6 +20,7 @@ class FakeBrowserPreferencesStore(
     var lastUpdatedImageGalleryAspectRatio: Boolean? = null
     var lastUpdatedImageGallerySectioned: Boolean? = null
     var lastUpdatedImageGalleryGrouping: dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping? = null
+    var lastUpdatedImageGalleryDefaultTab: dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab? = null
     var lastUpdatedAlbumPresentation: BrowserPresentationPreferences? = null
     var lastUpdatedAlbumAspectRatio: Boolean? = null
     var lastUpdatedPath: String? = null
@@ -64,6 +65,11 @@ class FakeBrowserPreferencesStore(
     override suspend fun updateImageGalleryGrouping(grouping: dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping) {
         lastUpdatedImageGalleryGrouping = grouping
         preferences.value = preferences.value.copy(imageGalleryGrouping = grouping)
+    }
+
+    override suspend fun updateImageGalleryDefaultTab(tab: dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab) {
+        lastUpdatedImageGalleryDefaultTab = tab
+        preferences.value = preferences.value.copy(imageGalleryDefaultTab = tab)
     }
 
     override suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
