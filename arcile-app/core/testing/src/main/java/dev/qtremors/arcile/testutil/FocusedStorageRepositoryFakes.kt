@@ -360,10 +360,12 @@ class FakeStorageAnalyticsRepository(
     var recentFilesResultProvider: (suspend (StorageScope, Int, Int, Long) -> Result<List<FileModel>>)? = null
     var categoryStorageResultProvider: (suspend (StorageScope) -> Result<List<CategoryStorage>>)? = null
     var trashStorageUsageResult: Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
+    var invalidateAnalyticsCacheResult: Result<Unit> = Result.success(Unit)
 
     val requestedRecentScopes = mutableListOf<StorageScope>()
     val requestedStorageInfoScopes = mutableListOf<StorageScope>()
     val requestedCategoryScopes = mutableListOf<StorageScope>()
+    var invalidateAnalyticsCacheCalls = 0
 
     override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
         requestedRecentScopes += scope
@@ -382,6 +384,11 @@ class FakeStorageAnalyticsRepository(
     }
 
     override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = trashStorageUsageResult
+
+    override suspend fun invalidateAnalyticsCache() {
+        invalidateAnalyticsCacheCalls += 1
+        invalidateAnalyticsCacheResult.getOrThrow()
+    }
 }
 
 class FakeVolumeRepository(volumes: List<StorageVolume> = emptyList()) : VolumeRepository {
@@ -587,6 +594,11 @@ class FakeStorageRepositoryBundle(
         set(value) {
             storageAnalyticsRepository.trashStorageUsageResult = value
         }
+    var invalidateAnalyticsCacheResult: Result<Unit>
+        get() = storageAnalyticsRepository.invalidateAnalyticsCacheResult
+        set(value) {
+            storageAnalyticsRepository.invalidateAnalyticsCacheResult = value
+        }
     var deletePermanentlyFromTrashResult: Result<Unit>
         get() = trashRepository.deletePermanentlyFromTrashResult
         set(value) {
@@ -599,6 +611,8 @@ class FakeStorageRepositoryBundle(
         get() = storageAnalyticsRepository.requestedStorageInfoScopes
     val requestedCategoryScopes: MutableList<StorageScope>
         get() = storageAnalyticsRepository.requestedCategoryScopes
+    val invalidateAnalyticsCacheCalls: Int
+        get() = storageAnalyticsRepository.invalidateAnalyticsCacheCalls
     val requestedFilesByCategory: MutableList<Pair<StorageScope, String>>
         get() = searchRepository.requestedFilesByCategory
     val searchRequests: MutableList<FakeSearchRepository.SearchRequest>

@@ -1,10 +1,21 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.8
-> **Last Updated:** 2026-06-13
+> **Version:** 1.0.9
+> **Last Updated:** 2026-06-14
 
 ---
+
+## [1.0.9] - 2026-06-14
+
+- **Home Storage Loading Reliability**: Cancelled overdue storage, category, volume, and Trash analytics work when the Home refresh timeout is reached so skeleton loaders can clear instead of waiting on a stuck background calculation.
+- **Storage Dashboard Cache Reuse**: Seeded the dashboard's single-volume category breakdown from the already-loaded Home storage categories, avoiding a duplicate per-volume recalculation when the global cached data is equivalent.
+- **Storage Dashboard First Paint**: Reused Home's single-volume category and Trash totals while opening a selected-volume dashboard so category rows appear immediately instead of briefly showing only Trash and system data.
+- **Home Force Refresh**: Made Home pull-to-refresh clear cached category analytics before reloading so manual refresh performs a true fresh storage calculation while normal app opens can still reuse cache.
+- **Storage Cleaner Hub**: Moved thumbnail cache controls from Settings into Storage Cleaner, added shared file previews, and added app-related badges for files Cleaner flags as app-associated.
+- **Cleaner Cleanup Categories**: Added dedicated Marker files and Empty folders sections while keeping duplicate detection available for all duplicate files.
+- **Cleaner Duplicate Files**: Renamed the duplicate cleanup section to "Duplicate files" and added a scrollable vertical compare sheet with per-file and selected-file delete actions that use the shared confirmation flow.
+- **Cleaner File Actions**: Added exact Open file handling plus Open folder navigation that focuses the containing Browser location, and clarified risk labels with non-clickable badges and an info dialog.
 
 ## [1.0.8] - 2026-06-13
 

@@ -1,10 +1,12 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +26,8 @@ internal fun cleanerTitle(type: CleanerGroupType): String = when (type) {
     CleanerGroupType.Duplicates -> stringResource(R.string.cleaner_duplicates)
     CleanerGroupType.Apks -> stringResource(R.string.cleaner_apks)
     CleanerGroupType.Videos -> stringResource(R.string.cleaner_videos)
+    CleanerGroupType.MarkerFiles -> stringResource(R.string.cleaner_marker_files)
+    CleanerGroupType.EmptyFolders -> stringResource(R.string.cleaner_empty_folders)
     CleanerGroupType.Junk -> stringResource(R.string.cleaner_junk)
 }
 
@@ -34,6 +38,8 @@ internal fun cleanerDescription(type: CleanerGroupType): String = when (type) {
     CleanerGroupType.Duplicates -> stringResource(R.string.cleaner_duplicates_desc)
     CleanerGroupType.Apks -> stringResource(R.string.cleaner_apks_desc)
     CleanerGroupType.Videos -> stringResource(R.string.cleaner_videos_desc)
+    CleanerGroupType.MarkerFiles -> stringResource(R.string.cleaner_marker_files_desc)
+    CleanerGroupType.EmptyFolders -> stringResource(R.string.cleaner_empty_folders_desc)
     CleanerGroupType.Junk -> stringResource(R.string.cleaner_junk_desc)
 }
 
@@ -44,6 +50,8 @@ internal fun cleanerColor(type: CleanerGroupType): Color = when (type) {
     CleanerGroupType.Duplicates -> MaterialTheme.colorScheme.tertiary
     CleanerGroupType.Apks -> MaterialTheme.colorScheme.primary
     CleanerGroupType.Videos -> MaterialTheme.colorScheme.secondary
+    CleanerGroupType.MarkerFiles -> MaterialTheme.colorScheme.tertiary
+    CleanerGroupType.EmptyFolders -> MaterialTheme.colorScheme.secondary
     CleanerGroupType.Junk -> MaterialTheme.colorScheme.error
 }
 
@@ -53,6 +61,8 @@ internal fun cleanerIcon(type: CleanerGroupType): ImageVector = when (type) {
     CleanerGroupType.Duplicates -> Icons.Default.CopyAll
     CleanerGroupType.Apks -> Icons.Default.Android
     CleanerGroupType.Videos -> Icons.Default.VideoFile
+    CleanerGroupType.MarkerFiles -> Icons.AutoMirrored.Filled.FactCheck
+    CleanerGroupType.EmptyFolders -> Icons.Default.FolderOpen
     CleanerGroupType.Junk -> Icons.Default.DeleteSweep
 }
 

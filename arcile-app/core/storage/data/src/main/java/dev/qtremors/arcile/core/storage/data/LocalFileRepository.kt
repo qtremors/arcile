@@ -353,6 +353,10 @@ class LocalFileRepository(
     override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> =
         trashManager.getTrashStorageUsage()
 
+    override suspend fun invalidateAnalyticsCache() {
+        mediaStoreClient.invalidateCache()
+    }
+
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> =
         mediaStoreClient.getFilesByCategory(scope, categoryName)
 

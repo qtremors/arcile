@@ -98,11 +98,15 @@ fun StorageCleanerScreen(
     onCleanFiles: (List<String>, Boolean) -> Unit,
     onUndoClean: (List<String>) -> Unit = {},
     onClearMessages: () -> Unit,
+    onOpenFile: (String) -> Unit = {},
+    onOpenContainingFolder: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var activeCleanerGroup by remember { mutableStateOf<CleanerGroupType?>(null) }
+    var confirmCleanerGroup by remember { mutableStateOf<CleanerGroupType?>(null) }
     var selectedCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
+    var confirmCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var highRiskAcknowledged by remember { mutableStateOf(false) }
 
@@ -122,7 +126,9 @@ fun StorageCleanerScreen(
             )
             onClearMessages()
             activeCleanerGroup = null
+            confirmCleanerGroup = null
             selectedCleanerPaths = emptySet()
+            confirmCleanerPaths = emptySet()
         }
     }
     LaunchedEffect(state.errorMessage) {
@@ -183,11 +189,17 @@ fun StorageCleanerScreen(
                         }
                     }
 
+                    item {
+                        CleanerThumbnailCacheCard()
+                    }
+
                     items(CleanerGroupType.entries, key = { it.name }) { type ->
                         CleanerCategoryCard(
                             group = state.group(type),
                             onClick = {
                                 selectedCleanerPaths = emptySet()
+                                confirmCleanerPaths = emptySet()
+                                confirmCleanerGroup = null
                                 activeCleanerGroup = type
                             }
                         )
@@ -206,21 +218,34 @@ fun StorageCleanerScreen(
             onSelectedFilesChange = { selectedCleanerPaths = it },
             onDismiss = {
                 activeCleanerGroup = null
+                confirmCleanerGroup = null
                 selectedCleanerPaths = emptySet()
+                confirmCleanerPaths = emptySet()
                 highRiskAcknowledged = false
             },
-            onRequestClean = {
+            onRequestClean = { paths ->
+                confirmCleanerGroup = activeCleanerGroup
+                activeCleanerGroup = null
+                selectedCleanerPaths = paths
+                confirmCleanerPaths = paths
                 highRiskAcknowledged = false
                 showDeleteConfirm = true
-            }
+            },
+            onOpenFile = onOpenFile,
+            onOpenContainingFolder = onOpenContainingFolder
         )
     }
 
-    if (showDeleteConfirm && activeGroup != null) {
-        val selectedCandidates = activeGroup.candidates.filter { it.absolutePath in selectedCleanerPaths }
+    val confirmGroup = confirmCleanerGroup?.let(state::group)
+    if (showDeleteConfirm && confirmGroup != null) {
+        val selectedCandidates = confirmGroup.candidates.filter { it.absolutePath in confirmCleanerPaths }
         val hasHighRisk = selectedCandidates.any { it.riskLevel == CleanerRiskLevel.High }
         AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
+            onDismissRequest = {
+                showDeleteConfirm = false
+                confirmCleanerGroup = null
+                confirmCleanerPaths = emptySet()
+            },
             title = { Text(stringResource(R.string.clean_confirm_title)) },
             text = {
                 CleanerConfirmContent(
@@ -234,7 +259,9 @@ fun StorageCleanerScreen(
                 TextButton(
                     onClick = {
                         showDeleteConfirm = false
-                        onCleanFiles(selectedCleanerPaths.toList(), highRiskAcknowledged)
+                        onCleanFiles(confirmCleanerPaths.toList(), highRiskAcknowledged)
+                        confirmCleanerGroup = null
+                        confirmCleanerPaths = emptySet()
                     },
                     enabled = !hasHighRisk || highRiskAcknowledged,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -243,7 +270,11 @@ fun StorageCleanerScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    confirmCleanerGroup = null
+                    confirmCleanerPaths = emptySet()
+                }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -252,7 +283,7 @@ fun StorageCleanerScreen(
 }
 
 @Composable
-private fun CleanerConfirmContent(
+internal fun CleanerConfirmContent(
     selectedCandidates: List<CleanerCandidate>,
     hasHighRisk: Boolean,
     highRiskAcknowledged: Boolean,

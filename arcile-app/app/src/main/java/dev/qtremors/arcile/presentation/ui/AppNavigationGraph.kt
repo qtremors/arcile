@@ -184,6 +184,7 @@ fun AppNavigationGraph(
                     val browserGridState = rememberLazyGridState()
                     val coroutineScope = rememberCoroutineScope()
                     var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
+                    var revealedFocusPath by remember(mainArgs.focusPath) { mutableStateOf<String?>(null) }
                     val navigateBackFromBrowser: () -> Unit = {
                         if (!browserViewModel.navigateBack()) {
                             when (browserBackFallback(navController.previousBackStackEntry != null)) {
@@ -211,6 +212,26 @@ fun AppNavigationGraph(
                                 else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
                             }
                             pagerState.scrollToPage(1)
+                        }
+                    }
+
+                    androidx.compose.runtime.LaunchedEffect(
+                        mainArgs.focusPath,
+                        pagerState.currentPage,
+                        browserState.displayState.visibleFiles
+                    ) {
+                        val focusPath = mainArgs.focusPath
+                        if (
+                            focusPath != null &&
+                            revealedFocusPath != focusPath &&
+                            pagerState.currentPage == 1
+                        ) {
+                            val index = browserState.displayState.visibleFiles.indexOfFirst { it.absolutePath == focusPath }
+                            if (index >= 0) {
+                                browserListState.scrollToItem(index)
+                                browserGridState.scrollToItem(index)
+                                revealedFocusPath = focusPath
+                            }
                         }
                     }
 
@@ -559,6 +580,20 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
+                    onOpenFile = onOpenFile,
+                    onOpenContainingFolder = { path ->
+                        val parentPath = path.substringBeforeLast('/', missingDelimiterValue = "")
+                        if (parentPath.isNotBlank()) {
+                            navController.navigate(
+                                AppRoutes.Main(
+                                    initialPage = 1,
+                                    path = parentPath,
+                                    focusPath = path,
+                                    seedInitialPathHistory = false
+                                )
+                            )
+                        }
+                    },
                     onFeedback = onFeedback
                 )
                 composable<AppRoutes.Settings>(

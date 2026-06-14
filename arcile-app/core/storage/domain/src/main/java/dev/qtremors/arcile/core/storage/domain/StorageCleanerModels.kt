@@ -7,6 +7,8 @@ enum class CleanerGroupType {
     Duplicates,
     Apks,
     Videos,
+    MarkerFiles,
+    EmptyFolders,
     Junk
 }
 
@@ -36,7 +38,8 @@ data class CleanerCandidate(
     val lastModified: Long,
     val groupTypes: Set<CleanerGroupType>,
     val riskLevel: CleanerRiskLevel = CleanerRiskLevel.Low,
-    val riskReasons: Set<CleanerRiskReason> = emptySet()
+    val riskReasons: Set<CleanerRiskReason> = emptySet(),
+    val isDirectory: Boolean = false
 )
 
 @Immutable

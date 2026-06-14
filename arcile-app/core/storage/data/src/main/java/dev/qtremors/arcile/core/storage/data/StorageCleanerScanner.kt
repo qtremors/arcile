@@ -36,6 +36,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
         }
 
         val duplicateKeys = files
+            .filterNot { it.isDirectory }
             .filter { it.size > 0L }
             .groupBy { it.name.lowercase(Locale.ROOT) to it.size }
             .filterValues { it.size > 1 }
@@ -44,11 +45,17 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val grouped = CleanerGroupType.entries.associateWith { mutableListOf<CleanerCandidate>() }
         files.forEach { file ->
             val groups = buildSet {
-                if (file.size >= limits.largeFileThresholdBytes) add(CleanerGroupType.LargeFiles)
-                if (file.isInDownloads && now - file.lastModified >= limits.oldDownloadAgeMs) add(CleanerGroupType.OldDownloads)
-                if (file.extension == "apk") add(CleanerGroupType.Apks)
-                if (file.extension in videoExtensions) add(CleanerGroupType.Videos)
-                if (isJunk(file)) add(CleanerGroupType.Junk)
+                if (file.isDirectory) {
+                    add(CleanerGroupType.EmptyFolders)
+                } else if (isMarkerFile(file)) {
+                    add(CleanerGroupType.MarkerFiles)
+                } else {
+                    if (file.size >= limits.largeFileThresholdBytes) add(CleanerGroupType.LargeFiles)
+                    if (file.isInDownloads && now - file.lastModified >= limits.oldDownloadAgeMs) add(CleanerGroupType.OldDownloads)
+                    if (file.extension == "apk") add(CleanerGroupType.Apks)
+                    if (file.extension in videoExtensions) add(CleanerGroupType.Videos)
+                    if (isJunk(file)) add(CleanerGroupType.Junk)
+                }
                 if ((file.name.lowercase(Locale.ROOT) to file.size) in duplicateKeys) add(CleanerGroupType.Duplicates)
             }
 
@@ -61,7 +68,8 @@ class DefaultStorageCleanerScanner @Inject constructor(
                     lastModified = file.lastModified,
                     groupTypes = groups,
                     riskLevel = risk.level,
-                    riskReasons = risk.reasons
+                    riskReasons = risk.reasons,
+                    isDirectory = file.isDirectory
                 )
             }
         }
@@ -117,23 +125,28 @@ class DefaultStorageCleanerScanner @Inject constructor(
                 partial = true
                 continue
             }
+            if (children.isEmpty() && depth > 0) {
+                out += current.toSnapshot(isDirectory = true)
+                continue
+            }
             children.forEach { child -> pending.add(child to depth + 1) }
         }
 
         return partial
     }
 
-    private fun File.toSnapshot(): FileSnapshot {
+    private fun File.toSnapshot(isDirectory: Boolean = false): FileSnapshot {
         val ext = extension.lowercase(Locale.ROOT)
         val segments = absolutePath.split(File.separatorChar)
         return FileSnapshot(
             name = name,
             absolutePath = absolutePath,
-            size = length().coerceAtLeast(0L),
+            size = if (isDirectory) 0L else length().coerceAtLeast(0L),
             lastModified = lastModified(),
             extension = ext,
             pathSegments = segments,
-            isInDownloads = segments.any { it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true) }
+            isInDownloads = segments.any { it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true) },
+            isDirectory = isDirectory
         )
     }
 
@@ -150,9 +163,11 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val lowerName = file.name.lowercase(Locale.ROOT)
         return file.extension in junkExtensions ||
             lowerName.endsWith(".tmp") ||
-            lowerName.endsWith(".temp") ||
-            lowerName == "thumbs.db"
+            lowerName.endsWith(".temp")
     }
+
+    private fun isMarkerFile(file: FileSnapshot): Boolean =
+        file.name.lowercase(Locale.ROOT) in markerFileNames
 
     private fun classifyRisk(file: FileSnapshot): RiskClassification {
         val reasons = linkedSetOf<CleanerRiskReason>()
@@ -211,7 +226,8 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val lastModified: Long,
         val extension: String,
         val pathSegments: List<String>,
-        val isInDownloads: Boolean
+        val isInDownloads: Boolean,
+        val isDirectory: Boolean
     )
 
     private data class RiskClassification(
@@ -222,6 +238,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
     private companion object {
         val videoExtensions = setOf("mp4", "mkv", "webm", "avi", "mov", "3gp", "m4v")
         val junkExtensions = setOf("tmp", "temp", "log", "bak", "old", "dmp")
+        val markerFileNames = setOf(".nomedia", "desktop.ini", "thumbs.db", ".ds_store")
         val tempOrCacheFolderNames = setOf("temp", "tmp", "cache", "caches")
         val userFolderNames = setOf("download", "downloads", "documents", "document")
         val mediaFolderNames = setOf("dcim", "pictures", "picture", "movies", "movie", "videos", "video")

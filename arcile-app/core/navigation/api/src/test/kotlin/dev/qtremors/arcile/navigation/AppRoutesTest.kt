@@ -45,6 +45,7 @@ class AppRoutesTest {
         val externalBrowserEntry = AppRoutes.Main(
             initialPage = 1,
             path = "/storage/emulated/0/Download",
+            focusPath = "/storage/emulated/0/Download/report.pdf",
             seedInitialPathHistory = false
         )
 

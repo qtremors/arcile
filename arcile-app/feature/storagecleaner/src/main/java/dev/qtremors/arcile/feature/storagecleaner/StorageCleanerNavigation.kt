@@ -19,6 +19,8 @@ fun NavGraphBuilder.storageCleanerScreen(
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
+    onOpenFile: (String) -> Unit = {},
+    onOpenContainingFolder: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.StorageCleaner>(
@@ -36,6 +38,8 @@ fun NavGraphBuilder.storageCleanerScreen(
             onCleanFiles = { paths, acknowledgedHighRisk -> viewModel.clean(paths, acknowledgedHighRisk) },
             onUndoClean = { viewModel.undoClean(it) },
             onClearMessages = { viewModel.clearMessages() },
+            onOpenFile = onOpenFile,
+            onOpenContainingFolder = onOpenContainingFolder,
             onFeedback = onFeedback
         )
     }

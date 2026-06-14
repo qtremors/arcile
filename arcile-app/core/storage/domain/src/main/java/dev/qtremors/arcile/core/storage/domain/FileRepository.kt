@@ -239,6 +239,11 @@ interface StorageAnalyticsRepository {
      */
     suspend fun getCategoryStorageSizes(scope: StorageScope = StorageScope.AllStorage): Result<List<CategoryStorage>>
     suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>
+
+    /**
+     * Clears cached analytics snapshots so the next analytics request reads from storage again.
+     */
+    suspend fun invalidateAnalyticsCache() = Unit
 }
 
 interface SearchRepository {

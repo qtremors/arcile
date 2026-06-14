@@ -303,6 +303,55 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `loadHomeData seeds single indexed volume dashboard categories from global home categories`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume("primary", "primary", "Internal", "/storage/emulated/0", StorageKind.INTERNAL, true, false)
+        val globalCategories = listOf(
+            CategoryStorage("Images", 7L, setOf("jpg")),
+            CategoryStorage("Videos", 20L, setOf("mp4"))
+        )
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume),
+            initialCategorySizesByScope = mapOf(StorageScope.AllStorage to globalCategories)
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+
+        viewModel.loadHomeData()
+        advanceUntilIdle()
+        repository.requestedCategoryScopes.clear()
+
+        viewModel.ensureDashboardCategoryBreakdown("primary")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("Videos", "Images"),
+            viewModel.state.value.categoryStoragesByVolume["primary"]?.map { it.name }
+        )
+        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("primary") })
+    }
+
+    @Test
+    fun `manual refresh invalidates analytics cache before loading home categories`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle(
+            initialCategorySizesByScope = mapOf(
+                StorageScope.AllStorage to listOf(CategoryStorage("Images", 7L, setOf("jpg")))
+            )
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+
+        viewModel.loadHomeData(HomeRefreshMode.INITIAL)
+        advanceUntilIdle()
+        assertEquals(0, repository.invalidateAnalyticsCacheCalls)
+
+        viewModel.loadHomeData(HomeRefreshMode.MANUAL)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.invalidateAnalyticsCacheCalls)
+        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
+    }
+
+    @Test
     fun `utility preference controls which utilities are visible on home`() = runTest(mainDispatcherRule.dispatcher) {
         val repository = FakeStorageRepositoryBundle()
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }

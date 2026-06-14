@@ -11,6 +11,7 @@ object AppRoutes {
         val archivePath: String? = null,
         val category: String? = null,
         val volumeId: String? = null,
+        val focusPath: String? = null,
         val restorePersistentLocation: Boolean = true,
         val seedInitialPathHistory: Boolean = true
     )

@@ -82,6 +82,53 @@ class StorageCleanerScannerTest {
     }
 
     @Test
+    fun `scanner groups common marker files separately from junk`() = runTest {
+        val root = temporaryFolder.newFolder("storage")
+        val downloads = File(root, "Download").apply { mkdirs() }
+        val hidden = File(root, "Hidden").apply { mkdirs() }
+        listOf(".nomedia", "desktop.ini", "Thumbs.db", ".DS_Store").forEach { name ->
+            File(root, name).writeBytes(ByteArray(1))
+        }
+        File(hidden, ".nomedia").writeBytes(ByteArray(1))
+        File(downloads, ".nomedia").apply {
+            writeBytes(ByteArray(40))
+            setLastModified(0L)
+        }
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            now = 10_000L,
+            limits = StorageCleanerScanLimits(
+                largeFileThresholdBytes = 25,
+                oldDownloadAgeMs = 1_000
+            )
+        )
+        val markerFiles = result.group(CleanerGroupType.MarkerFiles).toSet()
+        val junkFiles = result.group(CleanerGroupType.Junk).toSet()
+
+        assertEquals(setOf(".nomedia", "desktop.ini", "Thumbs.db", ".DS_Store"), markerFiles)
+        assertTrue(junkFiles.intersect(markerFiles).isEmpty())
+        assertFalse(result.group(CleanerGroupType.LargeFiles).contains(".nomedia"))
+        assertFalse(result.group(CleanerGroupType.OldDownloads).contains(".nomedia"))
+        assertTrue(result.group(CleanerGroupType.Duplicates).contains(".nomedia"))
+    }
+
+    @Test
+    fun `scanner groups empty folders separately`() = runTest {
+        val root = temporaryFolder.newFolder("storage")
+        File(root, "Empty").mkdirs()
+        File(root, "Nested/EmptyChild").mkdirs()
+        File(root, "NotEmpty").apply { mkdirs() }.resolve("file.txt").writeText("content")
+
+        val result = scanner.scan(rootPaths = listOf(root.absolutePath))
+        val emptyFolders = result.groups.first { it.type == CleanerGroupType.EmptyFolders }.candidates
+
+        assertEquals(listOf("Empty", "EmptyChild"), emptyFolders.map { it.name }.sorted())
+        assertTrue(emptyFolders.all { it.isDirectory })
+        assertFalse(result.group(CleanerGroupType.EmptyFolders).contains("NotEmpty"))
+    }
+
+    @Test
     fun `scanner marks partial when file limit is reached`() = runTest {
         val root = temporaryFolder.newFolder("storage")
         repeat(10) { index -> File(root, "file-$index.tmp").writeBytes(ByteArray(1)) }

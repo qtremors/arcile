@@ -195,12 +195,26 @@ class HomeViewModel @Inject constructor(
         refreshJob = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
             val shouldRefreshAnalytics = refreshMode != HomeRefreshMode.SILENT || forceAnalytics || (System.currentTimeMillis() - lastAnalyticsRefreshTime > 5 * 60 * 1000)
+            val forceFreshAnalytics = refreshMode == HomeRefreshMode.MANUAL
 
             if (shouldRefreshAnalytics) {
                 lastAnalyticsRefreshTime = System.currentTimeMillis()
             }
 
             supervisorScope {
+                var cacheInvalidationError: Throwable? = null
+                if (forceFreshAnalytics) {
+                    try {
+                        storageAnalyticsRepository.invalidateAnalyticsCache()
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        cacheInvalidationError = e
+                    }
+                    _state.update {
+                        it.copy(categoryStoragesByVolume = persistentMapOf())
+                            .withUpdatedDisplayState()
+                    }
+                }
                 val recentResultDef = async {
                     storageAnalyticsRepository.getRecentFiles(
                         scope = StorageScope.AllStorage,
@@ -228,6 +242,13 @@ class HomeViewModel @Inject constructor(
                 } != null
 
                 val timedOut = !completedWithinTimeout
+                if (timedOut) {
+                    recentResultDef.cancel()
+                    allVolumesResultDef.cancel()
+                    storageResultDef?.cancel()
+                    categoryResultDef?.cancel()
+                    trashUsageResultDef?.cancel()
+                }
                 val storageInfo = if (shouldRefreshAnalytics && !timedOut) storageResult?.getOrNull() else _state.value.storageInfo
                 val allStorageVolumes = allVolumesResult?.getOrNull().orEmpty()
                 val unclassified = allStorageVolumes.filter {
@@ -235,6 +256,7 @@ class HomeViewModel @Inject constructor(
                 }
 
                 val errorMsg = listOfNotNull(
+                    cacheInvalidationError?.message,
                     storageResult?.exceptionOrNull()?.message,
                     allVolumesResult?.exceptionOrNull()?.message,
                     recentResult?.exceptionOrNull()?.message,
@@ -248,6 +270,20 @@ class HomeViewModel @Inject constructor(
                 }
 
                 _state.update { currentState ->
+                    val nextCategoryStorages = (if (shouldRefreshAnalytics && !timedOut) {
+                        categoryResult?.getOrNull() ?: emptyList()
+                    } else {
+                        currentState.categoryStorages
+                    }).toPersistentList()
+                    val indexedVolumes = storageInfo?.volumes
+                        ?.filter { it.kind.isIndexed }
+                        ?: allStorageVolumes.filter { it.kind.isIndexed }
+                    val nextCategoryStoragesByVolume = currentState.categoryStoragesByVolume.toMutableMap()
+                    if (!timedOut && shouldRefreshAnalytics && indexedVolumes.size == 1 && nextCategoryStorages.isNotEmpty()) {
+                        nextCategoryStoragesByVolume[indexedVolumes.first().id] = nextCategoryStorages
+                            .sortedByDescending(CategoryStorage::sizeBytes)
+                            .toPersistentList()
+                    }
                     val nextState = currentState.copy(
                         isLoading = false,
                         isPullToRefreshing = false,
@@ -256,7 +292,8 @@ class HomeViewModel @Inject constructor(
                         allStorageVolumes = allStorageVolumes.toPersistentList(),
                         recentFiles = (recentResult?.getOrNull() ?: currentState.recentFiles).toPersistentList(),
                         storageInfo = storageInfo,
-                        categoryStorages = (if (shouldRefreshAnalytics && !timedOut) categoryResult?.getOrNull() ?: emptyList() else currentState.categoryStorages).toPersistentList(),
+                        categoryStorages = nextCategoryStorages,
+                        categoryStoragesByVolume = nextCategoryStoragesByVolume.toPersistentMap(),
                         trashStorageUsage = if (shouldRefreshAnalytics && !timedOut) trashUsageResult?.getOrNull() ?: currentState.trashStorageUsage else currentState.trashStorageUsage,
                         unclassifiedVolumes = unclassified.toPersistentList(),
                         showClassificationPrompt = unclassified.isNotEmpty()
@@ -283,6 +320,21 @@ class HomeViewModel @Inject constructor(
         }.filter { currentState.categoryStoragesByVolume[it.id] == null }
 
         if (targetVolumes.isEmpty()) return
+        if (indexedVolumes.size == 1 && currentState.categoryStorages.isNotEmpty()) {
+            val volumeId = indexedVolumes.first().id
+            _state.update {
+                it.copy(
+                    categoryStoragesByVolume = it.categoryStoragesByVolume
+                        .put(
+                            volumeId,
+                            it.categoryStorages
+                                .sortedByDescending(CategoryStorage::sizeBytes)
+                                .toPersistentList()
+                        )
+                ).withUpdatedDisplayState()
+            }
+            return
+        }
 
         dashboardBreakdownJob?.cancel()
         dashboardBreakdownJob = viewModelScope.launch {
