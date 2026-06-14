@@ -1,9 +1,12 @@
 package dev.qtremors.arcile.shared.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
@@ -23,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.ui.theme.spacing
 
@@ -49,45 +53,57 @@ fun ArcileSnackbarHost(
 ) {
     SnackbarHost(
         hostState = hostState,
-        modifier = modifier.padding(MaterialTheme.spacing.space12)
+        modifier = modifier
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .padding(MaterialTheme.spacing.space12)
     ) { data ->
         val severity = severityFor(data)
-        Snackbar(
-            shape = MaterialTheme.shapes.extraLarge,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            actionContentColor = MaterialTheme.colorScheme.primary,
-            dismissActionContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            action = {
-                data.visuals.actionLabel?.let { label ->
-                    TextButton(onClick = data::performAction) {
-                        Text(label)
-                    }
-                }
-            },
-            dismissAction = {
-                if (data.visuals.withDismissAction) {
-                    IconButton(onClick = data::dismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
+        Box(
+            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Snackbar(
+                shape = MaterialTheme.shapes.extraLarge,
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                actionContentColor = MaterialTheme.colorScheme.primary,
+                dismissActionContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.widthIn(max = 520.dp),
+                action = {
+                    data.visuals.actionLabel?.let { label ->
+                        TextButton(onClick = data::performAction) {
+                            Text(label)
+                        }
+                    }
+                },
+                dismissAction = {
+                    if (data.visuals.withDismissAction) {
+                        IconButton(onClick = data::dismiss) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
             ) {
-                Icon(
-                    imageVector = severity.icon(),
-                    contentDescription = null,
-                    tint = severity.tint(),
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(data.visuals.message)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = severity.icon(),
+                        contentDescription = null,
+                        tint = severity.tint(),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = data.visuals.message,
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 3
+                    )
+                }
             }
         }
     }

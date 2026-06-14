@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
+import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
 
 @Composable
 fun QuickAccessGrid(
@@ -41,12 +43,16 @@ fun QuickAccessGrid(
     onNavigateToSaf: (String) -> Unit
 ) {
     fun getIconForItem(item: QuickAccessItem): ImageVector {
-        if (item.type == QuickAccessType.FILES_APP || item.type == QuickAccessType.EXTERNAL_HANDOFF) {
+        if (item.type == QuickAccessType.FILES_APP) {
+            return Icons.Outlined.Folder
+        }
+        if (item.type == QuickAccessType.EXTERNAL_HANDOFF) {
             return Icons.AutoMirrored.Outlined.OpenInNew
         }
         return when (item.label.lowercase()) {
             "dcim" -> Icons.Outlined.CameraAlt
             "downloads", "download" -> Icons.Outlined.Download
+            "whatsapp" -> Icons.Outlined.Chat
             "pictures", "images" -> Icons.Outlined.Image
             "documents", "docs" -> Icons.Outlined.Description
             "music", "audio" -> Icons.Outlined.MusicNote
@@ -54,6 +60,7 @@ fun QuickAccessGrid(
             else -> Icons.Outlined.Folder
         }
     }
+
 
     val allFilesLabel = stringResource(R.string.all_files)
     // Include "All Files" as the final fallback action
@@ -105,11 +112,9 @@ fun QuickAccessGrid(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = getIconForItem(folder),
-                                contentDescription = folder.label,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                            QuickAccessIcon(
+                                item = folder,
+                                fallbackIcon = getIconForItem(folder)
                             )
                             val displayLabel = folder.label.trimEnd('/').let { cleaned ->
                                 val lastSlash = cleaned.lastIndexOf('/')
@@ -134,4 +139,17 @@ fun QuickAccessGrid(
             }
         }
     }
+}
+
+@Composable
+private fun QuickAccessIcon(
+    item: QuickAccessItem,
+    fallbackIcon: ImageVector
+) {
+    QuickAccessAppIcon(
+        item = item,
+        fallbackIcon = fallbackIcon,
+        modifier = Modifier.size(20.dp),
+        fallbackTint = MaterialTheme.colorScheme.primary
+    )
 }

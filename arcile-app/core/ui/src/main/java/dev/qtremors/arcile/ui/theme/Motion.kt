@@ -11,13 +11,25 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.composed
+
 
 val LocalReducedMotionEnabled = staticCompositionLocalOf { false }
 
 object ArcileMotion {
     // Easing curves
     val Emphasized: Easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
+    val EmphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)
+    val EmphasizedAccelerate: Easing = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)
     val Standard: Easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
+    val StandardDecelerate: Easing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
+    val StandardAccelerate: Easing = CubicBezierEasing(0.3f, 0.0f, 1.0f, 1.0f)
     val Decelerate: Easing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
     val Accelerate: Easing = CubicBezierEasing(0.3f, 0.0f, 1.0f, 1.0f)
 
@@ -51,7 +63,7 @@ object ArcileMotion {
 
     @Composable
     fun <T> rememberSpring(
-        dampingRatio: Float = androidx.compose.animation.core.Spring.DampingRatioNoBouncy,
+        dampingRatio: Float = androidx.compose.animation.core.Spring.DampingRatioLowBouncy,
         stiffness: Float = androidx.compose.animation.core.Spring.StiffnessMedium
     ): FiniteAnimationSpec<T> {
         val reducedMotion = LocalReducedMotionEnabled.current
@@ -63,4 +75,42 @@ object ArcileMotion {
             }
         }
     }
+}
+
+fun Modifier.bounceClickable(
+    enabled: Boolean = true,
+    onClick: () -> Unit
+): Modifier = composed {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && !reducedMotion) 0.96f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.75f,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        ),
+        label = "bounceClickScale"
+    )
+
+    this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .clickable(
+            interactionSource = interactionSource,
+            indication = androidx.compose.foundation.LocalIndication.current,
+            enabled = enabled,
+            onClick = {
+                try {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                } catch (e: Exception) {
+                    // Ignore haptic failures
+                }
+                onClick()
+            }
+        )
 }

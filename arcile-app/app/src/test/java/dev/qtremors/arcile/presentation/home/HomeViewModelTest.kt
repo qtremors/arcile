@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.home
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.StorageClassification
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
@@ -255,6 +256,99 @@ class HomeViewModelTest {
 
         assertEquals(24L, viewModel.state.value.trashStorageUsage.totalBytes)
         assertEquals(UiText.Dynamic("trash failed"), viewModel.state.value.error)
+    }
+
+    @Test
+    fun `ensure dashboard category breakdown skips repository when selected volume is already loaded`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume("primary", "primary", "Internal", "/storage/emulated/0", StorageKind.INTERNAL, true, false)
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume),
+            initialCategorySizesByScope = mapOf(
+                StorageScope.Volume("primary") to listOf(CategoryStorage("Images", 7L, setOf("jpg")))
+            )
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        advanceUntilIdle()
+
+        viewModel.loadDashboardCategoryBreakdown("primary")
+        advanceUntilIdle()
+        repository.requestedCategoryScopes.clear()
+
+        viewModel.ensureDashboardCategoryBreakdown("primary")
+        advanceUntilIdle()
+
+        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("primary") })
+    }
+
+    @Test
+    fun `ensure dashboard category breakdown loads missing indexed volume`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume("primary", "primary", "Internal", "/storage/emulated/0", StorageKind.INTERNAL, true, false)
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume),
+            initialCategorySizesByScope = mapOf(
+                StorageScope.Volume("primary") to listOf(CategoryStorage("Images", 7L, setOf("jpg")))
+            )
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+        advanceUntilIdle()
+        repository.requestedCategoryScopes.clear()
+
+        viewModel.ensureDashboardCategoryBreakdown("primary")
+        advanceUntilIdle()
+
+        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("primary")))
+        assertEquals(listOf(CategoryStorage("Images", 7L, setOf("jpg"))), viewModel.state.value.categoryStoragesByVolume["primary"])
+    }
+
+    @Test
+    fun `loadHomeData seeds single indexed volume dashboard categories from global home categories`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume("primary", "primary", "Internal", "/storage/emulated/0", StorageKind.INTERNAL, true, false)
+        val globalCategories = listOf(
+            CategoryStorage("Images", 7L, setOf("jpg")),
+            CategoryStorage("Videos", 20L, setOf("mp4"))
+        )
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume),
+            initialCategorySizesByScope = mapOf(StorageScope.AllStorage to globalCategories)
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+
+        viewModel.loadHomeData()
+        advanceUntilIdle()
+        repository.requestedCategoryScopes.clear()
+
+        viewModel.ensureDashboardCategoryBreakdown("primary")
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf("Videos", "Images"),
+            viewModel.state.value.categoryStoragesByVolume["primary"]?.map { it.name }
+        )
+        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("primary") })
+    }
+
+    @Test
+    fun `manual refresh invalidates analytics cache before loading home categories`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle(
+            initialCategorySizesByScope = mapOf(
+                StorageScope.AllStorage to listOf(CategoryStorage("Images", 7L, setOf("jpg")))
+            )
+        )
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
+        val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository, repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccessRepo)
+
+        viewModel.loadHomeData(HomeRefreshMode.INITIAL)
+        advanceUntilIdle()
+        assertEquals(0, repository.invalidateAnalyticsCacheCalls)
+
+        viewModel.loadHomeData(HomeRefreshMode.MANUAL)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.invalidateAnalyticsCacheCalls)
+        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
     }
 
     @Test

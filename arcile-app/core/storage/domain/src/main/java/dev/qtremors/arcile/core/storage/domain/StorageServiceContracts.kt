@@ -11,12 +11,21 @@ interface BrowserPreferencesStore {
     suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences)
     suspend fun updateHomeRecentCarouselLimit(limit: Int)
     suspend fun updateShowHiddenFiles(show: Boolean)
+    suspend fun updateImageGalleryShowFileDetails(show: Boolean)
+    suspend fun updateImageGalleryAspectRatio(enabled: Boolean)
+    suspend fun updateImageGallerySectioned(enabled: Boolean)
+    suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping)
+    suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab)
+    suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences)
+    suspend fun updateAlbumAspectRatio(enabled: Boolean)
     suspend fun updatePathPresentation(
         path: String,
         presentation: BrowserPresentationPreferences?,
         applyToSubfolders: Boolean = false
     )
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
+    suspend fun updateFavorite(path: String, isFavorite: Boolean)
+    suspend fun updateAlbumCover(albumPath: String, coverPath: String)
 }
 
 interface OnboardingPreferencesStore {
@@ -47,6 +56,26 @@ object NoOpUtilityPreferencesStore : UtilityPreferencesStore {
     override suspend fun setHomeUtilityIds(ids: Set<String>) = Unit
 }
 
+interface StorageCleanerPreferencesStore {
+    val rulesFlow: Flow<StorageCleanerRules>
+
+    suspend fun updateRules(rules: StorageCleanerRules)
+    suspend fun updateSectionRule(type: CleanerGroupType, rule: CleanerSectionRule)
+    suspend fun ignorePath(path: String)
+    suspend fun unignorePath(path: String)
+    suspend fun resetSection(type: CleanerGroupType)
+}
+
+object NoOpStorageCleanerPreferencesStore : StorageCleanerPreferencesStore {
+    override val rulesFlow: Flow<StorageCleanerRules> = flowOf(StorageCleanerRules())
+
+    override suspend fun updateRules(rules: StorageCleanerRules) = Unit
+    override suspend fun updateSectionRule(type: CleanerGroupType, rule: CleanerSectionRule) = Unit
+    override suspend fun ignorePath(path: String) = Unit
+    override suspend fun unignorePath(path: String) = Unit
+    override suspend fun resetSection(type: CleanerGroupType) = Unit
+}
+
 interface StorageClassificationStore {
     fun observeClassifications(): Flow<Map<String, StorageClassification>>
     suspend fun getClassification(storageKey: String): StorageClassification?
@@ -71,12 +100,23 @@ interface StorageUsageScanner {
         rootPath: String,
         limits: StorageUsageScanLimits = StorageUsageScanLimits()
     ): Flow<StorageUsageScanState>
+
+    fun invalidateStorageUsage(paths: Collection<String> = emptyList())
 }
 
 interface StorageCleanerScanner {
+    suspend fun cachedScan(
+        rootPaths: List<String>,
+        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
+        rules: StorageCleanerRules = StorageCleanerRules()
+    ): StorageCleanerResult? = null
+
     suspend fun scan(
         rootPaths: List<String>,
         now: Long = System.currentTimeMillis(),
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits()
+        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
+        rules: StorageCleanerRules = StorageCleanerRules()
     ): StorageCleanerResult
+
+    suspend fun invalidateStorageCleaner(paths: Collection<String> = emptyList()) = Unit
 }

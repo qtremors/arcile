@@ -1,17 +1,23 @@
 package dev.qtremors.arcile.shared.ui.lists
 
+import android.net.Uri
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.image.ThumbnailKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class FileRowUiModelTest {
     private val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
         timeZone = TimeZone.getTimeZone("UTC")
@@ -64,17 +70,28 @@ class FileRowUiModelTest {
     }
 
     @Test
-    fun `image rows use file request data even when content uri is present`() {
+    fun `image rows prefer content uri request data when present`() {
         val row = FileModel(
-            name = "photo.jpg",
-            absolutePath = "/storage/emulated/0/DCIM/photo.jpg",
-            extension = "jpg",
+            name = "photo.png",
+            absolutePath = "/storage/emulated/0/DCIM/photo.png",
+            extension = "png",
             nodeRef = StorageNodeRef.mediaStore(
                 id = 42L,
                 volumeName = "external",
                 contentUri = "content://media/external/images/media/42",
-                displayPath = "/storage/emulated/0/DCIM/photo.jpg"
+                displayPath = "/storage/emulated/0/DCIM/photo.png"
             )
+        ).toFileRowUiModel(formatter)
+
+        assertEquals(Uri.parse("content://media/external/images/media/42"), row.thumbnailRequestData())
+    }
+
+    @Test
+    fun `image rows fall back to file request data without content uri`() {
+        val row = FileModel(
+            name = "photo.png",
+            absolutePath = "/storage/emulated/0/DCIM/photo.png",
+            extension = "png"
         ).toFileRowUiModel(formatter)
 
         assertTrue(row.thumbnailRequestData() is File)

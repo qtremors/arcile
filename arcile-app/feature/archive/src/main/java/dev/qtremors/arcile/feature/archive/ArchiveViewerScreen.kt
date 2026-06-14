@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.archive
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -94,6 +95,7 @@ import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+
 @Composable
 fun ArchiveViewerScreen(
     state: ArchiveViewerState,
@@ -150,8 +152,22 @@ fun ArchiveViewerScreen(
             onClearActiveOperation()
         }
     }
-    BackHandler {
-        if (!onNavigateUpInArchive()) onNavigateBack()
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+
+    PredictiveBackHandler { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            if (!onNavigateUpInArchive()) onNavigateBack()
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
+        }
     }
 
     if (state.passwordRequired) {
@@ -184,6 +200,15 @@ fun ArchiveViewerScreen(
     }
 
     ArcileScreenScaffold(
+        modifier = Modifier.graphicsLayer {
+            if (isBackPredicting) {
+                val scale = 1f - (backProgress * 0.08f)
+                scaleX = scale
+                scaleY = scale
+                translationX = backProgress * 100.dp.toPx()
+                alpha = 1f - (backProgress * 0.4f)
+            }
+        },
         isLoading = state.isLoading,
         snackbarHost = {
             SnackbarHost(
@@ -319,7 +344,10 @@ fun ArchiveViewerScreen(
                     color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
+                        .padding(
+                            horizontal = animatedHorizontalPadding.coerceAtLeast(0.dp),
+                            vertical = animatedVerticalPadding.coerceAtLeast(0.dp)
+                        )
                 ) {
                     ListItem(
                         headlineContent = {
@@ -392,383 +420,3 @@ fun ArchiveViewerScreen(
     }
 }
 
-private fun ArchiveOperationStatusMessage.stringRes(): Int =
-    when (this) {
-        ArchiveOperationStatusMessage.ExtractionComplete -> R.string.archive_extraction_complete
-        ArchiveOperationStatusMessage.ExtractionCancelled -> R.string.archive_extraction_cancelled
-    }
-
-@Composable
-private fun ArchiveContextHeader(
-    archiveName: String,
-    currentPrefix: String?,
-    extractionDestination: String,
-    breadcrumbs: List<Pair<String, String?>>,
-    onOpenFolder: (String) -> Unit,
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    nameEncoding: ArchiveNameEncoding,
-    showEncoding: Boolean
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.screenGutter, vertical = MaterialTheme.spacing.compactGap),
-        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.compactGap)
-    ) {
-        Text(
-            text = currentPrefix ?: stringResource(R.string.archive_root),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = stringResource(R.string.archive_breadcrumb, archiveName, currentPrefix ?: stringResource(R.string.archive_root)),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            breadcrumbs.forEach { (label, path) ->
-                FilterChip(
-                    selected = path == currentPrefix,
-                    onClick = { if (path != null) onOpenFolder(path) },
-                    label = {
-                        Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                )
-            }
-        }
-        if (showEncoding) {
-            Text(
-                text = nameEncoding.displayName,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.archive_search_entries)) }
-        )
-        Text(
-            text = stringResource(R.string.archive_destination_preview, extractionDestination),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
-}
-
-private fun File.archiveBaseName(): String {
-    val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension
-    return name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension }
-}
-
-@Composable
-private fun ArchiveSummaryHeader(state: ArchiveViewerState) {
-    val summary = state.summary ?: return
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.screenGutter, vertical = MaterialTheme.spacing.compactGap),
-        verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.compactGap)
-    ) {
-        Text(
-            text = summary.format.displayName,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sectionGap)) {
-            Text(
-                text = pluralStringResource(R.plurals.archive_entry_count, summary.entryCount, summary.entryCount),
-                style = MaterialTheme.typography.bodySmall
-            )
-            Text(formatFileSize(summary.totalUncompressedSize), style = MaterialTheme.typography.bodySmall)
-        }
-        val ratio = summary.compressionRatio?.let { "${(it * 100).toInt()}%" }
-            ?: stringResource(R.string.archive_ratio_unavailable)
-        Text(
-            text = stringResource(R.string.archive_summary_size_ratio, formatFileSize(summary.archiveSize), ratio),
-            style = MaterialTheme.typography.bodySmall
-        )
-        summary.newestModifiedAt?.let {
-            Text(
-                text = stringResource(R.string.archive_newest_modified, DateFormat.getDateTimeInstance().format(Date(it))),
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-@Composable
-private fun ArchiveOperationCard(
-    operation: ArchiveOperationUiState,
-    onCancel: () -> Unit
-) {
-    val progress = operation.totalItems.takeIf { it > 0 }
-        ?.let { operation.completedItems.toFloat() / it.toFloat() }
-        ?.coerceIn(0f, 1f)
-    val title = if (operation.isCancelling) {
-        stringResource(R.string.file_operation_cancelling)
-    } else {
-        stringResource(R.string.file_operation_extracting_archive)
-    }
-    val currentName = operation.currentPath
-        ?.substringAfterLast('/')
-        ?.substringAfterLast(File.separatorChar)
-        ?.takeIf { it.isNotBlank() }
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MaterialTheme.spacing.screenGutter, vertical = MaterialTheme.spacing.compactGap)
-    ) {
-        Column(
-            modifier = Modifier.padding(MaterialTheme.spacing.screenGutter),
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.compactGap)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                TextButton(
-                    enabled = !operation.isCancelling && operation.terminalStatus == null,
-                    onClick = onCancel
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-            if (progress == null) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            } else {
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            Text(
-                text = if (operation.totalItems > 0) {
-                    stringResource(
-                        R.string.file_operation_progress,
-                        title,
-                        operation.completedItems,
-                        operation.totalItems
-                    )
-                } else {
-                    title
-                },
-                style = MaterialTheme.typography.bodySmall
-            )
-            currentName?.let {
-                Text(
-                    text = stringResource(R.string.archive_operation_current_entry, it),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ArchivePasswordDialog(
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-    nameEncoding: ArchiveNameEncoding,
-    showEncodingSelector: Boolean,
-    onSelectNameEncoding: (ArchiveNameEncoding) -> Unit
-) {
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-        title = { Text(stringResource(R.string.archive_password_title)) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.archive_password)) },
-                    supportingText = { Text(stringResource(R.string.archive_password_description)) },
-                    visualTransformation = if (passwordVisible) {
-                        VisualTransformation.None
-                    } else {
-                        PasswordVisualTransformation()
-                    },
-                    trailingIcon = {
-                        val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
-                        val label = stringResource(
-                            if (passwordVisible) {
-                                R.string.archive_password_hide
-                            } else {
-                                R.string.archive_password_show
-                            }
-                        )
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                            Icon(icon, contentDescription = label)
-                        }
-                    }
-                )
-                if (showEncodingSelector) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = nameEncoding.displayName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Row(
-                            modifier = Modifier.horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ArchiveNameEncoding.entries.forEach { encoding ->
-                                FilterChip(
-                                    selected = encoding == nameEncoding,
-                                    onClick = { onSelectNameEncoding(encoding) },
-                                    label = { Text(encoding.displayName) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = password.isNotEmpty(),
-                onClick = { onConfirm(password) }
-            ) {
-                Text(stringResource(R.string.open))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}
-
-@Composable
-private fun ArchiveEncodingDialog(
-    selected: ArchiveNameEncoding,
-    onDismiss: () -> Unit,
-    onSelect: (ArchiveNameEncoding) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.TextFields, contentDescription = null) },
-        title = { Text(stringResource(R.string.archive_filename_encoding)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                ArchiveNameEncoding.entries.forEach { encoding ->
-                    ListItem(
-                        headlineContent = { Text(encoding.displayName) },
-                        supportingContent = if (encoding == selected) {
-                            { Text(stringResource(R.string.selected)) }
-                        } else {
-                            null
-                        },
-                        modifier = Modifier.clickable { onSelect(encoding) }
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}
-
-@Composable
-private fun ArchiveConflictDialog(
-    state: ArchiveViewerState,
-    onSetConflictResolution: (String, ConflictResolution) -> Unit,
-    onApplyConflictResolutionToAll: (ConflictResolution) -> Unit,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val formatter = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
-    val allResolved = state.pendingConflicts.all { state.conflictResolutions[it.sourcePath] != null }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
-        title = { Text(stringResource(R.string.archive_resolve_conflicts)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.KEEP_BOTH) }) {
-                        Text(stringResource(R.string.action_keep_both))
-                    }
-                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.REPLACE) }) {
-                        Text(stringResource(R.string.action_replace))
-                    }
-                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.SKIP) }) {
-                        Text(stringResource(R.string.action_skip))
-                    }
-                }
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(state.pendingConflicts, key = { it.sourcePath }) { conflict ->
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ConflictCard(
-                                conflict = conflict,
-                                resolution = state.conflictResolutions[conflict.sourcePath],
-                                formatter = formatter,
-                                onResolutionChange = { onSetConflictResolution(conflict.sourcePath, it) }
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.KEEP_BOTH) }) {
-                                    Text(stringResource(R.string.action_keep_both))
-                                }
-                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.REPLACE) }) {
-                                    Text(stringResource(R.string.action_replace))
-                                }
-                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.SKIP) }) {
-                                    Text(stringResource(R.string.action_skip))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = allResolved, onClick = onConfirm) {
-                Text(stringResource(R.string.archive_extract_archive))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}

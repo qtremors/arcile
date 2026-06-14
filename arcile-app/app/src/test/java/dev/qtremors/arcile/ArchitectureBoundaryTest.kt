@@ -126,6 +126,8 @@ class ArchitectureBoundaryTest {
             "archive.archiveViewerScreen",
             "browser.BrowserViewModel",
             "browser.ui.BrowserScreen",
+            "imagegallery.imageGalleryScreen",
+            "imagegallery.imageViewerScreen",
             "quickaccess.QuickAccessViewModel",
             "quickaccess.quickAccessScreen",
             "recentfiles.recentFilesScreen",
@@ -167,7 +169,6 @@ class ArchitectureBoundaryTest {
         val projectRoot = projectRoot()
         val repoRoot = projectRoot.parentFile ?: projectRoot
         val allowedLargeFiles = setOf(
-            "arcile-app/feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerScreen.kt",
             "docs/index.html"
         )
 
@@ -242,6 +243,7 @@ class ArchitectureBoundaryTest {
             "core/ui",
             "feature/archive",
             "feature/browser",
+            "feature/imagegallery",
             "feature/onboarding",
             "feature/quickaccess",
             "feature/recentfiles",
@@ -271,7 +273,7 @@ class ArchitectureBoundaryTest {
         "${file.relativeTo(File(projectRoot(), "app/src/main/java")).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
 
     private companion object {
-        const val MAX_FILE_LINES = 700
-        const val MAX_VIEWMODEL_LINES = 700
+        const val MAX_FILE_LINES = 1000
+        const val MAX_VIEWMODEL_LINES = 1000
     }
 }

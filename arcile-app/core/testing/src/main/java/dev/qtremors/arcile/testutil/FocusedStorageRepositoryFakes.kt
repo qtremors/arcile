@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -33,6 +34,9 @@ import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flow
 import java.io.File
 
@@ -164,6 +168,13 @@ class FakeFileMutationRepository : FileMutationRepository {
 }
 
 class FakeClipboardRepository : ClipboardRepository {
+    private val _clipboardState = MutableStateFlow<ClipboardState?>(null)
+    override val clipboardState: StateFlow<ClipboardState?> = _clipboardState.asStateFlow()
+
+    override fun setClipboardState(state: ClipboardState?) {
+        _clipboardState.value = state
+    }
+
     var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
@@ -349,10 +360,12 @@ class FakeStorageAnalyticsRepository(
     var recentFilesResultProvider: (suspend (StorageScope, Int, Int, Long) -> Result<List<FileModel>>)? = null
     var categoryStorageResultProvider: (suspend (StorageScope) -> Result<List<CategoryStorage>>)? = null
     var trashStorageUsageResult: Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
+    var invalidateAnalyticsCacheResult: Result<Unit> = Result.success(Unit)
 
     val requestedRecentScopes = mutableListOf<StorageScope>()
     val requestedStorageInfoScopes = mutableListOf<StorageScope>()
     val requestedCategoryScopes = mutableListOf<StorageScope>()
+    var invalidateAnalyticsCacheCalls = 0
 
     override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
         requestedRecentScopes += scope
@@ -371,6 +384,11 @@ class FakeStorageAnalyticsRepository(
     }
 
     override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = trashStorageUsageResult
+
+    override suspend fun invalidateAnalyticsCache() {
+        invalidateAnalyticsCacheCalls += 1
+        invalidateAnalyticsCacheResult.getOrThrow()
+    }
 }
 
 class FakeVolumeRepository(volumes: List<StorageVolume> = emptyList()) : VolumeRepository {
@@ -576,6 +594,11 @@ class FakeStorageRepositoryBundle(
         set(value) {
             storageAnalyticsRepository.trashStorageUsageResult = value
         }
+    var invalidateAnalyticsCacheResult: Result<Unit>
+        get() = storageAnalyticsRepository.invalidateAnalyticsCacheResult
+        set(value) {
+            storageAnalyticsRepository.invalidateAnalyticsCacheResult = value
+        }
     var deletePermanentlyFromTrashResult: Result<Unit>
         get() = trashRepository.deletePermanentlyFromTrashResult
         set(value) {
@@ -588,6 +611,8 @@ class FakeStorageRepositoryBundle(
         get() = storageAnalyticsRepository.requestedStorageInfoScopes
     val requestedCategoryScopes: MutableList<StorageScope>
         get() = storageAnalyticsRepository.requestedCategoryScopes
+    val invalidateAnalyticsCacheCalls: Int
+        get() = storageAnalyticsRepository.invalidateAnalyticsCacheCalls
     val requestedFilesByCategory: MutableList<Pair<StorageScope, String>>
         get() = searchRepository.requestedFilesByCategory
     val searchRequests: MutableList<FakeSearchRepository.SearchRequest>

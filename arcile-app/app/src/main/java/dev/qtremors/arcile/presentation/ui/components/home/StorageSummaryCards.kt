@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.presentation.ui.components.home
 
 import dev.qtremors.arcile.ui.theme.spacing
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -14,6 +16,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -53,9 +56,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
@@ -98,6 +104,7 @@ fun StorageSummaryCard(
                     volume = volume,
                     categoryStorages = volumeCategories,
                     trashBytes = volumeTrashBytes,
+                    isLoading = state.isLoading || state.isCalculatingStorage,
                     onClick = { onNavigateToPath(volume.path) },
                     onLongClick = {
                         if (volume.kind.isIndexed) {
@@ -208,9 +215,16 @@ fun StorageSummaryCard(
 
                 if ((state.categoryStorages.isNotEmpty() || state.trashStorageUsage.totalBytes > 0L) && !showPlaceholder) {
                     Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
-                    CategoryLegend(
+                    val systemBytes = systemInaccessibleBytes(
+                        totalBytes = total,
+                        freeBytes = free,
                         categoryStorages = state.categoryStorages,
                         trashBytes = state.trashStorageUsage.totalBytes
+                    )
+                    CategoryLegend(
+                        categoryStorages = state.categoryStorages,
+                        trashBytes = state.trashStorageUsage.totalBytes,
+                        systemBytes = systemBytes
                     )
                 } else {
                     Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
@@ -246,10 +260,12 @@ fun StorageVolumeCard(
     volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
     categoryStorages: List<CategoryStorage>,
     trashBytes: Long,
+    isLoading: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     val used = volume.totalBytes - volume.freeBytes
+    val showPlaceholder = isLoading || volume.totalBytes <= 0L
     
     Card(
         modifier = Modifier
@@ -318,11 +334,11 @@ fun StorageVolumeCard(
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
 
             MultiColorStorageBar(
-                totalBytes = volume.totalBytes,
-                freeBytes = volume.freeBytes,
+                totalBytes = volume.totalBytes.takeIf { it > 0L } ?: 1L,
+                freeBytes = volume.freeBytes.takeIf { volume.totalBytes > 0L } ?: 1L,
                 categoryStorages = categoryStorages,
                 trashBytes = trashBytes,
-                isCalculating = false // Individual volume status can be secondary or tied to global
+                isCalculating = showPlaceholder
             )
 
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
@@ -343,6 +359,7 @@ fun StorageVolumeCard(
         }
     }
 }
+
 
 @Composable
 fun MultiColorStorageBar(
@@ -368,154 +385,174 @@ fun MultiColorStorageBar(
         }
     }
 
-    val revealProgress by animateFloatAsState(
-        targetValue = if (animationTrigger) 1f else 0f,
-        animationSpec = tween(1000, easing = LinearEasing),
-        label = "storageBarReveal"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(barHeight)
             .clip(barShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .shimmer(visible = isCalculating, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
+            .testTag(if (isCalculating) "storage_bar_loading" else "storage_bar")
     ) {
         if (hasData || isCalculating) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // Indeterminate Layer (Flowing colors)
-                AnimatedVisibility(
-                    visible = isCalculating,
-                    enter = fadeIn(),
-                    exit = fadeOut(animationSpec = tween(1000)),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val infiniteTransition = rememberInfiniteTransition(label = "placeholderFlow")
-                    val offset by infiniteTransition.animateFloat(
-                        initialValue = 0f,
-                        targetValue = 1000f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(3000, easing = LinearEasing),
-                            repeatMode = RepeatMode.Restart
-                        ),
-                        label = "offset"
-                    )
-                    
-                    val placeholderColors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f),
-                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f),
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                    )
-                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.linearGradient(
-                                    colors = placeholderColors,
-                                    start = Offset(offset, 0f),
-                                    end = Offset(offset + 500f, 0f),
-                                    tileMode = androidx.compose.ui.graphics.TileMode.Repeated
-                                )
-                            )
-                    )
-                }
+                // Data Layer (Segments / Indeterminate progress)
+                val hasSegmentData = categoryStorages.any { it.sizeBytes > 0L } || trashBytes > 0L
+                val showSegments = hasData && animationTrigger && hasSegmentData
 
-                // Data Layer (Segments)
-                if (hasData && animationTrigger) {
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        val categorizedBytes = categoryStorages.sumOf { it.sizeBytes }
-                        val boundedTrashBytes = trashBytes.coerceIn(0L, totalBytes)
-                        val actualUsedBytes = totalBytes - freeBytes
-                        val otherUsedBytes = (actualUsedBytes - categorizedBytes - boundedTrashBytes).coerceAtLeast(0)
+                AnimatedContent(
+                    targetState = showSegments,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(500)) togetherWith fadeOut(animationSpec = tween(500))
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    label = "storageBarContentTransition"
+                ) { targetShowSegments ->
+                    if (targetShowSegments) {
+                        val rowTrigger = remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            rowTrigger.value = true
+                        }
 
-                        val categoryColors = LocalCategoryColors.current
-                        val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
-                        
-                        sortedCategories.forEach { cat ->
-                            if (cat.sizeBytes > 0) {
-                                val fraction = cat.sizeBytes.toFloat() / totalBytes.toFloat()
-                                val animatedFraction by animateFloatAsState(
-                                    targetValue = fraction * revealProgress,
-                                    animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
-                                    label = "cat_${cat.name}_animation"
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            val actualUsedBytes = (totalBytes - freeBytes).coerceIn(0L, totalBytes)
+                            val rawCategories = categoryStorages
+                                .filter { it.sizeBytes > 0L }
+                                .sortedByDescending { it.sizeBytes }
+                            val rawSegmentBytes = rawCategories.sumOf { it.sizeBytes } + trashBytes.coerceAtLeast(0L)
+                            val scale = if (rawSegmentBytes > actualUsedBytes && rawSegmentBytes > 0L) {
+                                actualUsedBytes.toDouble() / rawSegmentBytes.toDouble()
+                            } else {
+                                1.0
+                            }
+                            val boundedTrashBytes = (trashBytes.coerceAtLeast(0L).toDouble() * scale).toLong()
+                            val categorizedBytes = rawCategories.sumOf { (it.sizeBytes.toDouble() * scale).toLong() }
+                            val otherUsedBytes = (actualUsedBytes - categorizedBytes - boundedTrashBytes).coerceAtLeast(0L)
+
+                            val categoryColors = LocalCategoryColors.current
+
+                            rawCategories.forEach { cat ->
+                                val segmentBytes = (cat.sizeBytes.toDouble() * scale).toLong()
+                                if (segmentBytes > 0) {
+                                    val fraction = segmentBytes.toFloat() / totalBytes.toFloat()
+                                    val animatedFraction by animateFloatAsState(
+                                        targetValue = if (rowTrigger.value) fraction else 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        ),
+                                        label = "cat_${cat.name}_animation"
+                                    )
+                                    val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .weight(animatedFraction.coerceAtLeast(0.0001f))
+                                            .padding(horizontal = 0.1.dp)
+                                            .clip(CircleShape)
+                                            .background(catColor)
+                                    )
+                                }
+                            }
+
+                            if (boundedTrashBytes > 0) {
+                                val trashFraction = boundedTrashBytes.toFloat() / totalBytes.toFloat()
+                                val animatedTrashFraction by animateFloatAsState(
+                                    targetValue = if (rowTrigger.value) trashFraction else 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    label = "trash_bytes_animation"
                                 )
-                                val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .weight(animatedFraction.coerceAtLeast(0.005f)) // Minimum 0.5% weight for visibility
-                                        .padding(horizontal = 0.1.dp) // Even smaller gap
+                                        .weight(animatedTrashFraction.coerceAtLeast(0.0001f))
+                                        .padding(horizontal = 0.1.dp)
                                         .clip(CircleShape)
-                                        .background(catColor)
+                                        .background(MaterialTheme.colorScheme.error)
+                                )
+                            }
+
+                            if (otherUsedBytes > 0) {
+                                val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
+                                val animatedOtherFraction by animateFloatAsState(
+                                    targetValue = if (rowTrigger.value) otherFraction else 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    label = "other_bytes_animation"
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .weight(animatedOtherFraction.coerceAtLeast(0.0001f))
+                                        .padding(horizontal = 0.1.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                )
+                            }
+
+                            if (freeBytes > 0) {
+                                val freeFraction = freeBytes.toFloat() / totalBytes.toFloat()
+                                val currentUsedFractions = (actualUsedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+                                val animatedUsedFraction by animateFloatAsState(
+                                    targetValue = if (rowTrigger.value) currentUsedFractions else 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    label = "used_bytes_animation"
+                                )
+                                val animatedFreeFraction = 1f - animatedUsedFraction
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .weight(animatedFreeFraction.coerceAtLeast(0.0001f))
+                                        .background(Color.Transparent)
                                 )
                             }
                         }
+                    } else {
+                        // Linear moving progress using a softer subset of categories colors
+                        val categoryColors = LocalCategoryColors.current
+                        val colors = listOf(
+                            categoryColors.images.copy(alpha = 0.5f),
+                            categoryColors.videos.copy(alpha = 0.5f),
+                            categoryColors.audio.copy(alpha = 0.5f)
+                        )
 
-                        if (boundedTrashBytes > 0) {
-                            val trashFraction = boundedTrashBytes.toFloat() / totalBytes.toFloat()
-                            val animatedTrashFraction by animateFloatAsState(
-                                targetValue = trashFraction * revealProgress,
-                                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
-                                label = "trash_bytes_animation"
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .weight(animatedTrashFraction.coerceAtLeast(0.005f))
-                                    .padding(horizontal = 0.1.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.error)
-                            )
-                        }
+                        val infiniteTransition = rememberInfiniteTransition(label = "linearMovingProgress")
+                        val progressOffset by infiniteTransition.animateFloat(
+                            initialValue = -0.4f,
+                            targetValue = 1.0f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1500, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "progressOffset"
+                        )
 
-                        if (otherUsedBytes > 0) {
-                            val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
-                            val animatedOtherFraction by animateFloatAsState(
-                                targetValue = otherFraction * revealProgress,
-                                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
-                                label = "other_bytes_animation"
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val width = size.width
+                            val height = size.height
+                            val blockWidth = width * 0.4f
+                            val startX = progressOffset * width
+                            
+                            val gradient = Brush.linearGradient(
+                                colors = colors,
+                                start = Offset(startX, 0f),
+                                end = Offset(startX + blockWidth, 0f)
                             )
                             
-                            // Dynamic color logic for unindexed volumes (no categories)
-                            val otherColor = if (categoryStorages.isEmpty()) {
-                                val usedPercent = (actualUsedBytes * 100) / totalBytes
-                                when {
-                                    usedPercent >= 90 -> MaterialTheme.colorScheme.error
-                                    usedPercent >= 70 -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .weight(animatedOtherFraction.coerceAtLeast(0.005f))
-                                    .padding(horizontal = 0.1.dp)
-                                    .clip(CircleShape)
-                                    .background(otherColor)
-                            )
-                        }
-
-                        if (freeBytes > 0) {
-                            val freeFraction = freeBytes.toFloat() / totalBytes.toFloat()
-                            // Free fraction grows oppositely if we want the bar to fill, 
-                            // but since it's a Row, if Used parts grow, Free part will naturally shrink.
-                            // We need used + free to always = 1.0 weight in the Row.
-                            // So we explicitly animate the free fraction to maintain the 1.0 sum.
-                            val currentUsedFractions = ((categoryStorages.sumOf { it.sizeBytes }.toFloat() + boundedTrashBytes.toFloat() + otherUsedBytes.toFloat()) / totalBytes.toFloat()).coerceIn(0f, 1f)
-                            val animatedUsedFractions = currentUsedFractions * revealProgress
-                            val animatedFreeFraction = 1f - animatedUsedFractions
-                            
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .weight(animatedFreeFraction.coerceAtLeast(0.0001f))
-                                    .background(Color.Transparent)
+                            drawRoundRect(
+                                brush = gradient,
+                                topLeft = Offset(startX, 0f),
+                                size = Size(blockWidth, height),
+                                cornerRadius = CornerRadius(height / 2, height / 2)
                             )
                         }
                     }
@@ -528,7 +565,8 @@ fun MultiColorStorageBar(
 @Composable
 fun CategoryLegend(
     categoryStorages: List<CategoryStorage>,
-    trashBytes: Long = 0L
+    trashBytes: Long = 0L,
+    systemBytes: Long = 0L
 ) {
     val scrollState = rememberScrollState()
     Row(
@@ -545,7 +583,16 @@ fun CategoryLegend(
                 val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                 Triple(cat.name, cat.sizeBytes, catColor)
             } + listOfNotNull(
-            if (trashBytes > 0L) Triple(stringResource(R.string.trash_bin), trashBytes, MaterialTheme.colorScheme.error) else null
+            if (trashBytes > 0L) Triple(stringResource(R.string.trash_bin), trashBytes, MaterialTheme.colorScheme.error) else null,
+            if (systemBytes > 0L) {
+                Triple(
+                    stringResource(R.string.other_files_system),
+                    systemBytes,
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            } else {
+                null
+            }
         )
 
         legendItems.forEach { (name, sizeBytes, color) ->
@@ -567,4 +614,15 @@ fun CategoryLegend(
             }
         }
     }
+}
+
+fun systemInaccessibleBytes(
+    totalBytes: Long,
+    freeBytes: Long,
+    categoryStorages: List<CategoryStorage>,
+    trashBytes: Long
+): Long {
+    val actualUsedBytes = (totalBytes - freeBytes).coerceAtLeast(0L)
+    val visibleBytes = categoryStorages.sumOf { it.sizeBytes } + trashBytes.coerceAtLeast(0L)
+    return (actualUsedBytes - visibleBytes).coerceAtLeast(0L)
 }

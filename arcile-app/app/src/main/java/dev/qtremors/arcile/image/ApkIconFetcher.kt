@@ -21,10 +21,11 @@ class ApkIconFetcher(
     @Suppress("DEPRECATION")
     override suspend fun fetch(): FetchResult? {
         if (!data.exists() || !data.isFile || data.length() > ThumbnailPolicy.MAX_APK_BYTES) return null
+        return ThumbnailWorkCoordinator.withExpensivePermit {
         val packageManager = options.context.packageManager
         val packageInfo = packageManager.getPackageArchiveInfo(data.absolutePath, 0)
         
-        return if (packageInfo != null) {
+        if (packageInfo != null) {
             val appInfo = packageInfo.applicationInfo
             if (appInfo != null) {
                 appInfo.sourceDir = data.absolutePath
@@ -44,6 +45,7 @@ class ApkIconFetcher(
             } else null
         } else {
             null
+        }
         }
     }
 

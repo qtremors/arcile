@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 @Composable
 fun VolumeRootList(
@@ -78,7 +79,7 @@ fun VolumeItemRow(
         shape = MaterialTheme.shapes.extraLarge,
         color = Color.Transparent,
         modifier = modifier
-            .clickable(onClick = onClick)
+            .bounceClickable(onClick = onClick)
     ) {
         ListItem(
             leadingContent = {

@@ -13,8 +13,20 @@ data class ThumbnailKey(
 ) {
     val file: File get() = File(path)
 
+    val identityKey: ThumbnailIdentityKey
+        get() = ThumbnailIdentityKey(
+            source = contentUri ?: path,
+            extension = extension,
+            sizeBytes = sizeBytes,
+            lastModifiedMillis = lastModifiedMillis
+        )
+
     val cacheKey: String
-        get() = "thumbnail:${contentUri ?: path}:$extension:$sizeBytes:$lastModifiedMillis"
+        get() = identityKey.cacheKey
+
+    fun variantKey(sizePx: Int): ThumbnailVariantKey =
+        ThumbnailVariantKey(identityKey, ThumbnailTargetSize.bucket(sizePx))
+
 
     val type: ThumbnailType
         get() = when (extension.lowercase()) {
@@ -44,6 +56,24 @@ data class ThumbnailKey(
                 lastModifiedMillis = file.lastModified()
             )
     }
+}
+
+data class ThumbnailIdentityKey(
+    val source: String,
+    val extension: String,
+    val sizeBytes: Long,
+    val lastModifiedMillis: Long
+) {
+    val cacheKey: String
+        get() = "thumbnail:$source:$extension:$sizeBytes:$lastModifiedMillis"
+}
+
+data class ThumbnailVariantKey(
+    val identity: ThumbnailIdentityKey,
+    val sizeBucketPx: Int
+) {
+    val cacheKey: String
+        get() = "${identity.cacheKey}:$sizeBucketPx"
 }
 
 enum class ThumbnailType {

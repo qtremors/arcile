@@ -310,6 +310,11 @@ class BrowserViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            clipboardRepository.clipboardState.collectLatest { clipboard ->
+                _state.update { it.copy(clipboardState = clipboard) }
+            }
+        }
         operationDelegate.observeOperationEvents()
     }
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =

@@ -31,6 +31,8 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.ui.theme.bounceClickable
+
 @Composable
 internal fun CleanerLoading() {
     Box(
@@ -61,7 +63,7 @@ internal fun CleanerCategoryCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .clip(MaterialTheme.shapes.extraLarge)
-            .clickable(onClick = onClick),
+            .bounceClickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         shape = MaterialTheme.shapes.extraLarge
     ) {

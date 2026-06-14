@@ -14,6 +14,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -79,5 +80,44 @@ class QuickAccessPreferencesRepositoryTest {
         repository.removeItem("handoff_files_app")
 
         assertFalse(repository.quickAccessItems.first().any { it.id == "handoff_files_app" })
+    }
+
+    @Test
+    fun `default shortcuts include whatsapp media and files app`() = runBlocking {
+        val repository = QuickAccessPreferencesRepository(context, dataStore)
+
+        val items = repository.quickAccessItems.first()
+        val whatsApp = items.single { it.id == "standard_whatsapp_media" }
+        val files = items.single { it.id == "handoff_files_app" }
+
+        assertEquals("WhatsApp", whatsApp.label)
+        assertEquals("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media", whatsApp.path)
+        assertEquals(QuickAccessType.STANDARD, whatsApp.type)
+        assertTrue(whatsApp.isPinned)
+        assertEquals("Files", files.label)
+        assertEquals(QuickAccessType.FILES_APP, files.type)
+        assertTrue(files.path.startsWith("content://com.android.externalstorage.documents/tree/primary"))
+    }
+
+    @Test
+    fun `files app shortcut keeps files app type when stored legacy item exists`() = runBlocking {
+        val repository = QuickAccessPreferencesRepository(context, dataStore)
+
+        repository.updateItems(
+            listOf(
+                QuickAccessItem(
+                    id = "handoff_files_app",
+                    label = "Files",
+                    path = QuickAccessItem.FILES_APP_PATH,
+                    type = QuickAccessType.EXTERNAL_HANDOFF
+                )
+            )
+        )
+
+        val files = repository.quickAccessItems.first().single { it.id == "handoff_files_app" }
+
+        assertEquals(QuickAccessType.FILES_APP, files.type)
+        assertEquals("Files", files.label)
+        assertTrue(files.path.startsWith("content://com.android.externalstorage.documents/tree/primary"))
     }
 }

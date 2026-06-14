@@ -18,6 +18,7 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -49,6 +50,26 @@ class ClipboardDelegateTest {
         testScope = TestScope(UnconfinedTestDispatcher())
         state = MutableStateFlow(BrowserState())
         repository = mockk(relaxed = true)
+
+        val dynamicClipboardState = object : kotlinx.coroutines.flow.StateFlow<ClipboardState?> {
+            override val value: ClipboardState?
+                get() = state.value.clipboardState
+            override val replayCache: List<ClipboardState?>
+                get() = listOf(state.value.clipboardState)
+            override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<ClipboardState?>): Nothing {
+                state.collect { collector.emit(it.clipboardState) }
+            }
+        }
+
+        io.mockk.every { repository.clipboardState } returns dynamicClipboardState
+        io.mockk.every { repository.setClipboardState(any()) } answers {
+            val value = firstArg<ClipboardState?>()
+            state.update { it.copy(clipboardState = value) }
+        }
+        io.mockk.every { repository.clearClipboardState() } answers {
+            state.update { it.copy(clipboardState = null) }
+        }
+
         bulkFileOperationCoordinator = mockk(relaxed = true)
         refreshActionCalled = false
         delegate = ClipboardDelegate(
@@ -179,14 +200,14 @@ class ClipboardDelegateTest {
             pasteConflicts = listOf(FileConflict("/test.txt", file, existing)).toPersistentList()
         )
         coEvery { bulkFileOperationCoordinator.startOperation(any(), any(), any(), any()) } returns true
-        
+
         val resolutions = mapOf("/test.txt" to ConflictResolution.REPLACE)
         delegate.resolveConflicts(resolutions)
 
         assertFalse(state.value.showConflictDialog)
         assertTrue(state.value.pasteConflicts.isEmpty())
         assertFalse(state.value.isLoading)
-        
+
         coVerify(exactly = 1) {
             bulkFileOperationCoordinator.startOperation(
                 type = BulkFileOperationType.MOVE,

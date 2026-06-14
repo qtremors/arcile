@@ -93,21 +93,29 @@ fun StorageDashboardScreen(
         allVolumes.firstOrNull { it.id == requestedId }
     }
     val isTemporarySelection = selectedVolume != null && !selectedVolume.kind.isIndexed
+    val indexedVolumes = state.displayState.indexedDashboardVolumes
+    val singleIndexedVolumeId = indexedVolumes.singleOrNull()?.id
 
     val volumes = if (selectedVolumeId != null) {
         if (isTemporarySelection) emptyList() else state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
     } else {
-        state.displayState.indexedDashboardVolumes
+        indexedVolumes
     }
     val categoryStorages = if (selectedVolumeId != null) {
-        if (isTemporarySelection) emptyList() else state.categoryStoragesByVolume[selectedVolumeId].orEmpty()
+        if (isTemporarySelection) {
+            emptyList()
+        } else {
+            state.categoryStoragesByVolume[selectedVolumeId]
+                ?: if (selectedVolumeId == singleIndexedVolumeId) state.displayState.sortedCategoryStorages else emptyList()
+        }
     } else {
         state.displayState.sortedCategoryStorages
     }
     val totalBytes = volumes.sumOf { it.totalBytes }
     val freeBytes = volumes.sumOf { it.freeBytes }
     val trashBytes = if (selectedVolumeId != null) {
-        state.trashStorageUsage.byVolumeId[selectedVolumeId].orZero()
+        state.trashStorageUsage.byVolumeId[selectedVolumeId]
+            ?: if (selectedVolumeId == singleIndexedVolumeId) state.trashStorageUsage.totalBytes else 0L
     } else {
         state.trashStorageUsage.totalBytes
     }
@@ -128,8 +136,10 @@ fun StorageDashboardScreen(
             showLoading = false
         }
     }
-    LaunchedEffect(selectedVolumeId) {
-        storageUsageViewModel.load(selectedVolumeId)
+    LaunchedEffect(selectedTabIndex, selectedVolumeId) {
+        if (selectedTabIndex == 1) {
+            storageUsageViewModel.load(selectedVolumeId)
+        }
     }
 
     val displayCategories = categoryStorages
@@ -193,6 +203,7 @@ fun StorageDashboardScreen(
                         totalBytes = totalBytes,
                         freeBytes = freeBytes,
                         trashBytes = trashBytes,
+                        singleIndexedVolumeId = singleIndexedVolumeId,
                         unassignedColor = unassignedColor,
                         onCategoryClick = onCategoryClick
                     )
@@ -245,6 +256,7 @@ private fun StorageSummaryTab(
     totalBytes: Long,
     freeBytes: Long,
     trashBytes: Long,
+    singleIndexedVolumeId: String?,
     unassignedColor: Color,
     onCategoryClick: (String, String?) -> Unit
 ) {
@@ -289,6 +301,15 @@ private fun StorageSummaryTab(
         } else {
             items(volumes) { volume ->
                 val used = volume.totalBytes - volume.freeBytes
+                val volumeCategoryBreakdown = state.categoryStoragesByVolume[volume.id]
+                    ?: if (volume.id == singleIndexedVolumeId) state.categoryStorages else null
+                val isVolumeBreakdownReady = volumeCategoryBreakdown != null
+                val volumeTrashBytes = if (isVolumeBreakdownReady) {
+                    state.trashStorageUsage.byVolumeId[volume.id]
+                        ?: if (volume.id == singleIndexedVolumeId) state.trashStorageUsage.totalBytes else 0L
+                } else {
+                    0L
+                }
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -312,8 +333,9 @@ private fun StorageSummaryTab(
                         MultiColorStorageBar(
                             totalBytes = volume.totalBytes,
                             freeBytes = volume.freeBytes,
-                            categoryStorages = state.categoryStoragesByVolume[volume.id] ?: emptyList(),
-                            trashBytes = state.trashStorageUsage.byVolumeId[volume.id] ?: 0L
+                            categoryStorages = volumeCategoryBreakdown.orEmpty(),
+                            trashBytes = volumeTrashBytes,
+                            isCalculating = state.isCalculatingStorage || !isVolumeBreakdownReady
                         )
                     }
                 }
@@ -427,8 +449,6 @@ private fun TemporaryDashboardUnavailableCard(volume: StorageVolume) {
         }
     }
 }
-
-private fun Long?.orZero(): Long = this ?: 0L
 
 @Composable
 fun StorageUsageTile(

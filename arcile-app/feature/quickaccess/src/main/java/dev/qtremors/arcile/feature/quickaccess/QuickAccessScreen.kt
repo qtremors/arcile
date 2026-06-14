@@ -60,6 +60,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -68,6 +69,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessState
+import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
 import dev.qtremors.arcile.shared.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.shared.ui.menus.FabMenuItem
 
@@ -326,6 +328,7 @@ fun QuickAccessListItem(
     onRemove: () -> Unit
 ) {
     var showRemoveDialog by remember { mutableStateOf(false) }
+    val fallbackIcon = iconForQuickAccessItem(item)
 
     if (showRemoveDialog) {
         AlertDialog(
@@ -373,16 +376,12 @@ fun QuickAccessListItem(
                     modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = when (item.type) {
-                                QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
-                                QuickAccessType.EXTERNAL_HANDOFF -> Icons.AutoMirrored.Filled.OpenInNew
-                                QuickAccessType.FILES_APP -> Icons.AutoMirrored.Filled.OpenInNew
-                                else -> Icons.Default.Folder
-                            },
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
+                        QuickAccessAppIcon(
+                            item = item,
+                            fallbackIcon = fallbackIcon,
+                            fallbackTint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp),
+                            appIconModifier = Modifier.size(40.dp)
                         )
                     }
                 }
@@ -444,5 +443,14 @@ fun QuickAccessListItem(
                 }
             }
         }
+    }
+}
+
+private fun iconForQuickAccessItem(item: QuickAccessItem): ImageVector {
+    return when (item.type) {
+        QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
+        QuickAccessType.EXTERNAL_HANDOFF -> Icons.AutoMirrored.Filled.OpenInNew
+        QuickAccessType.FILES_APP -> Icons.AutoMirrored.Filled.OpenInNew
+        else -> Icons.Default.Folder
     }
 }

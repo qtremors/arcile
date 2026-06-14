@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
@@ -9,35 +10,105 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.util.LinkedHashMap
 import javax.inject.Inject
 import kotlin.math.max
 
 class DefaultStorageUsageScanner @Inject constructor(
-    private val dispatchers: ArcileDispatchers
+    private val dispatchers: ArcileDispatchers,
+    private val snapshotStore: StorageUsageSnapshotStore? = null,
+    @param:ApplicationScope private val applicationScope: CoroutineScope? = null
 ) : StorageUsageScanner {
+    private val cacheLock = Any()
+    private val cachedScans = object : LinkedHashMap<CacheKey, CacheEntry>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, CacheEntry>?): Boolean =
+            size > MAX_CACHED_SCANS
+    }
+
     override fun scanStorageUsage(
         rootPath: String,
         limits: StorageUsageScanLimits
     ): Flow<StorageUsageScanState> = flow {
-        val progress = Progress(rootPath)
-        emit(StorageUsageScanState.Loading(progress.snapshot(null)))
+        val normalizedRoot = File(rootPath).absolutePath
+        cached(normalizedRoot, limits)?.let { cached ->
+            emit(StorageUsageScanState.Loaded(cached))
+            return@flow
+        }
+        var emittedSnapshot = false
+        snapshotStore?.get(normalizedRoot, limits)?.let { cached ->
+            emit(StorageUsageScanState.Loaded(cached))
+            emittedSnapshot = true
+        }
 
-        val rootFile = File(rootPath)
+        val progress = Progress(rootPath)
+        if (!emittedSnapshot) {
+            emit(StorageUsageScanState.Loading(progress.snapshot(null)))
+        }
+
+        val rootFile = File(normalizedRoot)
         if (!rootFile.exists() || !rootFile.isDirectory) {
-            emit(StorageUsageScanState.Error("Folder is no longer available"))
+            if (!emittedSnapshot) {
+                emit(StorageUsageScanState.Error("Folder is no longer available"))
+            }
             return@flow
         }
 
         val node = scanFile(rootFile, depth = 0, limits = limits, progress = progress) { currentPath ->
-            emit(StorageUsageScanState.Loading(progress.snapshot(currentPath)))
+            if (!emittedSnapshot) {
+                emit(StorageUsageScanState.Loading(progress.snapshot(currentPath)))
+            }
         }
+        store(normalizedRoot, limits, node)
+        snapshotStore?.put(normalizedRoot, limits, node)
         emit(StorageUsageScanState.Loaded(node))
     }.flowOn(dispatchers.storage)
+
+    override fun invalidateStorageUsage(paths: Collection<String>) {
+        val normalizedPaths = if (paths.isEmpty()) {
+            emptyList()
+        } else {
+            paths.map { File(it).absolutePath.trimEnd(File.separatorChar) }
+        }
+        synchronized(cacheLock) {
+            if (paths.isEmpty()) {
+                cachedScans.clear()
+            } else {
+                cachedScans.entries.removeIf { entry ->
+                    normalizedPaths.any { changed ->
+                        val root = entry.key.rootPath
+                        changed == root || changed.startsWith("$root${File.separator}") || root.startsWith("$changed${File.separator}")
+                    }
+                }
+            }
+        }
+        val store = snapshotStore ?: return
+        applicationScope?.launch(dispatchers.io) {
+            store.invalidate(normalizedPaths)
+        } ?: runBlocking(dispatchers.io) {
+            store.invalidate(normalizedPaths)
+        }
+    }
+
+    private fun cached(rootPath: String, limits: StorageUsageScanLimits): StorageUsageNode? =
+        synchronized(cacheLock) {
+            cachedScans[CacheKey(rootPath, limits)]
+                ?.takeIf { System.currentTimeMillis() - it.cachedAt <= CACHE_TTL_MS }
+                ?.root
+        }
+
+    private fun store(rootPath: String, limits: StorageUsageScanLimits, root: StorageUsageNode) {
+        synchronized(cacheLock) {
+            cachedScans[CacheKey(rootPath, limits)] = CacheEntry(root, System.currentTimeMillis())
+        }
+    }
 
     private suspend fun scanFile(
         file: File,
@@ -180,5 +251,17 @@ class DefaultStorageUsageScanner @Inject constructor(
     private companion object {
         const val GROUPED_NODE_NAME = "Other small items"
         const val PROGRESS_GRANULARITY = 96
+        const val MAX_CACHED_SCANS = 8
+        const val CACHE_TTL_MS = 10 * 60 * 1000L
     }
+
+    private data class CacheKey(
+        val rootPath: String,
+        val limits: StorageUsageScanLimits
+    )
+
+    private data class CacheEntry(
+        val root: StorageUsageNode,
+        val cachedAt: Long
+    )
 }

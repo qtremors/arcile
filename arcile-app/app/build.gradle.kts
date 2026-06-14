@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 100
-        versionName = "1.0.0"
+        versionCode = 110
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -120,6 +120,7 @@ dependencies {
     implementation(project(":feature:trash"))
     implementation(project(":feature:archive"))
     implementation(project(":feature:recentfiles"))
+    implementation(project(":feature:imagegallery"))
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:quickaccess"))
     implementation(project(":feature:storagecleaner"))
@@ -146,6 +147,8 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.coil.video)
+    implementation(libs.coil.gif)
+    implementation(libs.coil.svg)
     implementation(libs.kotlinx.serialization.json)
 
     implementation(libs.material.kolor)

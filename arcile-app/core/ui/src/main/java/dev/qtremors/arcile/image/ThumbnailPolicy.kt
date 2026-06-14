@@ -14,31 +14,42 @@ data class ThumbnailPolicyInput(
 
 class ThumbnailPolicy(
     private val failureCache: ThumbnailFailureCache = GlobalThumbnailFailureCache,
+    private val loadStateStore: ThumbnailLoadStateStore = GlobalThumbnailLoadStateStore,
     private val bufferItems: Int = DEFAULT_BUFFER_ITEMS
 ) {
-    private val loadedKeys = java.util.concurrent.ConcurrentHashMap.newKeySet<ThumbnailKey>()
-
     fun shouldLoad(input: ThumbnailPolicyInput): Boolean {
         if (!input.userEnabled || input.isOperationActive) return false
-        if (failureCache.hasFailure(input.key)) return false
         if (input.key.type == ThumbnailType.Unsupported) return false
-        if (loadedKeys.contains(input.key)) {
+        val variantKey = input.key.variantKey(input.thumbnailSizePx)
+        if (loadStateStore.hasFailure(input.key.identityKey) || failureCache.hasFailure(input.key)) return false
+        if (loadStateStore.isLoaded(variantKey)) {
             return isSafeForType(input.key, input.thumbnailSizePx)
         }
         if (!isInVisibleBudget(input.itemIndex, input.visibleRange, input.viewMode)) return false
+        if (loadStateStore.isInFlight(variantKey)) {
+            return isSafeForType(input.key, input.thumbnailSizePx)
+        }
         return isSafeForType(input.key, input.thumbnailSizePx)
     }
 
-    fun recordLoaded(key: ThumbnailKey) {
-        loadedKeys.add(key)
+    fun recordInFlight(key: ThumbnailKey, thumbnailSizePx: Int) {
+        loadStateStore.markInFlight(key.variantKey(thumbnailSizePx))
     }
 
-    fun recordFailure(key: ThumbnailKey) {
+    fun recordLoaded(key: ThumbnailKey, thumbnailSizePx: Int) {
+        loadStateStore.recordLoaded(key.variantKey(thumbnailSizePx))
+        GlobalThumbnailStatePersistence.delegate?.recordLoaded(key, thumbnailSizePx)
+    }
+
+    fun recordFailure(key: ThumbnailKey, thumbnailSizePx: Int) {
         failureCache.recordFailure(key)
+        loadStateStore.recordFailure(key.variantKey(thumbnailSizePx))
+        GlobalThumbnailStatePersistence.delegate?.recordFailure(key, thumbnailSizePx)
     }
 
     fun clearFailure(key: ThumbnailKey) {
         failureCache.clearFailure(key)
+        GlobalThumbnailStatePersistence.delegate?.clearFailure(key)
     }
 
     private fun isInVisibleBudget(index: Int, visibleRange: IntRange?, viewMode: BrowserViewMode): Boolean {
@@ -67,7 +78,7 @@ class ThumbnailPolicy(
         }
 
     companion object {
-        const val DEFAULT_BUFFER_ITEMS = 8
+        const val DEFAULT_BUFFER_ITEMS = 24
         const val MAX_EXPENSIVE_THUMBNAIL_PX = 512
         const val MAX_IMAGE_BYTES = 75L * 1024L * 1024L
         const val MAX_AUDIO_BYTES = 50L * 1024L * 1024L

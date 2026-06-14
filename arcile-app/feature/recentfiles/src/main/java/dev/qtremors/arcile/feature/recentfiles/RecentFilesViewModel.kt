@@ -238,6 +238,9 @@ class RecentFilesViewModel @Inject constructor(
         }
         viewModelScope.launch {
             val scope = capturedState.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
+            if (pullToRefresh && !loadMore) {
+                storageAnalyticsRepository.invalidateAnalyticsCache()
+            }
             val result = storageAnalyticsRepository.getRecentFiles(scope = scope, limit = 50, offset = offset)
             result.onSuccess { files ->
                 _state.update {

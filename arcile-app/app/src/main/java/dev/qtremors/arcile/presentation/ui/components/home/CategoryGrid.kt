@@ -3,8 +3,6 @@ package dev.qtremors.arcile.presentation.ui.components.home
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -48,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.shimmer
@@ -98,7 +97,7 @@ fun CategoryGrid(
 
             val xOffset by animateDpAsState(
                 targetValue = targetX,
-                animationSpec = spring(
+                animationSpec = ArcileMotion.rememberSpring(
                     dampingRatio = Spring.DampingRatioLowBouncy,
                     stiffness = Spring.StiffnessLow
                 ),
@@ -107,7 +106,7 @@ fun CategoryGrid(
 
             val yOffset by animateDpAsState(
                 targetValue = targetY,
-                animationSpec = spring(
+                animationSpec = ArcileMotion.rememberSpring(
                     dampingRatio = Spring.DampingRatioLowBouncy,
                     stiffness = Spring.StiffnessLow
                 ),
@@ -149,9 +148,10 @@ fun CategoryItem(
     
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.90f else 1f,
-        animationSpec = spring(
-            dampingRatio = 0.8f,
-            stiffness = Spring.StiffnessMediumLow),
+        animationSpec = ArcileMotion.rememberSpring(
+            dampingRatio = Spring.DampingRatioLowBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        ),
         label = "categoryScale"
     )
 
@@ -193,7 +193,7 @@ fun CategoryItem(
         val hasSize = sizeBytes > 0
         val sizeAlpha by animateFloatAsState(
             targetValue = if (hasSize) 1f else 0f,
-            animationSpec = tween(durationMillis = 350),
+            animationSpec = ArcileMotion.rememberTween(durationMillis = ArcileMotion.Medium3),
             label = "${name}_sizeAlpha"
         )
         

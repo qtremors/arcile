@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.0.0 | **Last Updated:** 2026-06-07
+**Version:** 1.1.0 | **Last Updated:** 2026-06-14  
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -15,15 +15,17 @@
 - [Core Concepts](#core-concepts)
 - [Navigation & State](#navigation--state)
 - [Storage & File Operations](#storage--file-operations)
+- [Room Cache Database](#room-cache-database)
 - [Archive System](#archive-system)
 - [Trash System](#trash-system)
-- [UI & Design](#ui--design)
+- [UI & Design System](#ui--design-system)
+- [Feature Modules Deep Dive](#feature-modules-deep-dive)
 - [Naming Conventions](#naming-conventions)
 - [Configuration](#configuration)
-- [Security Practices](#security-practices)
+- [Security & Privacy Practices](#security--privacy-practices)
 - [Error Handling](#error-handling)
-- [Testing](#testing)
-- [Build & Release](#build--release)
+- [Testing Suite](#testing-suite)
+- [Build & Release Engineering](#build--release-engineering)
 - [Intended Changes & Anomalies](#intended-changes--anomalies)
 - [Project Auditing & Quality Standards](#project-auditing--quality-standards)
 - [Troubleshooting](#troubleshooting)
@@ -34,7 +36,7 @@
 
 ## Architecture Overview
 
-Arcile is a **modular multi-module Android app** with Gradle-enforced architecture boundaries. It uses MVVM, feature-scoped ViewModels, Hilt dependency injection, StateFlow-backed UI state, and repository/data-source separation.
+Arcile is a **modular multi-module Android app** with strict Gradle-enforced architecture boundaries. It is designed with clean MVVM, feature-scoped ViewModels, Hilt dependency injection, StateFlow-backed UI state, and data-source encapsulation.
 
 ```mermaid
 graph TD
@@ -46,63 +48,83 @@ graph TD
     D --> G["FileSystemDataSource"]
     D --> H["TrashManager"]
     D --> I["ArchiveManager"]
+    D --> K["ExternalFileAccessHelper"]
     G --> J["FileTransferEngine + Conflict Detector"]
+    D --> L["FolderStatsStore"]
+    D --> M["MutationFinalizer"]
 ```
 
-### Key Decisions
+### Key Architectural Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| **Modular Gradle architecture** | Enforces clean boundaries between features and core services, isolates compilation units, speeds up incremental builds, and prevents architectural degradation as features expand. |
-| **Feature-scoped ViewModels** | Browser, Home, Recent Files, Trash, Quick Access, Archive Viewer, Onboarding, and Settings each own their own state and actions. |
-| **Repository facade** | `LocalFileRepository` coordinates volume lookup, MediaStore queries, filesystem mutations, trash, folder stats, and archive operations. |
-| **Typed navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings. |
-| **Offline-first privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
-| **Foreground operation pipeline** | Long-running copy/move/archive/extract/fake-file work runs through foreground operation plumbing and emits progress events. |
+| **Multi-module Gradle Architecture** | Enforces clean boundaries between features and core services, isolates compilation units, speeds up incremental builds, and prevents architectural degradation as features expand. |
+| **Feature-scoped ViewModels** | Browser, Home, Recent Files, Trash, Quick Access, Archive Viewer, Onboarding, Image Gallery, Storage Cleaner, and Settings each own their own state and action flow. |
+| **Repository Facade** | `LocalFileRepository` coordinates volume lookup, MediaStore queries, direct filesystem mutations, trash, folder stats, and archive operations. |
+| **Typed Navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings to verify routing correctness at compile time. |
+| **Offline-first Privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
+| **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
+| **Room Database Caching** | Cache metadata, aggregate folder sizes, categories, and thumbnail listings are persisted in a local Room database to prevent repeated, expensive disk scans. |
 
 ---
 
 ## Project Structure
 
+Arcile's codebase is divided into **20 Gradle modules** split into application entry, core components, and independent feature modules:
+
 ```text
 arcile/
 ├── arcile-app/
+│   ├── build-logic/                             # Convention plugins for build script sharing
+│   │   └── src/main/kotlin/                     # Arcile Android application convention plugin
 │   ├── app/                                     # App entry point, Hilt composition, and shell UI
 │   │   ├── src/main/java/dev/qtremors/arcile/
-│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
-│   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
-│   │   │   ├── presentation/                    # ViewModels, screens, components, and AppNavigationGraph
-│   │   │   └── di/                              # Dagger Hilt dependency injection modules
+│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader (Coil video thumb setup)
+│   │   │   ├── MainActivity.kt                  # App activity, splash preloading, and main layout navigation shell
+│   │   │   ├── SaveToArcileActivity.kt          # Shares/Handoff target helper for saving files locally
+│   │   │   ├── presentation/                    # Shell Presentation layout
+│   │   │   │   ├── ui/                          # AppNavigationGraph, ArcileAppShell, and Permission banners
+│   │   │   │   ├── operations/                  # Foreground services and operation journal tracking
+│   │   │   │   │   ├── BulkFileOperationService # Foreground Service doing the heavy operations
+│   │   │   │   │   └── BulkFileOperationCoordinator # Coordinator API start/cancels
+│   │   │   │   └── settings/                    # Settings UI modules
+│   │   │   └── di/                              # AppModule, CoroutinesModule, StorageModule
 │   ├── core/                                    # Shared business logic and UI frameworks
-│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers
-│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose nodes
+│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers (UiText, AppLogger)
+│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose components
+│   │   │   ├── src/main/java/dev/qtremors/arcile/
+│   │   │   │   ├── image/                       # Coil thumbnail policies, target sizes, state persistence
+│   │   │   │   └── shared/ui/                   # Reusable widgets: ArcileTopBar, EmptyState, ConflictCard, ExpandableFabMenu
 │   │   │   └── testing/                         # Shared compose test theme helper (ArcileTestTheme)
 │   │   ├── navigation/
 │   │   │   └── api/                             # Serializable typed routes (AppRoutes)
 │   │   ├── presentation/
 │   │   │   └── api/                             # FolderTabs, LocalSearchHelper, DeleteFlowDelegate, PropertiesUiModel
 │   │   ├── testing/                             # Shared unit test fakes (FakeFileRepository, FakeBulkFileOperationCoordinator)
-│   │   ├── operation/                           # Foreground services and operation journal tracking
-│   │   │   ├── api/                             # Task progress events and operations interfaces
-│   │   │   └── src/                             # Concrete operation coordinator and background service
+│   │   ├── operation/                           # Foreground operation coordinator implementation
+│   │   │   └── api/                             # Task progress events (BulkFileOperationEvent) and operation models
 │   │   └── storage/                             # File system data orchestrator
 │   │       ├── domain/                          # Domain models, volume references, and repository interfaces
 │   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
+│   │           ├── db/                          # Room Database cache (ArcileDatabase, FolderStatsDao, etc.)
+│   │           ├── manager/                     # ArchiveManager, SevenZipHandler, ZipArchiveHandler, TrashManager
+│   │           ├── provider/                    # VolumeProvider (mounted storage lookup)
+│   │           ├── source/                      # MediaStoreClient, FileSystemDataSource, FileTransferEngine
+│   │           └── util/                        # PathSafety, VolumeUtils
 │   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
 │       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
-│       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
+│       ├── browser/                             # File browser layout, selection bar, clipboard, and folder tabs
+│       ├── imagegallery/                        # Image gallery albums/photos grid, dynamic timeline grouping, custom covers
 │       ├── onboarding/                          # First-run setup and permission guidance
-│       ├── quickaccess/                         # Pinned folders, SAF handoffs, and folder shortcuts
+│       ├── quickaccess/                         # Pinned folders, SAF bookmarks, and folder shortcuts
 │       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
-│       ├── storagecleaner/                      # Cleanup scanner and review workflow
-│       ├── storageusage/                        # Storage dashboard and usage-map UI
-│       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
-├── docs/                                        # Promotional landing page website
+│       ├── storagecleaner/                      # Scanner/cleanup of Marker files, Empty folders, Duplicates (SHA-256)
+│       ├── storageusage/                        # Storage dashboard and sunburst radial usage-map UI
+│       └── trash/                               # Custom trash listings, restore workflows, properties, and destination picker
+├── docs/                                        # Landing page website files
 ├── beta/                                        # Beta phase archived changelog & releases
-│   ├── CHANGELOG-BETA.md                        # Archived beta changelog
-│   └── RELEASES-BETA.md                         # Archived beta release notes
 ├── CHANGELOG.md                                 # Stable release changelog
-├── DEVELOPMENT.md                               # Architecture & development guide
+├── DEVELOPMENT.md                               # Architecture & development guide (This Document)
 ├── Releases.md                                  # Stable user-facing release notes
 ├── TASKS.md                                     # Roadmap, tracker of issues and features
 └── README.md                                    # Main entry point overview
@@ -112,11 +134,13 @@ arcile/
 
 ## Runtime Flow
 
-1. `MainActivity` installs the Android splash screen, loads theme/onboarding preferences, and checks All Files Access.
-2. `OnboardingScreen` is shown for new users unless an existing permitted install is auto-marked complete.
-3. Storage permission is a hard gate. Android 13+ notification permission is contextual and can be denied without blocking setup.
-4. `ArcileAppShell` hosts the typed navigation graph after setup and permission checks pass.
-5. The main destination is a two-page `HorizontalPager`: Home and Browser. Direct path/category entries seed the Browser page; ordinary swipes restore the persisted browser location.
+1. **Splash Screen Preloading:** `MainActivity` installs the Android splash screen and preloads theme preferences and onboarding settings asynchronously from Jetpack DataStore (enforced with a 2-second fallback timeout) to prevent UI flicker.
+2. **Onboarding Gate:** If the user hasn't completed onboarding, `OnboardingScreen` guides them through welcome slides, All Files Access settings, and notification permissions (Android 13+).
+   - *Auto-Detection:* If the app discovers permissions are already active, onboarding automatically completes.
+   - *Manual Reset:* Users can reset onboarding in settings.
+3. **App Shell Assembly:** Once permissions are granted, `ArcileAppShell` sets up the typed navigation graph and the bottom navigation bar.
+4. **Horizontal Pager Navigation:** The main screen (`MainScreen`) uses a two-page `HorizontalPager` hosting **Home** (Page 0) and **Browser** (Page 1).
+   - If seeded by category shortcuts, deep links, or quick access paths, the pager opens on the Browser and populates the history. Swiping or standard back presses returns the user to Home or the previous browser directory.
 
 ---
 
@@ -124,315 +148,398 @@ arcile/
 
 ### Storage Scopes
 
-`StorageScope` models query bounds:
+`StorageScope` represents the query bounds for file retrieval, search, or storage calculations:
 
-| Scope | Purpose |
-|-------|---------|
-| `AllStorage` | All indexed permanent volumes. |
-| `Volume(volumeId)` | A specific storage volume. |
-| `Path(volumeId, absolutePath)` | A concrete folder path within a volume. |
-| `Category(volumeId, categoryName)` | A category such as Images, Videos, Audio, Docs, Archives, or APKs. |
+| Scope | Kotlin Model | Purpose |
+|-------|--------------|---------|
+| **All Storage** | `StorageScope.AllStorage` | All indexed permanent volumes. |
+| **Volume Scoped** | `StorageScope.Volume(volumeId)` | A specific storage volume (e.g., Internal vs SD Card). |
+| **Path Scoped** | `StorageScope.Path(volumeId, absolutePath)` | A concrete directory path within a volume. |
+| **Category Scoped** | `StorageScope.Category(volumeId, category)` | A conceptual category (Images, Videos, Audio, Docs, Archives, APKs). |
 
 ### Volume Classification
 
-Arcile classifies storage as permanent or temporary:
+Arcile classifies storage volumes as either permanent or temporary to determine deletion and analytics routing:
 
-| Kind | Behavior |
-|------|----------|
-| **Internal / SD-style permanent storage** | Included in dashboard/recent/category analytics and supports trash. |
-| **USB OTG / temporary storage** | Excluded from global analytics by default and routes deletion permanently. |
+- **Permanent Storage:** Internal storage and SD cards. Surfaced in storage dashboard metrics, included in category analytics, and supported by the Trash system.
+- **Temporary Storage:** USB OTG, external drives, and unclassified mounts. Excluded from global dashboard calculations by default. File deletion on temporary storage is routed to delete permanently, completely bypassing the trash folder.
 
-`StorageClassificationRepository` persists user decisions and hidden prompts; `VolumeProvider` merges classifications into runtime `StorageVolume` models.
-
-### Preferences
-
-| Store | Persists |
-|-------|----------|
-| `ThemePreferences` | Theme mode and accent color. |
-| `BrowserPreferencesRepository` | Browser presentation, last-opened folder, and inherited presentation settings. |
-| `QuickAccessPreferencesRepository` | Pinned local/custom/SAF/external-handoff entries. |
-| `StorageClassificationRepository` | User volume classification decisions. |
-| `OnboardingPreferencesRepository` | Completion state, completed version, manual reset, and notification handling. |
+*Configuration:* `StorageClassificationRepository` persists user volume classifications, and `VolumeProvider` loads them into runtime `StorageVolume` models.
 
 ---
 
 ## Navigation & State
 
-`AppRoutes.kt` defines serializable typed routes:
+Type-safe navigation is built with `kotlinx.serialization` on Jetpack Navigation Compose.
 
-`Main`, `Home`, `Explorer`, `Tools`, `Settings`, `Trash`, `RecentFiles`, `StorageDashboard`, `StorageCleaner`, `StorageManagement`, `QuickAccess`, `ArchiveViewer`, `About`, and `Licenses`.
+### Route Definitions (`AppRoutes.kt`)
+The navigation endpoints are modeled as serializable classes/objects under the `AppRoutes` namespace:
+- `AppRoutes.Main(initialPage, path, archivePath, category, volumeId, focusPath, restorePersistentLocation, seedInitialPathHistory)`
+- `AppRoutes.Home`
+- `AppRoutes.Explorer(path, category, volumeId, restorePersistentLocation)`
+- `AppRoutes.Tools`
+- `AppRoutes.Settings`
+- `AppRoutes.Trash`
+- `AppRoutes.RecentFiles(volumeId)`
+- `AppRoutes.ImageGallery(volumeId)`
+- `AppRoutes.ImageViewer(initialPath, albumPath, searchQuery, volumeId, returnToBrowserPage)`
+- `AppRoutes.StorageDashboard(volumeId)`
+- `AppRoutes.StorageCleaner`
+- `AppRoutes.StorageManagement`
+- `AppRoutes.QuickAccess`
+- `AppRoutes.ArchiveViewer(archivePath)`
+- `AppRoutes.About`
+- `AppRoutes.Licenses`
 
-Important navigation rules:
-
-- `Main` owns the Home/Browser pager.
-- Category screens disable user pager swipes so scoped category browsing is not accidentally abandoned.
-- Recent Files, Quick Access, Storage Dashboard, and external folder jumps can return into the existing Browser instance by using the parent `Main` back stack entry.
-- Archive paths open `ArchiveViewer` instead of launching an external file handler.
+### Screen Transitions & Animation Rules
+To maintain premium design aesthetics, Arcile implements customized bouncy spring transitions:
+- **Detail Screens** (Dashboard, Settings, Archive Viewer): Slide horizontally with volumetric scale modifiers (`scaleIn` starting at 0.94f and `scaleOut` expanding to 1.04f).
+- **Utility / Modals** (Trash, Recents, Gallery, Cleaner): Slide vertically from the bottom edge (`initialOffsetY = { it / 8 }`).
+- **Reduced Motion Support:** All transitions check `LocalReducedMotionEnabled.current` and fall back to zero-duration crossfades if enabled in system or app settings.
 
 ---
 
 ## Storage & File Operations
 
-### FileRepository / LocalFileRepository
+### Repository Facades
+`LocalFileRepository` implements `FileRepository` along with focused sub-interfaces (`FileBrowserRepository`, `FileMutationRepository`, etc.). It acts as a coordinator delegating to:
 
-`FileRepository` is the domain contract. `LocalFileRepository` delegates to:
+- `VolumeProvider`: Discovers mounted storage volumes, resolves pathways, and parses volume details.
+- `MediaStoreClient`: Queries MediaStore for files, recent assets, categories, and folder statistics.
+- `FileSystemDataSource`: Conducts direct JVM `java.io.File` mutations (make file, folder, rename, and delete).
+- `FolderStatsStore`: Manages async aggregate size calculations.
+- `TrashManager`: Handles custom volume-scoped trash.
+- `ArchiveManager`: Coordinates archive packaging and extraction.
+- `ExternalFileAccessHelper`: Manages temporary handoffs and staging caches.
+- `MutationFinalizer`: Updates media scanners and database tables post-mutation.
 
-| Delegate | Responsibility |
-|----------|----------------|
-| `VolumeProvider` | Mounted volume discovery, classification, `StatFs` snapshots, and volume lookup. |
-| `MediaStoreClient` | Recent files, categories, search, metadata fallbacks, and category-size analytics. |
-| `FileSystemDataSource` | Direct file listing, create/rename/delete/copy/move, fake-file generation, and conflict preflight. |
-| `FolderStatsStore` | Cached and queued aggregate folder metadata. |
-| `TrashManager` | Move-to-trash, restore, empty, and permanent trash deletion. |
-| `ArchiveManager` | ZIP/7z metadata, listing, creation, and extraction. |
-| `MutationFinalizer` | Cache invalidation and MediaStore/volume refresh after mutations. |
+### Conflict Detection & Resolution Preflight
+To prevent accidental data loss, file conflict resolution runs *before* operations execute:
+1. `detectCopyConflicts` performs a high-speed top-level name comparison in the destination directory to identify collisions before starting heavy recursive jobs.
+2. The user resolves conflicts in the `PasteConflictDialog` with options to **Replace**, **Keep Both**, or **Skip** (supports batch application).
+3. `FileConflictNameGenerator` resolves Keep Both options into stable name modifications (e.g. `image (1).png`).
 
-### Browser Operations
+---
 
-The Browser feature uses `BrowserViewModel` plus focused delegates:
+## Room Cache Database
 
-- `NavigationDelegate` for folder/category navigation and history.
-- `ClipboardDelegate` for copy/cut/paste staging.
-- `SearchDelegate` for search and filters.
-- `DeleteFlowDelegate` for trash/permanent/native confirmation behavior.
+To avoid repeated recursive file-system scans, Arcile uses a local Room database `ArcileDatabase` (file: `arcile-cache.db`, schema version 1) to cache directories and calculations.
 
-Long-running copy, move, archive, extract, Trash, delete, and fake-file execution is handed to `BulkFileOperationCoordinator`, which starts `BulkFileOperationService`, persists lightweight operation-journal state, and reports `Started`, `Progress`, `Completed`, `Failed`, `Cancelling`, and `Cancelled` events.
+### Database Entities
 
-### Folder Metadata
+#### FolderStatsEntity
+Caches computed directory details (item counts and sizes).
+- **Table Name:** `folder_stats`
+- **Fields:**
+  - `path: String` (PrimaryKey)
+  - `file_count: Long`
+  - `total_bytes: Long`
+  - `cached_at: Long`
+  - `status: String` (domain `FolderStatsStatus` mapping)
 
-- Folder aggregate stats are queued and cached rather than recalculated during every recomposition.
-- `.thumbnails` descendants are excluded from parent aggregate totals.
-- Partial scans publish partial status instead of collapsing to total failure.
-- Folder rows display a stable fallback subtitle immediately and upgrade when cached stats arrive.
+#### StorageNodeEntity
+Caches directory contents for faster rendering and search.
+- **Table Name:** `storage_nodes`
+- **Indices:** `parent_path`, `volume_id`, `content_uri`, `media_store_id`, `last_modified`
+- **Fields:**
+  - `path: String` (PrimaryKey)
+  - `parent_path: String?`
+  - `name: String`
+  - `extension: String`
+  - `mime_type: String?`
+  - `size_bytes: Long`
+  - `last_modified: Long`
+  - `is_directory: Boolean`
+  - `is_hidden: Boolean`
+  - `content_uri: String?`
+  - `media_store_id: Long?`
+  - `media_store_volume: String?`
+  - `volume_id: String?`
+  - `width: Int?`
+  - `height: Int?`
+  - `date_added: Long?`
+  - `scanned_at: Long`
+  - `stale: Boolean`
 
-### Search
+#### CategorySummaryEntity
+Stores aggregated stats for file types across volumes.
+- **Table Name:** `category_summaries`
+- **Primary Keys:** `scope_key`, `category_name`
+- **Fields:**
+  - `scope_key: String`
+  - `category_name: String`
+  - `size_bytes: Long`
+  - `item_count: Long`
+  - `cached_at: Long`
 
-Search is MediaStore-backed for global/category/recent contexts and supports `SearchFilters` for type, size, date, extension, hidden-file visibility, storage volume, folder scope, exact size/date ranges, MIME, and saved-preset metadata. Local helper filtering is reused for Recent Files and Trash where appropriate.
+#### ThumbnailEntryEntity
+Tracks cached visual previews for images, video frames, and document pages.
+- **Table Name:** `thumbnail_entries`
+- **Indices:** `source`, `content_uri`, `last_modified`, `last_success_at`, `last_failure_at`
+- **Fields:**
+  - `identity_key: String` (PrimaryKey)
+  - `source: String`
+  - `extension: String`
+  - `size_bytes: Long`
+  - `last_modified: Long`
+  - `content_uri: String?`
+  - `type: String`
+  - `last_success_at: Long?`
+  - `last_failure_at: Long?`
+  - `failure_count: Int`
+  - `failure_message: String?`
 
-### Smart Paste & Conflict Resolution
-
-File collisions during copy/move are handled before foreground execution:
-
-1. `detectCopyConflicts()` checks source-vs-destination top-level name collisions so large directory pastes do not require a full recursive preflight.
-2. `PasteConflictDialog` lets the user choose replace, keep both, or skip, with batch resolution support.
-3. `FileConflictNameGenerator` creates stable keep-both names such as `document (1).txt`.
-4. Once conflicts are resolved, copy/move work is handed to `BulkFileOperationCoordinator` and `BulkFileOperationService`.
-
-### Unified Deletion Policy
-
-Deletion routing depends on storage capability:
-
-- Permanent volumes support trash by default.
-- Temporary/OTG-style volumes bypass trash and delete permanently.
-- Mixed selections surface an explanation path before destructive actions.
-- Native Android confirmation flows are surfaced through `NativeConfirmationRequiredException` when the platform requires user confirmation.
-
-### Selection Properties
-
-`FileRepository.getSelectionProperties()` keeps property calculation out of Compose:
-
-- Single item: path, size, modified times, extension/MIME, folder aggregate stats when applicable.
-- Multi-select: item count, file/folder split, hidden count, total bytes, common parent, and aggregate access status.
-- Directory stats can be full, partial, or limited depending on readable descendants.
+#### ThumbnailVariantEntity
+Tracks size variations of cached thumbnails for responsive UI loading.
+- **Table Name:** `thumbnail_variants`
+- **Foreign Key:** `identity_key` referencing `thumbnail_entries.identity_key` with `ON DELETE CASCADE`
+- **Indices:** `identity_key`, `last_accessed_at`
+- **Fields:**
+  - `variant_key: String` (PrimaryKey)
+  - `identity_key: String`
+  - `size_bucket_px: Int`
+  - `generated_at: Long`
+  - `last_accessed_at: Long`
 
 ---
 
 ## Archive System
 
-Arcile supports ZIP and 7z workflows:
-
-- Create ZIP or 7z archives from selected files/folders.
-- Browse supported archives through `ArchiveViewerScreen`.
-- Extract all entries, the current archive folder, or selected archive items from Browser actions.
-- Password-protected ZIP and 7z listing/extraction flows are supported through prompt/retry UX.
-- Encrypted ZIP creation uses Zip4j AES support.
-- Extraction validates every entry path to reject absolute paths, `..` traversal, and destination escapes.
-- Existing extraction targets use keep-both naming through `FileConflictNameGenerator`.
-
-Libraries:
-
-| Library | Purpose |
-|---------|---------|
-| Apache Commons Compress | ZIP and 7z archive primitives. |
-| Tukaani XZ | 7z/XZ support. |
-| Zip4j | Encrypted ZIP read/write support. |
+Arcile supports browsing, creating, and extracting multiple archive formats:
+- **Supported Formats (`ArchiveFormat`):**
+  - *Full Support (Browse + Create + Extract):* ZIP (with Zip4j AES password support), 7z (with password support), TAR, TAR.GZ (TGZ), TAR.BZ2 (TBZ2), and TAR.XZ (TXZ).
+  - *Read-only Support (Browse + Extract):* GZIP (GZ), BZIP2 (BZ2), and XZ.
+  - *Unsupported Format (Mapped but disabled):* RAR.
+- **Archive Encoding (`ArchiveNameEncoding`):** Users and developers can configure custom filename character sets: UTF-8, CP437, Windows-1252, Shift JIS, GBK, and Big5.
+- **Compression Levels (`ArchiveCompressionLevel`):** STORE (No compression), FAST, DEFAULT (Balanced), and MAXIMUM.
+- **Metadata Inspection:** `getArchiveSummary` parses format configurations, entry counts, and encryption profiles without unpacking the archive.
+- **Selective Listing:** `listArchiveEntries` lists contents page-by-page and supports directory traversal within the archive.
+- **Extraction Safety:** The extraction pipeline validates every entry using `PathSafety.isArchiveEntrySafe` to block Zip Slip directory traversal attacks (absolute path escapes, `..` patterns).
+- **Keep Both Naming:** If extraction targets already exist, they are auto-renamed using `FileConflictNameGenerator` to prevent accidental overwrites.
+- **Pre-scan Limits:** Preflight scan limits before archive creation: `ARCHIVE_CREATION_PRE_SCAN_MAX_ENTRIES` (max 2048 entries) and `ARCHIVE_CREATION_PRE_SCAN_MAX_BYTES` (max 512MB).
 
 ---
 
 ## Trash System
 
-Permanent volumes use a custom trash implementation:
-
-- Trash data lives under `.arcile/.trash`.
-- Metadata sidecars live under `.arcile/.metadata`.
-- `.nomedia` is forced into trash directories.
-- Restore uses original path metadata by default, falls back to destination-required handling when needed, and uses conflict-safe names when restoring into an occupied path.
-- If original destination is missing, `DestinationRequiredException` triggers a destination picker.
-- Unreadable metadata with an existing payload is shown as a recovered item instead of silently dropping the file from Trash.
-- Completed Trash moves can be undone when metadata can be matched back to the deleted selection.
-- OTG/temporary volumes bypass trash and delete permanently.
-
-The public-root trash design is intentional but has privacy/security tradeoffs; keep related concerns tracked in `TASKS.md`.
+Custom Trash is enforced on all permanent volumes:
+- **Storage Layout:** Trashed files are moved to `.arcile/.trash` at the volume root, with original attributes and paths stored in JSON sidecars in `.arcile/.metadata`.
+- **Media Scanner Protection:** A `.nomedia` file is created in trash folders to prevent trashed files from appearing in third-party gallery applications.
+- **Restore Logic:** Reads metadata sidecars and moves files back to their original locations.
+  - If the original parent directory was deleted, a `DestinationRequiredException` is thrown, prompting the user to select a new folder.
+  - Conflicts are resolved using Keep Both renaming.
+- **Undo Operations:** Trash actions can be immediately undone using snackbar options before the directory caches invalidate.
 
 ---
 
-## UI & Design
+## UI & Design System
 
-### Material 3 Expressive
+Arcile implements a high-end, premium design system built on **Material 3 Expressive** design tokens, custom spring physics, responsive gesture mechanics, and wallpaper-reactive accents.
 
-Arcile uses Material 3 Expressive surfaces and motion throughout:
+### 1. Theme & Customization Engine (`Theme.kt`, `ThemeState`)
+- **Theme Modes:**
+  - `LIGHT`, `DARK`, `SYSTEM`: Dynamically updates layouts and system status/navigation bars via `WindowCompat`.
+  - `OLED`: Pure-black overrides that set the background, surface, and container variants to `Color.Black` for maximum battery savings and deep-contrast aesthetics.
+- **Visual Presets:**
+  - `DRACULA` & `TOKYO_NIGHT`: Premium preconfigured developer color palettes, each featuring standard dark and OLED-specialized color maps.
+  - `CUSTOM`: Allows the user to specify hexadecimal colors for primary and background tones. The engine dynamically calculates the contrast text color (`getContrastColor`) using a relative luminance formula: `luminance = (R * 0.299f) + (G * 0.587f) + (B * 0.114f)`. Backgrounds above `0.5f` luminance resolve to black text, others to white.
+- **Accent Color Routing:**
+  - *Dynamic Accent:* Blends with Android 12+ wallpaper dynamic palettes via `dynamicLightColorScheme(context)` and `dynamicDarkColorScheme(context)`.
+  - *Monochrome / Monochrome OLED Scheme:* Clean greyscale layouts.
+  - *Predefined Colors:* Blue, green, purple, orange, etc., dynamically built into a Material 3 palette via a helper seed builder.
+- **Color Harmonization:**
+  - When `harmonizeColors` is enabled in `ThemeState`, category-specific colors (e.g., folder item types) and semantic colors are blended with the primary color scheme using color harmonization to prevent visual clashes.
+- **Composition Locals:**
+  - `LocalCategoryColors` / `LocalSemanticColors`: Resolved color lists.
+  - `LocalSpacing`: Access spacing coordinates.
+  - `LocalHapticsEnabled` / `LocalHapticFeedback`: Tracks and respects user vibration settings.
+  - `LocalDoubleLineFilenames` / `LocalMarqueeFilenames`: Inject configuration properties into file list rows.
+  - `LocalReducedMotionEnabled`: Checks system accessibility flags to skip animations if requested by the OS.
 
-- Home/Browser live pager with swipe-to-browse behavior.
-- Material 3 Expressive recent-files carousel on Home.
-- Floating selection toolbar and split-button style controls.
-- `ExpandableFabMenu` for create/archive/extract/fake-file actions.
-- Dynamic wallpaper colors and MaterialKolor custom accent palettes.
-- OLED, dark, light, and system theme modes.
+### 2. Motion & Animation Tokens (`Motion.kt`, `AnimationTokens`)
+- **Bouncy Spring Physics:** Standard Jetpack Compose spring animations are customized with under-damped bouncy physics (`dampingRatio = 0.75f`, `stiffness = Spring.StiffnessMediumLow`) to make press interactions feel tactile and alive.
+- **Bouncy Card Press Actions (`bounceClickable`):** Interactive cards, cleaner category selectors, and grid cells use a custom press-to-scale modifier that shrinks the component slightly and plays a subtle haptic click (`HapticUtils`) on touch down and up.
+- **Margin & Padding Safeguards:** Animated margins, paddings, or grid dimensions are coerced to be non-negative (e.g., `coerceAtLeast(0.dp)`) to prevent spring overshoots from sending layout coordinates below zero and triggering layout crashes.
+- **Transition States:**
+  - **Volumetric Scale:** Navigating to details scales screens using `scaleIn(initialScale = 0.94f)` and `scaleOut(targetScale = 1.04f)`.
+  - **Predictive Back Navigation:** Core screens (Browser, Gallery, Recents, Trash, Archive Viewer) integrate with Android's progressive back gestures, scaling, translating, and fading the active layouts in real-time response to back swipes.
 
-### Current Screens
+### 2. Custom Layout Components
+- **Split Selection Toolbar (`SplitButtonGroup`):** Standardizes multiple primary bulk actions (e.g., Copy, Cut, Delete, Edit) into cohesive side-by-side button segments with a detached circular dropdown menu for secondary operations, floating freely above lists.
+- **Expandable FAB Menu (`ExpandableFabMenu`):** An animated floating action button that rotates 45 degrees upon expansion, revealing secondary actions (New Folder, New File, Create Archive, etc.) styled as vertical circular items that fade and slide into place.
+- **Glassmorphic Bottom Navigation (`ArcileNavigationBar`):** A floating bottom navigation container utilizing blurred translucent glass backdrops.
+  - *Collapsible Labels:* To minimize clutter, inactive tabs collapse their text labels, displaying only the icon. The active tab expands to show both icon and title with a smooth spring-based width transition.
+- **Draggable Fast Scrollbar (`FileList`, `FileGrid`):** A custom fast scroll track aligned with staggered grids and lists. As the user drags the scroll thumb, a floating date pill tooltip (displaying `Month Year`, e.g., `June 2026`) is projected nearby, updating dynamically as the scroll position transitions.
+- **Shimmering Segmented Storage Bar (`StorageProgressBar`):** A custom progress bar on the Home screen that displays a shimmering loading animation on startup. When the filesystem stats resolve, the bar morphs into a segment-colored indicator representing space occupied by Images, Videos, Audio, Documents, Archives, APKs, and System files.
 
-| Screen | Notes |
-|--------|-------|
-| `HomeScreen` | Dashboard, category shortcuts, quick access, recent carousel, storage cards. |
-| `BrowserScreen` | Files/folders, categories, selection, clipboard, search, folder tabs, archive actions, properties. |
-| `RecentFilesScreen` | Recents timeline with filters, list/grid presentation, selection, properties, containing-folder jumps. |
-| `TrashScreen` | Searchable trash, restore, destination fallback, permanent delete, empty trash. |
-| `QuickAccessScreen` | Pinned/custom/SAF/external-handoff folders. |
-| `StorageDashboardScreen` | Volume/category storage breakdown with radial usage map (Usage Map) tab. |
-| `StorageCleanerScreen` | Clean large files, downloads, duplicate-name grouping, APKs, cache-junk. |
-| `StorageManagementScreen` | Volume classification management. |
-| `ArchiveViewerScreen` | Archive browsing, password prompt, extract all/current folder. |
-| `OnboardingScreen` | First-run setup. |
-| `SettingsScreen` | Theme, accent, thumbnails, storage management, onboarding reset, about, haptics. |
-| `ToolsScreen` | Utilities tray listing fully implemented tools (Trash Bin, Clean Junk). |
-| `AboutScreen` / `LicensesScreen` | App info and open-source license details. |
+### 3. Gesture Physics & Interactive Components
+- **Pinch-to-Resize Columns:** Photos and Albums grids in the Image Gallery feature real-time multi-touch pinch-to-resize gestures. Pinch-in and pinch-out gestures scale the layout's grid columns dynamically with spring feedback.
+- **Elastic Viewer Dismissal (`ImageViewerScreen`):** The fullscreen media viewer is gesture-driven:
+  - *Double-Tap Zoom:* Double-tapping on an image zoom-targets the tapped coordinate.
+  - *Boundary-Resisting Pan:* Dragging an zoomed image past its bounds shows elastic drag resistance.
+  - *Vertical Swipe-to-Dismiss:* Swiping down or up on an unzoomed image triggers an elastic dismiss animation, scaling and sliding the image while fading the black backdrop.
+- **EXIF Slide-up Page Pager (`ImageViewerMetadata`):** The details panel wraps camera parameters and EXIF details inside a `VerticalPager` with scroll snapping. Swiping up on the viewer page slides the metadata panel upward, pushing the image above it. Swiping down slides the panel away.
 
-### UI Rules
+### 4. UI/UX Rules & Guidelines for Developers
+- **Hidden File Alpha:** Files or folders starting with a dot (`.`) are styled with lower opacity (typically `0.6f` alpha) and styled with italic text to distinguish them from standard files.
+- **Scroll Preservation:** When returning from sub-screens (e.g., returning to the Browser from the Image Viewer, or to the Gallery from a photo), the list/grid scroll position (index and pixel offset) is preserved.
+- **Gesture Blocking:** Categories or specific path-scoped navigations temporarily disable the main horizontal pager's swipe actions (`userScrollEnabled = false`) to prevent accidental transitions while browsing files.
+- **App Risk Mapping:** In the Storage Cleaner, package names are mapped to user-friendly local application icons (e.g., resolving WhatsApp package to its recognizable icon) and risk badges, rather than listing raw package labels.
 
-- Hidden files/folders starting with `.` should visually read as hidden.
-- Browser layer animations should key on `FileManagerContentKey`.
-- Sorting/presentation changes should reset relevant scroll position.
-- Grid thumbnails should keep stable square geometry.
-- Search placeholders should reflect the current scope.
-- New production UI text should use string resources.
-- Run `:app:checkProductionStrings` after touching audited production composables.
+### 5. Material 3 Expressive APIs & Typography Guidelines
+- **`ExperimentalMaterial3ExpressiveApi` Coverage:** This API tag is opted-in across features to access next-generation components, including:
+  - `LoadingIndicator`: A vector-animated loading state spinner replacing the traditional circular progress indicators with premium motion curves.
+  - `PullToRefreshBox` & `rememberPullToRefreshState`: Expressive gestures-based pull containers featuring customizable progress physics.
+- **Expressive Motion Specs (`Motion.kt`):**
+  - *Duration Scale:* Ranging from `Short1` (100ms), `Short2` (150ms), `Short3` (200ms), `Medium1` (250ms), `Medium2` (300ms), `Medium3` (350ms), `Medium4` (400ms), to `Long1` (450ms) through `Long4` (600ms).
+  - *Easing Curves:* Maps Google's Expressive specs: `Emphasized` and `EmphasizedDecelerate` curves govern entrance transitions, while `EmphasizedAccelerate` controls exit transitions.
+- **Semantic Typography (`Type.kt`):**
+  Developers must use semantic text styles defined as extensions on the Material 3 `Typography` configuration to keep screens consistent:
+  - `Typography.filename`: `titleMedium` styling with `Medium` weight and zero letter spacing, optimized for files and folders.
+  - `Typography.fileMetadata`: `bodySmall` styling with normal weight, reserved for file sizes, timestamps, and extensions.
+  - `Typography.pathBreadcrumb`: `labelLarge` styling with `Medium` weight, used in breadcrumb bars.
+  - `Typography.storageMetric`: `headlineMedium` styling with `SemiBold` weight, for storage numbers.
+  - `Typography.sectionHeader`: `titleSmall` styling with `Bold` weight, for screen headers and settings groups.
+  - `Typography.dangerLabel`: `labelLarge` styling with `SemiBold` weight, indicating file deletion, junk counts, or risks.
+  - *Bold/Semi-bold helpers:* `titleLargeBold`, `titleMediumBold`, `titleMediumSemiBold`, `titleSmallSemiBold`, `bodyLargeMedium`, `bodyMediumBold`, and `bodySmallMedium`.
+
+---
+
+
+## Feature Modules Deep Dive
+
+### 1. Onboarding (`feature/onboarding`)
+- **UI Architecture:** `OnboardingScreen` features a multi-page setup wizard with step indicators.
+- **ViewModel:** `OnboardingViewModel` manages permissions and transitions.
+- **Logic:** Requests storage and notification permissions. Automatically marks onboarding complete if permissions are already active.
+
+### 2. Browser (`feature/browser`)
+- **UI Architecture:** `BrowserScreen` displays files in customizable lists or grids with a floating bottom action bar and an expandable FAB.
+- **ViewModel:** `BrowserViewModel` coordinates delegates for browser features.
+- **Delegates:**
+  - `NavigationDelegate`: Manages folder hierarchy traversal, categories, and deep links.
+  - `ClipboardDelegate`: Manages copy/cut states and resolves conflict preflights.
+  - `SearchDelegate`: Filters local files and searches MediaStore.
+  - `ArchiveActionDelegate`: Coordinates archive creation and password validation.
+  - `UndoDelegate`: Manages undo actions for file operations.
+
+### 3. Image Gallery (`feature/imagegallery`)
+- **UI Architecture:** A modular gallery interface containing `ImageGalleryAlbumsGrid`, `ImageGalleryTimeline`, and `ImageGalleryViewOptions`.
+- **ViewModel:** `ImageGalleryViewModel` manages media catalogs.
+- **Logic:** Group media by day, week, or month, customizable album covers, virtual Favorites album, and pinch-to-zoom grid scaling.
+
+### 4. Image Viewer (`feature/imagegallery` - Viewer segment)
+- **UI Architecture:** Immersive fullscreen `ImageViewerScreen` with a zoomable viewport, scrolling filmstrip, and EXIF panel.
+- **Logic:** Elastic drag-to-dismiss gestures, camera properties extraction, and location parameter scrubbing.
+
+### 5. Storage Cleaner (`feature/storagecleaner`)
+- **UI Architecture:** A central scanner hub showing categories (Large Files, Downloads, Duplicate Files, Marker Files, Empty Folders) with a comparison sheet.
+- **Logic:** Identifies duplicate files using size, byte samples, and SHA-256 hashes. Resolves app-associated folders and manages exclusion lists.
+
+### 6. Storage Usage Map (`feature/storageusage`)
+- **UI Architecture:** Radial segment sunburst chart (`StorageUsageSunburst`).
+- **Logic:** Displays interactive storage breakdowns by category.
+
+### 7. Trash Hub (`feature/trash`)
+- **UI Architecture:** `TrashScreen` displays trashed files with search and metadata (deleted date, original path).
+- **Logic:** Handles batch restoration, permanent deletion, empty trash operations, and destination pickers.
+
+### 8. Recent Files (`feature/recentfiles`)
+- **UI Architecture:** Timeline view of recent modifications with category shortcuts.
+- **Logic:** Surfaces recent items across active scopes.
+
+### 9. Quick Access (`feature/quickaccess`)
+- **UI Architecture:** Pinned folders list.
+- **Logic:** Links custom shortcuts and SAF bookmarks.
+
+### 10. External Share Target (`SaveToArcileActivity`)
+- **UI Architecture:** A standalone target activity `SaveToArcileActivity` implementing a Scaffold layout with a `LargeTopAppBar` and standard folder navigation lists.
+- **Logic:** Registers for standard Android sharing intents (`ACTION_SEND` and `ACTION_SEND_MULTIPLE`). When files are shared from external apps, it opens a customized folder picker allowing users to browse their mounted storage volumes and save the shared streams into their selected directory. Handles cursor lookup for file sizes and display names (`OpenableColumns`) and notifies the repository of mutations on completion.
 
 ---
 
 ## Naming Conventions
 
-Prioritize self-documenting names. A file, function, or component should reveal its role without requiring nearby comments.
+Arcile uses clear, descriptive names to ensure readability.
 
-### Files & Directories
+### Directory & File Names
+- **Compose Screens:** PascalCase with `Screen` suffix (e.g. `TrashScreen.kt`).
+- **Composables:** PascalCase without suffix (e.g. `ArcileTopBar.kt`).
+- **ViewModels:** PascalCase with `ViewModel` suffix (e.g. `RecentFilesViewModel.kt`).
+- **Repositories & Stores:** PascalCase with `Repository` or `Store` suffix (e.g. `FolderStatsStore.kt`).
 
-| Type | Convention | Example |
-|------|------------|---------|
-| Screens | `PascalCase` + `Screen` suffix | `HomeScreen.kt`, `ArchiveViewerScreen.kt` |
-| Components | `PascalCase` descriptive name | `ArcileTopBar.kt`, `FolderTabsRow.kt` |
-| ViewModels | `PascalCase` + `ViewModel` suffix | `BrowserViewModel.kt`, `QuickAccessViewModel.kt` |
-| Domain models | `PascalCase`, usually descriptive without suffix when natural | `StorageInfo`, `SearchFilters`, `ArchiveSummary` |
-| Repositories/stores | `PascalCase` + `Repository` or `Store` | `BrowserPreferencesRepository.kt`, `OnboardingPreferencesStore` |
-| Data-source helpers | Descriptive responsibility names | `FileTransferEngine.kt`, `FileConflictDetector.kt` |
+### Method Signatures
 
-### Functions & Methods
-
-| Prefix | Purpose | Example |
-|--------|---------|---------|
-| `load` | Load state/data | `loadHomeData()`, `loadRecentFiles()` |
-| `navigate` | Move through app or browser state | `navigateToFolder()`, `navigateBack()` |
-| `on` | UI callback parameter | `onNavigateBack`, `onOpenFile` |
-| `toggle` | Flip boolean/selection state | `toggleSelection()`, `togglePermanentDelete()` |
-| `clear` | Reset transient state | `clearSelection()`, `clearError()` |
-| `create` | Create filesystem/app resource | `createFolder()`, `createArchiveFromSelection()` |
-| `delete` | Remove or request removal | `deletePermanentlySelected()` |
-| `get` | Retrieve data without mutating | `getStorageVolumes()`, `getSelectionProperties()` |
-| `format` | Convert data for display | `formatFileSize()` |
-| `is` / `has` | Boolean checks | `isDirectory`, `hasPermission` |
-
-### Compose
-
-- Composables use `PascalCase`.
-- State holder/data classes use precise nouns, for example `BrowserState` or `ArchiveViewerState`.
-- Preview/test-only utilities should be named so they cannot be mistaken for production components.
+| Prefix | Intent | Example |
+|--------|--------|---------|
+| `load` | Read state / data | `loadTrashItems()` |
+| `navigate` | Transition screens | `navigateToFolder(path)` |
+| `on` | Event callbacks | `onOpenFile` |
+| `toggle` | Flip boolean state | `toggleSelection(file)` |
+| `clear` | Reset variables | `clearClipboard()` |
+| `create` | Build a resource | `createDirectory(name)` |
+| `delete` | Remove a resource | `deletePermanently(paths)` |
+| `get` | Fetch values | `getStorageInfo(scope)` |
+| `format` | Convert data for display | `formatFileSize(bytes)` |
+| `is` / `has` | Boolean checks | `isDirectory()`, `hasPermission()` |
 
 ---
 
 ## Configuration
 
-### Build
+### Compilation Metrics
 
-| Setting | Value |
-|---------|-------|
-| `namespace` | `dev.qtremors.arcile` |
-| `applicationId` | `dev.qtremors.arcile` |
-| `compileSdk` | 37 |
-| `targetSdk` | 37 |
-| `minSdk` | 30 |
-| `versionCode` | 100 |
-| `versionName` | `1.0.0` |
-| Java / Kotlin target | JVM 11 |
-| Android Gradle Plugin | 9.2.1 |
-| Kotlin | 2.2.10 |
-| Compose BOM | 2026.05.00 |
-| Material 3 | 1.5.0-alpha19 |
+| Attribute | Configuration Value |
+|-----------|--------------------|
+| **Namespace** | `dev.qtremors.arcile` |
+| **Compile SDK** | 37 |
+| **Target SDK** | 37 |
+| **Min SDK** | 30 |
+| **Version Code** | 110 |
+| **Version Name** | `1.1.0` |
+| **Java Target** | JVM 11 |
+| **Kotlin Version** | 2.2.10 |
+| **AGP Version** | 9.2.1 |
+| **Compose BOM** | 2026.05.00 |
 
-### Manifest Permissions
+### Manifest Declarations
 
-| Permission | Purpose |
-|------------|---------|
-| `MANAGE_EXTERNAL_STORAGE` | Required Android 11+ full file-system access. |
-| `POST_NOTIFICATIONS` | Android 13+ foreground operation notification permission. |
-| `FOREGROUND_SERVICE` | Required for long-running file operation service. |
-| `FOREGROUND_SERVICE_DATA_SYNC` | Foreground data-sync service type for bulk operations. |
-| `READ_EXTERNAL_STORAGE` | Legacy declaration with `maxSdkVersion="29"`; inactive because `minSdk=30`. |
-| `WRITE_EXTERNAL_STORAGE` | Legacy declaration with `maxSdkVersion="29"`; inactive because `minSdk=30`. |
-
-Arcile intentionally does **not** request `android.permission.INTERNET`.
-
-### Signing
-
-Release signing reads from `signing.properties`, falling back to `local.properties`:
-
-```properties
-signing.storeFile=/absolute/path/to/key.jks
-signing.storePassword=...
-signing.keyAlias=...
-signing.keyPassword=...
+```xml
+<!-- Storage Permissions -->
+<uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 ```
 
-Release builds enable `isMinifyEnabled = true` and `isShrinkResources = true`.
+*Important:* Arcile does **not** request `android.permission.INTERNET` to guarantee user privacy.
 
 ---
 
-## Security Practices
+## Security & Privacy Practices
 
-1. **Path safety:** file names and canonical paths are validated through `PathSafety` and data-source checks.
-2. **Safe extraction:** archive entries cannot be absolute, contain `..`, or escape the destination folder.
-3. **FileProvider exposure:** `file_provider_paths.xml` is narrowed to staged handoff roots.
-4. **Open/share allowlist:** `ExternalFileAccessHelper` gates outbound user-file access and stages sensitive paths before handoff.
-5. **Staged handoff cleanup:** staged open/share cache entries have stats, cleanup APIs, stale retention, batch guards, and MIME-aware grouping.
-6. **No network permission:** the app cannot send telemetry or files over the network directly.
-7. **Trash `.nomedia`:** trashed media is hidden from media scanner apps.
-8. **Backup privacy:** backup and data-extraction rules exclude preferences, quick access paths, storage classification, operation/staging metadata, and Arcile storage metadata.
-9. **Mutation recovery:** startup cleanup removes abandoned transfer, replacement, and incomplete Trash fallback artifacts without deleting completed Trash entries.
-10. **Cancellation correctness:** coroutine catches must rethrow `CancellationException`.
+1. **Path Traversal Protection:** All file inputs are validated using `PathSafety.isPathSafe` to block path traversal attacks.
+2. **Safe Decompression:** `isArchiveEntrySafe` rejects absolute entries and relative directory escapes (`..`) during archive extraction.
+3. **FileProvider Encapsulation:** `file_provider_paths.xml` restricts external access to `staged_open/` and `staged_share/` directories.
+4. **Staging Cache Lifecycle:** Staged files are grouped by MIME type, tracked in stats, and deleted when the staging cache is cleared or after a configurable retention period.
+5. **No Telemetry:** The app has no network access, preventing data leaks.
+6. **Room Database Security:** Caches exclude user keys and access credentials.
+7. **Scoped Deletions:** OTG/temporary storage deletes files permanently instead of moving them to trash folders.
 
 ---
 
 ## Error Handling
 
-| Layer | Strategy |
-|-------|----------|
-| ViewModels | Convert repository failures into screen state, dialogs, snackbars, or native confirmation flows. |
-| Repository | Return `Result<T>` and custom exceptions such as `DestinationRequiredException`. |
-| File operations | Surface progress/completion/failure through `BulkFileOperationEvent`. |
-| Archive operations | Normalize password/encryption failures into user-readable password-required/incorrect errors. |
-| Coroutines | Never swallow `CancellationException`. |
-
-Preferred pattern:
+- **ViewModels:** Catch repository exceptions and display them to users via UI states, dialogs, or snackbars.
+- **Repository APIs:** Return `Result<T>` wrappers with custom exceptions (`DestinationRequiredException`, `PasswordRequiredException`).
+- **Cancellation Safety:** Coroutine blocks catch and rethrow `CancellationException` to ensure proper coroutine cancellation.
 
 ```kotlin
-catch (e: Exception) {
+try {
+    executeMutation()
+} catch (e: Exception) {
     if (e is CancellationException) throw e
     Result.failure(e)
 }
@@ -440,155 +547,123 @@ catch (e: Exception) {
 
 ---
 
-## Testing
+## Testing Suite
 
-Arcile has a layered JVM and instrumented test suite.
+Arcile features a comprehensive test suite of **unit, Robolectric, and instrumented UI tests**.
 
-### Current Snapshot
+### Test Distribution
 
-| Area | Current state |
-|------|---------------|
-| JVM/Robolectric tests | 92 Kotlin test files |
-| Instrumented tests | 3 Kotlin test files |
-| Approximate test declarations | 462 `@Test` annotations |
-| String resources | 710 string resources and 30 plurals |
+- **JVM Unit & Robolectric Tests:** ~102 Kotlin test files (~536 `@Test` annotations) covering ViewModels, delegates, managers, and Room database migrations.
+- **Instrumented UI Tests:** ~3 Kotlin test files verifying screen layouts on emulator/device.
+- **Robolectric Configuration:** Compose Unit tests are pinned to SDK 35 (`@Config(sdk = [35])`) because Robolectric support can lag newer compile SDK releases.
 
-### Covered Areas
-
-| Layer | Examples |
-|-------|----------|
-| Domain | `DeletePolicy`, `FileModel`, `StorageInfo`, typed navigation routes. |
-| Data | MediaStore rows, category scope matching, storage classification, trash routing, folder stats, storage cleaner scanning, storage usage scanning, archive manager, file transfer engine. |
-| Preferences | Browser, onboarding, quick access, storage classification behavior. |
-| ViewModels | Home, Browser, Recent Files, Trash, Onboarding, Storage Scope. |
-| Delegates | Clipboard, Navigation, Search, Delete flow. |
-| Operations | `BulkFileOperationService`, `BulkFileOperationCoordinator`, operation journal, progress behavior. |
-| UI/Robolectric | Browser, Recent Files, Onboarding, archive viewer, top bar, empty state, delete and input dialogs. |
-| Instrumented | Home, Quick Access, Empty State. |
-
-### Commands
+### Verification Commands
 
 ```bash
-# Run from arcile-app/
+# Full local suite: all module unit/Robolectric tests, lint, and verification checks
+./gradlew check
+
+# Entire suite including device/emulator instrumented tests
+./gradlew check connectedCheck
+
+# Run app-module unit and Robolectric tests only
 ./gradlew :app:testDebugUnitTest
-./gradlew :app:checkProductionStrings
+
+# Validate production string assets (checks for non-resource text)
+./gradlew checkProductionStrings
+
+# Run app-module instrumented UI tests
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-Robolectric-backed Compose tests are pinned to SDK 35 with `@Config(sdk = [35])` where needed because Robolectric can lag newer compile SDK support.
+Use `./gradlew check` for normal local verification. Use `./gradlew check connectedCheck` for the entire suite when a device or emulator is available; `connectedCheck` runs instrumented Android tests across modules that define them.
 
-### Test Helpers
+### Per-Module Test Commands
 
-- `MainDispatcherRule`
-- `ArcileTestTheme`
-- `FakeFileRepository`
-- `FakeBulkFileOperationCoordinator`
-- `FakeBrowserPreferencesStore`
-- `TestFixtures`
+Use module-scoped tasks when iterating on a focused area:
+
+```bash
+# App shell and integration-facing app tests
+./gradlew :app:testDebugUnitTest
+
+# Core modules
+./gradlew :core:storage:data:testDebugUnitTest
+./gradlew :core:storage:domain:test
+./gradlew :core:ui:testDebugUnitTest
+./gradlew :core:presentation:api:testDebugUnitTest
+./gradlew :core:navigation:api:test
+
+# Feature modules
+./gradlew :feature:browser:testDebugUnitTest
+./gradlew :feature:imagegallery:testDebugUnitTest
+./gradlew :feature:storagecleaner:testDebugUnitTest
+./gradlew :feature:storageusage:testDebugUnitTest
+./gradlew :feature:recentfiles:testDebugUnitTest
+./gradlew :feature:archive:testDebugUnitTest
+./gradlew :feature:trash:testDebugUnitTest
+./gradlew :feature:onboarding:testDebugUnitTest
+./gradlew :feature:quickaccess:testDebugUnitTest
+
+# Instrumented tests for modules that define androidTest sources
+./gradlew :app:connectedDebugAndroidTest
+./gradlew :feature:quickaccess:connectedDebugAndroidTest
+```
+
+Pure Kotlin/JVM modules use `test`; Android modules use `testDebugUnitTest` for local unit/Robolectric tests and `connectedDebugAndroidTest` for instrumented tests.
 
 ---
 
-## Build & Release
+## Build & Release Engineering
+
+To package the application:
 
 ```bash
-# Debug APK
+# Generate Debug APK
 ./gradlew assembleDebug
 
-# Release APK
+# Generate Release AAB/APK
 ./gradlew assembleRelease
-
-# Main JVM gate
-./gradlew :app:testDebugUnitTest
 ```
 
-Debug APK naming is normalized to:
-
-```text
-app/build/outputs/apk/debug/Arcile-1.0.0-debug.apk
-```
-
-Release APK naming is normalized to:
-
-```text
-app/build/outputs/apk/release/Arcile-1.0.0.apk
-```
+### APK Naming Standards
+- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.1.0-debug.apk`
+- **Release Package:** `app/build/outputs/apk/release/Arcile-1.1.0.apk`
 
 ---
 
 ## Intended Changes & Anomalies
 
-Documented design choices that may look odd during review:
-
-| Component / Feature | Deliberate Weirdness | Rationale |
-|---------------------|----------------------|-----------|
-| Shared `.arcile` trash roots | Trash lives on public volume roots instead of only app-private storage. | Preserves restore metadata across normal file-browsing workflows, but carries privacy/security tradeoffs that should remain visible in `TASKS.md`. |
-| Temporary volume deletes | OTG/unclassified temporary storage bypasses trash. | Temporary removable media should not be presented as durable trash-backed storage. |
-| Robolectric SDK pin | Compose JVM tests may use `@Config(sdk = [35])` while `compileSdk` is 37. | Robolectric platform support can lag compile SDK updates. |
-| No internet permission | Some network-adjacent conveniences are intentionally absent. | Privacy guarantee is stronger when the permission is not requested at all. |
-| Archive keep-both extraction | Existing extraction targets are auto-renamed instead of overwritten. | Prevents archive extraction from silently destroying existing files. |
+| Aspect | Custom Implementation | Design Rationale |
+|--------|-----------------------|------------------|
+| **Public Trash Roots** | Trash directories reside at `/storage/emulated/0/.arcile/` instead of app-private folders. | Preserves trash items across app uninstall and reinstalls. |
+| **OTG Deletion** | Removable USB OTG storage deletes files permanently. | Avoids creating hidden, persistent directories on removable drives. |
+| **No Network Access** | The application does not declare the network permission. | Ensures user privacy by preventing files or metadata from being sent over the network. |
 
 ---
 
 ## Project Auditing & Quality Standards
 
-Before significant changes, understand:
-
-- **Core workflow:** how state, navigation, repository calls, and file mutations flow end to end.
-- **Implicit assumptions:** volume classification, trash support, MediaStore availability, permission state, and process death recovery.
-- **Edge cases:** missing/removable volumes, unreadable folders, encrypted archives, native confirmation, cancellation, and partial I/O failures.
-
-Evaluate changes against:
-
-| Category | Focus Areas |
-|----------|-------------|
-| Correctness | Data loss, stale UI state, incorrect scope, missed refresh, broken restore paths |
-| Security | Path traversal, unsafe archive extraction, FileProvider exposure, sensitive file handoff |
-| Performance | Recursive I/O, MediaStore query cost, recomposition churn, thumbnail memory pressure |
-| Architecture | Tight coupling, duplicated state machines, bypassed repository/data-source boundaries |
-| UX | Back behavior, selection lifecycle, destructive-action clarity, loading flicker |
-| Testing | Regression coverage for changed business rules and risky UI state |
-
-Audit findings should be logged in `TASKS.md` when they represent follow-up work. Completed release work should be reflected in `CHANGELOG.md`.
+When reviewing code changes, ensure:
+1. **Scope Compliance:** Mutations must remain within target volume boundaries.
+2. **Memory Efficiency:** Avoid loading large directories or image lists directly into memory; use paginated loaders or database cache lookups instead.
+3. **Resource Management:** String literals should be defined in `strings.xml` to pass `checkProductionStrings` validation.
 
 ---
 
 ## Troubleshooting
 
-| Issue | What to Check |
-|-------|---------------|
-| App shows permission screen | Grant All Files Access in system settings for the app. |
-| Completed users briefly see onboarding | Check `OnboardingPreferencesRepository`, manual reset state, and splash/DataStore loading flow. |
-| Build fails with SDK error | Install Android SDK 37 through SDK Manager. |
-| Release signing fails | Verify `signing.properties` or `local.properties` contains all four `signing.*` keys. |
-| Robolectric Compose tests fail on platform APIs | Keep or add `@Config(sdk = [35])` until support is verified. |
-| Files do not appear after mutation | Ensure `MutationFinalizer` invalidates MediaStore, folder stats, and volume snapshots for the touched path. |
-| Archive extraction behaves oddly | Check safe path validation, entry prefix filtering, password handling, and keep-both target generation. |
-| Recent/category results look wrong | Inspect `StorageScope`, volume classification, raw-path fallback behavior, and MediaStore cursor columns. |
-| Visible text check fails | Move production text into `res/values/strings.xml` or update the guard only with a documented reason. |
-
-Useful commands:
-
-```bash
-./gradlew assembleDebug --info
-./gradlew :app:dependencies
-./gradlew :app:testDebugUnitTest
-./gradlew :app:checkProductionStrings
-```
+- **Onboarding loops:** Check DataStore preferences state loading in `MainActivity` (ensure the 2-second timeout is not tripped).
+- **Missing files:** Run a MediaStore sync via `MutationFinalizer` after making file mutations.
+- **Archive errors:** Verify password credentials and check for path safety violations.
+- **Build configuration errors:** Ensure Android SDK 37 is installed via the Android SDK Manager.
 
 ---
 
 ## Maintenance Notes
 
-| Item | Rule |
-|------|------|
-| Changelog | Update `CHANGELOG.md` for user-visible changes and release prep. |
-| Version bumps | Keep `versionName`, `versionCode`, README, website, and docs aligned. |
-| Production strings | Add visible UI text to `strings.xml` and run `:app:checkProductionStrings`. |
-| Archive safety | Keep extraction path validation intact for every archive format. |
-| Trash behavior | Preserve temporary-volume permanent deletion unless product requirements change. |
-| Robolectric SDK pin | Do not casually raise `@Config(sdk = [35])`; verify Robolectric support first. |
-| AGP/KSP workarounds | Document exact version pair and removal condition next to any workaround. |
-| User changes | Do not revert unrelated dirty worktree changes. |
+- **Changelogs:** Document all changes in `CHANGELOG.md` when preparing a release.
+- **Version alignment:** Ensure the version code and name are consistent across `build.gradle.kts`, `DEVELOPMENT.md`, and `README.md`.
+- **Archive handlers:** Keep extraction path validation intact for all archive formats.
 
 ---
 

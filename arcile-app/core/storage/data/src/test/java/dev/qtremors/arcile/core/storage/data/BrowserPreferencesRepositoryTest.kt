@@ -13,6 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CoroutineScope
@@ -66,9 +67,11 @@ class BrowserPreferencesRepositoryTest {
 
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
         assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
+        assertEquals(BrowserViewMode.GRID, preferences.albumPresentation.viewMode)
         assertEquals(BrowserPresentationPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
+        assertEquals(ImageGalleryDefaultTab.PHOTOS, preferences.imageGalleryDefaultTab)
         assertEquals(true, preferences.showHiddenFiles)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.pathPresentationOptions)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.exactPathPresentationOptions)
@@ -140,6 +143,17 @@ class BrowserPreferencesRepositoryTest {
     }
 
     @Test
+    fun `invalid stored album view option falls back to album default`() = runBlocking {
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("album_view_mode")] = "NOPE"
+        }
+
+        val preferences = BrowserPreferencesRepository(context, dataStore).preferencesFlow.first()
+
+        assertEquals(BrowserViewMode.GRID, preferences.albumPresentation.viewMode)
+    }
+
+    @Test
     fun `home recent carousel limit is clamped when stored or updated`() = runBlocking {
         dataStore.edit { prefs ->
             prefs[intPreferencesKey("home_recent_carousel_limit")] = 200
@@ -161,4 +175,14 @@ class BrowserPreferencesRepositoryTest {
 
         assertEquals(true, repository.preferencesFlow.first().showHiddenFiles)
     }
+
+    @Test
+    fun `image gallery default tab preference is persisted`() = runBlocking {
+        val repository = BrowserPreferencesRepository(context, dataStore)
+
+        repository.updateImageGalleryDefaultTab(ImageGalleryDefaultTab.ALBUMS)
+
+        assertEquals(ImageGalleryDefaultTab.ALBUMS, repository.preferencesFlow.first().imageGalleryDefaultTab)
+    }
+
 }

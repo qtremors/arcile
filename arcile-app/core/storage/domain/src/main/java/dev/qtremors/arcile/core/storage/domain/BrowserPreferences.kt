@@ -7,6 +7,18 @@ enum class BrowserViewMode {
     GRID
 }
 
+enum class ImageGalleryGrouping {
+    NONE,
+    DAY,
+    WEEK,
+    MONTH
+}
+
+enum class ImageGalleryDefaultTab {
+    PHOTOS,
+    ALBUMS
+}
+
 data class BrowserPresentationPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
     val viewMode: BrowserViewMode = DEFAULT_VIEW_MODE,
@@ -42,6 +54,19 @@ data class BrowserPreferences(
     val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
     val homeRecentCarouselLimit: Int = DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     val showHiddenFiles: Boolean = true,
+    val imageGalleryShowFileDetails: Boolean = true,
+    val imageGalleryAspectRatio: Boolean = false,
+    val imageGallerySectioned: Boolean = false,
+    val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
+    val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+        sortOption = FileSortOption.NAME_ASC,
+        viewMode = BrowserViewMode.GRID,
+        gridMinCellSize = 160f
+    ),
+    val albumAspectRatio: Boolean = false,
+    val favoriteFiles: Set<String> = emptySet(),
+    val albumCovers: Map<String, String> = emptyMap(),
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null
 ) {

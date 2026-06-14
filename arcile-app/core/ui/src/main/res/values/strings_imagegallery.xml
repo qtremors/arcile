@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="image_gallery_title">Images</string>
+    <string name="image_gallery_search_placeholder">Search images</string>
+    <string name="image_gallery_empty_title">No images found</string>
+    <string name="image_gallery_empty_description">Images indexed by Android will appear here.</string>
+    <string name="image_gallery_all_album">All (%1$d)</string>
+    <string name="image_gallery_view_sort_title">View and sort images</string>
+    <string name="image_gallery_show_file_details">Show file names and info</string>
+    <string name="image_gallery_show_file_details_description">Turn off for a clean image-only gallery.</string>
+    <string name="settings_thumbnail_cache">Thumbnail cache</string>
+    <string name="settings_thumbnail_cache_stats">%1$s disk • %2$d loaded • %3$d failed • %4$d in flight</string>
+    <string name="settings_clear_thumbnail_cache">Clear</string>
+    <string name="image_gallery_view_mode_aspect">Aspect ratio grid</string>
+    <string name="image_gallery_view_mode_square">Square grid</string>
+    <string name="image_gallery_group_time">Group by time</string>
+    <string name="image_gallery_section_today">Today</string>
+    <string name="image_gallery_section_week">This Week</string>
+    <string name="image_gallery_section_month">This Month</string>
+    <string name="image_gallery_section_older">Older</string>
+    <string name="image_gallery_grid_mode">Grid Mode</string>
+    <string name="image_gallery_grouping">Grouping</string>
+    <string name="image_gallery_open_to_photos">Open to Photos</string>
+    <string name="image_gallery_open_to_albums">Open to Albums</string>
+    <string name="image_gallery_tab_photos">Photos</string>
+    <string name="image_gallery_tab_albums">Albums</string>
+    <string name="image_gallery_album_count">%1$d items</string>
+    <string name="image_gallery_metadata_title">Details</string>
+    <string name="image_gallery_metadata_erase">Erase EXIF metadata</string>
+    <string name="image_gallery_metadata_erase_dialog_title">Erase EXIF Metadata</string>
+    <string name="image_gallery_metadata_erase_dialog_message">Are you sure you want to permanently strip EXIF, camera details, and GPS tags from this file? This cannot be undone.</string>
+    <string name="image_gallery_favorite">Favorite</string>
+    <string name="image_gallery_set_as_cover">Set as Album Cover</string>
+    <string name="image_gallery_cover_set_success">Album cover updated</string>
+    <string name="image_gallery_favorites_folder">Favorites</string>
+    <string name="image_gallery_open_with">Open with…</string>
+</resources>

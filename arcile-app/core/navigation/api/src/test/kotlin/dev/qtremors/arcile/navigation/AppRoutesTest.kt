@@ -38,14 +38,20 @@ class AppRoutesTest {
     fun `serializes other typed routes`() {
         val recent = AppRoutes.RecentFiles(volumeId = "sd")
         val dashboard = AppRoutes.StorageDashboard(volumeId = "primary")
+        val browserImageViewer = AppRoutes.ImageViewer(
+            initialPath = "/storage/emulated/0/DCIM/photo.jpg",
+            returnToBrowserPage = true
+        )
         val externalBrowserEntry = AppRoutes.Main(
             initialPage = 1,
             path = "/storage/emulated/0/Download",
+            focusPath = "/storage/emulated/0/Download/report.pdf",
             seedInitialPathHistory = false
         )
 
         assertEquals(recent, json.decodeFromString<AppRoutes.RecentFiles>(json.encodeToString(recent)))
         assertEquals(dashboard, json.decodeFromString<AppRoutes.StorageDashboard>(json.encodeToString(dashboard)))
+        assertEquals(browserImageViewer, json.decodeFromString<AppRoutes.ImageViewer>(json.encodeToString(browserImageViewer)))
         assertEquals(externalBrowserEntry, json.decodeFromString<AppRoutes.Main>(json.encodeToString(externalBrowserEntry)))
     }
 }

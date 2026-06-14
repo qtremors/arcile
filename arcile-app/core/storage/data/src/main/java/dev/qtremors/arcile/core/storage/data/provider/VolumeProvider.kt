@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.provider
 
+import android.app.usage.StorageStatsManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -87,9 +88,10 @@ class DefaultVolumeProvider(
                 if (!rootFile.exists()) return
 
                 val stat = StatFs(canonicalPath)
-                val totalBytes = stat.totalBytes
-                val freeBytes = stat.availableBytes
                 val isPrimary = canonicalPath == primaryPath
+                val platformCapacity = if (isPrimary) primaryStorageCapacity() else null
+                val totalBytes = platformCapacity?.first ?: stat.totalBytes
+                val freeBytes = platformCapacity?.second ?: stat.availableBytes
                 val isRemovable = platformVolume?.isRemovable ?: !isPrimary
                 val storageKey = if (isPrimary) {
                     "primary"
@@ -149,6 +151,15 @@ class DefaultVolumeProvider(
         _activeStorageRoots.set(volumes.map { it.path })
         cachedVolumes.set(volumes)
         return volumes
+    }
+
+    private fun primaryStorageCapacity(): Pair<Long, Long>? {
+        return runCatching {
+            val statsManager = appContext.getSystemService(StorageStatsManager::class.java)
+            val uuid = StorageManager.UUID_DEFAULT
+            statsManager.getTotalBytes(uuid) to statsManager.getFreeBytes(uuid)
+        }.getOrNull()
+            ?.takeIf { (totalBytes, freeBytes) -> totalBytes > 0L && freeBytes >= 0L }
     }
 
     override fun observeStorageVolumes(): Flow<List<StorageVolume>> {

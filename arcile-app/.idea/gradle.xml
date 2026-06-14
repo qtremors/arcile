@@ -39,6 +39,7 @@
             <option value="$PROJECT_DIR$/feature" />
             <option value="$PROJECT_DIR$/feature/archive" />
             <option value="$PROJECT_DIR$/feature/browser" />
+            <option value="$PROJECT_DIR$/feature/imagegallery" />
             <option value="$PROJECT_DIR$/feature/onboarding" />
             <option value="$PROJECT_DIR$/feature/quickaccess" />
             <option value="$PROJECT_DIR$/feature/recentfiles" />

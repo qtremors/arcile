@@ -14,6 +14,8 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import java.io.IOException
 
 val Context.browserDataStore by preferencesDataStore(name = "browser_prefs")
@@ -47,8 +52,19 @@ class BrowserPreferencesRepository(
     private val RECENT_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("recent_show_thumbnails")
     private val HOME_RECENT_CAROUSEL_LIMIT_KEY = intPreferencesKey("home_recent_carousel_limit")
     private val SHOW_HIDDEN_FILES_KEY = booleanPreferencesKey("show_hidden_files")
+    private val IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY = booleanPreferencesKey("image_gallery_show_file_details")
+    private val IMAGE_GALLERY_ASPECT_RATIO_KEY = booleanPreferencesKey("image_gallery_aspect_ratio")
+    private val IMAGE_GALLERY_SECTIONED_KEY = booleanPreferencesKey("image_gallery_sectioned")
+    private val IMAGE_GALLERY_GROUPING_KEY = stringPreferencesKey("image_gallery_grouping")
+    private val IMAGE_GALLERY_DEFAULT_TAB_KEY = stringPreferencesKey("image_gallery_default_tab")
+    private val ALBUM_VIEW_MODE_KEY = stringPreferencesKey("album_view_mode")
+    private val ALBUM_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("album_grid_min_cell_size")
+    private val ALBUM_SORT_OPTION_KEY = stringPreferencesKey("album_sort_option")
+    private val ALBUM_ASPECT_RATIO_KEY = booleanPreferencesKey("album_aspect_ratio")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
+    private val FAVORITE_FILES_KEY = stringPreferencesKey("gallery_favorites")
+    private val ALBUM_COVERS_KEY = stringPreferencesKey("gallery_album_covers")
 
     override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
@@ -64,7 +80,10 @@ class BrowserPreferencesRepository(
                     prefs[GLOBAL_SORT_KEY],
                     BrowserPresentationPreferences.DEFAULT_SORT_OPTION
                 ),
-                viewMode = parseViewMode(prefs[GLOBAL_VIEW_MODE_KEY]),
+                viewMode = parseViewMode(
+                    prefs[GLOBAL_VIEW_MODE_KEY],
+                    BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+                ),
                 listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
@@ -76,7 +95,10 @@ class BrowserPreferencesRepository(
                     prefs[RECENT_SORT_KEY],
                     BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION
                 ),
-                viewMode = parseViewMode(prefs[RECENT_VIEW_MODE_KEY]),
+                viewMode = parseViewMode(
+                    prefs[RECENT_VIEW_MODE_KEY],
+                    BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+                ),
                 listZoom = prefs[RECENT_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[RECENT_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
@@ -110,7 +132,7 @@ class BrowserPreferencesRepository(
                         pathMap[path] = currentPresentation(
                             pathMap[path],
                             globalPresentation
-                        ).copy(viewMode = parseViewMode(value))
+                        ).copy(viewMode = parseViewMode(value, BrowserPresentationPreferences.DEFAULT_VIEW_MODE))
                     }
 
                     key.name.startsWith("exact_path_view_mode_") && value is String -> {
@@ -118,7 +140,7 @@ class BrowserPreferencesRepository(
                         exactPathMap[path] = currentPresentation(
                             exactPathMap[path],
                             globalPresentation
-                        ).copy(viewMode = parseViewMode(value))
+                        ).copy(viewMode = parseViewMode(value, BrowserPresentationPreferences.DEFAULT_VIEW_MODE))
                     }
 
                     key.name.startsWith("path_list_zoom_") && value is Float -> {
@@ -155,6 +177,45 @@ class BrowserPreferencesRepository(
                 }
             }
 
+            val groupingStr = prefs[IMAGE_GALLERY_GROUPING_KEY]
+            val grouping = ImageGalleryGrouping.entries.find { it.name == groupingStr }
+                ?: BrowserPreferences().imageGalleryGrouping
+            val defaultTabStr = prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY]
+            val defaultTab = ImageGalleryDefaultTab.entries.find { it.name == defaultTabStr }
+                ?: BrowserPreferences().imageGalleryDefaultTab
+
+            val albumPresentation = BrowserPresentationPreferences(
+                sortOption = parseSortOption(
+                    prefs[ALBUM_SORT_OPTION_KEY],
+                    BrowserPreferences().albumPresentation.sortOption
+                ),
+                viewMode = parseViewMode(
+                    prefs[ALBUM_VIEW_MODE_KEY],
+                    BrowserPreferences().albumPresentation.viewMode
+                ),
+                listZoom = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+                gridMinCellSize = prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY]
+                    ?: BrowserPreferences().albumPresentation.gridMinCellSize,
+                showThumbnails = true
+            ).normalized()
+
+            val albumAspectRatio = prefs[ALBUM_ASPECT_RATIO_KEY]
+                ?: BrowserPreferences().albumAspectRatio
+
+            val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
+            val favoriteFiles: Set<String> = if (!favoriteFilesStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
+            } else {
+                emptySet()
+            }
+
+            val albumCoversStr = prefs[ALBUM_COVERS_KEY]
+            val albumCovers: Map<String, String> = if (!albumCoversStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
+
             BrowserPreferences(
                 globalPresentation = globalPresentation,
                 recentPresentation = recentPresentation,
@@ -164,6 +225,18 @@ class BrowserPreferencesRepository(
                     prefs[HOME_RECENT_CAROUSEL_LIMIT_KEY] ?: BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
                 ),
                 showHiddenFiles = prefs[SHOW_HIDDEN_FILES_KEY] ?: BrowserPreferences().showHiddenFiles,
+                imageGalleryShowFileDetails = prefs[IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY]
+                    ?: BrowserPreferences().imageGalleryShowFileDetails,
+                imageGalleryAspectRatio = prefs[IMAGE_GALLERY_ASPECT_RATIO_KEY]
+                    ?: BrowserPreferences().imageGalleryAspectRatio,
+                imageGallerySectioned = prefs[IMAGE_GALLERY_SECTIONED_KEY]
+                    ?: BrowserPreferences().imageGallerySectioned,
+                imageGalleryGrouping = grouping,
+                imageGalleryDefaultTab = defaultTab,
+                albumPresentation = albumPresentation,
+                albumAspectRatio = albumAspectRatio,
+                favoriteFiles = favoriteFiles,
+                albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
             )
@@ -204,6 +277,51 @@ class BrowserPreferencesRepository(
         }
     }
 
+    override suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY] = show
+        }
+    }
+
+    override suspend fun updateImageGalleryAspectRatio(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_ASPECT_RATIO_KEY] = enabled
+        }
+    }
+
+    override suspend fun updateImageGallerySectioned(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_SECTIONED_KEY] = enabled
+        }
+    }
+
+    override suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_GROUPING_KEY] = grouping.name
+        }
+    }
+
+    override suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab) {
+        dataStore.edit { prefs ->
+            prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY] = tab.name
+        }
+    }
+
+    override suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+        val normalized = presentation.normalized()
+        dataStore.edit { prefs ->
+            prefs[ALBUM_SORT_OPTION_KEY] = normalized.sortOption.name
+            prefs[ALBUM_VIEW_MODE_KEY] = normalized.viewMode.name
+            prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+        }
+    }
+
+    override suspend fun updateAlbumAspectRatio(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[ALBUM_ASPECT_RATIO_KEY] = enabled
+        }
+    }
+
     override suspend fun updatePathPresentation(
         path: String,
         presentation: BrowserPresentationPreferences?,
@@ -236,12 +354,46 @@ class BrowserPreferencesRepository(
         }
     }
 
+    override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
+        dataStore.edit { prefs ->
+            val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
+            val currentFavorites = if (!favoriteFilesStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
+            } else {
+                emptySet()
+            }
+            val newFavorites = if (isFavorite) {
+                currentFavorites + path
+            } else {
+                currentFavorites - path
+            }
+            prefs[FAVORITE_FILES_KEY] = Json.encodeToString(newFavorites)
+        }
+    }
+
+    override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
+        dataStore.edit { prefs ->
+            val albumCoversStr = prefs[ALBUM_COVERS_KEY]
+            val currentCovers = if (!albumCoversStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
+            } else {
+                emptyMap()
+            }
+            val newCovers = if (coverPath.isEmpty()) {
+                currentCovers - albumPath
+            } else {
+                currentCovers + (albumPath to coverPath)
+            }
+            prefs[ALBUM_COVERS_KEY] = Json.encodeToString(newCovers)
+        }
+    }
+
     private fun parseSortOption(value: String?, fallback: FileSortOption): FileSortOption {
         return FileSortOption.entries.find { it.name == value } ?: fallback
     }
 
-    private fun parseViewMode(value: String?): BrowserViewMode {
-        return BrowserViewMode.entries.find { it.name == value } ?: BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+    private fun parseViewMode(value: String?, fallback: BrowserViewMode): BrowserViewMode {
+        return BrowserViewMode.entries.find { it.name == value } ?: fallback
     }
 
     private fun currentPresentation(

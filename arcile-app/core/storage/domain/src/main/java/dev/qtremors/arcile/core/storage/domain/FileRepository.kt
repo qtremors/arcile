@@ -239,6 +239,11 @@ interface StorageAnalyticsRepository {
      */
     suspend fun getCategoryStorageSizes(scope: StorageScope = StorageScope.AllStorage): Result<List<CategoryStorage>>
     suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>
+
+    /**
+     * Clears cached analytics snapshots so the next analytics request reads from storage again.
+     */
+    suspend fun invalidateAnalyticsCache() = Unit
 }
 
 interface SearchRepository {
@@ -270,6 +275,10 @@ interface SearchRepository {
 
 interface ClipboardRepository {
     // ─── Clipboard operations ─────────────────────────────────────────────────
+
+    val clipboardState: kotlinx.coroutines.flow.StateFlow<ClipboardState?>
+    fun setClipboardState(state: ClipboardState?)
+    fun clearClipboardState() { setClipboardState(null) }
 
     /**
      * Detects name conflicts that would occur when pasting [sourcePaths] into [destinationPath].

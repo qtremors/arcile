@@ -10,7 +10,12 @@ import org.junit.Test
 
 class ThumbnailPolicyTest {
     private val failureCache = ThumbnailFailureCache()
-    private val policy = ThumbnailPolicy(failureCache = failureCache, bufferItems = 2)
+    private val loadStateStore = ThumbnailLoadStateStore()
+    private val policy = ThumbnailPolicy(
+        failureCache = failureCache,
+        loadStateStore = loadStateStore,
+        bufferItems = 2
+    )
 
     @Test
     fun `blocks thumbnails when user preference is disabled`() {
@@ -26,6 +31,18 @@ class ThumbnailPolicyTest {
     fun `allows visible and buffered items`() {
         assertTrue(policy.shouldLoad(input(itemIndex = 8, visibleRange = 10..15)))
         assertTrue(policy.shouldLoad(input(itemIndex = 16, visibleRange = 10..15)))
+    }
+
+    @Test
+    fun `default buffer keeps nearby reverse scroll thumbnails eligible`() {
+        val defaultPolicy = ThumbnailPolicy(
+            failureCache = ThumbnailFailureCache(),
+            loadStateStore = ThumbnailLoadStateStore()
+        )
+
+        assertTrue(defaultPolicy.shouldLoad(input(itemIndex = 0, visibleRange = 24..30)))
+        assertTrue(defaultPolicy.shouldLoad(input(itemIndex = 54, visibleRange = 24..30)))
+        assertFalse(defaultPolicy.shouldLoad(input(itemIndex = 55, visibleRange = 24..30)))
     }
 
     @Test
@@ -49,12 +66,55 @@ class ThumbnailPolicyTest {
     @Test
     fun `blocks failed keys until failure is cleared`() {
         val key = key()
-        policy.recordFailure(key)
+        policy.recordFailure(key, thumbnailSizePx = 192)
 
         assertFalse(policy.shouldLoad(input(key = key)))
 
         policy.clearFailure(key)
+        loadStateStore.clear()
         assertTrue(policy.shouldLoad(input(key = key)))
+    }
+
+    @Test
+    fun `loaded variant remains reusable outside visible budget`() {
+        val key = key()
+        policy.recordLoaded(key, thumbnailSizePx = 192)
+
+        assertTrue(policy.shouldLoad(input(key = key, thumbnailSizePx = 192, itemIndex = 40, visibleRange = 8..12)))
+    }
+
+    @Test
+    fun `loaded small variant does not satisfy larger variant`() {
+        val key = key()
+        policy.recordLoaded(key, thumbnailSizePx = 128)
+
+        assertFalse(policy.shouldLoad(input(key = key, thumbnailSizePx = 768, itemIndex = 40, visibleRange = 8..12)))
+    }
+
+    @Test
+    fun `in flight variant remains visible while inside budget`() {
+        val key = key()
+        policy.recordInFlight(key, thumbnailSizePx = 256)
+
+        assertTrue(policy.shouldLoad(input(key = key, thumbnailSizePx = 256)))
+        assertFalse(policy.shouldLoad(input(key = key, thumbnailSizePx = 256, itemIndex = 40, visibleRange = 8..12)))
+        assertTrue(policy.shouldLoad(input(key = key, thumbnailSizePx = 384)))
+    }
+
+    @Test
+    fun `variant key buckets noisy sizes`() {
+        val key = key()
+
+        assertEquals(256, key.variantKey(191).sizeBucketPx)
+        assertEquals(key.variantKey(191), key.variantKey(192))
+        assertEquals(384, key.variantKey(257).sizeBucketPx)
+    }
+
+    @Test
+    fun `identity key changes when source metadata changes`() {
+        assertEquals(key().identityKey, key().identityKey)
+        assertFalse(key().identityKey == key(sizeBytes = 2048L).identityKey)
+        assertFalse(key().identityKey == key(lastModifiedMillis = 2L).identityKey)
     }
 
     @Test

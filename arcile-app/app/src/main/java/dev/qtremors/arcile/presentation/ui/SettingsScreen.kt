@@ -579,7 +579,6 @@ fun CustomThemeCreatorPanel(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        // Primary Color Input & Preview
         OutlinedTextField(
             value = primaryInput,
             onValueChange = { input ->
@@ -606,7 +605,6 @@ fun CustomThemeCreatorPanel(
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
         )
 
-        // Background Color Input & Preview
         OutlinedTextField(
             value = bgInput,
             onValueChange = { input ->

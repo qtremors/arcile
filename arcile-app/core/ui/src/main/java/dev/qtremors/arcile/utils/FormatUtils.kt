@@ -8,13 +8,13 @@ fun formatFileSize(size: Long): String {
     var value = size.toDouble()
     var unitIndex = 0
 
-    while (value >= 1024.0 && unitIndex < units.lastIndex) {
-        value /= 1024.0
+    while (value >= 1000.0 && unitIndex < units.lastIndex) {
+        value /= 1000.0
         unitIndex++
     }
 
-    if (String.format(Locale.US, "%.1f", value).toDouble() >= 1024.0 && unitIndex < units.lastIndex) {
-        value /= 1024.0
+    if (String.format(Locale.US, "%.1f", value).toDouble() >= 1000.0 && unitIndex < units.lastIndex) {
+        value /= 1000.0
         unitIndex++
     }
 

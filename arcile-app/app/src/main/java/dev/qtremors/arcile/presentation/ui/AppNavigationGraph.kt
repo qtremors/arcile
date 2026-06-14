@@ -6,6 +6,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -27,6 +29,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
@@ -36,6 +40,8 @@ import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.archiveViewerScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
+import dev.qtremors.arcile.feature.imagegallery.imageGalleryScreen
+import dev.qtremors.arcile.feature.imagegallery.imageViewerScreen
 import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
@@ -57,6 +63,8 @@ import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
@@ -67,12 +75,25 @@ fun AppNavigationGraph(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
+    onOpenFileWith: (String) -> Unit,
     onRestartApp: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val openPath: (String) -> Unit = { path ->
+    val coroutineScope = rememberCoroutineScope()
+    val imageContextPathsFor: (List<FileModel>) -> ArrayList<String> = { files ->
+        ArrayList(
+            files.asSequence()
+                .filterNot { it.isDirectory }
+                .filter { FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images }
+                .map { it.absolutePath }
+                .distinct()
+                .toList()
+        )
+    }
+    val openPathWithContext: (String, List<FileModel>, Boolean) -> Unit = { path, surroundingFiles, returnToBrowserPage ->
         val archiveFormat = ArchiveFormat.fromPath(path)
+        val extension = path.substringAfterLast('.', "").lowercase()
         when {
             archiveFormat?.canBrowse == true -> {
                 navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
@@ -87,49 +108,61 @@ fun AppNavigationGraph(
                     )
                 )
             }
+            extension in FileCategories.Images.extensions -> {
+                val contextPaths = imageContextPathsFor(surroundingFiles)
+                val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+                if (contextPaths.size > 1 && contextPaths.contains(path)) {
+                    savedStateHandle?.set(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY, contextPaths)
+                } else {
+                    savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+                }
+                navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
+            }
             else -> {
                 onOpenFile(path)
             }
         }
     }
+    val openPath: (String) -> Unit = { path -> openPathWithContext(path, emptyList(), false) }
+    val openPathWithSurroundingImages: (String, List<FileModel>) -> Unit = { path, files ->
+        openPathWithContext(path, files, false)
+    }
 
     val reducedMotion = LocalReducedMotionEnabled.current
 
-    // Details Transitions: Horizontal Slide (e.g. StorageDashboard, ArchiveViewer)
     val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val detailExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val detailPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val detailPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
 
-    // Utility/Modal Transitions: Vertical Slide + Fade (e.g. Settings, Trash, etc.)
     val utilityEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else slideInVertically(initialOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val utilityExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val utilityPopEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
-        if (reducedMotion) fadeIn(tween(0)) else fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeIn(tween(0)) else fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
     val utilityPopExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-        if (reducedMotion) fadeOut(tween(0)) else slideOutVertically(targetOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow))
+        if (reducedMotion) fadeOut(tween(0)) else slideOutVertically(targetOffsetY = { it / 8 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
     }
 
     NavHost(
         navController = navController,
         startDestination = AppRoutes.Main(),
-        enterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
-        exitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
-        popEnterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) },
-        popExitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)) }
+        enterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) },
+        exitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) },
+        popEnterTransition = { if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 1.04f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) },
+        popExitTransition = { if (reducedMotion) fadeOut(tween(0)) else slideOutHorizontally(targetOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeOut(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleOut(targetScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) }
     ) {
                 composable<AppRoutes.Main> { backStackEntry ->
                     val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()
@@ -147,8 +180,11 @@ fun AppNavigationGraph(
                         initialPage = mainArgs.initialPage,
                         pageCount = { 2 }
                     )
+                    val browserListState = rememberLazyListState()
+                    val browserGridState = rememberLazyGridState()
                     val coroutineScope = rememberCoroutineScope()
                     var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
+                    var revealedFocusPath by remember(mainArgs.focusPath) { mutableStateOf<String?>(null) }
                     val navigateBackFromBrowser: () -> Unit = {
                         if (!browserViewModel.navigateBack()) {
                             when (browserBackFallback(navController.previousBackStackEntry != null)) {
@@ -160,7 +196,6 @@ fun AppNavigationGraph(
                         }
                     }
 
-                    // Handle incoming arguments for browser or deep links
                     androidx.compose.runtime.LaunchedEffect(mainArgs) {
                         if (mainArgs.initialPage == 1) {
                             pendingExplicitBrowserEntry = true
@@ -180,6 +215,26 @@ fun AppNavigationGraph(
                         }
                     }
 
+                    androidx.compose.runtime.LaunchedEffect(
+                        mainArgs.focusPath,
+                        pagerState.currentPage,
+                        browserState.displayState.visibleFiles
+                    ) {
+                        val focusPath = mainArgs.focusPath
+                        if (
+                            focusPath != null &&
+                            revealedFocusPath != focusPath &&
+                            pagerState.currentPage == 1
+                        ) {
+                            val index = browserState.displayState.visibleFiles.indexOfFirst { it.absolutePath == focusPath }
+                            if (index >= 0) {
+                                browserListState.scrollToItem(index)
+                                browserGridState.scrollToItem(index)
+                                revealedFocusPath = focusPath
+                            }
+                        }
+                    }
+
                     androidx.compose.runtime.LaunchedEffect(showBrowserPageRequest) {
                         if (showBrowserPageRequest) {
                             pendingExplicitBrowserEntry = true
@@ -188,8 +243,6 @@ fun AppNavigationGraph(
                         }
                     }
 
-                    // Plain swipes are quick access into the persisted folder. Explicit
-                    // browser entries (category/path/root taps) keep their requested target.
                     androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
                         if (pagerState.currentPage == 1) {
                             if (pendingExplicitBrowserEntry) {
@@ -229,10 +282,18 @@ fun AppNavigationGraph(
                                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                                     },
                                     onOpenFile = openPath,
+                                    onOpenFileWithContext = openPathWithSurroundingImages,
                                     onCategoryClick = { categoryName ->
-                                        pendingExplicitBrowserEntry = true
-                                        browserViewModel.navigateToCategory(categoryName)
-                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        if (categoryName == FileCategories.Images.name) {
+                                            navController.navigate(AppRoutes.ImageGallery()) {
+                                                popUpTo<AppRoutes.Main> { saveState = true }
+                                                launchSingleTop = true
+                                            }
+                                        } else {
+                                            pendingExplicitBrowserEntry = true
+                                            browserViewModel.navigateToCategory(categoryName)
+                                            coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        }
                                     },
                                     onSettingsClick = {
                                         navController.navigate(AppRoutes.Settings)
@@ -306,7 +367,12 @@ fun AppNavigationGraph(
                                         if (ArchiveFormat.isSupported(path)) {
                                             browserViewModel.openArchive(path)
                                         } else {
-                                            openPath(path)
+                                            val browserImageContext = if (browserState.browserSearchQuery.isNotBlank()) {
+                                                browserState.searchResults
+                                            } else {
+                                                browserState.displayState.visibleFiles
+                                            }
+                                            openPathWithContext(path, browserImageContext, true)
                                         }
                                     },
                                     onToggleSelection = { browserViewModel.toggleSelection(it) },
@@ -383,7 +449,9 @@ fun AppNavigationGraph(
                                     onCleanupRecoveredOperation = { browserViewModel.cleanupRecoveredOperation(it) },
                                     onDismissRecoveredOperation = { browserViewModel.dismissRecoveredOperation(it) },
                                     onFeedback = onFeedback,
-                                    nativeRequestFlow = browserViewModel.nativeRequestFlow
+                                    nativeRequestFlow = browserViewModel.nativeRequestFlow,
+                                    listState = browserListState,
+                                    gridState = browserGridState
                                 )
                             }
                         }
@@ -403,14 +471,18 @@ fun AppNavigationGraph(
                     val route = backStackEntry.toRoute<AppRoutes.StorageDashboard>()
                     val volumeId = route.volumeId?.takeIf { it.isNotBlank() }
                     androidx.compose.runtime.LaunchedEffect(volumeId) {
-                        viewModel.loadDashboardCategoryBreakdown(volumeId)
+                        viewModel.ensureDashboardCategoryBreakdown(volumeId)
                     }
                     StorageDashboardScreen(
                         state = state,
                         selectedVolumeId = volumeId,
                         onNavigateBack = { navController.popBackStack() },
                         onCategoryClick = { categoryName, scopedVolumeId ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
+                            if (categoryName == FileCategories.Images.name) {
+                                navController.navigate(AppRoutes.ImageGallery(scopedVolumeId))
+                            } else {
+                                navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
+                            }
                         },
                         onOpenPath = { path ->
                             navController.navigate(AppRoutes.Main(initialPage = 1, path = path))
@@ -444,16 +516,40 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onOpenFile = openPath,
+                    onOpenFile = openPathWithSurroundingImages,
                     onShareSelected = { paths ->
                         dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
                     },
                     onOpenContainingFolder = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
-                            popUpTo<AppRoutes.Main> { inclusive = true }
-                        }
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onFeedback = onFeedback
+                )
+                imageGalleryScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onOpenFile = openPath,
+                    onShareSelected = { paths ->
+                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    },
+                    onFeedback = onFeedback
+                )
+                imageViewerScreen(
+                    navController = navController,
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onShareFile = { path ->
+                        coroutineScope.launch {
+                            dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                        }
+                    },
+                    onOpenFileWith = onOpenFileWith
                 )
                 composable<AppRoutes.Tools>(
                     enterTransition = utilityEnterTransition,
@@ -482,6 +578,20 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
+                    onOpenFile = onOpenFile,
+                    onOpenContainingFolder = { path ->
+                        val parentPath = path.substringBeforeLast('/', missingDelimiterValue = "")
+                        if (parentPath.isNotBlank()) {
+                            navController.navigate(
+                                AppRoutes.Main(
+                                    initialPage = 1,
+                                    path = parentPath,
+                                    focusPath = path,
+                                    seedInitialPathHistory = false
+                                )
+                            )
+                        }
+                    },
                     onFeedback = onFeedback
                 )
                 composable<AppRoutes.Settings>(
@@ -554,9 +664,7 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToPath = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
-                            popUpTo<AppRoutes.Main> { inclusive = true }
-                        }
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onNavigateToSaf = { uriString ->
                         ExternalFileAccessHelper.openInFilesApp(context, uriString)
@@ -569,9 +677,7 @@ fun AppNavigationGraph(
                     popExitTransition = detailPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenArchiveInBrowser = { archivePath ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false)) {
-                            popUpTo<AppRoutes.Main> { inclusive = true }
-                        }
+                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
                     }
                 )
             }

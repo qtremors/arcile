@@ -42,6 +42,7 @@ class BrowserViewModelClipboardTest {
         viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
         viewModel.toggleSelection("/storage/emulated/0/beta.txt")
         viewModel.copySelectedToClipboard()
+        advanceUntilIdle()
 
         assertEquals(ClipboardOperation.COPY, viewModel.state.value.clipboardState?.operation)
         assertEquals(listOf("/storage/emulated/0/alpha.txt", "/storage/emulated/0/beta.txt"), viewModel.state.value.clipboardState?.files?.map { it.absolutePath })

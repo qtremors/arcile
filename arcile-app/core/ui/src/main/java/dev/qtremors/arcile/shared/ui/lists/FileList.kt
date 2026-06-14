@@ -2,8 +2,8 @@ package dev.qtremors.arcile.shared.ui.lists
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.ui.theme.ArcileMotion
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,9 +58,8 @@ import androidx.compose.foundation.basicMarquee
 import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
 import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -68,6 +68,7 @@ import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailPolicyInput
 import dev.qtremors.arcile.image.ThumbnailTargetSize
+import dev.qtremors.arcile.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.shared.ui.getFileIconVector
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
@@ -86,6 +87,7 @@ fun FileList(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
@@ -113,6 +115,7 @@ fun FileList(
         listState = listState,
         zoom = zoom,
         showThumbnails = showThumbnails,
+        showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         folderStatsLoadingPaths = folderStatsLoadingPaths,
         contentPadding = contentPadding
@@ -132,12 +135,21 @@ fun FileListRows(
     listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsLoadingPaths: Set<String> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(0.dp)
 ) {
     val haptics = rememberArcileHaptics()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val thumbnailSizePx = with(LocalDensity.current) {
+        ThumbnailTargetSize.fromBounds((64.dp * zoom).roundToPx())
+    }
+    val displayRows = remember(rows, thumbnailSizePx) {
+        rows.map { row ->
+            if (row.thumbnailSizePx == thumbnailSizePx) row else row.copy(thumbnailSizePx = thumbnailSizePx)
+        }
+    }
     val visibleRange by remember {
         derivedStateOf {
             val visible = listState.layoutInfo.visibleItemsInfo
@@ -146,7 +158,7 @@ fun FileListRows(
     }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(rows) { lastInteractedIndex = null }
+    LaunchedEffect(displayRows) { lastInteractedIndex = null }
 
     LazyColumn(
         modifier = modifier.fillMaxWidth(),
@@ -154,7 +166,7 @@ fun FileListRows(
         contentPadding = contentPadding
     ) {
         itemsIndexed(
-            items = rows,
+            items = displayRows,
             key = { _, row -> row.absolutePath },
             contentType = { _, row -> if (row.isDirectory) "directory" else "file" }
         ) { index, row ->
@@ -167,6 +179,7 @@ fun FileListRows(
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 zoom = zoom,
                 showThumbnails = showThumbnails,
+                showDetails = showDetails,
                 thumbnailLoadingPaused = thumbnailLoadingPaused,
                 itemIndex = index,
                 visibleRange = visibleRange,
@@ -187,7 +200,7 @@ fun FileListRows(
                     if (selectedFiles.isNotEmpty() && lastInteractedIndex != null && lastInteractedIndex != index) {
                         val start = minOf(lastInteractedIndex!!, index)
                         val end = maxOf(lastInteractedIndex!!, index)
-                        onSelectMultiple(rows.subList(start, end + 1).map { it.absolutePath })
+                        onSelectMultiple(displayRows.subList(start, end + 1).map { it.absolutePath })
                         haptics.selectionChanged()
                     } else {
                         val wasEmpty = selectedFiles.isEmpty()
@@ -223,6 +236,7 @@ fun FileItemRow(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false
@@ -246,6 +260,7 @@ fun FileItemRow(
         modifier = modifier,
         zoom = zoom,
         showThumbnails = showThumbnails,
+        showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         isFolderStatsLoading = isFolderStatsLoading
     )
@@ -264,6 +279,7 @@ fun FileItemRow(
     modifier: Modifier = Modifier,
     zoom: Float = 1f,
     showThumbnails: Boolean = true,
+    showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     itemIndex: Int = 0,
     visibleRange: IntRange? = null,
@@ -276,10 +292,12 @@ fun FileItemRow(
     val marqueeEnabled = LocalMarqueeFilenames.current
     val animatedHorizontalPadding by animateDpAsState(
         targetValue = if (isSelected) 8.dp else 0.dp,
+        animationSpec = ArcileMotion.rememberSpring(stiffness = Spring.StiffnessMediumLow),
         label = "listItemHPadding"
     )
     val animatedVerticalPadding by animateDpAsState(
         targetValue = if (isSelected) 4.dp else 0.dp,
+        animationSpec = ArcileMotion.rememberSpring(stiffness = Spring.StiffnessMediumLow),
         label = "listItemVPadding"
     )
     val animatedScale by animateFloatAsState(targetValue = zoom, label = "listZoom")
@@ -295,7 +313,7 @@ fun FileItemRow(
     val reducedMotion = LocalReducedMotionEnabled.current
     val scale by animateFloatAsState(
         targetValue = if (isPressed && !reducedMotion) 0.98f else 1f,
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = ArcileMotion.rememberSpring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "fileItemScale"
     )
 
@@ -303,7 +321,10 @@ fun FileItemRow(
         shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         modifier = modifier
-            .padding(horizontal = animatedHorizontalPadding, vertical = animatedVerticalPadding)
+            .padding(
+                horizontal = animatedHorizontalPadding.coerceAtLeast(0.dp),
+                vertical = animatedVerticalPadding.coerceAtLeast(0.dp)
+            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -356,31 +377,45 @@ fun FileItemRow(
                         sizeBytes = file.size,
                         lastModifiedMillis = file.lastModified
                     )
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(row.thumbnailRequestData(archiveThumbnailData))
-                            .size(row.thumbnailSizePx)
-                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
-                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.cacheKey)
-                            .diskCachePolicy(CachePolicy.ENABLED)
-                            .memoryCachePolicy(CachePolicy.ENABLED)
-                            .build(),
+                    val thumbnailCacheKey = archiveThumbnailData?.cacheKey
+                        ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey
+                    val thumbnailData = row.thumbnailRequestData(archiveThumbnailData)
+                    val thumbnailRequest = remember(
+                        thumbnailData,
+                        thumbnailCacheKey,
+                        row.thumbnailSizePx
+                    ) {
+                        buildThumbnailImageRequest(
+                            context = context,
+                            data = thumbnailData,
+                            cacheKey = thumbnailCacheKey,
+                            sizePx = row.thumbnailSizePx
+                        )
+                    }
+                    val thumbnailPainter = rememberAsyncImagePainter(
+                        model = thumbnailRequest,
+                        onLoading = {
+                            thumbnailPolicy.recordInFlight(row.thumbnailKey, row.thumbnailSizePx)
+                        },
                         onSuccess = {
                             thumbnailPolicy.clearFailure(row.thumbnailKey)
-                            thumbnailPolicy.recordLoaded(row.thumbnailKey)
+                            thumbnailPolicy.recordLoaded(row.thumbnailKey, row.thumbnailSizePx)
                         },
-                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey) },
+                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) }
+                    )
+                    if (thumbnailPainter.state is AsyncImagePainter.State.Empty ||
+                        thumbnailPainter.state is AsyncImagePainter.State.Loading ||
+                        thumbnailPainter.state is AsyncImagePainter.State.Error
+                    ) {
+                        ListFileIcon(file = file, iconSize = iconSize * 0.5f)
+                    }
+                    Image(
+                        painter = thumbnailPainter,
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
-                        contentScale = ContentScale.Crop,
-                        loading = {
-                            ListFileIcon(file = file, iconSize = iconSize * 0.5f)
-                        },
-                        error = {
-                            ListFileIcon(file = file, iconSize = iconSize * 0.5f)
-                        }
+                        contentScale = ContentScale.Crop
                     )
                 } else {
                     ListFileIcon(file = file, iconSize = iconSize * 0.5f)
@@ -405,39 +440,41 @@ fun FileItemRow(
                 }
             }
 
-            Spacer(modifier = Modifier.width(contentPadding))
+            if (showDetails) {
+                Spacer(modifier = Modifier.width(contentPadding))
 
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = file.name,
-                    maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
-                    overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                    style = titleStyle,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = subtitleText,
-                        style = supportStyle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = file.name,
+                        maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
+                        overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        style = titleStyle,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                     )
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = row.formattedDate,
-                        style = supportStyle,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.End
-                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = subtitleText,
+                            style = supportStyle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = row.formattedDate,
+                            style = supportStyle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.End
+                        )
+                    }
                 }
             }
         }

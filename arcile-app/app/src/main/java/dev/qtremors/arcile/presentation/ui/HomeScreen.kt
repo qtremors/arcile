@@ -300,6 +300,7 @@ fun HomeScreen(
     onRefresh: () -> Unit = {},
     onResumeRefresh: () -> Unit = {},
     onShareRecentFile: (String) -> Unit = {},
+    onOpenFileWithContext: (String, List<FileModel>) -> Unit = { path, _ -> onOpenFile(path) },
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
@@ -570,7 +571,7 @@ fun HomeScreen(
                             item {
                                 dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
                                     files = displayedRecentFiles,
-                                    onOpenFile = onOpenFile,
+                                    onOpenFile = { path -> onOpenFileWithContext(path, displayedRecentFiles) },
                                     onNavigateToPath = onNavigateToPath,
                                     onShareFile = onShareRecentFile,
                                     modifier = Modifier.fillMaxWidth()
