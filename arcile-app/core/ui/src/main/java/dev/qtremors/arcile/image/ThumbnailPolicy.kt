@@ -78,7 +78,7 @@ class ThumbnailPolicy(
         }
 
     companion object {
-        const val DEFAULT_BUFFER_ITEMS = 8
+        const val DEFAULT_BUFFER_ITEMS = 24
         const val MAX_EXPENSIVE_THUMBNAIL_PX = 512
         const val MAX_IMAGE_BYTES = 75L * 1024L * 1024L
         const val MAX_AUDIO_BYTES = 50L * 1024L * 1024L

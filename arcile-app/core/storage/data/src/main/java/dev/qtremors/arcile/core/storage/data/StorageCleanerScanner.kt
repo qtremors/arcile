@@ -19,8 +19,16 @@ import java.util.Locale
 import javax.inject.Inject
 
 class DefaultStorageCleanerScanner @Inject constructor(
-    private val dispatchers: ArcileDispatchers
+    private val dispatchers: ArcileDispatchers,
+    private val snapshotStore: StorageCleanerSnapshotStore? = null
 ) : StorageCleanerScanner {
+    override suspend fun cachedScan(
+        rootPaths: List<String>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): StorageCleanerResult? =
+        snapshotStore?.get(rootPaths, limits, rules)
+
     override suspend fun scan(
         rootPaths: List<String>,
         now: Long,
@@ -90,11 +98,17 @@ class DefaultStorageCleanerScanner @Inject constructor(
             CleanerGroup(type, sorted)
         }
 
-        StorageCleanerResult(
+        val result = StorageCleanerResult(
             groups = resultGroups,
             scannedFiles = files.size,
             isPartial = partial || files.size >= limits.maxFiles
         )
+        snapshotStore?.put(rootPaths, limits, rules, result)
+        result
+    }
+
+    override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
+        snapshotStore?.clear()
     }
 
     private suspend fun findDuplicateGroupKeys(files: List<FileSnapshot>): Map<String, String> {

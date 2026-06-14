@@ -16,6 +16,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
@@ -55,7 +56,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -357,6 +360,7 @@ fun StorageVolumeCard(
     }
 }
 
+
 @Composable
 fun MultiColorStorageBar(
     totalBytes: Long,
@@ -381,12 +385,6 @@ fun MultiColorStorageBar(
         }
     }
 
-    val revealProgress by animateFloatAsState(
-        targetValue = if (animationTrigger) 1f else 0f,
-        animationSpec = tween(1000, easing = LinearEasing),
-        label = "storageBarReveal"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -394,11 +392,10 @@ fun MultiColorStorageBar(
             .clip(barShape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .testTag(if (isCalculating) "storage_bar_loading" else "storage_bar")
-            .shimmer(visible = isCalculating, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f))
     ) {
         if (hasData || isCalculating) {
             Box(modifier = Modifier.fillMaxSize()) {
-                // Data Layer (Segments / Shimmering used preview)
+                // Data Layer (Segments / Indeterminate progress)
                 val hasSegmentData = categoryStorages.any { it.sizeBytes > 0L } || trashBytes > 0L
                 val showSegments = hasData && animationTrigger && hasSegmentData
 
@@ -411,6 +408,11 @@ fun MultiColorStorageBar(
                     label = "storageBarContentTransition"
                 ) { targetShowSegments ->
                     if (targetShowSegments) {
+                        val rowTrigger = remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            rowTrigger.value = true
+                        }
+
                         Row(modifier = Modifier.fillMaxSize()) {
                             val actualUsedBytes = (totalBytes - freeBytes).coerceIn(0L, totalBytes)
                             val rawCategories = categoryStorages
@@ -433,8 +435,11 @@ fun MultiColorStorageBar(
                                 if (segmentBytes > 0) {
                                     val fraction = segmentBytes.toFloat() / totalBytes.toFloat()
                                     val animatedFraction by animateFloatAsState(
-                                        targetValue = fraction * revealProgress,
-                                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                        targetValue = if (rowTrigger.value) fraction else 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        ),
                                         label = "cat_${cat.name}_animation"
                                     )
                                     val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
@@ -452,8 +457,11 @@ fun MultiColorStorageBar(
                             if (boundedTrashBytes > 0) {
                                 val trashFraction = boundedTrashBytes.toFloat() / totalBytes.toFloat()
                                 val animatedTrashFraction by animateFloatAsState(
-                                    targetValue = trashFraction * revealProgress,
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                    targetValue = if (rowTrigger.value) trashFraction else 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
                                     label = "trash_bytes_animation"
                                 )
                                 Box(
@@ -469,8 +477,11 @@ fun MultiColorStorageBar(
                             if (otherUsedBytes > 0) {
                                 val otherFraction = otherUsedBytes.toFloat() / totalBytes.toFloat()
                                 val animatedOtherFraction by animateFloatAsState(
-                                    targetValue = otherFraction * revealProgress,
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow),
+                                    targetValue = if (rowTrigger.value) otherFraction else 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
                                     label = "other_bytes_animation"
                                 )
 
@@ -487,8 +498,15 @@ fun MultiColorStorageBar(
                             if (freeBytes > 0) {
                                 val freeFraction = freeBytes.toFloat() / totalBytes.toFloat()
                                 val currentUsedFractions = (actualUsedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-                                val animatedUsedFractions = currentUsedFractions * revealProgress
-                                val animatedFreeFraction = 1f - animatedUsedFractions
+                                val animatedUsedFraction by animateFloatAsState(
+                                    targetValue = if (rowTrigger.value) currentUsedFractions else 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioLowBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    ),
+                                    label = "used_bytes_animation"
+                                )
+                                val animatedFreeFraction = 1f - animatedUsedFraction
 
                                 Box(
                                     modifier = Modifier
@@ -499,70 +517,43 @@ fun MultiColorStorageBar(
                             }
                         }
                     } else {
-                        // Shimmering Used Space + Free Space split layout
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            val actualUsedBytes = (totalBytes - freeBytes).coerceIn(0L, totalBytes)
-                            val isDefaultPlaceholder = totalBytes <= 1L
-                            val targetUsedFraction = if (isDefaultPlaceholder) {
-                                0.6f
-                            } else {
-                                if (totalBytes > 0L) actualUsedBytes.toFloat() / totalBytes.toFloat() else 0f
-                            }
-                            val animatedUsedFraction by animateFloatAsState(
-                                targetValue = targetUsedFraction,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
-                                label = "usedFractionAnimation"
+                        // Linear moving progress using a softer subset of categories colors
+                        val categoryColors = LocalCategoryColors.current
+                        val colors = listOf(
+                            categoryColors.images.copy(alpha = 0.5f),
+                            categoryColors.videos.copy(alpha = 0.5f),
+                            categoryColors.audio.copy(alpha = 0.5f)
+                        )
+
+                        val infiniteTransition = rememberInfiniteTransition(label = "linearMovingProgress")
+                        val progressOffset by infiniteTransition.animateFloat(
+                            initialValue = -0.4f,
+                            targetValue = 1.0f,
+                            animationSpec = infiniteRepeatable(
+                                animation = tween(1500, easing = LinearEasing),
+                                repeatMode = RepeatMode.Restart
+                            ),
+                            label = "progressOffset"
+                        )
+
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val width = size.width
+                            val height = size.height
+                            val blockWidth = width * 0.4f
+                            val startX = progressOffset * width
+                            
+                            val gradient = Brush.linearGradient(
+                                colors = colors,
+                                start = Offset(startX, 0f),
+                                end = Offset(startX + blockWidth, 0f)
                             )
-                            val freeFraction = 1f - animatedUsedFraction
                             
-                            if (animatedUsedFraction > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .weight(animatedUsedFraction.coerceAtLeast(0.0001f))
-                                        .clip(CircleShape)
-                                ) {
-                                    val infiniteTransition = rememberInfiniteTransition(label = "usedPlaceholderFlow")
-                                    val offset by infiniteTransition.animateFloat(
-                                        initialValue = 0f,
-                                        targetValue = 1000f,
-                                        animationSpec = infiniteRepeatable(
-                                            animation = tween(2000, easing = LinearEasing),
-                                            repeatMode = RepeatMode.Restart
-                                        ),
-                                        label = "offset"
-                                    )
-                                    val placeholderColors = listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(
-                                                Brush.linearGradient(
-                                                    colors = placeholderColors,
-                                                    start = Offset(offset, 0f),
-                                                    end = Offset(offset + 300f, 0f),
-                                                    tileMode = androidx.compose.ui.graphics.TileMode.Repeated
-                                                )
-                                            )
-                                    )
-                                }
-                            }
-                            
-                            if (freeFraction > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxHeight()
-                                        .weight(freeFraction.coerceAtLeast(0.0001f))
-                                        .background(Color.Transparent)
-                                )
-                            }
+                            drawRoundRect(
+                                brush = gradient,
+                                topLeft = Offset(startX, 0f),
+                                size = Size(blockWidth, height),
+                                cornerRadius = CornerRadius(height / 2, height / 2)
+                            )
                         }
                     }
                 }

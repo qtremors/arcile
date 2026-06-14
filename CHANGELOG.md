@@ -8,6 +8,10 @@
 
 ## [1.1.0] - 2026-06-14
 
+- **Storage Bar Progress**: Replaced the default loading shimmer with an indeterminate linear moving progress bar showing all category colors, and added a bouncy spring animation for segments when loading completes.
+- **Release Documentation and Verification**: Updated release-facing README, website, release notes, and development docs for v1.1.0, clarified full local versus device-backed test suite commands, documented per-module test commands, corrected multi-module release verification commands, refreshed module/test counts, and cleared release-prep test, production-string, architecture-budget, and lint issues.
+- **Cache and Thumbnail Stability**: Stabilized Browser list/grid thumbnail requests with remembered no-crossfade Coil requests, increased thumbnail prefetch buffering, scoped MediaStore invalidation instead of clearing all storage nodes, and added cached-first snapshots for Recent Files, Storage Usage, and Storage Cleaner.
+- **Storage Cache Freshness**: Cleared persisted Recent Files snapshots when MediaStore reports file changes and made broad MediaStore change events force a full storage cache invalidation.
 - **Gallery Timeline Dates**: Formatted dates as wrapped, content-fitting chips in daily/weekly/monthly grouping views, styled like the recents screen.
 - **Gallery Overflow Menu**: Removed the redundant "Show file details" toggle from the 3-dot overflow menu (already accessible via the view options sheet).
 - **Image Viewer EXIF Sheet**: Refactored the metadata sheet to be a full-screen layout and wrapped each pager item in a VerticalPager for smooth scroll-snapping, allowing users to swipe up to slide the EXIF sheet up (pushing the image above) and swipe down/tap close to slide it back down.

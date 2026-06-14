@@ -18,12 +18,18 @@ import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.DefaultMutationJournal
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.StorageClassificationRepository
+import dev.qtremors.arcile.core.storage.data.RecentFilesSnapshotStore
+import dev.qtremors.arcile.core.storage.data.StorageCleanerSnapshotStore
+import dev.qtremors.arcile.core.storage.data.StorageUsageSnapshotStore
 import dev.qtremors.arcile.core.storage.data.DefaultThumbnailCacheStore
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheStore
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.db.CategorySummaryDao
 import dev.qtremors.arcile.core.storage.data.db.FolderStatsDao
+import dev.qtremors.arcile.core.storage.data.db.RecentFilesSnapshotDao
+import dev.qtremors.arcile.core.storage.data.db.StorageCleanerSnapshotDao
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
+import dev.qtremors.arcile.core.storage.data.db.StorageUsageSnapshotDao
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailDao
 import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
@@ -108,6 +114,21 @@ object StorageDataModule {
     @Singleton
     fun provideThumbnailDao(database: ArcileDatabase): ThumbnailDao =
         database.thumbnailDao()
+
+    @Provides
+    @Singleton
+    fun provideRecentFilesSnapshotDao(database: ArcileDatabase): RecentFilesSnapshotDao =
+        database.recentFilesSnapshotDao()
+
+    @Provides
+    @Singleton
+    fun provideStorageUsageSnapshotDao(database: ArcileDatabase): StorageUsageSnapshotDao =
+        database.storageUsageSnapshotDao()
+
+    @Provides
+    @Singleton
+    fun provideStorageCleanerSnapshotDao(database: ArcileDatabase): StorageCleanerSnapshotDao =
+        database.storageCleanerSnapshotDao()
 
     @Provides
     @Singleton
@@ -268,6 +289,8 @@ object StorageDataModule {
         archiveManager: ArchiveManager,
         fileSystemDataSource: FileSystemDataSource,
         folderStatsStore: FolderStatsStore,
+        recentFilesSnapshotStore: RecentFilesSnapshotStore,
+        @ApplicationScope applicationScope: CoroutineScope,
         dispatchers: ArcileDispatchers
     ): LocalFileRepository {
         return LocalFileRepository(
@@ -277,6 +300,8 @@ object StorageDataModule {
             fileSystemDataSource,
             folderStatsStore,
             archiveManager,
+            recentFilesSnapshotStore,
+            applicationScope,
             dispatchers
         )
     }

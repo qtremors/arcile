@@ -104,6 +104,16 @@ class StorageCleanerViewModel @Inject constructor(
             }
 
             val rules = _state.value.rules
+            scanner.cachedScan(indexedPaths, rules = rules)?.let { cached ->
+                _state.update {
+                    it.copy(
+                        groups = cached.groups,
+                        scannedFiles = cached.scannedFiles,
+                        isPartial = cached.isPartial,
+                        errorMessage = null
+                    )
+                }
+            }
             runCatching { scanner.scan(indexedPaths, rules = rules) }
                 .onSuccess { result ->
                     _state.update {
@@ -143,6 +153,7 @@ class StorageCleanerViewModel @Inject constructor(
             _state.update { it.copy(isCleaning = true, errorMessage = null, successMessage = null) }
             trashRepository.moveToTrash(uniquePaths)
                 .onSuccess {
+                    scanner.invalidateStorageCleaner(uniquePaths)
                     val undoIds = trashRepository.getTrashFiles().getOrNull()
                         ?.filter { it.originalPath in uniquePaths }
                         ?.sortedByDescending { it.deletionTime }
@@ -178,6 +189,7 @@ class StorageCleanerViewModel @Inject constructor(
             trashRepository.restoreFromTrash(trashIds)
                 .onSuccess {
                     _state.update { it.copy(isCleaning = false) }
+                    scanner.invalidateStorageCleaner()
                     scan(clearMessages = false)
                 }
                 .onFailure { error ->

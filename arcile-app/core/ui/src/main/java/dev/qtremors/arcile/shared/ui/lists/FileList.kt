@@ -3,6 +3,7 @@ package dev.qtremors.arcile.shared.ui.lists
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -57,9 +58,8 @@ import androidx.compose.foundation.basicMarquee
 import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
 import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -68,6 +68,7 @@ import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailPolicyInput
 import dev.qtremors.arcile.image.ThumbnailTargetSize
+import dev.qtremors.arcile.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.shared.ui.getFileIconVector
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
@@ -376,15 +377,23 @@ fun FileItemRow(
                         sizeBytes = file.size,
                         lastModifiedMillis = file.lastModified
                     )
-                    SubcomposeAsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(row.thumbnailRequestData(archiveThumbnailData))
-                            .size(row.thumbnailSizePx)
-                            .memoryCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey)
-                            .diskCacheKey(archiveThumbnailData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey)
-                            .diskCachePolicy(CachePolicy.ENABLED)
-                            .memoryCachePolicy(CachePolicy.ENABLED)
-                            .build(),
+                    val thumbnailCacheKey = archiveThumbnailData?.cacheKey
+                        ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey
+                    val thumbnailData = row.thumbnailRequestData(archiveThumbnailData)
+                    val thumbnailRequest = remember(
+                        thumbnailData,
+                        thumbnailCacheKey,
+                        row.thumbnailSizePx
+                    ) {
+                        buildThumbnailImageRequest(
+                            context = context,
+                            data = thumbnailData,
+                            cacheKey = thumbnailCacheKey,
+                            sizePx = row.thumbnailSizePx
+                        )
+                    }
+                    val thumbnailPainter = rememberAsyncImagePainter(
+                        model = thumbnailRequest,
                         onLoading = {
                             thumbnailPolicy.recordInFlight(row.thumbnailKey, row.thumbnailSizePx)
                         },
@@ -392,18 +401,21 @@ fun FileItemRow(
                             thumbnailPolicy.clearFailure(row.thumbnailKey)
                             thumbnailPolicy.recordLoaded(row.thumbnailKey, row.thumbnailSizePx)
                         },
-                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) },
+                        onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) }
+                    )
+                    if (thumbnailPainter.state is AsyncImagePainter.State.Empty ||
+                        thumbnailPainter.state is AsyncImagePainter.State.Loading ||
+                        thumbnailPainter.state is AsyncImagePainter.State.Error
+                    ) {
+                        ListFileIcon(file = file, iconSize = iconSize * 0.5f)
+                    }
+                    Image(
+                        painter = thumbnailPainter,
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape),
-                        contentScale = ContentScale.Crop,
-                        loading = {
-                            ListFileIcon(file = file, iconSize = iconSize * 0.5f)
-                        },
-                        error = {
-                            ListFileIcon(file = file, iconSize = iconSize * 0.5f)
-                        }
+                        contentScale = ContentScale.Crop
                     )
                 } else {
                     ListFileIcon(file = file, iconSize = iconSize * 0.5f)

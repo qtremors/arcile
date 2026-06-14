@@ -35,6 +35,9 @@
     <string name="action_shred">Shred</string>
     <string name="action_properties">Properties</string>
     <string name="action_navigate_to">Navigate to</string>
+    <string name="action_favorite">Favorite</string>
+    <string name="action_info">Info</string>
+    <string name="action_rotate">Rotate</string>
     <string name="action_keep_both">Keep Both</string>
     <string name="action_replace">Replace</string>
     <string name="action_merge">Merge</string>
@@ -43,6 +46,9 @@
     <string name="action_apply_to_all">Do this for all remaining conflicts</string>
     <string name="title_folder_conflict">Folder Conflict (%1$d/%2$d)</string>
     <string name="title_file_conflict">File Conflict (%1$d/%2$d)</string>
+    <string name="image_gallery_metadata_file_information">File Information</string>
+    <string name="image_gallery_metadata_camera_exif">Camera &amp; EXIF</string>
+    <string name="image_gallery_metadata_location">Location</string>
     
     <!-- Dialogs -->
     <string name="action_create">Create</string>

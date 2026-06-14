@@ -53,8 +53,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -63,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
@@ -710,288 +707,6 @@ internal fun DuplicateFileRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DuplicateCompareSheet(
-    files: List<CleanerCandidate>,
-    selectedFiles: Set<String>,
-    onSelectedFilesChange: (Set<String>) -> Unit,
-    onRequestClean: (Set<String>) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onOpenContainingFolder: (String) -> Unit,
-    onIgnoreFile: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.cleaner_compare_title),
-                style = MaterialTheme.typography.titleMediumBold
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            if (files.size < 2) {
-                Text(
-                    text = stringResource(R.string.cleaner_compare_empty),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                val comparePaths = files.take(2).map { it.absolutePath }.toSet()
-                val selectedComparePaths = selectedFiles.intersect(comparePaths)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    files.take(2).forEach { file ->
-                        DuplicateComparePane(
-                            file = file,
-                            selected = file.absolutePath in selectedFiles,
-                            onToggle = {
-                                onSelectedFilesChange(if (file.absolutePath in selectedFiles) {
-                                    selectedFiles - file.absolutePath
-                                } else {
-                                    selectedFiles + file.absolutePath
-                                })
-                            },
-                            onDelete = {
-                                onRequestClean(setOf(file.absolutePath))
-                            },
-                            onOpenFile = onOpenFile,
-                            onOpenContainingFolder = onOpenContainingFolder,
-                            onIgnoreFile = onIgnoreFile,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = {
-                        onRequestClean(selectedComparePaths)
-                    },
-                    enabled = selectedComparePaths.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                ) {
-                    Icon(Icons.Default.Delete, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.clean_selected_summary,
-                            selectedComparePaths.size,
-                            formatFileSize(files.filter { it.absolutePath in selectedComparePaths }.sumOf { it.size })
-                        )
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-        }
-    }
-}
-
-@Composable
-private fun DuplicateComparePane(
-    file: CleanerCandidate,
-    selected: Boolean,
-    onToggle: () -> Unit,
-    onDelete: () -> Unit,
-    onOpenFile: (String) -> Unit,
-    onOpenContainingFolder: (String) -> Unit,
-    onIgnoreFile: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm:ss a")
-    val dateString = remember(file.lastModified) {
-        runCatching { formatter.format(Date(file.lastModified)) }.getOrDefault("")
-    }
-    val deleteDescription = stringResource(R.string.cleaner_delete_this_file)
-    val appContext = rememberCleanerAppContext(file)
-
-    val reasonLabels = mutableListOf<String>()
-    for (reason in file.riskReasons.take(2)) {
-        if (reason != CleanerRiskReason.AppLikeFolder || appContext?.icon == null) {
-            reasonLabels += cleanerRiskReason(reason)
-        }
-    }
-    val reasons = reasonLabels.joinToString(", ")
-
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-        shape = MaterialTheme.shapes.large
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // 1. Header Row (Thumbnail, Name, Info, Badges)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CleanerFilePreview(
-                    file = file,
-                    size = 56.dp,
-                    badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .clickable {
-                            if (file.isDirectory) {
-                                onOpenContainingFolder(file.absolutePath)
-                            } else {
-                                onOpenFile(file.absolutePath)
-                            }
-                        }
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = file.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "${formatFileSize(file.size)}  •  $dateString",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.testTag("cleaner_duplicate_timestamp_${file.absolutePath}")
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (appContext?.icon != null) {
-                            Image(
-                                bitmap = appContext.icon.asImageBitmap(),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .clip(CircleShape)
-                            )
-                        }
-                        Surface(
-                            shape = CircleShape,
-                            color = cleanerRiskColor(file.riskLevel).copy(alpha = 0.16f)
-                        ) {
-                            Text(
-                                text = cleanerRiskLabel(file.riskLevel),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = cleanerRiskColor(file.riskLevel),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
-                        }
-                        if (reasons.isNotBlank()) {
-                            Text(
-                                text = reasons,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = cleanerRiskColor(file.riskLevel),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 2. Path Container (Clickable to open folder)
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .clickable { onOpenContainingFolder(file.absolutePath) },
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shape = MaterialTheme.shapes.medium
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.properties_location),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = cleanFilePath(file.absolutePath),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            // 3. Selection Footer (with Checkbox and Delete Button)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onToggle)
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = selected,
-                        onCheckedChange = null,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(
-                            if (selected) R.string.cleaner_move_file_to_trash else R.string.cleaner_keep_file
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .semantics { contentDescription = deleteDescription }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-                TextButton(
-                    onClick = { onIgnoreFile(file.absolutePath) },
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text(stringResource(R.string.cleaner_ignore))
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun CleanerFileActions(
     file: CleanerCandidate,
@@ -1067,7 +782,7 @@ private fun RiskSummary(
 }
 
 @Composable
-private fun rememberCleanerAppContext(file: CleanerCandidate): CleanerAppContext? {
+internal fun rememberCleanerAppContext(file: CleanerCandidate): CleanerAppContext? {
     val context = LocalContext.current
     val packageName = remember(file.absolutePath, file.riskReasons) {
         if (CleanerRiskReason.AppLikeFolder in file.riskReasons) {
@@ -1090,12 +805,12 @@ private fun rememberCleanerAppContext(file: CleanerCandidate): CleanerAppContext
     return appContext
 }
 
-private data class CleanerAppContext(
+internal data class CleanerAppContext(
     val label: String?,
     val icon: Bitmap?
 )
 
-private fun cleanFilePath(path: String): String {
+internal fun cleanFilePath(path: String): String {
     return path.replace("/storage/emulated/0/", "").replace("/storage/emulated/0", "")
 }
 

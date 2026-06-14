@@ -455,11 +455,14 @@ fun ImageViewerScreen(
                     ) {
                         // Left actions (Favorite, Info, Rotate) in SplitButtonGroup
                         val isFavorite = currentFile != null && currentFile.absolutePath in state.favoriteFiles
-                        val actions = remember(currentFile, isFavorite) {
+                        val favoriteDescription = stringResource(R.string.action_favorite)
+                        val infoDescription = stringResource(R.string.action_info)
+                        val rotateDescription = stringResource(R.string.action_rotate)
+                        val actions = remember(currentFile, isFavorite, favoriteDescription, infoDescription, rotateDescription) {
                             listOf(
                                 ToolbarAction(
                                     icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                    contentDescription = "Favorite",
+                                    contentDescription = favoriteDescription,
                                     tint = if (isFavorite) Color.Red else Color.White,
                                     onClick = {
                                         if (currentFile != null) {
@@ -470,7 +473,7 @@ fun ImageViewerScreen(
                                 ),
                                 ToolbarAction(
                                     icon = Icons.Default.Info,
-                                    contentDescription = "Info",
+                                    contentDescription = infoDescription,
                                     tint = Color.White,
                                     onClick = {
                                         showMetadataSheet = true
@@ -478,7 +481,7 @@ fun ImageViewerScreen(
                                 ),
                                 ToolbarAction(
                                     icon = Icons.AutoMirrored.Filled.RotateRight,
-                                    contentDescription = "Rotate",
+                                    contentDescription = rotateDescription,
                                     tint = Color.White,
                                     onClick = {
                                         if (currentFile != null) {

@@ -11,9 +11,12 @@ import androidx.room.RoomDatabase
         StorageNodeEntity::class,
         CategorySummaryEntity::class,
         ThumbnailEntryEntity::class,
-        ThumbnailVariantEntity::class
+        ThumbnailVariantEntity::class,
+        RecentFilesSnapshotEntity::class,
+        StorageUsageSnapshotEntity::class,
+        StorageCleanerSnapshotEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class ArcileDatabase : RoomDatabase() {
@@ -21,6 +24,9 @@ abstract class ArcileDatabase : RoomDatabase() {
     abstract fun storageNodeDao(): StorageNodeDao
     abstract fun categorySummaryDao(): CategorySummaryDao
     abstract fun thumbnailDao(): ThumbnailDao
+    abstract fun recentFilesSnapshotDao(): RecentFilesSnapshotDao
+    abstract fun storageUsageSnapshotDao(): StorageUsageSnapshotDao
+    abstract fun storageCleanerSnapshotDao(): StorageCleanerSnapshotDao
 
     companion object {
         private const val DATABASE_NAME = "arcile-cache.db"

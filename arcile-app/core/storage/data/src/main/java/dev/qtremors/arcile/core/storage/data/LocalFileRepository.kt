@@ -35,6 +35,8 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.supportsTrash
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
+import dev.qtremors.arcile.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -42,6 +44,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -78,6 +81,8 @@ class LocalFileRepository(
             onProgress: ((BulkFileOperationProgress) -> Unit)?
         ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
     },
+    private val recentFilesSnapshotStore: RecentFilesSnapshotStore? = null,
+    @param:ApplicationScope private val applicationScope: CoroutineScope? = null,
     private val dispatchers: ArcileDispatchers = ArcileDispatchers(
         io = Dispatchers.IO,
         default = Dispatchers.Default,
@@ -333,8 +338,24 @@ class LocalFileRepository(
         limit: Int,
         offset: Int,
         minTimestamp: Long
-    ): Result<List<FileModel>> =
-        mediaStoreClient.getRecentFiles(scope, limit, offset, minTimestamp)
+    ): Result<List<FileModel>> {
+        val snapshotStore = recentFilesSnapshotStore
+        if (offset == 0 && snapshotStore != null) {
+            snapshotStore.get(scope, limit, minTimestamp)?.let { cached ->
+                applicationScope?.launch(dispatchers.io) {
+                    mediaStoreClient.getRecentFiles(scope, limit, offset, minTimestamp)
+                        .onSuccess { fresh -> snapshotStore.put(scope, limit, minTimestamp, fresh) }
+                }
+                return Result.success(cached)
+            }
+        }
+        return mediaStoreClient.getRecentFiles(scope, limit, offset, minTimestamp)
+            .onSuccess { files ->
+                if (offset == 0) {
+                    snapshotStore?.put(scope, limit, minTimestamp, files)
+                }
+            }
+    }
 
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> = withContext(dispatchers.io) {
         getStorageVolumes().map { allVolumes ->
@@ -355,6 +376,7 @@ class LocalFileRepository(
 
     override suspend fun invalidateAnalyticsCache() {
         mediaStoreClient.invalidateCache()
+        recentFilesSnapshotStore?.clear()
     }
 
     override suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>> =

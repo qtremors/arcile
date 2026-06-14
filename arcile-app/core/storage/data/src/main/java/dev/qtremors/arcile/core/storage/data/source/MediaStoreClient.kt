@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.storage.data.source
 import dev.qtremors.arcile.core.storage.domain.FileOperationException
 
 import android.content.Context
+import android.net.Uri
 import android.provider.MediaStore
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.db.CategorySummaryDao
@@ -32,7 +33,20 @@ interface MediaStoreClient {
     suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>>
     suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?): Result<List<FileModel>>
     suspend fun invalidateCache(vararg paths: String)
+    suspend fun resolveInvalidationUri(uri: Uri): MediaStoreInvalidationTarget? = null
 }
+
+data class MediaStoreInvalidationTarget(
+    val path: String?,
+    val parentPath: String?,
+    val mediaStoreId: Long?,
+    val contentUri: String?,
+    val volumeId: String?,
+    val volumeName: String?,
+    val mimeType: String?,
+    val extension: String,
+    val exists: Boolean
+)
 
 class DefaultMediaStoreClient(
     private val context: Context,
@@ -141,6 +155,40 @@ class DefaultMediaStoreClient(
             AppLogger.e("MediaStoreClient", "Cache invalidation error", e)
             throw e
         }
+    }
+
+    override suspend fun resolveInvalidationUri(uri: Uri): MediaStoreInvalidationTarget? = withContext(dispatchers.io) {
+        val allVolumes = volumeProvider.currentVolumes()
+        val cursor = context.contentResolver.query(uri, mediaProjection(), null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val row = it.readMediaStoreFileRow()
+                val file = row.toFileModel(allVolumes)
+                return@withContext MediaStoreInvalidationTarget(
+                    path = file.absolutePath,
+                    parentPath = File(file.absolutePath).parent,
+                    mediaStoreId = row.id.takeIf { id -> id > 0L },
+                    contentUri = row.contentUri,
+                    volumeId = file.nodeRef.volumeId?.value,
+                    volumeName = row.volumeName,
+                    mimeType = row.mimeType,
+                    extension = row.extension,
+                    exists = true
+                )
+            }
+        }
+        val id = runCatching { android.content.ContentUris.parseId(uri) }.getOrNull()?.takeIf { it > 0L }
+        MediaStoreInvalidationTarget(
+            path = null,
+            parentPath = null,
+            mediaStoreId = id,
+            contentUri = uri.toString(),
+            volumeId = null,
+            volumeName = uri.pathSegments.firstOrNull(),
+            mimeType = null,
+            extension = "",
+            exists = false
+        )
     }
 
     override suspend fun getRecentFiles(

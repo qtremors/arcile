@@ -34,6 +34,18 @@ class ThumbnailPolicyTest {
     }
 
     @Test
+    fun `default buffer keeps nearby reverse scroll thumbnails eligible`() {
+        val defaultPolicy = ThumbnailPolicy(
+            failureCache = ThumbnailFailureCache(),
+            loadStateStore = ThumbnailLoadStateStore()
+        )
+
+        assertTrue(defaultPolicy.shouldLoad(input(itemIndex = 0, visibleRange = 24..30)))
+        assertTrue(defaultPolicy.shouldLoad(input(itemIndex = 54, visibleRange = 24..30)))
+        assertFalse(defaultPolicy.shouldLoad(input(itemIndex = 55, visibleRange = 24..30)))
+    }
+
+    @Test
     fun `blocks items outside visible budget`() {
         assertFalse(policy.shouldLoad(input(itemIndex = 3, visibleRange = 10..15)))
         assertFalse(policy.shouldLoad(input(itemIndex = 20, visibleRange = 10..15)))

@@ -163,7 +163,7 @@ fun MetadataSheet(
                     .padding(horizontal = 24.dp)
             ) {
                 item {
-                    MetadataSectionHeader(title = "File Information")
+                    MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_file_information))
                     MetadataRow(label = "Path", value = file.absolutePath)
                     MetadataRow(label = "Size", value = formatFileSize(file.size))
                     if (metadata != null && metadata.width > 0) {
@@ -191,7 +191,7 @@ fun MetadataSheet(
                 )) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
-                        MetadataSectionHeader(title = "Camera & EXIF")
+                        MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_camera_exif))
                         if (metadata.cameraMaker != null || metadata.cameraModel != null) {
                             MetadataRow(
                                 label = "Device",
@@ -225,7 +225,7 @@ fun MetadataSheet(
                 if (metadata?.latitude != null && metadata.longitude != null) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
-                        MetadataSectionHeader(title = "Location")
+                        MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_location))
                         MetadataRow(label = "Coordinates", value = "${metadata.latitude}, ${metadata.longitude}")
                         if (metadata.altitude != null) {
                             MetadataRow(label = "Altitude", value = "${metadata.altitude} m")

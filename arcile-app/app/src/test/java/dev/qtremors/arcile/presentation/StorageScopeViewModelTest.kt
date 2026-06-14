@@ -59,7 +59,7 @@ class StorageScopeViewModelTest {
     @Test
     fun `home view model loads indexed volume category scopes when multiple volumes are present`() = runTest(dispatcher) {
         val internal = volume(id = "primary", name = "Internal", path = "/storage/emulated/0")
-        val sd = volume(id = "sd", name = "SD Card", path = "/storage/1234-5678", removable = true)
+        val sd = volume(id = "sd", name = "SD Card", path = "/storage/1234-5678", removable = true, kind = StorageKind.SD_CARD)
         val repository = FakeStorageRepositoryBundle(
             volumes = listOf(internal, sd),
             initialCategorySizesByScope = mapOf(
@@ -76,18 +76,21 @@ class StorageScopeViewModelTest {
         assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("primary")))
-        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
-        assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)
+        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("sd")))
+        assertEquals(2, viewModel.state.value.categoryStoragesByVolume.size)
         assertEquals(
             listOf(CategoryStorage("Images", 7L, setOf("jpg"))),
             viewModel.state.value.categoryStoragesByVolume["primary"]
+        )
+        assertEquals(
+            listOf(CategoryStorage("Images", 3L, setOf("jpg"))),
+            viewModel.state.value.categoryStoragesByVolume["sd"]
         )
 
         viewModel.loadDashboardCategoryBreakdown()
         advanceUntilIdle()
 
-        assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
-        assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)
+        assertEquals(2, viewModel.state.value.categoryStoragesByVolume.size)
     }
 
     @Test
@@ -108,12 +111,15 @@ class StorageScopeViewModelTest {
         assertTrue(repository.requestedStorageInfoScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
         assertTrue(repository.requestedCategoryScopes.none { it is StorageScope.Volume })
-        assertTrue(viewModel.state.value.categoryStoragesByVolume.isEmpty())
+        assertEquals(
+            listOf(CategoryStorage("Images", 10L, setOf("jpg"))),
+            viewModel.state.value.categoryStoragesByVolume["primary"]
+        )
 
         viewModel.loadDashboardCategoryBreakdown()
         advanceUntilIdle()
 
-        assertTrue(repository.requestedCategoryScopes.contains(StorageScope.Volume("primary")))
+        assertTrue(repository.requestedCategoryScopes.none { it is StorageScope.Volume })
         assertTrue(repository.requestedCategoryScopes.none { it == StorageScope.Volume("sd") })
         assertEquals(1, viewModel.state.value.categoryStoragesByVolume.size)
     }
