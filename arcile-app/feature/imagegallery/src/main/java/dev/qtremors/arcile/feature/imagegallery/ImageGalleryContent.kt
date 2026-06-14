@@ -489,8 +489,7 @@ fun ImageGalleryContent(
                                     if (filesInSection.isNotEmpty()) {
                                         item {
                                             GallerySectionHeader(
-                                                title = section.label,
-                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                                title = section.label
                                             )
                                         }
                                         items(filesInSection, key = { it.absolutePath }) { file ->

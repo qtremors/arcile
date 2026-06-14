@@ -306,46 +306,10 @@ fun FloatingGalleryTopBar(
                             modifier = Modifier.width(260.dp)
                         ) {
                             val menuActions = remember(
-                                state.presentation.viewMode,
-                                state.showFileDetails,
                                 state.imageGalleryDefaultTab,
                                 state.displayedFiles.isNotEmpty()
                             ) {
                                 mutableListOf<@Composable () -> Unit>().apply {
-                                    if (state.presentation.viewMode == BrowserViewMode.GRID) {
-                                        add {
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Column {
-                                                        Text(
-                                                            text = stringResource(R.string.image_gallery_show_file_details),
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                        Text(
-                                                            text = stringResource(R.string.image_gallery_show_file_details_description),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                            maxLines = 2,
-                                                            overflow = TextOverflow.Ellipsis
-                                                        )
-                                                    }
-                                                },
-                                                trailingIcon = {
-                                                    Switch(
-                                                        checked = state.showFileDetails,
-                                                        onCheckedChange = null
-                                                    )
-                                                },
-                                                onClick = {
-                                                    onShowFileDetailsChange(!state.showFileDetails)
-                                                    showOverflowMenu = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                            )
-                                        }
-                                    }
                                     ImageGalleryDefaultTab.entries.forEach { tab ->
                                         add {
                                             DropdownMenuItem(

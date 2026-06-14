@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,13 +38,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -51,13 +56,25 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.clip
+import dev.qtremors.arcile.shared.ui.loadApplicationIconBitmap
+import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.shared.ui.rememberDateFormatter
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
@@ -65,6 +82,9 @@ import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.utils.formatFileSize
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CleanerDetailsSheet(
@@ -75,9 +95,14 @@ internal fun CleanerDetailsSheet(
     onDismiss: () -> Unit,
     onRequestClean: (Set<String>) -> Unit,
     onOpenFile: (String) -> Unit = {},
-    onOpenContainingFolder: (String) -> Unit = {}
+    onOpenContainingFolder: (String) -> Unit = {},
+    rules: StorageCleanerRules = StorageCleanerRules(),
+    onUpdateSectionRule: (CleanerGroupType, CleanerSectionRule) -> Unit = { _, _ -> },
+    onResetSectionRule: (CleanerGroupType) -> Unit = {},
+    onIgnorePath: (String) -> Unit = {}
 ) {
     var showRiskInfo by remember { mutableStateOf(false) }
+    var showSectionSettings by remember { mutableStateOf(false) }
     var compareFiles by remember(group) { mutableStateOf<List<CleanerCandidate>?>(null) }
 
     ModalBottomSheet(
@@ -102,6 +127,12 @@ internal fun CleanerDetailsSheet(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showSectionSettings = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.cleaner_section_settings)
+                        )
+                    }
                     IconButton(onClick = { showRiskInfo = true }) {
                         Icon(
                             imageVector = Icons.Default.Info,
@@ -155,7 +186,9 @@ internal fun CleanerDetailsSheet(
                 }
             } else if (group.type == CleanerGroupType.Duplicates) {
                 val duplicateGroups = remember(group.candidates) {
-                    group.candidates.groupBy { it.name.lowercase(Locale.ROOT) to it.size }.values.toList()
+                    group.candidates.groupBy { it.duplicateGroupKey ?: it.absolutePath }.values
+                        .filter { it.size > 1 }
+                        .toList()
                 }
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -171,7 +204,8 @@ internal fun CleanerDetailsSheet(
                             onCompare = {
                                 val selectedInGroup = filesInGroup.filter { it.absolutePath in selectedFiles }
                                 compareFiles = if (selectedInGroup.size == 2) selectedInGroup else filesInGroup.take(2)
-                            }
+                            },
+                            onIgnoreFile = onIgnorePath
                         )
                     }
                 }
@@ -192,7 +226,8 @@ internal fun CleanerDetailsSheet(
                                 })
                             },
                             onOpenFile = onOpenFile,
-                            onOpenContainingFolder = onOpenContainingFolder
+                            onOpenContainingFolder = onOpenContainingFolder,
+                            onIgnoreFile = onIgnorePath
                         )
                     }
                 }
@@ -233,6 +268,22 @@ internal fun CleanerDetailsSheet(
         )
     }
 
+    if (showSectionSettings) {
+        CleanerSectionSettingsDialog(
+            type = group.type,
+            rule = rules.section(group.type),
+            onSave = { rule ->
+                onUpdateSectionRule(group.type, rule)
+                showSectionSettings = false
+            },
+            onReset = {
+                onResetSectionRule(group.type)
+                showSectionSettings = false
+            },
+            onDismiss = { showSectionSettings = false }
+        )
+    }
+
     compareFiles?.let { files ->
         DuplicateCompareSheet(
             files = files,
@@ -244,8 +295,175 @@ internal fun CleanerDetailsSheet(
             },
             onOpenFile = onOpenFile,
             onOpenContainingFolder = onOpenContainingFolder,
+            onIgnoreFile = onIgnorePath,
             onDismiss = { compareFiles = null }
         )
+    }
+}
+
+@Composable
+private fun CleanerSectionSettingsDialog(
+    type: CleanerGroupType,
+    rule: CleanerSectionRule,
+    onSave: (CleanerSectionRule) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var enabled by remember(type, rule) { mutableStateOf(rule.enabled) }
+    var namePatterns by remember(type, rule) { mutableStateOf(rule.ignoredNamePatterns) }
+    var pathPatterns by remember(type, rule) { mutableStateOf(rule.ignoredPathPatterns) }
+    var namePatternInput by remember(type, rule) { mutableStateOf("") }
+    var pathPatternInput by remember(type, rule) { mutableStateOf("") }
+    var largeThresholdMb by remember(type, rule) {
+        mutableStateOf(rule.largeFileThresholdBytes?.let { (it / (1024L * 1024L)).toString() }.orEmpty())
+    }
+    var oldDownloadAgeDays by remember(type, rule) {
+        mutableStateOf(rule.oldDownloadAgeMs?.let { (it / DAY_MS).toString() }.orEmpty())
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.cleaner_section_settings)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .height(420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(stringResource(R.string.cleaner_section_enabled))
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+                if (type == CleanerGroupType.LargeFiles) {
+                    OutlinedTextField(
+                        value = largeThresholdMb,
+                        onValueChange = { largeThresholdMb = it.filter(Char::isDigit) },
+                        label = { Text(stringResource(R.string.cleaner_large_threshold_mb)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (type == CleanerGroupType.OldDownloads) {
+                    OutlinedTextField(
+                        value = oldDownloadAgeDays,
+                        onValueChange = { oldDownloadAgeDays = it.filter(Char::isDigit) },
+                        label = { Text(stringResource(R.string.cleaner_old_download_age_days)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                PatternEditor(
+                    title = stringResource(R.string.cleaner_ignore_name_patterns),
+                    patterns = namePatterns,
+                    input = namePatternInput,
+                    onInputChange = { namePatternInput = it },
+                    onAdd = {
+                        val trimmed = namePatternInput.trim()
+                        if (trimmed.isNotBlank()) {
+                            namePatterns = namePatterns + trimmed
+                            namePatternInput = ""
+                        }
+                    },
+                    onRemove = { namePatterns = namePatterns - it }
+                )
+                PatternEditor(
+                    title = stringResource(R.string.cleaner_ignore_path_patterns),
+                    patterns = pathPatterns,
+                    input = pathPatternInput,
+                    onInputChange = { pathPatternInput = it },
+                    onAdd = {
+                        val trimmed = pathPatternInput.trim()
+                        if (trimmed.isNotBlank()) {
+                            pathPatterns = pathPatterns + trimmed
+                            pathPatternInput = ""
+                        }
+                    },
+                    onRemove = { pathPatterns = pathPatterns - it }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onSave(
+                        CleanerSectionRule(
+                            enabled = enabled,
+                            ignoredNamePatterns = namePatterns,
+                            ignoredPathPatterns = pathPatterns,
+                            largeFileThresholdBytes = largeThresholdMb.toLongOrNull()?.times(1024L * 1024L),
+                            oldDownloadAgeMs = oldDownloadAgeDays.toLongOrNull()?.times(DAY_MS)
+                        )
+                    )
+                }
+            ) {
+                Text(stringResource(R.string.apply))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onReset) {
+                    Text(stringResource(R.string.reset))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun PatternEditor(
+    title: String,
+    patterns: Set<String>,
+    input: String,
+    onInputChange: (String) -> Unit,
+    onAdd: () -> Unit,
+    onRemove: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = input,
+                onValueChange = onInputChange,
+                label = { Text(stringResource(R.string.cleaner_patterns_hint)) },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = onAdd) {
+                Text(stringResource(R.string.add))
+            }
+        }
+        patterns.sorted().forEach { pattern ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = pattern,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                TextButton(onClick = { onRemove(pattern) }) {
+                    Text(stringResource(R.string.remove))
+                }
+            }
+        }
     }
 }
 
@@ -255,48 +473,81 @@ internal fun CleanerCandidateRow(
     selected: Boolean,
     onToggle: () -> Unit,
     onOpenFile: (String) -> Unit = {},
-    onOpenContainingFolder: (String) -> Unit = {}
+    onOpenContainingFolder: (String) -> Unit = {},
+    onIgnoreFile: (String) -> Unit = {}
 ) {
-    Row(
+    val appContext = rememberCleanerAppContext(file)
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 8.dp)
     ) {
-        Checkbox(checked = selected, onCheckedChange = { onToggle() })
-        Spacer(modifier = Modifier.width(8.dp))
-        CleanerFilePreview(file = file)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.bodyLargeMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onToggle() },
+                modifier = Modifier.testTag("checkbox_${file.absolutePath}")
             )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = file.absolutePath,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            RiskSummary(file)
-            CleanerFileActions(
+            Spacer(modifier = Modifier.width(4.dp))
+            CleanerFilePreview(
                 file = file,
-                onOpenFile = onOpenFile,
-                onOpenContainingFolder = onOpenContainingFolder
+                badgeBgColor = MaterialTheme.colorScheme.surface,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable {
+                        if (file.isDirectory) {
+                            onOpenContainingFolder(file.absolutePath)
+                        } else {
+                            onOpenFile(file.absolutePath)
+                        }
+                    }
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.bodyLargeMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = cleanFilePath(file.absolutePath),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable { onOpenContainingFolder(file.absolutePath) }
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = formatFileSize(file.size),
+                style = MaterialTheme.typography.bodyMediumBold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = formatFileSize(file.size),
-            style = MaterialTheme.typography.bodyMediumBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        Row(
+            modifier = Modifier.padding(start = 104.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RiskSummary(file = file, appContext = appContext)
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
+                Text(stringResource(R.string.cleaner_ignore))
+            }
+        }
     }
 }
 
@@ -307,7 +558,8 @@ internal fun DuplicateGroupCard(
     onSelectedFilesChange: (Set<String>) -> Unit,
     onOpenFile: (String) -> Unit = {},
     onOpenContainingFolder: (String) -> Unit = {},
-    onCompare: () -> Unit
+    onCompare: () -> Unit,
+    onIgnoreFile: (String) -> Unit = {}
 ) {
     val firstFile = filesInGroup.first()
     Card(
@@ -340,22 +592,15 @@ internal fun DuplicateGroupCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.cleaner_duplicate_count, filesInGroup.size),
+                        text = stringResource(R.string.cleaner_duplicate_count, filesInGroup.size) + " • " + formatFileSize(firstFile.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = formatFileSize(firstFile.size),
-                        style = MaterialTheme.typography.bodyMediumBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    TextButton(onClick = onCompare) {
-                        Text(stringResource(R.string.cleaner_compare))
-                    }
+                TextButton(onClick = onCompare) {
+                    Text(stringResource(R.string.cleaner_compare))
                 }
             }
 
@@ -377,7 +622,8 @@ internal fun DuplicateGroupCard(
                         )
                     },
                     onOpenFile = onOpenFile,
-                    onOpenContainingFolder = onOpenContainingFolder
+                    onOpenContainingFolder = onOpenContainingFolder,
+                    onIgnoreFile = onIgnoreFile
                 )
             }
         }
@@ -390,9 +636,10 @@ internal fun DuplicateFileRow(
     selected: Boolean,
     onToggle: () -> Unit,
     onOpenFile: (String) -> Unit = {},
-    onOpenContainingFolder: (String) -> Unit = {}
+    onOpenContainingFolder: (String) -> Unit = {},
+    onIgnoreFile: (String) -> Unit = {}
 ) {
-    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
+    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm:ss a")
     val dateString = remember(file.lastModified) {
         try {
             formatter.format(Date(file.lastModified))
@@ -400,40 +647,65 @@ internal fun DuplicateFileRow(
             ""
         }
     }
+    val appContext = rememberCleanerAppContext(file)
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 8.dp)
     ) {
-        Checkbox(checked = selected, onCheckedChange = { onToggle() })
-        Spacer(modifier = Modifier.width(8.dp))
-        CleanerFilePreview(file = file)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = file.absolutePath,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onToggle() }
             )
-            if (dateString.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = dateString,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-            }
-            RiskSummary(file)
-            CleanerFileActions(
+            Spacer(modifier = Modifier.width(4.dp))
+            CleanerFilePreview(
                 file = file,
-                onOpenFile = onOpenFile,
-                onOpenContainingFolder = onOpenContainingFolder
+                badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { onOpenFile(file.absolutePath) }
             )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = cleanFilePath(file.absolutePath),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .clip(MaterialTheme.shapes.small)
+                        .clickable { onOpenContainingFolder(file.absolutePath) }
+                )
+                if (dateString.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = dateString,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.testTag("cleaner_duplicate_timestamp_${file.absolutePath}")
+                    )
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(4.dp))
+        
+        Row(
+            modifier = Modifier.padding(start = 104.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RiskSummary(file = file, appContext = appContext)
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
+                Text(stringResource(R.string.cleaner_ignore))
+            }
         }
     }
 }
@@ -447,6 +719,7 @@ private fun DuplicateCompareSheet(
     onRequestClean: (Set<String>) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenContainingFolder: (String) -> Unit,
+    onIgnoreFile: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     ModalBottomSheet(
@@ -456,14 +729,13 @@ private fun DuplicateCompareSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             Text(
                 text = stringResource(R.string.cleaner_compare_title),
                 style = MaterialTheme.typography.titleMediumBold
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             if (files.size < 2) {
                 Text(
                     text = stringResource(R.string.cleaner_compare_empty),
@@ -474,7 +746,10 @@ private fun DuplicateCompareSheet(
                 val comparePaths = files.take(2).map { it.absolutePath }.toSet()
                 val selectedComparePaths = selectedFiles.intersect(comparePaths)
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     files.take(2).forEach { file ->
@@ -493,18 +768,21 @@ private fun DuplicateCompareSheet(
                             },
                             onOpenFile = onOpenFile,
                             onOpenContainingFolder = onOpenContainingFolder,
+                            onIgnoreFile = onIgnoreFile,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
                         onRequestClean(selectedComparePaths)
                     },
                     enabled = selectedComparePaths.isNotEmpty(),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -530,31 +808,172 @@ private fun DuplicateComparePane(
     onDelete: () -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenContainingFolder: (String) -> Unit,
+    onIgnoreFile: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm a")
+    val formatter = rememberDateFormatter("MMM dd, yyyy  h:mm:ss a")
     val dateString = remember(file.lastModified) {
         runCatching { formatter.format(Date(file.lastModified)) }.getOrDefault("")
     }
     val deleteDescription = stringResource(R.string.cleaner_delete_this_file)
+    val appContext = rememberCleanerAppContext(file)
+
+    val reasonLabels = mutableListOf<String>()
+    for (reason in file.riskReasons.take(2)) {
+        if (reason != CleanerRiskReason.AppLikeFolder || appContext?.icon == null) {
+            reasonLabels += cleanerRiskReason(reason)
+        }
+    }
+    val reasons = reasonLabels.joinToString(", ")
+
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         shape = MaterialTheme.shapes.large
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // 1. Header Row (Thumbnail, Name, Info, Badges)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CleanerFilePreview(
+                    file = file,
+                    size = 56.dp,
+                    badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable {
+                            if (file.isDirectory) {
+                                onOpenContainingFolder(file.absolutePath)
+                            } else {
+                                onOpenFile(file.absolutePath)
+                            }
+                        }
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = file.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${formatFileSize(file.size)}  •  $dateString",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.testTag("cleaner_duplicate_timestamp_${file.absolutePath}")
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (appContext?.icon != null) {
+                            Image(
+                                bitmap = appContext.icon.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                            )
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = cleanerRiskColor(file.riskLevel).copy(alpha = 0.16f)
+                        ) {
+                            Text(
+                                text = cleanerRiskLabel(file.riskLevel),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = cleanerRiskColor(file.riskLevel),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        if (reasons.isNotBlank()) {
+                            Text(
+                                text = reasons,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = cleanerRiskColor(file.riskLevel),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 2. Path Container (Clickable to open folder)
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp)
+                    .clip(MaterialTheme.shapes.medium)
+                    .clickable { onOpenContainingFolder(file.absolutePath) },
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shape = MaterialTheme.shapes.medium
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.properties_location),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = cleanFilePath(file.absolutePath),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // 3. Selection Footer (with Checkbox and Delete Button)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onToggle)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Checkbox(
+                        checked = selected,
+                        onCheckedChange = null,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(
+                            if (selected) R.string.cleaner_move_file_to_trash else R.string.cleaner_keep_file
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.semantics { contentDescription = deleteDescription }
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .semantics { contentDescription = deleteDescription }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -562,55 +981,12 @@ private fun DuplicateComparePane(
                         tint = MaterialTheme.colorScheme.error
                     )
                 }
-            }
-            CleanerFilePreview(file = file, size = 96.dp)
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.bodyLargeMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = formatFileSize(file.size),
-                style = MaterialTheme.typography.bodyMediumBold
-            )
-            if (dateString.isNotEmpty()) {
-                Text(
-                    text = dateString,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = file.absolutePath,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
-            )
-            RiskSummary(file)
-            CleanerFileActions(
-                file = file,
-                onOpenFile = onOpenFile,
-                onOpenContainingFolder = onOpenContainingFolder
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onToggle),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = selected, onCheckedChange = { onToggle() })
-                Text(
-                    text = stringResource(
-                        if (selected) R.string.cleaner_move_file_to_trash else R.string.cleaner_keep_file
-                    ),
-                    style = MaterialTheme.typography.bodySmall
-                )
+                TextButton(
+                    onClick = { onIgnoreFile(file.absolutePath) },
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text(stringResource(R.string.cleaner_ignore))
+                }
             }
         }
     }
@@ -640,18 +1016,31 @@ private fun CleanerFileActions(
 }
 
 @Composable
-private fun RiskSummary(file: CleanerCandidate) {
+private fun RiskSummary(
+    file: CleanerCandidate,
+    appContext: CleanerAppContext? = null
+) {
     val reasonLabels = mutableListOf<String>()
     for (reason in file.riskReasons.take(2)) {
-        reasonLabels += cleanerRiskReason(reason)
+        if (reason != CleanerRiskReason.AppLikeFolder || appContext?.icon == null) {
+            reasonLabels += cleanerRiskReason(reason)
+        }
     }
     val reasons = reasonLabels.joinToString(", ")
 
-    Spacer(modifier = Modifier.height(4.dp))
     Row(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (appContext?.icon != null) {
+            Image(
+                bitmap = appContext.icon.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+            )
+        }
         Surface(
             shape = CircleShape,
             color = cleanerRiskColor(file.riskLevel).copy(alpha = 0.16f)
@@ -676,3 +1065,38 @@ private fun RiskSummary(file: CleanerCandidate) {
         }
     }
 }
+
+@Composable
+private fun rememberCleanerAppContext(file: CleanerCandidate): CleanerAppContext? {
+    val context = LocalContext.current
+    val packageName = remember(file.absolutePath, file.riskReasons) {
+        if (CleanerRiskReason.AppLikeFolder in file.riskReasons) {
+            packageNameFromPath(file.absolutePath)
+        } else {
+            null
+        }
+    }
+    val appContext by produceState<CleanerAppContext?>(initialValue = null, context, packageName) {
+        value = packageName?.let { pkg ->
+            withContext(Dispatchers.IO) {
+                val label = runCatching {
+                    val pm = context.packageManager
+                    pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                }.getOrNull()
+                CleanerAppContext(label = label, icon = context.loadApplicationIconBitmap(pkg))
+            }
+        }
+    }
+    return appContext
+}
+
+private data class CleanerAppContext(
+    val label: String?,
+    val icon: Bitmap?
+)
+
+private fun cleanFilePath(path: String): String {
+    return path.replace("/storage/emulated/0/", "").replace("/storage/emulated/0", "")
+}
+
+private const val DAY_MS = 24L * 60L * 60L * 1000L

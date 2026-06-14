@@ -1,10 +1,29 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.0.9
+> **Version:** 1.1.0
 > **Last Updated:** 2026-06-14
 
 ---
+
+## [1.1.0] - 2026-06-14
+
+- **Gallery Timeline Dates**: Formatted dates as wrapped, content-fitting chips in daily/weekly/monthly grouping views, styled like the recents screen.
+- **Gallery Overflow Menu**: Removed the redundant "Show file details" toggle from the 3-dot overflow menu (already accessible via the view options sheet).
+- **Image Viewer EXIF Sheet**: Refactored the metadata sheet to be a full-screen layout and wrapped each pager item in a VerticalPager for smooth scroll-snapping, allowing users to swipe up to slide the EXIF sheet up (pushing the image above) and swipe down/tap close to slide it back down.
+- **Image Viewer Bottom Actions**: Realigned bottom actions to place the action buttons (Favorite, Info, Rotate) on the left in a SplitButtonGroup and the 3-dot overflow button on the far right, matching the select actions layout.
+- **Bouncy Card Press Actions**: Converted all cleaner category cards to use `bounceClickable` for bouncy, tactile Spring interactions and haptic feedback.
+- **Animated Manual Refresh**: Added infinite, fluid rotation to the manual refresh icon during active storage scans.
+- **Persistent Page Memory**: Preserved back stack structures when opening containing folders or archives from sub-pages (Recent Files, Quick Access, Archive Viewer), allowing system back gestures to return users cleanly to their caller pages.
+- **Cleaner UI/UX and Alignment**: Aligned the checkbox, thumbnail, and path/metadata. Removed the redundant icon buttons on the right side; instead, clicking the file preview thumbnail opens the file, and clicking the path text opens the containing folder. Positioned the risk badges and dynamically resolved app icons below in an indented row to optimize space.
+- **Vertical Duplicate Comparison**: Redesigned the "Compare duplicates" sheet to stack files vertically inside a scrollable column with the "Delete selected" action button sticky at the bottom. Organized each file inside a premium card layout featuring a header row (with 56.dp thumbnail, bold filename, size/date, dynamic app label/icon, and risk badge), a structured location box (clickable to open the containing folder), and a selection footer. Moved the per-file delete trash icon button from the header to the selection footer next to the keep checkbox. Removed the redundant `/storage/emulated/0` prefix from displayed paths to improve readability.
+- **Smart App Badge Layout**: Offset application badges slightly outwards on file previews and styled them with matching card/container background borders to avoid nested/overlapping visual clutter. Resolved app risk package names into recognizable app icon context without repeating app-specific labels.
+- **Cleaner Header Alignment**: Simplified the `DuplicateGroupCard` header to place the name and a single subtitle containing the duplicate count and size (e.g. `2 files • 116.7 KB`) on the left, centering the Compare text button on the right to fix vertical and horizontal alignment.
+- **Cleaner Exact File Opening**: Kept Storage Cleaner file preview taps routed through the exact platform file opener, while folder candidates open their containing Browser location.
+- **Cleaner Scroll Performance**: Moved thumbnail cache size reads and app icon/label resolution off the UI thread to reduce duplicate-file list scroll jank.
+- **Cleaner Exact Duplicate Detection**: Replaced duplicate-name matching with size narrowing, sampled-byte checks, and SHA-256 verification so duplicate groups represent identical file contents even when names differ.
+- **Cleaner Custom Rules and Ignores**: Added persisted Storage Cleaner rules with per-section enablement, name/path ignore patterns, large-file and old-download thresholds, exact-path ignore actions, and ignored-item restore management.
+- **Cleaner Metadata Precision**: Updated duplicate timestamp metadata to include seconds and removed redundant app-name risk wording when the app icon already provides context.
 
 ## [1.0.9] - 2026-06-14
 

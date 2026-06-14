@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,13 +40,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+
 @OptIn(ExperimentalCoilApi::class)
 @Composable
 internal fun CleanerThumbnailCacheCard() {
     val context = LocalContext.current
     val haptics = rememberArcileHaptics()
     val coroutineScope = rememberCoroutineScope()
-    var stats by remember { mutableStateOf(loadCleanerThumbnailCacheStats(context)) }
+    var stats by remember { mutableStateOf(CleanerThumbnailCacheStats()) }
+
+    LaunchedEffect(context) {
+        stats = withContext(Dispatchers.IO) {
+            loadCleanerThumbnailCacheStats(context)
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -60,11 +73,20 @@ internal fun CleanerThumbnailCacheCard() {
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Image,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Image,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -108,10 +130,10 @@ internal fun CleanerThumbnailCacheCard() {
 }
 
 private data class CleanerThumbnailCacheStats(
-    val diskBytes: Long,
-    val loadedCount: Int,
-    val failedCount: Int,
-    val inFlightCount: Int
+    val diskBytes: Long = 0L,
+    val loadedCount: Int = 0,
+    val failedCount: Int = 0,
+    val inFlightCount: Int = 0
 )
 
 private fun loadCleanerThumbnailCacheStats(context: android.content.Context): CleanerThumbnailCacheStats {

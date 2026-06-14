@@ -40,6 +40,10 @@ fun NavGraphBuilder.storageCleanerScreen(
             onClearMessages = { viewModel.clearMessages() },
             onOpenFile = onOpenFile,
             onOpenContainingFolder = onOpenContainingFolder,
+            onUpdateSectionRule = { type, rule -> viewModel.updateSectionRule(type, rule) },
+            onResetSectionRule = { type -> viewModel.resetSectionRule(type) },
+            onIgnorePath = { path -> viewModel.ignorePath(path) },
+            onUnignorePath = { path -> viewModel.unignorePath(path) },
             onFeedback = onFeedback
         )
     }

@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -124,12 +125,14 @@ fun ImageViewerScreen(
     val haptics = rememberArcileHaptics()
     val coroutineScope = rememberCoroutineScope()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
+    var showMetadataSheet by remember { mutableStateOf(false) }
 
-    BackHandler {
+    val isMetadataOpen = showMetadataSheet
+    BackHandler(enabled = isDeleteDialogVisible || isMetadataOpen) {
         if (isDeleteDialogVisible) {
             viewModel.dismissDeleteConfirmation()
-        } else {
-            onNavigateBack()
+        } else if (isMetadataOpen) {
+            showMetadataSheet = false
         }
     }
 
@@ -184,9 +187,9 @@ fun ImageViewerScreen(
             var currentScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
             LaunchedEffect(pagerState.currentPage) {
                 currentScale = 1f
+                showMetadataSheet = false
             }
 
-            var showMetadataSheet by remember { mutableStateOf(false) }
             val currentFileForSheet = displayedFiles.getOrNull(pagerState.currentPage)
             val currentFile = currentFileForSheet
 
@@ -208,72 +211,101 @@ fun ImageViewerScreen(
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
                     val rotation = rotationStates[file.absolutePath] ?: 0f
-                    ZoomableImageViewer(
-                        file = file,
-                        rotation = rotation,
-                        onDismiss = onNavigateBack,
-                        onTap = { isUiVisible = !isUiVisible },
-                        onScaleChanged = { scaleVal ->
-                            if (pagerState.currentPage == page) {
-                                currentScale = scaleVal
-                            }
-                        },
-                        onSwipeUp = {
-                            showMetadataSheet = true
-                        }
-                    )
-                }
-            }
 
-            if (showMetadataSheet && currentFileForSheet != null) {
-                var metadata by remember(currentFileForSheet.absolutePath, state.isRefreshing) {
-                    mutableStateOf<GalleryFileMetadata?>(null)
-                }
-                LaunchedEffect(currentFileForSheet.absolutePath, state.isRefreshing) {
-                    if (!state.isRefreshing) {
-                        val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            ExifMetadataReader.readMetadata(currentFileForSheet.absolutePath, currentFileForSheet.mimeType)
-                        }
-                        metadata = data
+                    var showEraseDialog by remember { mutableStateOf(false) }
+
+                    val verticalPagerState = rememberPagerState(
+                        initialPage = 0,
+                        pageCount = { 2 }
+                    )
+
+                    val isCurrentPage = pagerState.currentPage == page
+                    var metadata by remember(file.absolutePath, state.isRefreshing) {
+                        mutableStateOf<GalleryFileMetadata?>(null)
                     }
-                }
-
-                var showEraseDialog by remember { mutableStateOf(false) }
-
-                MetadataSheet(
-                    file = currentFileForSheet,
-                    metadata = metadata,
-                    onEraseMetadata = { showEraseDialog = true },
-                    onDismiss = { showMetadataSheet = false }
-                )
-
-                if (showEraseDialog) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { showEraseDialog = false },
-                        title = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_title)) },
-                        text = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_message)) },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(
-                                onClick = {
-                                    showEraseDialog = false
-                                    viewModel.eraseMetadata(currentFileForSheet.absolutePath)
-                                }
-                            ) {
-                                Text(stringResource(R.string.settings_clear_thumbnail_cache), color = MaterialTheme.colorScheme.error)
+                    LaunchedEffect(file.absolutePath, state.isRefreshing, showMetadataSheet, isCurrentPage) {
+                        if (!state.isRefreshing && showMetadataSheet && isCurrentPage && metadata == null) {
+                            val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                ExifMetadataReader.readMetadata(file.absolutePath, file.mimeType)
                             }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { showEraseDialog = false }) {
-                                Text(stringResource(R.string.cancel))
+                            metadata = data
+                        }
+                    }
+
+                    LaunchedEffect(showMetadataSheet, isCurrentPage) {
+                        if (isCurrentPage) {
+                            if (showMetadataSheet && verticalPagerState.currentPage == 0) {
+                                verticalPagerState.animateScrollToPage(1)
+                            } else if (!showMetadataSheet && verticalPagerState.currentPage == 1) {
+                                verticalPagerState.animateScrollToPage(0)
                             }
                         }
-                    )
+                    }
+
+                    LaunchedEffect(verticalPagerState.currentPage, isCurrentPage) {
+                        if (isCurrentPage) {
+                            showMetadataSheet = verticalPagerState.currentPage == 1
+                        }
+                    }
+
+                    VerticalPager(
+                        state = verticalPagerState,
+                        modifier = Modifier.fillMaxSize(),
+                        userScrollEnabled = (verticalPagerState.currentPage == 1) || (currentScale <= 1.05f)
+                    ) { vertPage ->
+                        if (vertPage == 0) {
+                            ZoomableImageViewer(
+                                file = file,
+                                rotation = rotation,
+                                onDismiss = onNavigateBack,
+                                onTap = { isUiVisible = !isUiVisible },
+                                onScaleChanged = { scaleVal ->
+                                    if (pagerState.currentPage == page) {
+                                        currentScale = scaleVal
+                                    }
+                                },
+                                onSwipeUp = {
+                                    showMetadataSheet = true
+                                }
+                            )
+                        } else {
+                            MetadataSheet(
+                                file = file,
+                                metadata = metadata,
+                                onEraseMetadata = { showEraseDialog = true },
+                                onDismiss = { showMetadataSheet = false }
+                            )
+                        }
+                    }
+
+                    if (showEraseDialog) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showEraseDialog = false },
+                            title = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_title)) },
+                            text = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_message)) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(
+                                    onClick = {
+                                        showEraseDialog = false
+                                        viewModel.eraseMetadata(file.absolutePath)
+                                    }
+                                ) {
+                                    Text(stringResource(R.string.settings_clear_thumbnail_cache), color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { showEraseDialog = false }) {
+                                    Text(stringResource(R.string.cancel))
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
             // Top overlay bar
             AnimatedVisibility(
-                visible = isUiVisible,
+                visible = isUiVisible && !showMetadataSheet,
                 enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 modifier = Modifier
@@ -352,7 +384,7 @@ fun ImageViewerScreen(
 
             // Bottom overlay bar containing thumbnail strip and action bar
             AnimatedVisibility(
-                visible = isUiVisible,
+                visible = isUiVisible && !showMetadataSheet,
                 enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 modifier = Modifier
@@ -414,12 +446,14 @@ fun ImageViewerScreen(
                     }
 
                     // 2. Action Bar
-                    Box(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Center actions (Favorite, Info, Rotate) in SplitButtonGroup
+                        // Left actions (Favorite, Info, Rotate) in SplitButtonGroup
                         val isFavorite = currentFile != null && currentFile.absolutePath in state.favoriteFiles
                         val actions = remember(currentFile, isFavorite) {
                             listOf(
@@ -457,23 +491,17 @@ fun ImageViewerScreen(
                             )
                         }
 
-                        Box(
-                            modifier = Modifier.align(Alignment.Center)
-                        ) {
-                            SplitButtonGroup(
-                                actions = actions,
-                                containerColor = Color.Black.copy(alpha = 0.5f),
-                                contentColor = Color.White,
-                                height = 56.dp,
-                                minWidth = 64.dp,
-                                iconSize = 28.dp
-                            )
-                        }
+                        SplitButtonGroup(
+                            actions = actions,
+                            containerColor = Color.Black.copy(alpha = 0.5f),
+                            contentColor = Color.White,
+                            height = 56.dp,
+                            minWidth = 64.dp,
+                            iconSize = 28.dp
+                        )
 
                         // Right actions (Overflow Menu only)
-                        Box(
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) {
+                        Box {
                             var showOverflowMenu by remember { mutableStateOf(false) }
                             Surface(
                                 onClick = { showOverflowMenu = true },

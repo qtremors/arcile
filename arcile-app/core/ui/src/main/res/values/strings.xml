@@ -431,7 +431,7 @@
     <string name="cleaner_old_downloads">Old downloads</string>
     <string name="cleaner_old_downloads_desc">Downloads older than 30 days.</string>
     <string name="cleaner_duplicates">Duplicate files</string>
-    <string name="cleaner_duplicates_desc">Files with the same name and size.</string>
+    <string name="cleaner_duplicates_desc">Files with identical content, verified by checksum.</string>
     <string name="cleaner_apks">APK files</string>
     <string name="cleaner_apks_desc">Installer packages that may no longer be needed.</string>
     <string name="cleaner_videos">Videos</string>
@@ -475,6 +475,19 @@
     <string name="cleaner_delete_selected">Delete selected</string>
     <string name="cleaner_open_file">Open file</string>
     <string name="cleaner_open_folder">Open folder</string>
+    <string name="cleaner_ignore">Ignore</string>
+    <string name="cleaner_ignore_file">Ignore file</string>
+    <string name="cleaner_ignored_items">Ignored items</string>
+    <string name="cleaner_no_ignored_items">No ignored items</string>
+    <string name="cleaner_restore_item">Restore item</string>
+    <string name="cleaner_section_settings">Section settings</string>
+    <string name="cleaner_section_enabled">Show this section</string>
+    <string name="cleaner_ignore_name_patterns">Ignore name patterns</string>
+    <string name="cleaner_ignore_path_patterns">Ignore path patterns</string>
+    <string name="cleaner_patterns_hint">Pattern or text</string>
+    <string name="cleaner_add_pattern">Add pattern</string>
+    <string name="cleaner_large_threshold_mb">Large file threshold (MB)</string>
+    <string name="cleaner_old_download_age_days">Old download age (days)</string>
     <string name="clean_success">Moved %1$d file(s) to Trash</string>
     <string name="clean_failed">Could not clean selected files</string>
 

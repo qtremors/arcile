@@ -25,9 +25,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.AlertDialog
@@ -70,6 +70,7 @@ import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerState
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
@@ -88,6 +89,16 @@ import dev.qtremors.arcile.shared.ui.rememberDateFormatter
 import java.io.File
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.ui.graphics.graphicsLayer
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -100,6 +111,10 @@ fun StorageCleanerScreen(
     onClearMessages: () -> Unit,
     onOpenFile: (String) -> Unit = {},
     onOpenContainingFolder: (String) -> Unit = {},
+    onUpdateSectionRule: (CleanerGroupType, CleanerSectionRule) -> Unit = { _, _ -> },
+    onResetSectionRule: (CleanerGroupType) -> Unit = {},
+    onIgnorePath: (String) -> Unit = {},
+    onUnignorePath: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -108,10 +123,29 @@ fun StorageCleanerScreen(
     var selectedCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
     var confirmCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showIgnoredItems by remember { mutableStateOf(false) }
     var highRiskAcknowledged by remember { mutableStateOf(false) }
+
+    val haptics = rememberArcileHaptics()
+
+    val infiniteTransition = rememberInfiniteTransition(label = "refreshRotation")
+    val rotation by if (state.isScanning) {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "refreshRotationAngle"
+        )
+    } else {
+        remember { mutableStateOf(0f) }
+    }
 
     LaunchedEffect(state.successMessage) {
         state.successMessage?.let { message ->
+            haptics.success()
             onFeedback(
                 ArcileFeedbackEvent(
                     message = UiText.StringResource(R.string.clean_success, listOf(message.cleanedCount)),
@@ -155,8 +189,20 @@ fun StorageCleanerScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showIgnoredItems = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = stringResource(R.string.cleaner_ignored_items)
+                        )
+                    }
                     IconButton(onClick = onRefresh, enabled = !state.isScanning && !state.isCleaning) {
-                        Icon(Icons.Default.Refresh, contentDescription = stringResource(R.string.refresh))
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.refresh),
+                            modifier = Modifier.graphicsLayer {
+                                rotationZ = rotation
+                            }
+                        )
                     }
                 },
                 scrollBehavior = scrollBehavior
@@ -232,7 +278,11 @@ fun StorageCleanerScreen(
                 showDeleteConfirm = true
             },
             onOpenFile = onOpenFile,
-            onOpenContainingFolder = onOpenContainingFolder
+            onOpenContainingFolder = onOpenContainingFolder,
+            rules = state.rules,
+            onUpdateSectionRule = onUpdateSectionRule,
+            onResetSectionRule = onResetSectionRule,
+            onIgnorePath = onIgnorePath
         )
     }
 
@@ -280,6 +330,63 @@ fun StorageCleanerScreen(
             }
         )
     }
+
+    if (showIgnoredItems) {
+        IgnoredItemsDialog(
+            ignoredPaths = state.rules.ignoredPaths,
+            onUnignorePath = onUnignorePath,
+            onDismiss = { showIgnoredItems = false }
+        )
+    }
+}
+
+@Composable
+private fun IgnoredItemsDialog(
+    ignoredPaths: Set<String>,
+    onUnignorePath: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.cleaner_ignored_items)) },
+        text = {
+            if (ignoredPaths.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.cleaner_no_ignored_items),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.height(240.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(ignoredPaths.sorted(), key = { it }) { path ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = path,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = { onUnignorePath(path) }) {
+                                Text(stringResource(R.string.cleaner_restore_item))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.ok))
+            }
+        }
+    )
 }
 
 @Composable

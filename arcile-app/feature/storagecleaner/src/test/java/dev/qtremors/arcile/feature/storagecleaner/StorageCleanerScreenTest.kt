@@ -4,6 +4,10 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasAnyChild
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -67,7 +71,7 @@ class StorageCleanerScreenTest {
         composeRule.onNodeWithText("Junk files").performClick()
         composeRule.onNodeWithText("High risk").assertExists()
         composeRule.onNodeWithText("System-owned path").assertExists()
-        composeRule.onNodeWithText("/storage/emulated/0/Android/data/com.example/cache/debug.log").performClick()
+        composeRule.onNode(hasTestTag("checkbox_/storage/emulated/0/Android/data/com.example/cache/debug.log")).performClick()
         composeRule.onNodeWithText("Move 1 to Trash • 128.0 B").performClick()
 
         composeRule.onNodeWithText("I reviewed these high-risk files and still want to move them to Trash.").assertExists()
@@ -157,14 +161,16 @@ class StorageCleanerScreenTest {
                                         absolutePath = "/storage/emulated/0/DCIM/same.jpg",
                                         size = 128L,
                                         lastModified = 1L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates)
+                                        groupTypes = setOf(CleanerGroupType.Duplicates),
+                                        duplicateGroupKey = "128:test"
                                     ),
                                     CleanerCandidate(
                                         name = "same.jpg",
                                         absolutePath = "/storage/emulated/0/Download/same.jpg",
                                         size = 128L,
                                         lastModified = 2L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates)
+                                        groupTypes = setOf(CleanerGroupType.Duplicates),
+                                        duplicateGroupKey = "128:test"
                                     )
                                 )
                             )
@@ -203,14 +209,16 @@ class StorageCleanerScreenTest {
                                         absolutePath = "/storage/emulated/0/DCIM/same.jpg",
                                         size = 128L,
                                         lastModified = 1L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates)
+                                        groupTypes = setOf(CleanerGroupType.Duplicates),
+                                        duplicateGroupKey = "128:test"
                                     ),
                                     CleanerCandidate(
                                         name = "same.jpg",
                                         absolutePath = "/storage/emulated/0/Download/same.jpg",
                                         size = 128L,
                                         lastModified = 2L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates)
+                                        groupTypes = setOf(CleanerGroupType.Duplicates),
+                                        duplicateGroupKey = "128:test"
                                     )
                                 )
                             )
@@ -228,7 +236,7 @@ class StorageCleanerScreenTest {
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Duplicate files"))
         composeRule.onNodeWithText("Duplicate files").performClick()
         composeRule.onNodeWithText("Compare").performClick()
-        composeRule.onAllNodesWithContentDescription("Delete this file")[0].performClick()
+        composeRule.onAllNodesWithContentDescription("Delete this file")[0].performScrollTo().performClick()
 
         composeRule.onNodeWithText("Move selected files to Trash?").assertExists()
         assertEquals(null, cleanedPaths)
@@ -238,5 +246,138 @@ class StorageCleanerScreenTest {
             cleanedPaths != null
         }
         assertEquals(listOf("/storage/emulated/0/DCIM/same.jpg"), cleanedPaths)
+    }
+
+    @Test
+    fun `section settings opens from details sheet`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerScreen(
+                    state = StorageCleanerState(
+                        groups = listOf(
+                            CleanerGroup(
+                                CleanerGroupType.Junk,
+                                listOf(
+                                    CleanerCandidate(
+                                        name = "safe.tmp",
+                                        absolutePath = "/storage/emulated/0/cache/safe.tmp",
+                                        size = 64L,
+                                        lastModified = 1_000L,
+                                        groupTypes = setOf(CleanerGroupType.Junk),
+                                        riskLevel = CleanerRiskLevel.Low,
+                                        riskReasons = setOf(CleanerRiskReason.TemporaryOrCache)
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onUndoClean = {},
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
+        composeRule.onNodeWithText("Junk files").performClick()
+        composeRule.onAllNodesWithContentDescription("Section settings")[0].performClick()
+
+        composeRule.onNodeWithText("Show this section").assertExists()
+        composeRule.onNodeWithText("Ignore name patterns").assertExists()
+    }
+
+    @Test
+    fun `ignore action reports exact path`() {
+        var ignoredPath: String? = null
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerScreen(
+                    state = StorageCleanerState(
+                        groups = listOf(
+                            CleanerGroup(
+                                CleanerGroupType.Junk,
+                                listOf(
+                                    CleanerCandidate(
+                                        name = "safe.tmp",
+                                        absolutePath = "/storage/emulated/0/cache/safe.tmp",
+                                        size = 64L,
+                                        lastModified = 1_000L,
+                                        groupTypes = setOf(CleanerGroupType.Junk),
+                                        riskLevel = CleanerRiskLevel.Low,
+                                        riskReasons = setOf(CleanerRiskReason.TemporaryOrCache)
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onUndoClean = {},
+                    onClearMessages = {},
+                    onIgnorePath = { ignoredPath = it }
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
+        composeRule.onNodeWithText("Junk files").performClick()
+        composeRule.onNodeWithText("Ignore").performClick()
+
+        assertEquals("/storage/emulated/0/cache/safe.tmp", ignoredPath)
+    }
+
+    @Test
+    fun `duplicate metadata shows seconds and no dynamic related app label`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerScreen(
+                    state = StorageCleanerState(
+                        groups = listOf(
+                            CleanerGroup(
+                                CleanerGroupType.Duplicates,
+                                listOf(
+                                    CleanerCandidate(
+                                        name = "same.jpg",
+                                        absolutePath = "/storage/emulated/0/Android/data/com.whatsapp/cache/same.jpg",
+                                        size = 128L,
+                                        lastModified = 1_000L,
+                                        groupTypes = setOf(CleanerGroupType.Duplicates),
+                                        riskLevel = CleanerRiskLevel.High,
+                                        riskReasons = setOf(CleanerRiskReason.AppLikeFolder),
+                                        duplicateGroupKey = "128:test"
+                                    ),
+                                    CleanerCandidate(
+                                        name = "same-copy.jpg",
+                                        absolutePath = "/storage/emulated/0/Download/same-copy.jpg",
+                                        size = 128L,
+                                        lastModified = 1_000L,
+                                        groupTypes = setOf(CleanerGroupType.Duplicates),
+                                        duplicateGroupKey = "128:test"
+                                    )
+                                )
+                            )
+                        )
+                    ),
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onUndoClean = {},
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Duplicate files"))
+        composeRule.onNodeWithText("Duplicate files").performClick()
+        composeRule.onNodeWithText("Compare").performClick()
+
+        composeRule.onNode(
+            hasTestTag("cleaner_duplicate_timestamp_/storage/emulated/0/Android/data/com.whatsapp/cache/same.jpg") and
+                hasText(":01", substring = true)
+        ).assertExists()
+        composeRule.onAllNodesWithText("Related to WhatsApp").assertCountEquals(0)
     }
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,27 +33,19 @@ import dev.qtremors.arcile.shared.ui.getFileIconVector
 import dev.qtremors.arcile.shared.ui.loadApplicationIconBitmap
 import java.io.File
 
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.graphics.Color
+
 @Composable
 internal fun CleanerFilePreview(
     file: CleanerCandidate,
     modifier: Modifier = Modifier,
-    size: Dp = 40.dp
+    size: Dp = 40.dp,
+    badgeBgColor: Color = MaterialTheme.colorScheme.surface
 ) {
-    val context = LocalContext.current
     val fileModel = remember(file) { file.toFileModel() }
     val thumbnailKey = remember(fileModel) { ThumbnailKey.from(fileModel) }
-    val packageName = remember(file.absolutePath, file.riskReasons) {
-        if (CleanerRiskReason.AppLikeFolder in file.riskReasons) {
-            packageNameFromPath(file.absolutePath)
-        } else {
-            null
-        }
-    }
-    val appIcon = remember(context, packageName) {
-        packageName?.let { context.loadApplicationIconBitmap(it) }
-    }
     val requestData = remember(fileModel, thumbnailKey) { thumbnailRequestData(fileModel, thumbnailKey) }
-    val appRelatedDescription = stringResource(R.string.cleaner_app_related_badge)
 
     Box(
         modifier = modifier
@@ -79,48 +72,6 @@ internal fun CleanerFilePreview(
             CleanerPreviewFallback(
                 fileModel = fileModel,
                 modifier = Modifier.fillMaxSize()
-            )
-        }
-        if (packageName != null) {
-            CleanerAppBadge(
-                packageName = packageName,
-                appIcon = appIcon,
-                contentDescription = appRelatedDescription,
-                size = (size * 0.42f).coerceAtLeast(16.dp),
-                modifier = Modifier.align(Alignment.BottomEnd)
-            )
-        }
-    }
-}
-
-@Composable
-private fun CleanerAppBadge(
-    packageName: String,
-    appIcon: android.graphics.Bitmap?,
-    contentDescription: String,
-    size: Dp,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface, CircleShape)
-            .border(1.dp, MaterialTheme.colorScheme.surface, CircleShape),
-        contentAlignment = Alignment.Center
-    ) {
-        if (appIcon != null) {
-            Image(
-                bitmap = appIcon.asImageBitmap(),
-                contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Icon(
-                imageVector = getFileIconVector(remember(packageName) { packageName.toApkBadgeFileModel() }),
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size((size * 0.68f).coerceAtLeast(12.dp))
             )
         }
     }

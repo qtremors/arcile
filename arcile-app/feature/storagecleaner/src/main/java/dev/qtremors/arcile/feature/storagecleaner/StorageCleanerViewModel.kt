@@ -6,6 +6,9 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
+import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
@@ -14,6 +17,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -24,6 +28,7 @@ data class StorageCleanerState(
     val isCleaning: Boolean = false,
     val scannedFiles: Int = 0,
     val isPartial: Boolean = false,
+    val rules: StorageCleanerRules = StorageCleanerRules(),
     val errorMessage: String? = null,
     val successMessage: CleanerSuccessMessage? = null
 ) {
@@ -44,7 +49,8 @@ data class CleanerSuccessMessage(
 class StorageCleanerViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val trashRepository: TrashRepository,
-    private val scanner: StorageCleanerScanner
+    private val scanner: StorageCleanerScanner,
+    private val preferencesStore: StorageCleanerPreferencesStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StorageCleanerState())
@@ -53,7 +59,12 @@ class StorageCleanerViewModel @Inject constructor(
     private var scanJob: Job? = null
 
     init {
-        scan()
+        viewModelScope.launch {
+            preferencesStore.rulesFlow.collectLatest { rules ->
+                _state.update { it.copy(rules = rules) }
+                scan(clearMessages = true)
+            }
+        }
     }
 
     fun scan() {
@@ -92,7 +103,8 @@ class StorageCleanerViewModel @Inject constructor(
                 return@launch
             }
 
-            runCatching { scanner.scan(indexedPaths) }
+            val rules = _state.value.rules
+            runCatching { scanner.scan(indexedPaths, rules = rules) }
                 .onSuccess { result ->
                     _state.update {
                         it.copy(
@@ -181,5 +193,31 @@ class StorageCleanerViewModel @Inject constructor(
 
     fun clearMessages() {
         _state.update { it.copy(errorMessage = null, successMessage = null) }
+    }
+
+    fun updateSectionRule(type: CleanerGroupType, rule: CleanerSectionRule) {
+        viewModelScope.launch {
+            preferencesStore.updateSectionRule(type, rule)
+        }
+    }
+
+    fun resetSectionRule(type: CleanerGroupType) {
+        viewModelScope.launch {
+            preferencesStore.resetSection(type)
+        }
+    }
+
+    fun ignorePath(path: String) {
+        if (path.isBlank()) return
+        viewModelScope.launch {
+            preferencesStore.ignorePath(path)
+        }
+    }
+
+    fun unignorePath(path: String) {
+        if (path.isBlank()) return
+        viewModelScope.launch {
+            preferencesStore.unignorePath(path)
+        }
     }
 }

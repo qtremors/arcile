@@ -521,9 +521,7 @@ fun AppNavigationGraph(
                         dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
                     },
                     onOpenContainingFolder = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
-                            popUpTo<AppRoutes.Main> { inclusive = true }
-                        }
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onFeedback = onFeedback
                 )
@@ -666,9 +664,7 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToPath = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false)) {
-                            popUpTo<AppRoutes.Main> { inclusive = true }
-                        }
+                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onNavigateToSaf = { uriString ->
                         ExternalFileAccessHelper.openInFilesApp(context, uriString)
@@ -681,9 +677,7 @@ fun AppNavigationGraph(
                     popExitTransition = detailPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenArchiveInBrowser = { archivePath ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false)) {
-                            popUpTo<AppRoutes.Main> { inclusive = true }
-                        }
+                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
                     }
                 )
             }
