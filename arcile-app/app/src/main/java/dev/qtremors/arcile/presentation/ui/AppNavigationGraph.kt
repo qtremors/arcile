@@ -617,6 +617,7 @@ fun AppNavigationGraph(
                 ) {
                     val viewModel = hiltViewModel<SettingsViewModel>()
                     val browserPrefs by viewModel.browserPreferences.collectAsStateWithLifecycle()
+                    val backupState by viewModel.backupState.collectAsStateWithLifecycle()
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         showThumbnails = browserPrefs.globalPresentation.showThumbnails,
@@ -630,7 +631,12 @@ fun AppNavigationGraph(
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
                         onNavigateToAbout = { navController.navigate(AppRoutes.About) },
                         onRunOnboardingAgain = { viewModel.resetOnboarding() },
-                        onRestartApp = onRestartApp
+                        onRestartApp = onRestartApp,
+                        backupState = backupState,
+                        onExportSettingsBackup = { viewModel.exportPreferences(it) },
+                        onRestoreSettingsBackup = { viewModel.previewRestore(it) },
+                        onApplySettingsRestore = { viewModel.restorePreferences(it) },
+                        onClearBackupState = { viewModel.clearBackupState() }
                     )
                 }
                 composable<AppRoutes.StorageManagement>(

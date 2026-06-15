@@ -14,28 +14,6 @@
   - **Fix:** Use `collectAsStateWithLifecycle()` for ViewModel state, move durable viewer state into the ViewModel or `SavedStateHandle`, and use `rememberSaveable` with explicit savers only for truly screen-local values.
   - **Verification:** Add a Compose recreation test that opens an image, toggles metadata/chrome/rotation state, recreates the activity, and verifies the expected viewer state is restored; manually verify rotation and "Don't keep activities" behavior.
 
-### Security / Privacy Tasks
-- [ ] **SEC-0001 - Narrow FileProvider Grants To Staged Handoff Roots** `[High]`
-  - **Location:** `arcile-app/app/src/main/res/xml/file_provider_paths.xml` `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ExternalFileAccessHelper.kt` `DEVELOPMENT.md`
-  - **Problem:** `file_provider_paths.xml` exposes `<external-path name="external_user_files" path="." />`, while the docs describe a staged-only FileProvider boundary. Current helper code validates direct open/share paths, but the provider authority itself can grant URIs for any external-storage file if future code calls it.
-  - **Impact:** A file manager with all-files access has an unnecessarily broad sharing authority, increasing the blast radius of a helper bypass or future regression and making the documented privacy boundary inaccurate.
-  - **Fix:** Remove the external-storage root from the provider paths and route outbound file access through cache-backed staged files or narrowly scoped provider roots owned by a single audited helper contract.
-  - **Verification:** Add an XML regression test that fails on broad external roots, update open/share tests to prove staged handoff still works, and manually verify open-with/share flows for normal files, blocked private paths, and Android/data or Android/obb paths.
-
-- [ ] **SEC-0002 - Exclude Local File Metadata Caches From Backup And Transfer** `[High]`
-  - **Location:** `arcile-app/app/src/main/AndroidManifest.xml` `arcile-app/app/src/main/res/xml/backup_rules.xml` `arcile-app/app/src/main/res/xml/data_extraction_rules.xml` `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/db/ArcileDatabase.kt` `arcile-app/app/src/test/java/dev/qtremors/arcile/core/storage/data/BackupRulesTest.kt`
-  - **Problem:** Backups are enabled and the current backup rules exclude several preferences and metadata folders, but they do not exclude the Room cache database `arcile-cache.db`. That database stores local file paths, MediaStore-derived metadata, recent-file snapshots, storage-usage snapshots, cleaner snapshots, and thumbnail metadata.
-  - **Impact:** Private local file metadata can be copied into Android cloud backup or device transfer, then restored as stale or sensitive storage history on another install.
-  - **Fix:** Exclude the database domain or the specific `arcile-cache.db` database from both backup and device-transfer rules, and invalidate any restored cache state defensively on startup.
-  - **Verification:** Extend `BackupRulesTest` to assert database exclusions in both XML files, inspect an `adb backup` or device-transfer rule dump where available, and verify a restored install starts without stale file index or thumbnail metadata.
-
-- [ ] **SEC-0003 - Make Secure Shred Report Overwrite Failures** `[High]`
-  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt`
-  - **Problem:** `overwriteSecurely()` returns without error when a file is not writable and catches all overwrite exceptions with an ignored failure, after which `shredDetailed()` can still delete the file and report a successful secure shred.
-  - **Impact:** Users can receive a stronger privacy guarantee than the app actually performed, especially on restricted, read-only, or provider-backed storage where overwrite semantics are weak.
-  - **Fix:** Make the overwrite step return a typed result, fail or downgrade the shred operation when overwriting cannot be completed and flushed, and adjust UI copy to state any platform limitations of best-effort shredding.
-  - **Verification:** Add unit tests for non-writable files and injected write failures, verify failed overwrites surface as `BatchMutationFailure`, and manually confirm the destructive-action UI distinguishes secure shred from ordinary delete.
-
 ### Performance Tasks
 - [ ] **PERF-0001 - Page Directory Listings Before Full Materialization** `[High]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt` `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserDisplayState.kt`

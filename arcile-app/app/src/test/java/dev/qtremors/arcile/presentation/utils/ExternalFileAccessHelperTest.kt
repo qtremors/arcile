@@ -77,7 +77,7 @@ class ExternalFileAccessHelperTest {
     }
 
     @Test
-    fun `createOpenIntent uses direct user file uri without staging cache copy`() = runTest {
+    fun `createOpenIntent stages local user file before creating provider uri`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         configureExternalStorageRoot()
         installDirectOpenUriFactory()
@@ -95,20 +95,21 @@ class ExternalFileAccessHelperTest {
 
         assertEquals(Intent.ACTION_VIEW, intent.action)
         assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
-        assertTrue(intent.data.toString().contains("open-direct.txt"))
-        assertEquals(0, File(context.cacheDir, "external_access/open").walkTopDown().filter { it.isFile }.count())
+        assertTrue(intent.data.toString().endsWith(".txt"))
+        assertEquals("open-direct.txt", intent.getStringExtra(Intent.EXTRA_TITLE))
+        assertEquals(1, File(context.cacheDir, "external_access/open").walkTopDown().filter { it.isFile }.count())
     }
 
     @Test
-    fun `createOpenIntent allows oversized direct handoff without staging cache copy`() = runTest {
+    fun `createOpenIntent stages local handoff without share size caps`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         configureExternalStorageRoot()
         installDirectOpenUriFactory()
         ExternalFileAccessHelper.clearStagingArea(context)
         val source = File(Environment.getExternalStorageDirectory(), "large-open.bin").apply {
             parentFile?.mkdirs()
+            writeText("open")
         }
-        RandomAccessFile(source, "rw").use { it.setLength(300L * 1024L * 1024L) }
 
         val intent = try {
             ExternalFileAccessHelper.createOpenIntent(context, source.absolutePath)
@@ -117,7 +118,7 @@ class ExternalFileAccessHelperTest {
         }
 
         assertEquals(Intent.ACTION_VIEW, intent.action)
-        assertEquals(0, File(context.cacheDir, "external_access/open").walkTopDown().filter { it.isFile }.count())
+        assertEquals(1, File(context.cacheDir, "external_access/open").walkTopDown().filter { it.isFile }.count())
     }
 
     @Test
@@ -147,6 +148,7 @@ class ExternalFileAccessHelperTest {
     @Test
     fun `createOpenIntent accepts content uri references directly`() = runTest {
         val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearStagingArea(baseContext)
         val resolver = mockk<ContentResolver>()
         val uri = Uri.parse("content://media/external_primary/images/media/42")
         every { resolver.getType(uri) } returns "image/png"
@@ -162,6 +164,7 @@ class ExternalFileAccessHelperTest {
         assertEquals(uri, intent.data)
         assertEquals("image/png", intent.type)
         assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertEquals(0, ExternalFileAccessHelper.getStagingCacheStats(context).fileCount)
     }
 
     @Test
@@ -196,6 +199,33 @@ class ExternalFileAccessHelperTest {
             fail("Expected sensitive path to be rejected")
         } catch (expected: IllegalArgumentException) {
             assertTrue(expected.message.orEmpty().contains("Unsupported file path"))
+        }
+    }
+
+    @Test
+    fun `createOpenIntent rejects app metadata and Android restricted paths`() = runTest {
+        configureExternalStorageRoot()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val arcilePath = File(Environment.getExternalStorageDirectory(), ".arcile/metadata.json").apply {
+            parentFile?.mkdirs()
+            writeText("private")
+        }
+        val androidDataPath = File(Environment.getExternalStorageDirectory(), "Android/data/com.example/cache.txt").apply {
+            parentFile?.mkdirs()
+            writeText("private")
+        }
+        val androidObbPath = File(Environment.getExternalStorageDirectory(), "Android/obb/com.example/main.obb").apply {
+            parentFile?.mkdirs()
+            writeText("private")
+        }
+
+        listOf(arcilePath, androidDataPath, androidObbPath).forEach { source ->
+            try {
+                ExternalFileAccessHelper.createOpenIntent(context, source.absolutePath)
+                fail("Expected restricted path to be rejected: ${source.absolutePath}")
+            } catch (expected: IllegalArgumentException) {
+                assertTrue(expected.message.orEmpty().contains("Unsupported file path"))
+            }
         }
     }
 

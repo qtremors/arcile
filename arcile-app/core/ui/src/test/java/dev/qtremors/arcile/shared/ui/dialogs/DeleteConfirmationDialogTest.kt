@@ -84,6 +84,27 @@ class DeleteConfirmationDialogTest {
     }
 
     @Test
+    fun `shred option describes overwrite limitations`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                DeleteConfirmationDialog(
+                    selectedCount = 1,
+                    isPermanentDeleteChecked = true,
+                    isPermanentDeleteToggleEnabled = true,
+                    onConfirm = {},
+                    onDismiss = {},
+                    onTogglePermanentDelete = {},
+                    isShredChecked = true,
+                    onToggleShred = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Securely shred files").assertExists()
+        composeRule.onNodeWithText("Overwrite files before deleting when storage permits; unsupported files will be reported as failed").assertExists()
+    }
+
+    @Test
     fun `mixed mode shows blocked decision without confirm action`() {
         composeRule.setContent {
             ArcileTestTheme {

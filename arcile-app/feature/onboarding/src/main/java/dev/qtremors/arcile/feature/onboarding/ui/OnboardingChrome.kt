@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -41,19 +42,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.ui.theme.spacing
+
 @Composable
 internal fun OnboardingHeader(
     state: OnboardingUiState,
     stepsCount: Int,
     currentPage: Int,
     onBack: () -> Unit,
-    onSkip: () -> Unit
+    onSkip: () -> Unit,
+    restoreState: OnboardingRestoreState,
+    onChooseRestoreBackup: () -> Unit
 ) {
+    val actionWidth = 104.dp
+    val actionPadding = PaddingValues(horizontal = 8.dp)
+
     Surface(
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 1.dp
@@ -71,17 +80,39 @@ internal fun OnboardingHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (state.step != OnboardingStep.WelcomeAndFeatures && state.step != OnboardingStep.Done) {
+                if (state.step == OnboardingStep.WelcomeAndFeatures) {
                     FilledTonalButton(
-                        onClick = onBack,
+                        onClick = onChooseRestoreBackup,
+                        enabled = restoreState != OnboardingRestoreState.Busy,
+                        contentPadding = actionPadding,
                         modifier = Modifier
-                            .width(92.dp)
+                            .width(actionWidth)
                             .defaultMinSize(minHeight = 44.dp)
                     ) {
-                        Text(stringResource(R.string.back))
+                        Text(
+                            text = stringResource(R.string.onboarding_restore_backup_short),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false
+                        )
+                    }
+                } else if (state.step != OnboardingStep.Done) {
+                    FilledTonalButton(
+                        onClick = onBack,
+                        contentPadding = actionPadding,
+                        modifier = Modifier
+                            .width(actionWidth)
+                            .defaultMinSize(minHeight = 44.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.back),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false
+                        )
                     }
                 } else {
-                    Spacer(modifier = Modifier.size(width = 92.dp, height = 44.dp))
+                    Spacer(modifier = Modifier.size(width = actionWidth, height = 44.dp))
                 }
 
                 // Dot Indicators
@@ -106,6 +137,7 @@ internal fun OnboardingHeader(
                                 .width(width)
                                 .clip(CircleShape)
                                 .background(color)
+                                .testTag("onboardingStepIndicator")
                         )
                     }
                 }
@@ -116,14 +148,20 @@ internal fun OnboardingHeader(
                 ) {
                     FilledTonalButton(
                         onClick = onSkip,
+                        contentPadding = actionPadding,
                         modifier = Modifier
-                            .width(92.dp)
+                            .width(actionWidth)
                             .defaultMinSize(minHeight = 44.dp)
                     ) {
-                        Text(stringResource(R.string.onboarding_skip))
+                        Text(
+                            text = stringResource(R.string.onboarding_skip),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false
+                        )
                     }
                 } else {
-                    Spacer(modifier = Modifier.size(width = 92.dp, height = 44.dp))
+                    Spacer(modifier = Modifier.size(width = actionWidth, height = 44.dp))
                 }
             }
         }

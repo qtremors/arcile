@@ -103,15 +103,27 @@ fun OnboardingScreen(
     onStepSelected: (OnboardingStep) -> Unit,
     onOpenStoragePermissionSettings: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
-    showOlderAndroidWarning: Boolean = false
+    showOlderAndroidWarning: Boolean = false,
+    restoreState: OnboardingRestoreState = OnboardingRestoreState.Idle,
+    onChooseRestoreBackup: () -> Unit = {},
+    onApplyRestoreBackup: () -> Unit = {},
+    onDismissRestoreBackup: () -> Unit = {},
+    onRestartApp: () -> Unit = {}
 ) {
-    val steps = OnboardingStep.entries.toTypedArray()
+    val steps = remember {
+        arrayOf(
+            OnboardingStep.WelcomeAndFeatures,
+            OnboardingStep.Privacy,
+            OnboardingStep.Theme,
+            OnboardingStep.SetupPermissions
+        )
+    }
     val pagerState = rememberPagerState(pageCount = { steps.size })
 
     // Sync Pager -> ViewModel
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.currentPage }.collect { page ->
-            if (state.step != steps[page]) {
+            if (state.step != OnboardingStep.Done && state.step != steps[page]) {
                 onStepSelected(steps[page])
             }
         }
@@ -119,7 +131,12 @@ fun OnboardingScreen(
 
     // Sync ViewModel -> Pager
     LaunchedEffect(state.step) {
-        val targetPage = steps.indexOf(state.step)
+        val targetStep = if (state.step == OnboardingStep.Done) {
+            OnboardingStep.SetupPermissions
+        } else {
+            state.step
+        }
+        val targetPage = steps.indexOf(targetStep)
         if (pagerState.currentPage != targetPage) {
             pagerState.animateScrollToPage(
                 page = targetPage,
@@ -143,7 +160,9 @@ fun OnboardingScreen(
                 stepsCount = steps.size,
                 currentPage = pagerState.currentPage,
                 onBack = onBack,
-                onSkip = onSkip
+                onSkip = onSkip,
+                restoreState = restoreState,
+                onChooseRestoreBackup = onChooseRestoreBackup
             )
         },
         bottomBar = {
@@ -187,9 +206,34 @@ fun OnboardingScreen(
                         state = state,
                         showOlderAndroidWarning = showOlderAndroidWarning
                     )
-                    OnboardingStep.Done -> OnboardingDone()
+                    OnboardingStep.Done -> Unit
                 }
             }
         }
     }
+
+    OnboardingRestoreDialog(
+        state = restoreState,
+        onApplyRestoreBackup = onApplyRestoreBackup,
+        onDismissRestoreBackup = onDismissRestoreBackup,
+        onRestartApp = onRestartApp
+    )
 }
+
+sealed interface OnboardingRestoreState {
+    data object Idle : OnboardingRestoreState
+    data object Busy : OnboardingRestoreState
+    data class Preview(val items: List<OnboardingRestoreItem>) : OnboardingRestoreState
+    data class Restored(val items: List<OnboardingRestoreItem>, val failures: List<OnboardingRestoreFailure>) : OnboardingRestoreState
+    data class Failed(val message: String) : OnboardingRestoreState
+}
+
+data class OnboardingRestoreItem(
+    val label: String,
+    val status: String
+)
+
+data class OnboardingRestoreFailure(
+    val label: String,
+    val message: String
+)

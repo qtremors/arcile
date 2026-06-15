@@ -19,6 +19,7 @@
         <exclude domain="file" path="staging" />
         <exclude domain="file" path=".arcile" />
         <exclude domain="external" path=".arcile" />
+        <exclude domain="database" path="arcile-cache.db" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="trash_crypto_prefs.xml" />
@@ -35,5 +36,6 @@
         <exclude domain="file" path="staging" />
         <exclude domain="file" path=".arcile" />
         <exclude domain="external" path=".arcile" />
+        <exclude domain="database" path="arcile-cache.db" />
     </device-transfer>
 </data-extraction-rules>

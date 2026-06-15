@@ -495,8 +495,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 110 |
-| **Version Name** | `1.1.0` |
+| **Version Code** | 112 |
+| **Version Name** | `1.1.2` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -522,8 +522,8 @@ Arcile uses clear, descriptive names to ensure readability.
 
 1. **Path Traversal Protection:** All file inputs are validated using `PathSafety.isPathSafe` to block path traversal attacks.
 2. **Safe Decompression:** `isArchiveEntrySafe` rejects absolute entries and relative directory escapes (`..`) during archive extraction.
-3. **FileProvider Encapsulation:** `file_provider_paths.xml` restricts external access to `staged_open/` and `staged_share/` directories.
-4. **Staging Cache Lifecycle:** Staged files are grouped by MIME type, tracked in stats, and deleted when the staging cache is cleared or after a configurable retention period.
+3. **FileProvider Encapsulation:** `file_provider_paths.xml` restricts external access to the cache-backed `external_access/` staging root; local open/share grants are copied through `external_access/open/` or `external_access/share/`.
+4. **Staging Cache Lifecycle:** Staged handoff files are tracked in stats and deleted when the staging cache is cleared or after a configurable retention period.
 5. **No Telemetry:** The app has no network access, preventing data leaks.
 6. **Room Database Security:** Caches exclude user keys and access credentials.
 7. **Scoped Deletions:** OTG/temporary storage deletes files permanently instead of moving them to trash folders.

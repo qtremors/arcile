@@ -5,11 +5,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreItem
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -45,8 +49,41 @@ class OnboardingScreenTest {
         }
 
         composeRule.onNodeWithText("Welcome to Arcile").assertExists()
+        composeRule.onNodeWithText("Restore").assertExists()
 
         composeRule.onNodeWithText("Skip").assertExists()
+        composeRule.onAllNodesWithTag("onboardingStepIndicator").assertCountEquals(4)
+    }
+
+    @Test
+    fun `welcome restore preview shows backed up preference groups`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                OnboardingScreen(
+                    state = OnboardingUiState(),
+                    currentThemeState = ThemeState(),
+                    onThemeChange = {},
+                    onNext = {},
+                    onBack = {},
+                    onSkip = {},
+                    onStepSelected = {},
+                    onOpenStoragePermissionSettings = {},
+                    onRequestNotificationPermission = {},
+                    restoreState = OnboardingRestoreState.Preview(
+                        items = listOf(
+                            OnboardingRestoreItem("Theme and appearance", "Will restore"),
+                            OnboardingRestoreItem("Home tools", "Will reset")
+                        )
+                    )
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Restore this backup?").assertExists()
+        composeRule.onNodeWithText("Theme and appearance").assertExists()
+        composeRule.onNodeWithText("Will restore").assertExists()
+        composeRule.onNodeWithText("Home tools").assertExists()
+        composeRule.onNodeWithText("Will reset").assertExists()
     }
 
     @Test

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -31,9 +32,13 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -317,6 +322,119 @@ internal fun FeatureRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun OnboardingRestoreDialog(
+    state: OnboardingRestoreState,
+    onApplyRestoreBackup: () -> Unit,
+    onDismissRestoreBackup: () -> Unit,
+    onRestartApp: () -> Unit
+) {
+    when (state) {
+        OnboardingRestoreState.Idle,
+        OnboardingRestoreState.Busy -> Unit
+        is OnboardingRestoreState.Preview -> AlertDialog(
+            onDismissRequest = onDismissRestoreBackup,
+            icon = { Icon(Icons.Default.SettingsBackupRestore, contentDescription = null) },
+            title = { Text(stringResource(R.string.settings_backup_restore_preview_title)) },
+            text = {
+                OnboardingRestoreItemList(
+                    description = stringResource(R.string.settings_backup_restore_preview_description),
+                    items = state.items,
+                    failures = emptyList()
+                )
+            },
+            confirmButton = {
+                FilledTonalButton(onClick = onApplyRestoreBackup) {
+                    Text(stringResource(R.string.settings_backup_restore))
+                }
+            },
+            dismissButton = {
+                FilledTonalButton(onClick = onDismissRestoreBackup) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+        is OnboardingRestoreState.Restored -> AlertDialog(
+            onDismissRequest = onDismissRestoreBackup,
+            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
+            title = { Text(stringResource(R.string.settings_backup_restore_complete_title)) },
+            text = {
+                OnboardingRestoreItemList(
+                    description = stringResource(R.string.settings_backup_restore_complete_description, state.items.size),
+                    items = state.items,
+                    failures = state.failures
+                )
+            },
+            confirmButton = {
+                FilledTonalButton(onClick = onRestartApp) {
+                    Text(stringResource(R.string.restart_now))
+                }
+            },
+            dismissButton = {
+                FilledTonalButton(onClick = onDismissRestoreBackup) {
+                    Text(stringResource(R.string.later))
+                }
+            }
+        )
+        is OnboardingRestoreState.Failed -> AlertDialog(
+            onDismissRequest = onDismissRestoreBackup,
+            icon = { Icon(Icons.Default.WarningAmber, contentDescription = null) },
+            title = { Text(stringResource(R.string.settings_backup_failed_title)) },
+            text = { Text(state.message) },
+            confirmButton = {
+                FilledTonalButton(onClick = onDismissRestoreBackup) {
+                    Text(stringResource(R.string.ok))
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun OnboardingRestoreItemList(
+    description: String,
+    items: List<OnboardingRestoreItem>,
+    failures: List<OnboardingRestoreFailure>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)) {
+        Text(description, style = MaterialTheme.typography.bodyMedium)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .heightIn(max = 360.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            items.forEach { item ->
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(item.label, style = MaterialTheme.typography.bodyMedium)
+                        AssistChip(onClick = {}, label = { Text(item.status) })
+                    }
+                }
+            }
+            failures.forEach { failure ->
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Text(failure.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text(failure.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
             }
         }
     }

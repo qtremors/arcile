@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.1
+> **Version:** 1.1.2
 > **Last Updated:** 2026-06-15
 
 ---
+
+## [1.1.2] - 2026-06-15
+
+- **Security and Privacy Hardening**: Tightened external file handoffs, excluded local cache metadata from backup and transfer, and made secure delete failures visible instead of silently reporting success.
+- **Manual Settings Backup and Restore**: Added file-based export and restore for Arcile preferences from Settings and onboarding, with clear previews, restore results, theme support, and safe error handling.
 
 ## [1.1.1] - 2026-06-15
 

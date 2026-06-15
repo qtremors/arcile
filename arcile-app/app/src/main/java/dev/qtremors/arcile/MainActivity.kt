@@ -2,6 +2,7 @@ package dev.qtremors.arcile
 
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.os.StrictMode
 import android.os.Trace
 import android.widget.Toast
@@ -19,6 +20,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.net.Uri
+import dev.qtremors.arcile.backup.PreferencesBackupItemStatus
+import dev.qtremors.arcile.backup.PreferencesBackupManager
+import dev.qtremors.arcile.backup.PreferencesBackupOperationResult
+import dev.qtremors.arcile.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.presentation.MainViewModel
@@ -29,6 +35,9 @@ import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.utils.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreFailure
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreItem
+import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreState
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemeState
@@ -40,6 +49,7 @@ import javax.inject.Inject
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.system.exitProcess
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -51,6 +61,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var onboardingPreferencesStore: OnboardingPreferencesStore
+
+    @Inject
+    lateinit var preferencesBackupManager: PreferencesBackupManager
 
     private companion object {
         const val FULL_FEATURE_ANDROID_SDK = Build.VERSION_CODES.R
@@ -102,6 +115,27 @@ class MainActivity : ComponentActivity() {
                 contract = ActivityResultContracts.RequestPermission()
             ) {
                 onboardingViewModel.handleNotificationPermissionResult()
+            }
+            var onboardingRestoreState by remember { mutableStateOf<OnboardingRestoreState>(OnboardingRestoreState.Idle) }
+            var pendingOnboardingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+            val restoreBackupLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    pendingOnboardingRestoreUri = uri
+                    onboardingRestoreState = OnboardingRestoreState.Busy
+                    coroutineScope.launch {
+                        preferencesBackupManager.preview(uri).fold(
+                            onSuccess = { preview ->
+                                onboardingRestoreState = preview.toOnboardingRestorePreview()
+                            },
+                            onFailure = { error ->
+                                pendingOnboardingRestoreUri = null
+                                onboardingRestoreState = OnboardingRestoreState.Failed(error.message ?: getString(R.string.settings_backup_failed_title))
+                            }
+                        )
+                    }
+                }
             }
 
             ArcileTheme(themeState = themeState) {
@@ -172,7 +206,32 @@ class MainActivity : ComponentActivity() {
                                     onboardingViewModel.handleNotificationPermissionResult()
                                 }
                             },
-                            showOlderAndroidWarning = Build.VERSION.SDK_INT < FULL_FEATURE_ANDROID_SDK
+                            showOlderAndroidWarning = Build.VERSION.SDK_INT < FULL_FEATURE_ANDROID_SDK,
+                            restoreState = onboardingRestoreState,
+                            onChooseRestoreBackup = {
+                                restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                            },
+                            onApplyRestoreBackup = {
+                                val uri = pendingOnboardingRestoreUri
+                                if (uri != null) {
+                                    onboardingRestoreState = OnboardingRestoreState.Busy
+                                    coroutineScope.launch {
+                                        preferencesBackupManager.restoreFrom(uri).fold(
+                                            onSuccess = { result ->
+                                                onboardingRestoreState = result.toOnboardingRestoreRestored()
+                                            },
+                                            onFailure = { error ->
+                                                onboardingRestoreState = OnboardingRestoreState.Failed(error.message ?: getString(R.string.settings_backup_failed_title))
+                                            }
+                                        )
+                                    }
+                                }
+                            },
+                            onDismissRestoreBackup = {
+                                pendingOnboardingRestoreUri = null
+                                onboardingRestoreState = OnboardingRestoreState.Idle
+                            },
+                            onRestartApp = { restartApp() }
                         )
                     } else if (hasPermission) {
                         ArcileAppShell(
@@ -264,8 +323,21 @@ class MainActivity : ComponentActivity() {
             addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
         }
         if (launchIntent != null) {
-            startActivity(launchIntent)
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                this,
+                0,
+                launchIntent,
+                android.app.PendingIntent.FLAG_CANCEL_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+            alarmManager.set(
+                android.app.AlarmManager.RTC,
+                System.currentTimeMillis() + 250L,
+                pendingIntent
+            )
             finishAffinity()
+            Process.killProcess(Process.myPid())
+            exitProcess(0)
         } else {
             recreate()
         }
@@ -302,5 +374,39 @@ class MainActivity : ComponentActivity() {
 
     private fun String.isContentReference(): Boolean =
         runCatching { android.net.Uri.parse(this).scheme == "content" }.getOrDefault(false)
+
+    private fun PreferencesBackupPreview.toOnboardingRestorePreview(): OnboardingRestoreState.Preview =
+        OnboardingRestoreState.Preview(
+            items = items.map { item ->
+                OnboardingRestoreItem(
+                    label = item.label,
+                    status = item.status.toBackupStatusLabel()
+                )
+            }
+        )
+
+    private fun PreferencesBackupOperationResult.toOnboardingRestoreRestored(): OnboardingRestoreState.Restored =
+        OnboardingRestoreState.Restored(
+            items = items.map { item ->
+                OnboardingRestoreItem(
+                    label = item.label,
+                    status = item.status.toBackupStatusLabel()
+                )
+            },
+            failures = failures.map { failure ->
+                OnboardingRestoreFailure(
+                    label = failure.label,
+                    message = failure.message
+                )
+            }
+        )
+
+    private fun PreferencesBackupItemStatus.toBackupStatusLabel(): String = when (this) {
+        PreferencesBackupItemStatus.Exported -> getString(R.string.settings_backup_status_exported)
+        PreferencesBackupItemStatus.WillRestore -> getString(R.string.settings_backup_status_will_restore)
+        PreferencesBackupItemStatus.WillReset -> getString(R.string.settings_backup_status_will_reset)
+        PreferencesBackupItemStatus.Restored -> getString(R.string.settings_backup_status_restored)
+        PreferencesBackupItemStatus.Reset -> getString(R.string.settings_backup_status_reset)
+    }
 }
 

@@ -84,6 +84,7 @@ class FileSystemDataSourceTest {
 
     @After
     fun teardown() {
+        DefaultFileSystemDataSource.resetSecureOverwriteOverrideForTest()
         database.close()
         root.deleteRecursively()
     }
@@ -249,6 +250,55 @@ class FileSystemDataSourceTest {
         assertEquals(emptyList<String>(), result.succeededPaths)
         assertEquals(listOf(missing), result.skippedPaths)
         assertTrue(result.failedItems.isEmpty())
+    }
+
+    @Test
+    fun `shredDetailed reports overwrite failure without deleting file`() = runTest {
+        val file = File(root, "protected.txt").apply {
+            writeText("private")
+        }
+        DefaultFileSystemDataSource.secureOverwriteOverrideForTest = {
+            DefaultFileSystemDataSource.SecureOverwriteResult.Failure("Injected overwrite failure")
+        }
+
+        val result = dataSource.shredDetailed(listOf(file.absolutePath)).getOrThrow()
+
+        assertEquals(emptyList<String>(), result.succeededPaths)
+        assertEquals(file.absolutePath, result.failedItems.single().path)
+        assertEquals("Injected overwrite failure", result.failedItems.single().message)
+        assertEquals("SecureOverwriteFailed", result.failedItems.single().causeType)
+        assertEquals(listOf(file.absolutePath), result.cleanupRequiredPaths)
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun `shred compatibility returns partial failure when overwrite fails`() = runTest {
+        val file = File(root, "partial.txt").apply {
+            writeText("private")
+        }
+        DefaultFileSystemDataSource.secureOverwriteOverrideForTest = {
+            DefaultFileSystemDataSource.SecureOverwriteResult.Failure("Injected overwrite failure")
+        }
+
+        val result = dataSource.shred(listOf(file.absolutePath))
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is BatchMutationPartialFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("1 failed"))
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun `shredDetailed deletes file after successful overwrite`() = runTest {
+        val file = File(root, "secure.txt").apply {
+            writeText("private")
+        }
+
+        val result = dataSource.shredDetailed(listOf(file.absolutePath)).getOrThrow()
+
+        assertEquals(listOf(file.absolutePath), result.succeededPaths)
+        assertTrue(result.failedItems.isEmpty())
+        assertFalse(file.exists())
     }
 
     @Test

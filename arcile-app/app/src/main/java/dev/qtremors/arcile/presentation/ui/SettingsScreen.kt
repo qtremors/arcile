@@ -4,19 +4,26 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -43,6 +50,9 @@ import dev.qtremors.arcile.shared.ui.ArcileListSurface
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.backup.PreferencesBackupItem
+import dev.qtremors.arcile.backup.PreferencesBackupItemStatus
+import dev.qtremors.arcile.backup.PreferencesBackupOperationResult
 
 /**
  * Settings screen for theme and appearance preferences.
@@ -71,7 +81,12 @@ fun SettingsScreen(
     onOpenStorageManagement: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onRunOnboardingAgain: suspend () -> Unit = {},
-    onRestartApp: () -> Unit = {}
+    onRestartApp: () -> Unit = {},
+    backupState: PreferencesBackupUiState = PreferencesBackupUiState.Idle,
+    onExportSettingsBackup: (android.net.Uri) -> Unit = {},
+    onRestoreSettingsBackup: (android.net.Uri) -> Unit = {},
+    onApplySettingsRestore: (android.net.Uri) -> Unit = {},
+    onClearBackupState: () -> Unit = {}
 ) {
     val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -82,6 +97,16 @@ fun SettingsScreen(
     }
     var showResetOnboardingDialog by remember { mutableStateOf(false) }
     var showRestartDialog by remember { mutableStateOf(false) }
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) onExportSettingsBackup(uri)
+    }
+    val restoreBackupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) onRestoreSettingsBackup(uri)
+    }
 
     LaunchedEffect(context) {
         externalAccessCacheStats = withContext(Dispatchers.IO) {
@@ -131,6 +156,90 @@ fun SettingsScreen(
                 }
             }
         )
+    }
+
+    when (val state = backupState) {
+        PreferencesBackupUiState.Idle,
+        PreferencesBackupUiState.Busy -> Unit
+        is PreferencesBackupUiState.RestorePreview -> {
+            AlertDialog(
+                onDismissRequest = onClearBackupState,
+                title = { Text(stringResource(R.string.settings_backup_restore_preview_title)) },
+                text = {
+                    BackupItemList(
+                        description = stringResource(R.string.settings_backup_restore_preview_description),
+                        items = state.preview.items
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { onApplySettingsRestore(state.uri) }) {
+                        Text(stringResource(R.string.settings_backup_restore))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onClearBackupState) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+        is PreferencesBackupUiState.Exported -> {
+            AlertDialog(
+                onDismissRequest = onClearBackupState,
+                title = { Text(stringResource(R.string.settings_backup_export_complete_title)) },
+                text = {
+                    BackupResultList(
+                        description = stringResource(
+                            R.string.settings_backup_export_complete_description,
+                            state.result.successCount
+                        ),
+                        result = state.result
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = onClearBackupState) {
+                        Text(stringResource(R.string.ok))
+                    }
+                }
+            )
+        }
+        is PreferencesBackupUiState.Restored -> {
+            AlertDialog(
+                onDismissRequest = onClearBackupState,
+                title = { Text(stringResource(R.string.settings_backup_restore_complete_title)) },
+                text = {
+                    BackupResultList(
+                        description = stringResource(
+                            R.string.settings_backup_restore_complete_description,
+                            state.result.successCount
+                        ),
+                        result = state.result
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = onRestartApp) {
+                        Text(stringResource(R.string.restart_now))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onClearBackupState) {
+                        Text(stringResource(R.string.later))
+                    }
+                }
+            )
+        }
+        is PreferencesBackupUiState.Failed -> {
+            AlertDialog(
+                onDismissRequest = onClearBackupState,
+                title = { Text(stringResource(R.string.settings_backup_failed_title)) },
+                text = { Text(state.message) },
+                confirmButton = {
+                    TextButton(onClick = onClearBackupState) {
+                        Text(stringResource(R.string.ok))
+                    }
+                }
+            )
+        }
     }
 
     ArcileScreenScaffold(
@@ -474,6 +583,41 @@ fun SettingsScreen(
             item {
                 SettingsSection(title = stringResource(R.string.section_setup)) {
                     ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_backup_export)) },
+                        supportingContent = { Text(stringResource(R.string.settings_backup_export_description)) },
+                        leadingContent = { Icon(Icons.Default.FileUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        trailingContent = {
+                            if (backupState == PreferencesBackupUiState.Busy) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(
+                            enabled = backupState != PreferencesBackupUiState.Busy
+                        ) {
+                            exportBackupLauncher.launch("arcile-settings-backup.json")
+                        }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_backup_restore)) },
+                        supportingContent = { Text(stringResource(R.string.settings_backup_restore_description)) },
+                        leadingContent = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(
+                            enabled = backupState != PreferencesBackupUiState.Busy
+                        ) {
+                            restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                        }
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    ListItem(
                         headlineContent = { Text(stringResource(R.string.run_onboarding_again)) },
                         supportingContent = { Text(stringResource(R.string.run_onboarding_again_description)) },
                         leadingContent = { Icon(Icons.Default.RestartAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
@@ -638,6 +782,82 @@ fun CustomThemeCreatorPanel(
                 color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun BackupItemList(
+    description: String,
+    items: List<PreferencesBackupItem>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(description, style = MaterialTheme.typography.bodyMedium)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .heightIn(max = 360.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            items.forEach { item ->
+                BackupItemRow(item)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupResultList(
+    description: String,
+    result: PreferencesBackupOperationResult
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(description, style = MaterialTheme.typography.bodyMedium)
+        Column(
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .heightIn(max = 360.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            result.items.forEach { item ->
+                BackupItemRow(item)
+            }
+            result.failures.forEach { failure ->
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Text(failure.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text(failure.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupItemRow(item: PreferencesBackupItem) {
+    val label = when (item.status) {
+        PreferencesBackupItemStatus.Exported -> stringResource(R.string.settings_backup_status_exported)
+        PreferencesBackupItemStatus.WillRestore -> stringResource(R.string.settings_backup_status_will_restore)
+        PreferencesBackupItemStatus.WillReset -> stringResource(R.string.settings_backup_status_will_reset)
+        PreferencesBackupItemStatus.Restored -> stringResource(R.string.settings_backup_status_restored)
+        PreferencesBackupItemStatus.Reset -> stringResource(R.string.settings_backup_status_reset)
+    }
+    Surface(
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(item.label, style = MaterialTheme.typography.bodyMedium)
+            AssistChip(onClick = {}, label = { Text(label) })
         }
     }
 }

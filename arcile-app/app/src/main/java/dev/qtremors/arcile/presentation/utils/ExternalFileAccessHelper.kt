@@ -17,6 +17,7 @@ import java.security.MessageDigest
 
 object ExternalFileAccessHelper {
     private const val STAGING_ROOT = "external_access"
+    private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
     private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
     private const val MAX_CACHE_AGE_MS = 6L * 60 * 60 * 1000 // 6 hours
@@ -215,8 +216,9 @@ object ExternalFileAccessHelper {
             val sourceFile = File(path)
             require(isAllowedUserFile(context, sourceFile)) { "Unsupported file path" }
             if (sourceFile.exists() && sourceFile.isFile) {
+                val stagedFile = stageFile(context, sourceFile, OPEN_STAGING)
                 val uri = runCatching {
-                    directOpenUriFactory(context, sourceFile)
+                    directOpenUriFactory(context, stagedFile)
                 }.getOrElse { error ->
                     throw IllegalArgumentException("Unable to create file access grant", error)
                 }

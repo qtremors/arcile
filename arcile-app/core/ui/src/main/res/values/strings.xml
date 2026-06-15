@@ -101,6 +101,27 @@
     <string name="section_setup">Setup</string>
     <string name="run_onboarding_again">Run onboarding again</string>
     <string name="run_onboarding_again_description">Restart Arcile and show the setup flow again.</string>
+    <string name="settings_backup_export">Export settings backup</string>
+    <string name="settings_backup_export_description">Save Arcile preferences, appearance, quick access, cleaner rules, and local activity to a file.</string>
+    <string name="settings_backup_restore">Restore settings backup</string>
+    <string name="settings_backup_restore_description">Import an Arcile settings backup file. Restart after restore to reload all preferences.</string>
+    <string name="settings_backup_export_complete_title">Backup exported</string>
+    <string name="settings_backup_export_complete_description">Saved %1$d preference store(s) to the selected backup file.</string>
+    <string name="settings_backup_restore_complete_title">Backup restored</string>
+    <string name="settings_backup_restore_complete_description">Restored %1$d preference store(s). Restart Arcile to apply all restored settings.</string>
+    <string name="settings_backup_failed_title">Backup failed</string>
+    <string name="settings_backup_loading">Reading backup...</string>
+    <string name="settings_backup_restore_preview_title">Restore this backup?</string>
+    <string name="settings_backup_restore_preview_description">Review what will be restored. Preference groups missing from the backup will be reset to defaults.</string>
+    <string name="settings_backup_status_exported">Exported</string>
+    <string name="settings_backup_status_will_restore">Will restore</string>
+    <string name="settings_backup_status_will_reset">Will reset</string>
+    <string name="settings_backup_status_restored">Restored</string>
+    <string name="settings_backup_status_reset">Reset</string>
+    <string name="onboarding_restore_backup_title">Already have a backup?</string>
+    <string name="onboarding_restore_backup_description">Restore Arcile preferences before setup so your theme, quick access, cleaner rules, and local activity come back first.</string>
+    <string name="onboarding_restore_backup_action">Restore from file</string>
+    <string name="onboarding_restore_backup_short">Restore</string>
     <string name="restart_onboarding_title">Run onboarding again?</string>
     <string name="restart_onboarding_description">Arcile will reset the setup flow. Restart the app to begin onboarding again.</string>
     <string name="restart_now">Restart now</string>
@@ -742,7 +763,7 @@
 
     <string name="file_operation_shredding_files">Shredding files</string>
     <string name="shred_permanently_checkbox">Securely shred files</string>
-    <string name="shred_permanently_checkbox_description">Overwrite files with zeroes before deleting them</string>
+    <string name="shred_permanently_checkbox_description">Overwrite files before deleting when storage permits; unsupported files will be reported as failed</string>
     <string name="file_operation_shredding">Shredding</string>
     <string name="theme_preset_none">None</string>
     <string name="theme_preset_dracula">Dracula</string>
