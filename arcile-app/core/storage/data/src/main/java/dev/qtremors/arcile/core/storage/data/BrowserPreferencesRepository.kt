@@ -33,6 +33,7 @@ val Context.browserDataStore by preferencesDataStore(name = "browser_prefs")
 class BrowserPreferencesRepository(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.browserDataStore,
+    private val activityLogRepository: ActivityLogRepository? = null,
     private val dispatchers: ArcileDispatchers = ArcileDispatchers(
         io = Dispatchers.IO,
         default = Dispatchers.Default,
@@ -352,6 +353,7 @@ class BrowserPreferencesRepository(
                 prefs.remove(LAST_OPENED_VOLUME_ID_KEY)
             }
         }
+        activityLogRepository?.recordFolderOpened(path, volumeId)
     }
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) {

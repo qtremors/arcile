@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.BrowserPreferencesRepository
+import dev.qtremors.arcile.core.storage.data.ActivityLogRepository
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.StorageCleanerPreferencesRepository
@@ -27,9 +28,14 @@ object BrowserPrefsModule {
     @Singleton
     fun provideBrowserPreferencesRepository(
         @ApplicationContext context: Context,
+        activityLogRepository: ActivityLogRepository,
         dispatchers: ArcileDispatchers
     ): BrowserPreferencesRepository {
-        return BrowserPreferencesRepository(context, dispatchers = dispatchers)
+        return BrowserPreferencesRepository(
+            context = context,
+            activityLogRepository = activityLogRepository,
+            dispatchers = dispatchers
+        )
     }
 
     @Provides
@@ -38,6 +44,15 @@ object BrowserPrefsModule {
         repository: BrowserPreferencesRepository
     ): BrowserPreferencesStore {
         return repository
+    }
+
+    @Provides
+    @Singleton
+    fun provideActivityLogRepository(
+        @ApplicationContext context: Context,
+        dispatchers: ArcileDispatchers
+    ): ActivityLogRepository {
+        return ActivityLogRepository(context, dispatchers = dispatchers)
     }
 
     @Provides

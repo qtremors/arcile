@@ -12,6 +12,9 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
+import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
+import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -21,6 +24,7 @@ import dev.qtremors.arcile.di.ApplicationScope
 import dev.qtremors.arcile.di.DeferOperationJournalRecovery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +44,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val operationJournal: OperationJournal = DefaultOperationJournal(context),
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
+    private val activityLogStore: ActivityLogStore? = null,
     @param:ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     @param:DeferOperationJournalRecovery private val deferJournalRecovery: Boolean = false
 ) : BulkFileOperationCoordinator {
@@ -48,6 +53,10 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
     private val _recoveryRecords = MutableStateFlow<List<OperationRecoveryRecord>>(emptyList())
     override val recoveryRecords: StateFlow<List<OperationRecoveryRecord>> = _recoveryRecords.asStateFlow()
+    private val activityLogWriteLock = Any()
+    private val latestActivityLogSequence = mutableMapOf<String, Long>()
+    private var activityLogSequence = 0L
+    private var activityLogWriteJob: Job? = null
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
         replay = 1,
@@ -138,6 +147,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         }
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.COMPLETED) }
         operationJournal.clearActive(request.operationId)
+        recordOperation(request, ActivityLogOperationStatus.COMPLETED)
         _events.tryEmit(BulkFileOperationEvent.Completed(request))
     }
 
@@ -148,6 +158,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         val error = Exception(message).toArcileError()
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.FAILED, error = message) }
         operationJournal.clearActive(request.operationId)
+        recordOperation(request, ActivityLogOperationStatus.FAILED, message)
         _events.tryEmit(BulkFileOperationEvent.Failed(request, message, error))
     }
 
@@ -158,6 +169,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         request?.let {
             operationJournal.update(it.operationId) { record -> record.copy(phase = OperationPhase.CANCELLED) }
             operationJournal.clearActive(it.operationId)
+            recordOperation(it, ActivityLogOperationStatus.CANCELLED)
         }
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
     }
@@ -199,6 +211,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         return try {
             ContextCompat.startForegroundService(context, intent)
             operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.RUNNING) }
+            recordOperation(request, ActivityLogOperationStatus.RUNNING)
             true
         } catch (e: Exception) {
             _activeRequest.value = null
@@ -213,6 +226,49 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
                 )
             )
             false
+        }
+    }
+
+    private fun recordOperation(
+        request: BulkFileOperationRequest,
+        status: ActivityLogOperationStatus,
+        errorMessage: String? = null
+    ) {
+        val entry = ActivityLogEntry.FileOperation(
+            id = "operation:${request.operationId}",
+            timestampMillis = System.currentTimeMillis(),
+            operationId = request.operationId,
+            operationType = request.type.name,
+            status = status,
+            sourceCount = request.sourcePaths.size,
+            destinationPath = request.destinationPath,
+            errorMessage = errorMessage
+        )
+        val terminal = status != ActivityLogOperationStatus.RUNNING
+        val sequence: Long
+        val previousJob: Job?
+
+        synchronized(activityLogWriteLock) {
+            sequence = ++activityLogSequence
+            latestActivityLogSequence[request.operationId] = sequence
+            previousJob = activityLogWriteJob
+            activityLogWriteJob = applicationScope.launch {
+                previousJob?.join()
+                val shouldWrite = synchronized(activityLogWriteLock) {
+                    latestActivityLogSequence[request.operationId] == sequence
+                }
+                if (!shouldWrite) return@launch
+
+                activityLogStore?.upsertFileOperation(entry)
+
+                if (terminal) {
+                    synchronized(activityLogWriteLock) {
+                        if (latestActivityLogSequence[request.operationId] == sequence) {
+                            latestActivityLogSequence.remove(request.operationId)
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -36,6 +36,7 @@ fun ToolsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToCleaner: () -> Unit,
     onNavigateToTrash: () -> Unit,
+    onNavigateToActivity: () -> Unit,
     homeUtilityIds: Set<String>,
     onUtilityHomeVisibilityChange: (String, Boolean) -> Unit
 ) {
@@ -78,6 +79,7 @@ fun ToolsScreen(
                             when (definition.action) {
                                 UtilityAction.Cleaner -> onNavigateToCleaner()
                                 UtilityAction.Trash -> onNavigateToTrash()
+                                UtilityAction.Activity -> onNavigateToActivity()
                                 UtilityAction.None -> Unit
                             }
                         }

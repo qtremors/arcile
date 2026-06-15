@@ -64,9 +64,9 @@ class UtilityPreferencesRepositoryTest {
     fun `home utility ids persist updates`() = runBlocking {
         val repository = UtilityPreferencesRepository(context, dataStore)
 
-        repository.setHomeUtilityIds(setOf("trash"))
+        repository.setHomeUtilityIds(setOf("trash", "activity"))
 
-        assertTrue(repository.homeUtilityIds.first() == setOf("trash"))
+        assertTrue(repository.homeUtilityIds.first() == setOf("trash", "activity"))
     }
 
     @Test

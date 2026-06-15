@@ -14,6 +14,7 @@ class BackupRulesTest {
         assertTrue("browser preferences should be excluded", "datastore/browser_prefs.preferences_pb" in excludedPaths)
         assertTrue("quick access preferences should be excluded", "datastore/quick_access_prefs.preferences_pb" in excludedPaths)
         assertTrue("storage classifications should be excluded", "datastore/storage_classifications_prefs.preferences_pb" in excludedPaths)
+        assertTrue("activity log should be excluded", "datastore/activity_log.preferences_pb" in excludedPaths)
         assertTrue("operation journal should be excluded", "operation_journal" in excludedPaths)
         assertTrue("Arcile storage metadata should be excluded", ".arcile" in excludedPaths)
     }
@@ -26,6 +27,7 @@ class BackupRulesTest {
         assertTrue("browser preferences should be excluded", "datastore/browser_prefs.preferences_pb" in excludedPaths)
         assertTrue("quick access preferences should be excluded", "datastore/quick_access_prefs.preferences_pb" in excludedPaths)
         assertTrue("storage classifications should be excluded", "datastore/storage_classifications_prefs.preferences_pb" in excludedPaths)
+        assertTrue("activity log should be excluded", "datastore/activity_log.preferences_pb" in excludedPaths)
         assertTrue("operation journal should be excluded", "operation_journal" in excludedPaths)
         assertTrue("Arcile storage metadata should be excluded", ".arcile" in excludedPaths)
     }

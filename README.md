@@ -5,14 +5,14 @@
 <h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>
 
 <p align="center">
-  A private, source-available Android file manager for local-first storage, safe file operations, archives, and Material 3 Expressive polish.
+  A private, modern Android file manager for fast browsing, safe file operations, storage cleanup, archives, and a clean Material 3 interface.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.1.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.1.1-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
-  <img src="https://img.shields.io/badge/Min_SDK-30-34A853?logo=android" alt="Android">
+  <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
 </p>
 
@@ -23,9 +23,9 @@
 
 ## Why Arcile
 
-Arcile is built for people who want a modern Android file manager without ads, telemetry, or network access. Version 1.1.0 builds on the first stable foundation with a stronger Room-backed cache layer, a richer Storage Cleaner, and a more immersive Gallery and Media Viewer while preserving the local-first storage model.
+Arcile is built for people who want a fast Android file manager without ads, trackers, telemetry, or internet access.
 
-The 1.1.0 release consolidates the v1.0.x update cycle after the first stable release. It brings exact duplicate verification, custom cleaner rules, cached storage snapshots, gesture-driven media viewing, gallery timeline improvements, persistent page memory, and broader cache invalidation hardening across the core browser, Home dashboard, recents, quick access, storage usage tools, cleaner, archive workflows, recovery plumbing, and modular Kotlin/Compose architecture.
+It supports internal storage, SD cards, USB drives, Trash, recent files, quick access, gallery browsing, archive workflows, and storage cleanup tools.
 
 ---
 
@@ -33,21 +33,22 @@ The 1.1.0 release consolidates the v1.0.x update cycle after the first stable re
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Volume File Browser** | Browse and manage internal storage, SD cards, and USB OTG volumes with scoped storage labels and user-controlled volume classification. |
-| **Home Dashboard** | Volume-aware storage summaries, category shortcuts, quick access entries, and a Material 3 Expressive recent-files carousel. |
-| **Storage Dashboard** | Volume/category storage breakdown, Trash usage visibility, and a Filelight-inspired radial folder usage map (Usage Map) with breadcrumb drill-in. |
+| **Multi-Volume File Browser** | Browse and manage internal storage, SD cards, and USB drives. |
+| **Home Dashboard** | Storage summaries, category shortcuts, pinned folders, and recent files. |
+| **Storage Dashboard** | Volume/category breakdowns, Trash usage, and a folder usage map with breadcrumb drill-in. |
 | **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
-| **Recent Files** | Browse recents with scoped volume support, date grouping, search, filters, list/grid controls, thumbnails, selection, properties, and containing-folder jumps. |
-| **Storage Cleaner** | Scanner for large files, exact duplicate groups, APKs, downloads, videos, marker files, empty folders, ignored items, and conservative cache/junk cleanup routed through Trash. |
-| **Archive Workflows** | Create, browse, and extract ZIP and 7z archives, including password-protected ZIP/7z flows and safe extraction path checks. |
-| **Foreground File Operations** | Copy, move, archive, extract, fake-file generation, Trash, and delete flows run through foreground operation plumbing with progress events and a lightweight operation journal. |
+| **Recent Files** | Browse recent files with grouping, search, filters, thumbnails, selection, properties, and containing-folder jumps. |
+| **Gallery & Media Viewer** | Browse photos and albums, view images with gestures, inspect metadata, favorite items, and open files from their containing folders. |
+| **Storage Cleaner** | Review large files, exact duplicates, APKs, downloads, videos, marker files, empty folders, ignored items, and conservative cache cleanup. |
+| **Archive Workflows** | Create ZIP, 7z, and TAR-family archives; browse and extract supported archive formats; handle password-protected ZIP/7z files; and block unsafe extraction paths. |
+| **Foreground File Operations** | Copy, move, archive, extract, Trash, and delete flows show foreground progress and operation recovery prompts where available. |
 | **Conflict Resolution** | Smart paste detects top-level name collisions, compares metadata for conflicting files, and supports replace, keep both, skip, and batch resolution choices. |
-| **Trash Subsystem** | Permanent volumes use `.arcile/.trash` plus schema-versioned metadata sidecars for restore, recovered payloads, filters, sorting, properties, and undo where possible; temporary OTG-style volumes route deletions permanently. |
-| **Selection Properties** | Single and multi-select metadata includes paths, counts, sizes, hidden-item counts, MIME/extension details, and folder aggregate access status. |
-| **Search & Filters** | MediaStore-backed search and category browsing support type, size, date, extension, hidden-file, volume, folder-scope, MIME, and saved-preset metadata filters across relevant scopes. |
-| **Material You Theming** | Dynamic wallpaper colors, MaterialKolor custom accents, color harmonization, light/dark/OLED modes, haptic tactility (with global toggle), filename display controls, and thumbnail controls. |
-| **First-Run Onboarding** | Guided setup for features, theme/accent choice, All Files Access, and Android 13+ notification permission context. |
-| **Safe Open/Share** | Outbound file access is centralized through allowlisted staging, cache cleanup controls, batch guards, MIME-aware grouping, and `FileProvider` handoff paths. |
+| **Trash Subsystem** | Stores deleted files and restore metadata on permanent volumes, with recovered-items handling, filters, sorting, properties, and undo where possible; temporary drives delete permanently. |
+| **Selection Properties** | Inspect selected files and folders with paths, counts, sizes, hidden-item counts, file types, and access status. |
+| **Search & Filters** | Search and filter by type, size, date, extension, hidden files, volume, folder scope, and saved presets. |
+| **Material 3 Theming** | Dynamic colors, custom accents, light/dark/OLED modes, haptics, filename controls, and thumbnail controls. |
+| **First-Run Onboarding** | Guided setup for theme, accent, all-files access, and notification permission context for long-running operations. |
+| **Open / Share Handoff** | Opens and shares files through a centralized helper with path checks, staging for shared local files, batch guards, MIME grouping, and Android content URI handoff. |
 | **Offline & Ad-Free** | No internet permission, no ads, no telemetry, and no tracker dependency. |
 
 ---
@@ -56,7 +57,7 @@ The 1.1.0 release consolidates the v1.0.x update cycle after the first stable re
 
 Download the latest APK from [GitHub Releases](https://github.com/qtremors/arcile/releases) and install it on your Android device.
 
-> **Runtime permission:** Arcile requires Android 11+ **All Files Access** (`MANAGE_EXTERNAL_STORAGE`) for full filesystem management. Android 13+ notification permission is requested during onboarding for foreground operation updates.
+> **Runtime permission:** Arcile requires Android 11 or newer and uses Android's all-files access permission for full file management. Notification permission is requested on newer Android versions so foreground file operations can show progress.
 
 ### Release Signing
 
@@ -69,7 +70,7 @@ signing.keyAlias=your_key_alias
 signing.keyPassword=your_key_password
 ```
 
-From `arcile-app/`, build the release APK:
+From the Gradle root (`arcile-app/`), build the release APK:
 
 ```bash
 ./gradlew assembleRelease
@@ -92,7 +93,7 @@ Release builds enable R8 minification and resource shrinking.
 | **Persistence** | Room cache database plus DataStore Preferences for theme, browser presentation, storage classification, quick access, cleaner rules, and onboarding |
 | **Media** | Coil with custom APK icon, audio album art, PDF, and video thumbnail fetchers |
 | **Archives** | Apache Commons Compress, Tukaani XZ, and Zip4j |
-| **Min / Target / Compile SDK** | 30 / 37 / 37 |
+| **Android Support** | Android 11 or newer |
 
 ---
 
@@ -147,35 +148,28 @@ arcile/
 
 ## Testing
 
-Run from `arcile-app/`:
+Run from the Gradle root (`arcile-app/`). These commands cover all included modules:
 
 ```bash
-# Full local suite: all module unit/Robolectric tests, lint, and verification checks
+# Full local suite across all modules: unit/Robolectric tests, lint, and verification checks
 ./gradlew check
 
-# Entire suite including device/emulator instrumented tests
+# Full device/emulator instrumented suite across all modules
+./gradlew connectedCheck
+
+# Full local + device/emulator verification
 ./gradlew check connectedCheck
 
-# App-module JVM unit + Robolectric tests only
-./gradlew :app:testDebugUnitTest
+# Release APK across the app and included modules
+./gradlew assembleRelease
 
-# Production string guard for audited composables
+# Production string guard across production sources
 ./gradlew checkProductionStrings
-
-# App-module instrumented tests, requires device/emulator
-./gradlew :app:connectedDebugAndroidTest
 ```
 
 Use `./gradlew check` for normal pre-commit verification. Use `./gradlew check connectedCheck` when a device or emulator is attached and you want the entire test suite, including instrumented Android tests.
 
-Current test surface:
-
-| Area | Coverage |
-|------|----------|
-| **JVM/Robolectric** | 102 Kotlin test files across data, domain, image, navigation, presentation, UI, operations, and utilities |
-| **Instrumented** | 3 Android test files for Home, Quick Access, and shared empty-state rendering |
-| **Approximate test declarations** | 536 `@Test` annotations |
-| **Key helpers** | `FakeFileRepository`, `FakeBulkFileOperationCoordinator`, `FakeBrowserPreferencesStore`, `MainDispatcherRule`, `ArcileTestTheme`, `TestFixtures` |
+The suite includes JVM/Robolectric tests, Compose UI tests, instrumented Android tests, architecture checks, lint, and release convention checks.
 
 ---
 

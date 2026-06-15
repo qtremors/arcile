@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.0
-> **Last Updated:** 2026-06-14
+> **Version:** 1.1.1
+> **Last Updated:** 2026-06-15
 
 ---
+
+## [1.1.1] - 2026-06-15
+
+- **Activity Log**: Added a local Activity tool for opened folders and foreground file-operation history, including clear controls, backup exclusions, and Home/Tools navigation.
+- **Activity Log Reliability**: Serialized foreground operation activity writes so completed, failed, or cancelled operations cannot be overwritten by a delayed running-status entry.
 
 ## [1.1.0] - 2026-06-14
 

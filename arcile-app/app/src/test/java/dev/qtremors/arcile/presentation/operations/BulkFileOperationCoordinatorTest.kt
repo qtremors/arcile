@@ -7,8 +7,14 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.data.MutationJournal
+import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
+import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.testutil.FakeActivityLogStore
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -122,6 +128,69 @@ class BulkFileOperationCoordinatorTest {
     }
 
     @Test
+    fun `accepted operation writes running activity entry`() = testScope.runTest {
+        val activityLog = FakeActivityLogStore()
+        coordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = DefaultOperationJournal(context),
+            activityLogStore = activityLog,
+            applicationScope = this
+        )
+
+        coordinator.startOperation(BulkFileOperationType.COPY, listOf("/test.txt"), "/dest", emptyMap(), null)
+        advanceUntilIdle()
+
+        val entry = activityLog.fileOperationRequests.single()
+        assertEquals(ActivityLogOperationStatus.RUNNING, entry.status)
+        assertEquals(BulkFileOperationType.COPY.name, entry.operationType)
+        assertEquals(1, entry.sourceCount)
+        assertEquals("/dest", entry.destinationPath)
+    }
+
+    @Test
+    fun `terminal operation callbacks update activity entry`() = testScope.runTest {
+        val activityLog = FakeActivityLogStore()
+        coordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = DefaultOperationJournal(context),
+            activityLogStore = activityLog,
+            applicationScope = this
+        )
+        coordinator.startOperation(BulkFileOperationType.COPY, listOf("/test.txt"), "/dest", emptyMap(), null)
+        val request = coordinator.activeRequest.value!!
+
+        coordinator.onOperationFailed(request, "Copy failed")
+        advanceUntilIdle()
+
+        val entry = activityLog.fileOperationRequests.last()
+        assertEquals(ActivityLogOperationStatus.FAILED, entry.status)
+        assertEquals("Copy failed", entry.errorMessage)
+        assertEquals("/dest", entry.destinationPath)
+    }
+
+    @Test
+    fun `terminal activity entry is not overwritten by delayed running entry`() = testScope.runTest {
+        val activityLog = DelayingFirstActivityLogStore()
+        coordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = DefaultOperationJournal(context),
+            activityLogStore = activityLog,
+            applicationScope = this
+        )
+        coordinator.startOperation(BulkFileOperationType.COPY, listOf("/test.txt"), "/dest", emptyMap(), null)
+        val request = coordinator.activeRequest.value!!
+        activityLog.firstWriteStarted.await()
+
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+        activityLog.resumeFirstWrite.complete(Unit)
+        advanceUntilIdle()
+
+        val entry = activityLog.fileOperationRequests.last()
+        assertEquals(ActivityLogOperationStatus.COMPLETED, entry.status)
+    }
+
+    @Test
     fun `constructor surfaces interrupted recovery while active request remains null`() {
         val journal = DefaultOperationJournal(context)
         journal.upsertActive(request("op-recover").toJournalRecord(OperationPhase.RUNNING))
@@ -213,6 +282,32 @@ class BulkFileOperationCoordinatorTest {
         override fun forgetTrashFallback(payloadPath: String, metadataPath: String) = Unit
         override suspend fun cleanupAbandonedMutations() {
             cleanupCalled = true
+        }
+    }
+
+    private class DelayingFirstActivityLogStore : ActivityLogStore {
+        override val entries = MutableStateFlow<List<ActivityLogEntry>>(emptyList())
+        val fileOperationRequests = mutableListOf<ActivityLogEntry.FileOperation>()
+        val firstWriteStarted = CompletableDeferred<Unit>()
+        val resumeFirstWrite = CompletableDeferred<Unit>()
+        private var writeCount = 0
+
+        override suspend fun recordFolderOpened(path: String, volumeId: String?) = Unit
+
+        override suspend fun upsertFileOperation(entry: ActivityLogEntry.FileOperation) {
+            writeCount += 1
+            if (writeCount == 1) {
+                firstWriteStarted.complete(Unit)
+                resumeFirstWrite.await()
+            }
+            fileOperationRequests += entry
+            entries.value = listOf(entry) + entries.value.filterNot {
+                it is ActivityLogEntry.FileOperation && it.operationId == entry.operationId
+            }
+        }
+
+        override suspend fun clear() {
+            entries.value = emptyList()
         }
     }
 }

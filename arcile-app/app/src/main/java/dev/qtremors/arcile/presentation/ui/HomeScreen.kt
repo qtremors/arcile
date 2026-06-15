@@ -304,7 +304,8 @@ fun HomeScreen(
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
-    onNavigateToCleaner: () -> Unit = {}
+    onNavigateToCleaner: () -> Unit = {},
+    onNavigateToActivity: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -524,6 +525,7 @@ fun HomeScreen(
                                                 when (definition.action) {
                                                     UtilityAction.Trash -> onNavigateToTrash()
                                                     UtilityAction.Cleaner -> onNavigateToCleaner()
+                                                    UtilityAction.Activity -> onNavigateToActivity()
                                                     UtilityAction.None -> Unit
                                                 }
                                             }

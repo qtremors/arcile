@@ -30,7 +30,7 @@ class UtilityPreferencesRepository(
 ) : UtilityPreferencesStore {
     private val HOME_UTILITY_IDS_KEY = stringSetPreferencesKey("home_utility_ids")
     private val defaultHomeUtilityIds = setOf("trash", "cleaner")
-    private val allowedHomeUtilityIds = defaultHomeUtilityIds
+    private val allowedHomeUtilityIds = defaultHomeUtilityIds + "activity"
 
     override val homeUtilityIds: Flow<Set<String>> = dataStore.data
         .catch { exception ->

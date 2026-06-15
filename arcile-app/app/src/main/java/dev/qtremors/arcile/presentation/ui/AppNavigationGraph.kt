@@ -319,6 +319,12 @@ fun AppNavigationGraph(
                                             launchSingleTop = true
                                         }
                                     },
+                                    onNavigateToActivity = {
+                                        navController.navigate(AppRoutes.ActivityLog) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
                                     onNavigateToRecentFiles = {
                                         navController.navigate(AppRoutes.RecentFiles()) {
                                             popUpTo<AppRoutes.Main> { saveState = true }
@@ -568,9 +574,18 @@ fun AppNavigationGraph(
                                 launchSingleTop = true
                             }
                         },
+                        onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
                         homeUtilityIds = homeUtilityIds,
                         onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
                     )
+                }
+                composable<AppRoutes.ActivityLog>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
+                    ActivityLogRoute(onNavigateBack = { navController.popBackStack() })
                 }
                 storageCleanerScreen(
                     enterTransition = utilityEnterTransition,

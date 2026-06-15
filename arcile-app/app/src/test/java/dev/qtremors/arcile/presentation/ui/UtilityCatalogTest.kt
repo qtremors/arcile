@@ -22,6 +22,7 @@ class UtilityCatalogTest {
         assertTrue(HomeUtilityCatalog.all { it.showOnHome && it.isImplemented })
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Trash })
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Cleaner })
+        assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Activity })
     }
 
     @Test

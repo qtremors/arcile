@@ -107,6 +107,7 @@ class FakeBrowserPreferencesStore(
 
     override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
         lastUpdatedPath = path
+        preferences.value = preferences.value.copy(lastOpenedPath = path, lastOpenedVolumeId = volumeId)
     }
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
