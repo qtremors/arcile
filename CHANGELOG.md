@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.2
-> **Last Updated:** 2026-06-15
+> **Version:** 1.1.3
+> **Last Updated:** 2026-06-16
 
 ---
+
+## [1.1.3] - 2026-06-16
+
+- **Onboarding UI/UX Polish**: Refined all onboarding chips and status elements to be pill-shaped (`CircleShape`), increased page bottom scroll padding to prevent content from cutting off, made permission row touch targets larger and more tactile, animated soft background warning highlights on pending permissions, simplified permissions copy, and added a back arrow icon to header navigation.
+- **Onboarding Accessibility Polish**: Made the expressive onboarding icon respect reduced-motion settings, moved new onboarding labels into string resources, and changed granted permission indicators from inert buttons to static status chips.
+- **Onboarding M3 Expressive Overhaul**: Overhauled onboarding pages with a custom counter-rotating morphing shape background behind the app icon, compact features showcase utilizing a FlowRow of interactive chips with dynamic detail crossfading, and direct inline personalization and permission configuration.
+- **Keyboard Input Reliability**: Made search fields, dialog name inputs, filter fields, and other typed text inputs explicitly open the keyboard on focus/tap and bring themselves into view above the IME.
+- **Home Recent Thumbnail Stability**: Unified Home recent-file carousel preload and display thumbnail cache keys on a shared bucketed variant so carousel thumbnails stay cached when scrolled offscreen and back.
+- **Fresh Recent Files and Gallery**: Stopped serving stale persisted recent-file snapshots to UI refreshes, tightened gallery cached-image validation, and ensured external MediaStore changes clear gallery snapshots so new screenshots and deleted images are reflected without manual refresh.
 
 ## [1.1.2] - 2026-06-15
 

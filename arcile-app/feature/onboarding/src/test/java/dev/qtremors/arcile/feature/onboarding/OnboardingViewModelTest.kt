@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.feature.onboarding
 
 import android.content.Context
-import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
+import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -26,15 +26,25 @@ class OnboardingViewModelTest {
     private val context = mockk<Context>(relaxed = true)
 
     @Test
-    fun `skip jumps to storage permission and does not complete onboarding`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `next moves from welcome directly to setup permissions`() = runTest(mainDispatcherRule.dispatcher) {
         val store = FakeOnboardingPreferencesStore()
         val viewModel = OnboardingViewModel(store, context)
 
-        viewModel.skipToPermissions()
+        viewModel.next()
 
         assertEquals(OnboardingStep.SetupPermissions, viewModel.state.value.step)
-        assertTrue(viewModel.state.value.skipMode)
         assertFalse(store.preferencesFlow.value.isCompleted)
+    }
+
+    @Test
+    fun `back returns from setup permissions to welcome`() = runTest(mainDispatcherRule.dispatcher) {
+        val store = FakeOnboardingPreferencesStore()
+        val viewModel = OnboardingViewModel(store, context)
+
+        viewModel.next()
+        viewModel.back()
+
+        assertEquals(OnboardingStep.WelcomeAndFeatures, viewModel.state.value.step)
     }
 
     @Test
@@ -42,7 +52,7 @@ class OnboardingViewModelTest {
         val store = FakeOnboardingPreferencesStore()
         val viewModel = OnboardingViewModel(store, context)
 
-        viewModel.skipToPermissions()
+        viewModel.next()
         viewModel.next()
         advanceUntilIdle()
 
@@ -55,13 +65,12 @@ class OnboardingViewModelTest {
         val store = FakeOnboardingPreferencesStore()
         val viewModel = OnboardingViewModel(store, context)
 
-        viewModel.skipToPermissions()
+        viewModel.next()
         viewModel.updatePermissionState(
             hasStoragePermission = true,
             hasNotificationPermission = false,
             notificationPermissionRequired = true
         )
-        viewModel.next()
         viewModel.next()
         advanceUntilIdle()
 
@@ -84,9 +93,5 @@ private class FakeOnboardingPreferencesStore : OnboardingPreferencesStore {
 
     override suspend fun markNotificationPermissionHandled() {
         _preferencesFlow.value = _preferencesFlow.value.copy(notificationPermissionHandled = true)
-    }
-
-    override suspend fun resetOnboarding() {
-        _preferencesFlow.value = OnboardingPreferences()
     }
 }

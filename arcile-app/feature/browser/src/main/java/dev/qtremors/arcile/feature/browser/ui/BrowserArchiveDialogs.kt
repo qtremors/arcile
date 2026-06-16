@@ -52,6 +52,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.shared.ui.dialogs.FileNameInput
 import dev.qtremors.arcile.shared.ui.dialogs.validateFileName
 
@@ -318,7 +319,7 @@ internal fun ExtractArchiveDialog(
                     OutlinedTextField(
                         value = customDestination,
                         onValueChange = { customDestination = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().keyboardInputField(),
                         singleLine = true,
                         label = { Text(stringResource(R.string.archive_destination_folder)) }
                     )
@@ -409,7 +410,7 @@ private fun PasswordInputField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().keyboardInputField(),
         label = { Text(label) },
         isError = isError,
         supportingText = supportingText?.let { text ->

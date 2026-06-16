@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -87,6 +88,7 @@ fun SearchFiltersBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .imePadding()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -200,7 +202,7 @@ fun SearchFiltersBottomSheet(
                     onValueChange = { extensionText = it },
                     label = { Text(stringResource(R.string.filter_extensions)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.filter_include_hidden), modifier = Modifier.weight(1f))
@@ -214,21 +216,21 @@ fun SearchFiltersBottomSheet(
                     onValueChange = { volumeText = it },
                     label = { Text(stringResource(R.string.filter_storage_volume)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 OutlinedTextField(
                     value = folderScopeText,
                     onValueChange = { folderScopeText = it },
                     label = { Text(stringResource(R.string.filter_folder_scope)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 OutlinedTextField(
                     value = mimeText,
                     onValueChange = { mimeText = it },
                     label = { Text(stringResource(R.string.filter_mime_type)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
@@ -236,14 +238,14 @@ fun SearchFiltersBottomSheet(
                         onValueChange = { minSizeText = it },
                         label = { Text(stringResource(R.string.filter_min_size)) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).keyboardInputField()
                     )
                     OutlinedTextField(
                         value = maxSizeText,
                         onValueChange = { maxSizeText = it },
                         label = { Text(stringResource(R.string.filter_max_size)) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).keyboardInputField()
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -252,14 +254,14 @@ fun SearchFiltersBottomSheet(
                         onValueChange = { minDateText = it },
                         label = { Text(stringResource(R.string.filter_min_date)) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).keyboardInputField()
                     )
                     OutlinedTextField(
                         value = maxDateText,
                         onValueChange = { maxDateText = it },
                         label = { Text(stringResource(R.string.filter_max_date)) },
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).keyboardInputField()
                     )
                 }
                 OutlinedTextField(
@@ -267,7 +269,7 @@ fun SearchFiltersBottomSheet(
                     onValueChange = { presetName = it },
                     label = { Text(stringResource(R.string.filter_saved_preset)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 TextButton(onClick = { onApplyFilters(advancedFilters()) }, modifier = Modifier.align(Alignment.End)) {
                     Text(stringResource(R.string.apply))

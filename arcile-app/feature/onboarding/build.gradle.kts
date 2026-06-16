@@ -51,6 +51,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.graphics.shapes)
     implementation(libs.coil.video)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

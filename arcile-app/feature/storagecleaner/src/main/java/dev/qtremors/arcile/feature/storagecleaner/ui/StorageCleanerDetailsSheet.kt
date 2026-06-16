@@ -65,6 +65,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.shared.ui.loadApplicationIconBitmap
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
@@ -343,7 +344,7 @@ private fun CleanerSectionSettingsDialog(
                         label = { Text(stringResource(R.string.cleaner_large_threshold_mb)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
                 if (type == CleanerGroupType.OldDownloads) {
@@ -353,7 +354,7 @@ private fun CleanerSectionSettingsDialog(
                         label = { Text(stringResource(R.string.cleaner_old_download_age_days)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
                 PatternEditor(
@@ -437,7 +438,7 @@ private fun PatternEditor(
                 onValueChange = onInputChange,
                 label = { Text(stringResource(R.string.cleaner_patterns_hint)) },
                 singleLine = true,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).keyboardInputField()
             )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = onAdd) {

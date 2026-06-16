@@ -28,8 +28,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -43,7 +45,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
@@ -55,10 +56,7 @@ internal fun OnboardingHeader(
     state: OnboardingUiState,
     stepsCount: Int,
     currentPage: Int,
-    onBack: () -> Unit,
-    onSkip: () -> Unit,
-    restoreState: OnboardingRestoreState,
-    onChooseRestoreBackup: () -> Unit
+    onBack: () -> Unit
 ) {
     val actionWidth = 104.dp
     val actionPadding = PaddingValues(horizontal = 8.dp)
@@ -80,36 +78,26 @@ internal fun OnboardingHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (state.step == OnboardingStep.WelcomeAndFeatures) {
-                    FilledTonalButton(
-                        onClick = onChooseRestoreBackup,
-                        enabled = restoreState != OnboardingRestoreState.Busy,
-                        contentPadding = actionPadding,
-                        modifier = Modifier
-                            .width(actionWidth)
-                            .defaultMinSize(minHeight = 44.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.onboarding_restore_backup_short),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            softWrap = false
-                        )
-                    }
-                } else if (state.step != OnboardingStep.Done) {
+                if (state.step != OnboardingStep.WelcomeAndFeatures && state.step != OnboardingStep.Done) {
                     FilledTonalButton(
                         onClick = onBack,
-                        contentPadding = actionPadding,
+                        contentPadding = PaddingValues(start = 8.dp, end = 12.dp),
                         modifier = Modifier
                             .width(actionWidth)
-                            .defaultMinSize(minHeight = 44.dp)
+                            .defaultMinSize(minHeight = 44.dp),
+                        shape = CircleShape
                     ) {
-                        Text(
-                            text = stringResource(R.string.back),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            softWrap = false
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(text = stringResource(R.string.back), maxLines = 1)
+                        }
                     }
                 } else {
                     Spacer(modifier = Modifier.size(width = actionWidth, height = 44.dp))
@@ -142,27 +130,7 @@ internal fun OnboardingHeader(
                     }
                 }
 
-                if (state.step == OnboardingStep.WelcomeAndFeatures ||
-                    state.step == OnboardingStep.Privacy ||
-                    state.step == OnboardingStep.Theme
-                ) {
-                    FilledTonalButton(
-                        onClick = onSkip,
-                        contentPadding = actionPadding,
-                        modifier = Modifier
-                            .width(actionWidth)
-                            .defaultMinSize(minHeight = 44.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.onboarding_skip),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            softWrap = false
-                        )
-                    }
-                } else {
-                    Spacer(modifier = Modifier.size(width = actionWidth, height = 44.dp))
-                }
+                Spacer(modifier = Modifier.size(width = actionWidth, height = 44.dp))
             }
         }
     }
@@ -171,84 +139,43 @@ internal fun OnboardingHeader(
 @Composable
 internal fun OnboardingBottomBar(
     state: OnboardingUiState,
-    onNext: () -> Unit,
-    onOpenStoragePermissionSettings: () -> Unit,
-    onRequestNotificationPermission: () -> Unit
+    onNext: () -> Unit
 ) {
-    AnimatedContent(
-        targetState = state.step,
-        transitionSpec = {
-            fadeIn(animationSpec = tween(220)) + slideInVertically(
-                animationSpec = tween(220),
-                initialOffsetY = { it / 5 }
-            ) togetherWith fadeOut(animationSpec = tween(160)) using SizeTransform(clip = false)
-        },
-        label = "bottom_bar_animation",
+    val buttonText = when (state.step) {
+        OnboardingStep.SetupPermissions -> stringResource(R.string.onboarding_finish)
+        OnboardingStep.Done -> stringResource(R.string.onboarding_finish)
+        else -> stringResource(R.string.onboarding_continue)
+    }
+    val isEnabled = when (state.step) {
+        OnboardingStep.SetupPermissions -> state.hasStoragePermission
+        OnboardingStep.Done -> !state.isCompleting
+        else -> true
+    }
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = MaterialTheme.spacing.large, vertical = MaterialTheme.spacing.space12)
-    ) { step ->
-        Column(
-            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12),
-            modifier = Modifier.fillMaxWidth()
+            .padding(horizontal = MaterialTheme.spacing.large, vertical = MaterialTheme.spacing.space12),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (!isEnabled && state.step == OnboardingStep.SetupPermissions) {
+            Text(
+                text = stringResource(R.string.onboarding_storage_permission_required_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                textAlign = TextAlign.Center
+            )
+        }
+        Button(
+            onClick = onNext,
+            enabled = isEnabled,
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 56.dp)
         ) {
-            when (step) {
-                OnboardingStep.SetupPermissions -> {
-                    Button(
-                        onClick = onOpenStoragePermissionSettings,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 56.dp)
-                    ) {
-                        Icon(Icons.Default.Settings, contentDescription = null)
-                        Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
-                        Text(stringResource(R.string.onboarding_open_storage_settings))
-                    }
-                    if (state.notificationPermissionRequired && !state.hasNotificationPermission) {
-                        FilledTonalButton(
-                            onClick = onRequestNotificationPermission,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .defaultMinSize(minHeight = 56.dp)
-                        ) {
-                            Icon(Icons.Default.Notifications, contentDescription = null)
-                            Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
-                            Text(stringResource(R.string.onboarding_enable_notifications))
-                        }
-                    }
-                    Button(
-                        onClick = onNext,
-                        enabled = state.hasStoragePermission,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 56.dp)
-                    ) {
-                        Text(stringResource(R.string.onboarding_finish))
-                    }
-                }
-                OnboardingStep.Done -> {
-                    Button(
-                        onClick = onNext,
-                        enabled = !state.isCompleting,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 56.dp)
-                    ) {
-                        Text(stringResource(R.string.onboarding_finish))
-                    }
-                }
-                else -> {
-                    Button(
-                        onClick = onNext,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 56.dp)
-                    ) {
-                        Text(stringResource(R.string.onboarding_continue))
-                    }
-                }
-            }
+            Text(buttonText)
         }
     }
 }

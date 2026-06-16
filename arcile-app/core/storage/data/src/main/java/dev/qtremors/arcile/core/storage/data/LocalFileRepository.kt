@@ -44,7 +44,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -339,20 +338,10 @@ class LocalFileRepository(
         offset: Int,
         minTimestamp: Long
     ): Result<List<FileModel>> {
-        val snapshotStore = recentFilesSnapshotStore
-        if (offset == 0 && snapshotStore != null) {
-            snapshotStore.get(scope, limit, minTimestamp)?.let { cached ->
-                applicationScope?.launch(dispatchers.io) {
-                    mediaStoreClient.getRecentFiles(scope, limit, offset, minTimestamp)
-                        .onSuccess { fresh -> snapshotStore.put(scope, limit, minTimestamp, fresh) }
-                }
-                return Result.success(cached)
-            }
-        }
         return mediaStoreClient.getRecentFiles(scope, limit, offset, minTimestamp)
             .onSuccess { files ->
                 if (offset == 0) {
-                    snapshotStore?.put(scope, limit, minTimestamp, files)
+                    recentFilesSnapshotStore?.put(scope, limit, minTimestamp, files)
                 }
             }
     }

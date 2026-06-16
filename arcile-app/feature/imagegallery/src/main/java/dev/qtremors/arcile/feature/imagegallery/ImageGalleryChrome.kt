@@ -138,11 +138,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -169,6 +172,7 @@ import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.shared.ui.ToolbarAction
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
@@ -199,8 +203,14 @@ fun FloatingGalleryTopBar(
     modifier: Modifier = Modifier
 ) {
     var showOverflowMenu by rememberSaveable { mutableStateOf(false) }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val searchFocusRequester = remember { FocusRequester() }
 
     if (showSearchBar) {
+        LaunchedEffect(Unit) {
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
@@ -227,7 +237,9 @@ fun FloatingGalleryTopBar(
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 8.dp),
+                        .padding(horizontal = 8.dp)
+                        .focusRequester(searchFocusRequester)
+                        .keyboardInputField(),
                     singleLine = true,
                     decorationBox = { innerTextField ->
                         if (state.searchQuery.isEmpty()) {

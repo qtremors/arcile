@@ -243,6 +243,7 @@ class ImageGalleryViewModel @Inject constructor(
         viewModelScope.launch {
             repository.mutationEvents.collect { event ->
                 repository.invalidate(event.paths)
+                _state.update { it.withoutGalleryPaths(event.paths) }
                 loadImages(forceRefresh = true, silent = true)
             }
         }
@@ -250,6 +251,7 @@ class ImageGalleryViewModel @Inject constructor(
             bulkFileOperationCoordinator.events.collect { event ->
                 if (event is BulkFileOperationEvent.Completed && event.request.type in refreshTypes) {
                     repository.invalidate(event.request.sourcePaths)
+                    _state.update { it.withoutGalleryPaths(event.request.sourcePaths) }
                     loadImages(forceRefresh = true, silent = true)
                 }
             }

@@ -99,7 +99,6 @@ fun OnboardingScreen(
     onThemeChange: (ThemeState) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit,
-    onSkip: () -> Unit,
     onStepSelected: (OnboardingStep) -> Unit,
     onOpenStoragePermissionSettings: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
@@ -113,8 +112,6 @@ fun OnboardingScreen(
     val steps = remember {
         arrayOf(
             OnboardingStep.WelcomeAndFeatures,
-            OnboardingStep.Privacy,
-            OnboardingStep.Theme,
             OnboardingStep.SetupPermissions
         )
     }
@@ -159,18 +156,13 @@ fun OnboardingScreen(
                 state = state,
                 stepsCount = steps.size,
                 currentPage = pagerState.currentPage,
-                onBack = onBack,
-                onSkip = onSkip,
-                restoreState = restoreState,
-                onChooseRestoreBackup = onChooseRestoreBackup
+                onBack = onBack
             )
         },
         bottomBar = {
             OnboardingBottomBar(
                 state = state,
-                onNext = onNext,
-                onOpenStoragePermissionSettings = onOpenStoragePermissionSettings,
-                onRequestNotificationPermission = onRequestNotificationPermission
+                onNext = onNext
             )
         }
     ) { padding ->
@@ -197,13 +189,14 @@ fun OnboardingScreen(
             ) {
                 when (steps[page]) {
                     OnboardingStep.WelcomeAndFeatures -> OnboardingWelcomeAndFeatures()
-                    OnboardingStep.Privacy -> OnboardingPrivacy()
-                    OnboardingStep.Theme -> OnboardingTheme(
-                        currentThemeState = currentThemeState,
-                        onThemeChange = onThemeChange
-                    )
                     OnboardingStep.SetupPermissions -> OnboardingSetupPermissions(
                         state = state,
+                        currentThemeState = currentThemeState,
+                        onThemeChange = onThemeChange,
+                        restoreState = restoreState,
+                        onChooseRestoreBackup = onChooseRestoreBackup,
+                        onOpenStoragePermissionSettings = onOpenStoragePermissionSettings,
+                        onRequestNotificationPermission = onRequestNotificationPermission,
                         showOlderAndroidWarning = showOlderAndroidWarning
                     )
                     OnboardingStep.Done -> Unit

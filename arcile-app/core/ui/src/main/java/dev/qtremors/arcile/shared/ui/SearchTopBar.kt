@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 
 /**
@@ -43,12 +44,14 @@ fun SearchTopBar(
 
 ) {
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
     val placeholderText = placeholder ?: stringResource(R.string.search_files_placeholder)
     val clearLabel = stringResource(R.string.action_clear)
     val filtersLabel = stringResource(R.string.action_filters)
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
+        keyboardController?.show()
     }
 
     TopAppBar(
@@ -83,6 +86,7 @@ fun SearchTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
+                    .keyboardInputField()
             )
         },
         actions = {

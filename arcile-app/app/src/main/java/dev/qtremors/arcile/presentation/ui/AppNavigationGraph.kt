@@ -630,7 +630,6 @@ fun AppNavigationGraph(
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
                         onNavigateToAbout = { navController.navigate(AppRoutes.About) },
-                        onRunOnboardingAgain = { viewModel.resetOnboarding() },
                         onRestartApp = onRestartApp,
                         backupState = backupState,
                         onExportSettingsBackup = { viewModel.exportPreferences(it) },

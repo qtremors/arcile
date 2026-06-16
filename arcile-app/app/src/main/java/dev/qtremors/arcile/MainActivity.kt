@@ -104,7 +104,6 @@ class MainActivity : ComponentActivity() {
             val onboardingPreferences by produceState<OnboardingPreferences?>(initialValue = null) {
                 onboardingPreferencesStore.preferencesFlow.collect { value = it }
             }
-            var initialOnboardingPreferences by remember { mutableStateOf<OnboardingPreferences?>(null) }
             val onboardingViewModel: OnboardingViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
             val onboardingState by onboardingViewModel.state.collectAsStateWithLifecycle()
             val coroutineScope = rememberCoroutineScope()
@@ -154,21 +153,11 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val preferences = onboardingPreferences
-                    LaunchedEffect(preferences) {
-                        if (initialOnboardingPreferences == null && preferences != null) {
-                            initialOnboardingPreferences = preferences
-                        }
-                    }
-                    val suppressManualResetUntilRestart = initialOnboardingPreferences?.isCompleted == true &&
-                        preferences != null &&
-                        preferences.wasManuallyReset &&
-                        !preferences.isCompleted
-                    val isOnboardingCompletedForThisRun = preferences?.isCompleted == true || suppressManualResetUntilRestart
+                    val isOnboardingCompletedForThisRun = preferences?.isCompleted == true
 
                     LaunchedEffect(preferences?.isCompleted, hasPermission, onboardingState.step) {
                         if (preferences != null &&
                             !preferences.isCompleted &&
-                            !preferences.wasManuallyReset &&
                             hasPermission &&
                             onboardingState.step == OnboardingStep.WelcomeAndFeatures
                         ) {
@@ -178,7 +167,6 @@ class MainActivity : ComponentActivity() {
 
                     val shouldAutoCompleteExistingUser = preferences != null &&
                         !preferences.isCompleted &&
-                        !preferences.wasManuallyReset &&
                         hasPermission &&
                         onboardingState.step == OnboardingStep.WelcomeAndFeatures
 
@@ -196,7 +184,6 @@ class MainActivity : ComponentActivity() {
                             },
                             onNext = { onboardingViewModel.next() },
                             onBack = { onboardingViewModel.back() },
-                            onSkip = { onboardingViewModel.skipToPermissions() },
                             onStepSelected = { step -> onboardingViewModel.setStep(step) },
                             onOpenStoragePermissionSettings = { requestStoragePermission() },
                             onRequestNotificationPermission = {

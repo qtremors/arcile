@@ -8,7 +8,6 @@ import dev.qtremors.arcile.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.backup.PreferencesBackupManager
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +20,6 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val browserPreferencesStore: BrowserPreferencesStore,
-    private val onboardingPreferencesStore: OnboardingPreferencesStore,
     private val preferencesBackupManager: PreferencesBackupManager
 ) : ViewModel() {
     val browserPreferences = browserPreferencesStore.preferencesFlow
@@ -47,10 +45,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             browserPreferencesStore.updateShowHiddenFiles(show)
         }
-    }
-
-    suspend fun resetOnboarding() {
-        onboardingPreferencesStore.resetOnboarding()
     }
 
     fun exportPreferences(uri: Uri) {

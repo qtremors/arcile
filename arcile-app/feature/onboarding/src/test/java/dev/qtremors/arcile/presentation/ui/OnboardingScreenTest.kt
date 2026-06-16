@@ -1,15 +1,12 @@
 package dev.qtremors.arcile.presentation.ui
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreItem
@@ -31,7 +28,7 @@ class OnboardingScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun `first launch shows onboarding welcome`() {
+    fun `first launch shows merged info page without skip or restore header`() {
         composeRule.setContent {
             ArcileTestTheme {
                 OnboardingScreen(
@@ -40,32 +37,31 @@ class OnboardingScreenTest {
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
-                    onSkip = {},
                     onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
                 )
             }
         }
-
+        
         composeRule.onNodeWithText("Welcome to Arcile").assertExists()
-        composeRule.onNodeWithText("Restore").assertExists()
-
-        composeRule.onNodeWithText("Skip").assertExists()
-        composeRule.onAllNodesWithTag("onboardingStepIndicator").assertCountEquals(4)
+        composeRule.onAllNodesWithText("Multi-Volume Support").assertCountEquals(2)
+        composeRule.onNodeWithText("Offline by Design").assertExists()
+        composeRule.onNodeWithText("Restore").assertDoesNotExist()
+        composeRule.onNodeWithText("Skip").assertDoesNotExist()
+        composeRule.onAllNodesWithTag("onboardingStepIndicator").assertCountEquals(2)
     }
 
     @Test
-    fun `welcome restore preview shows backed up preference groups`() {
+    fun `restore preview shows backed up preference groups`() {
         composeRule.setContent {
             ArcileTestTheme {
                 OnboardingScreen(
-                    state = OnboardingUiState(),
+                    state = OnboardingUiState(step = OnboardingStep.SetupPermissions),
                     currentThemeState = ThemeState(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
-                    onSkip = {},
                     onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {},
@@ -87,18 +83,18 @@ class OnboardingScreenTest {
     }
 
     @Test
-    fun `skip hides education and moves to storage permission`() {
-        var state by mutableStateOf(OnboardingUiState())
-
+    fun `setup page includes restore theme storage and notification controls`() {
         composeRule.setContent {
             ArcileTestTheme {
                 OnboardingScreen(
-                    state = state,
+                    state = OnboardingUiState(
+                        step = OnboardingStep.SetupPermissions,
+                        notificationPermissionRequired = true
+                    ),
                     currentThemeState = ThemeState(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
-                    onSkip = { state = state.copy(step = OnboardingStep.SetupPermissions, skipMode = true) },
                     onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
@@ -106,42 +102,18 @@ class OnboardingScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Skip").performClick()
-
-        composeRule.onNodeWithText("Allow file access").assertExists()
-        composeRule.onNodeWithText("Keep file operations visible").assertExists()
-        composeRule.onNodeWithText("Privacy Policy & Terms").assertDoesNotExist()
+        composeRule.onNodeWithText("Storage Access (Required)").assertExists()
+        composeRule.onNodeWithText("Restore from file").assertExists()
+        composeRule.onNodeWithText("Theme Mode").assertExists()
+        composeRule.onNodeWithText("Accent Color").assertExists()
+        composeRule.onNodeWithText("Enable").assertExists()
+        composeRule.onNodeWithText("Back").assertExists()
+        composeRule.onNodeWithText("Skip").assertDoesNotExist()
         composeRule.onNodeWithText("Finish").assertIsNotEnabled()
     }
 
     @Test
-    fun `theme step renders accent picker trigger`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                OnboardingScreen(
-                    state = OnboardingUiState(step = OnboardingStep.Theme),
-                    currentThemeState = ThemeState(),
-                    onThemeChange = {},
-                    onNext = {},
-                    onBack = {},
-                    onSkip = {},
-                    onStepSelected = {},
-                    onOpenStoragePermissionSettings = {},
-                    onRequestNotificationPermission = {}
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Make it comfortable").assertExists()
-        composeRule.onNodeWithText("Theme Mode").assertExists()
-        composeRule.onNodeWithText("Accent Color").assertExists()
-        composeRule.onNodeWithText("Select Accent Color").assertDoesNotExist()
-        composeRule.onNodeWithText("Back").assertExists()
-        composeRule.onNodeWithText("Skip").assertExists()
-    }
-
-    @Test
-    fun `storage permission step enables continue after permission is granted`() {
+    fun `storage permission step enables finish after permission is granted`() {
         composeRule.setContent {
             ArcileTestTheme {
                 OnboardingScreen(
@@ -154,7 +126,6 @@ class OnboardingScreenTest {
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
-                    onSkip = {},
                     onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
                     onRequestNotificationPermission = {}
@@ -162,9 +133,8 @@ class OnboardingScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Storage access is ready").assertExists()
-        composeRule.onNodeWithText("Enable notifications").assertExists()
+        composeRule.onNodeWithText("Storage Access Granted").assertExists()
+        composeRule.onNodeWithText("Enable").assertExists()
         composeRule.onNodeWithText("Finish").assertIsEnabled()
     }
-
 }

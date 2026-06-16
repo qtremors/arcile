@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import kotlinx.coroutines.delay
 
 enum class FileNameValidationError {
@@ -94,7 +95,8 @@ fun FileNameInput(
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .focusRequester(focusRequester),
+                .focusRequester(focusRequester)
+                .keyboardInputField(),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Text,
                 imeAction = ImeAction.Done

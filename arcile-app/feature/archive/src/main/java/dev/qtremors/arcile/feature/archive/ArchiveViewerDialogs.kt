@@ -75,6 +75,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
 import dev.qtremors.arcile.feature.archive.ArchiveOperationUiState
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
@@ -119,7 +120,7 @@ fun ArchivePasswordDialog(
                     value = password,
                     onValueChange = { password = it },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().keyboardInputField(),
                     label = { Text(stringResource(R.string.archive_password)) },
                     supportingText = { Text(stringResource(R.string.archive_password_description)) },
                     visualTransformation = if (passwordVisible) {

@@ -17,8 +17,6 @@ import javax.inject.Inject
 
 enum class OnboardingStep {
     WelcomeAndFeatures,
-    Privacy,
-    Theme,
     SetupPermissions,
     Done
 }
@@ -29,8 +27,7 @@ data class OnboardingUiState(
     val hasNotificationPermission: Boolean = false,
     val notificationPermissionRequired: Boolean = false,
     val notificationPermissionHandled: Boolean = false,
-    val isCompleting: Boolean = false,
-    val skipMode: Boolean = false
+    val isCompleting: Boolean = false
 ) {
     val canContinue: Boolean
         get() = step != OnboardingStep.SetupPermissions || hasStoragePermission
@@ -64,9 +61,7 @@ class OnboardingViewModel @Inject constructor(
 
     fun next() {
         when (_state.value.step) {
-            OnboardingStep.WelcomeAndFeatures -> setStep(OnboardingStep.Privacy)
-            OnboardingStep.Privacy -> setStep(OnboardingStep.Theme)
-            OnboardingStep.Theme -> setStep(OnboardingStep.SetupPermissions)
+            OnboardingStep.WelcomeAndFeatures -> setStep(OnboardingStep.SetupPermissions)
             OnboardingStep.SetupPermissions -> {
                 if (_state.value.hasStoragePermission) {
                     completeOnboarding(markNotificationHandled = true)
@@ -79,16 +74,10 @@ class OnboardingViewModel @Inject constructor(
     fun back() {
         val previous = when (_state.value.step) {
             OnboardingStep.WelcomeAndFeatures -> OnboardingStep.WelcomeAndFeatures
-            OnboardingStep.Privacy -> OnboardingStep.WelcomeAndFeatures
-            OnboardingStep.Theme -> OnboardingStep.Privacy
-            OnboardingStep.SetupPermissions -> if (_state.value.skipMode) OnboardingStep.WelcomeAndFeatures else OnboardingStep.Theme
+            OnboardingStep.SetupPermissions -> OnboardingStep.WelcomeAndFeatures
             OnboardingStep.Done -> OnboardingStep.SetupPermissions
         }
         setStep(previous)
-    }
-
-    fun skipToPermissions() {
-        _state.update { it.copy(step = OnboardingStep.SetupPermissions, skipMode = true) }
     }
 
     fun handleNotificationPermissionResult() {

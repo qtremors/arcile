@@ -1,13 +1,21 @@
 package dev.qtremors.arcile.feature.onboarding.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,25 +33,29 @@ import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.RestoreFromTrash
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,11 +74,11 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
-import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet
+import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
-import dev.qtremors.arcile.shared.ui.settings.accentLabelRes
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.ui.theme.spacing
+
 @Composable
 internal fun OnboardingPage(
     icon: ImageVector? = null,
@@ -80,10 +93,7 @@ internal fun OnboardingPage(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MaterialTheme.spacing.large)
-            .padding(
-                top = if (hasBodyContent) MaterialTheme.spacing.large else MaterialTheme.spacing.extraLarge,
-                bottom = if (hasBodyContent) 184.dp else 144.dp
-            ),
+            .padding(top = 16.dp, bottom = 80.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = if (hasBodyContent) {
             Arrangement.Top
@@ -95,17 +105,22 @@ internal fun OnboardingPage(
             modifier = Modifier.widthIn(max = 560.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                tonalElevation = 4.dp,
-                modifier = Modifier.size(if (hasBodyContent) 88.dp else 120.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (customIcon != null) {
-                        customIcon()
-                    } else if (icon != null) {
+            if (customIcon != null) {
+                Box(
+                    modifier = Modifier.size(if (hasBodyContent) 120.dp else 160.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    customIcon()
+                }
+            } else if (icon != null) {
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tonalElevation = 4.dp,
+                    modifier = Modifier.size(if (hasBodyContent) 88.dp else 120.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
                             icon,
                             contentDescription = null,
@@ -114,49 +129,167 @@ internal fun OnboardingPage(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(if (hasBodyContent) MaterialTheme.spacing.large else MaterialTheme.spacing.extraLarge))
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(if (hasBodyContent) MaterialTheme.spacing.large else MaterialTheme.spacing.extraLarge))
+            Spacer(modifier = Modifier.height(16.dp))
             content()
         }
     }
 }
 
+private data class FeatureInfo(
+    val icon: ImageVector,
+    val titleRes: Int,
+    val descRes: Int
+)
+
 @Composable
 internal fun OnboardingWelcomeAndFeatures() {
+    var selectedFeatureIndex by remember { mutableStateOf(0) }
+    
+    val features = remember {
+        listOf(
+            FeatureInfo(Icons.Default.Storage, R.string.onboarding_feature_multi_volume, R.string.onboarding_feature_multi_volume_description),
+            FeatureInfo(Icons.Default.Bolt, R.string.onboarding_feature_batch_operations, R.string.onboarding_feature_batch_operations_description),
+            FeatureInfo(Icons.Default.Category, R.string.onboarding_feature_instant_categories, R.string.onboarding_feature_instant_categories_description),
+            FeatureInfo(Icons.Default.RestoreFromTrash, R.string.onboarding_feature_trash_subsystem, R.string.onboarding_feature_trash_subsystem_description),
+            FeatureInfo(Icons.Default.CloudOff, R.string.onboarding_privacy_offline, R.string.onboarding_privacy_offline_description),
+            FeatureInfo(Icons.Default.Block, R.string.onboarding_privacy_trackers, R.string.onboarding_privacy_trackers_description),
+            FeatureInfo(Icons.Default.Folder, R.string.onboarding_privacy_local_file_access, R.string.onboarding_privacy_local_file_access_description),
+            FeatureInfo(Icons.Default.Source, R.string.onboarding_privacy_source, R.string.onboarding_privacy_source_description)
+        )
+    }
+
     OnboardingPage(
         customIcon = {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val launcherIconResId = remember(context) {
-                context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
-                    .takeIf { it != 0 } ?: android.R.drawable.sym_def_app_icon
+            MorphingBackgroundIcon {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val launcherIconResId = remember(context) {
+                    context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
+                        .takeIf { it != 0 } ?: android.R.drawable.sym_def_app_icon
+                }
+                AsyncImage(
+                    model = launcherIconResId,
+                    contentDescription = stringResource(R.string.app_name),
+                    modifier = Modifier.fillMaxSize()
+                )
             }
-            AsyncImage(
-                model = launcherIconResId,
-                contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.fillMaxSize()
-            )
         },
         title = stringResource(R.string.onboarding_welcome_title),
         description = stringResource(R.string.onboarding_intro_description),
         hasBodyContent = true
     ) {
-        FeatureRow(Icons.Default.Storage, stringResource(R.string.onboarding_feature_multi_volume), stringResource(R.string.onboarding_feature_multi_volume_description))
-        FeatureRow(Icons.Default.Bolt, stringResource(R.string.onboarding_feature_batch_operations), stringResource(R.string.onboarding_feature_batch_operations_description))
-        FeatureRow(Icons.Default.Category, stringResource(R.string.onboarding_feature_instant_categories), stringResource(R.string.onboarding_feature_instant_categories_description))
-        FeatureRow(Icons.Default.RestoreFromTrash, stringResource(R.string.onboarding_feature_trash_subsystem), stringResource(R.string.onboarding_feature_trash_subsystem_description))
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = stringResource(R.string.onboarding_highlight_features),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            features.forEachIndexed { index, feature ->
+                val isSelected = selectedFeatureIndex == index
+                InputChip(
+                    selected = isSelected,
+                    onClick = { selectedFeatureIndex = index },
+                    label = { 
+                        Text(
+                            text = stringResource(feature.titleRes),
+                            style = MaterialTheme.typography.labelMedium
+                        ) 
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = feature.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    colors = InputChipDefaults.inputChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    ),
+                    border = null,
+                    shape = CircleShape
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        val selectedFeature = features[selectedFeatureIndex]
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 96.dp),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLowest
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        ) {
+            AnimatedContent(
+                targetState = selectedFeature,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(200)) togetherWith 
+                    fadeOut(animationSpec = tween(150))
+                },
+                label = "feature_description_animation"
+            ) { targetFeature ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = targetFeature.icon,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = stringResource(targetFeature.titleRes),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Text(
+                        text = stringResource(targetFeature.descRes),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -168,10 +301,10 @@ internal fun OnboardingPrivacy() {
         description = stringResource(R.string.onboarding_privacy_description),
         hasBodyContent = true
     ) {
-        FeatureRow(androidx.compose.material.icons.Icons.Default.CloudOff, stringResource(R.string.onboarding_privacy_offline), stringResource(R.string.onboarding_privacy_offline_description))
-        FeatureRow(androidx.compose.material.icons.Icons.Default.Block, stringResource(R.string.onboarding_privacy_trackers), stringResource(R.string.onboarding_privacy_trackers_description))
+        FeatureRow(Icons.Default.CloudOff, stringResource(R.string.onboarding_privacy_offline), stringResource(R.string.onboarding_privacy_offline_description))
+        FeatureRow(Icons.Default.Block, stringResource(R.string.onboarding_privacy_trackers), stringResource(R.string.onboarding_privacy_trackers_description))
         FeatureRow(Icons.Default.Folder, stringResource(R.string.onboarding_privacy_local_file_access), stringResource(R.string.onboarding_privacy_local_file_access_description))
-        FeatureRow(androidx.compose.material.icons.Icons.Default.Source, stringResource(R.string.onboarding_privacy_source), stringResource(R.string.onboarding_privacy_source_description))
+        FeatureRow(Icons.Default.Source, stringResource(R.string.onboarding_privacy_source), stringResource(R.string.onboarding_privacy_source_description))
     }
 }
 
@@ -180,89 +313,283 @@ internal fun OnboardingTheme(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit
 ) {
-    var showAccentPicker by remember { mutableStateOf(false) }
-
     OnboardingPage(
         icon = Icons.Default.Palette,
         title = stringResource(R.string.onboarding_theme_title),
         description = stringResource(R.string.onboarding_theme_description),
         hasBodyContent = true
     ) {
-        ThemeModeSelector(
-            currentMode = currentThemeState.themeMode,
-            onModeSelected = { onThemeChange(currentThemeState.copy(themeMode = it)) }
-        )
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.accent_color)) },
-            supportingContent = { Text(stringResource(accentLabelRes(currentThemeState.accentColor))) },
-            leadingContent = {
-                Icon(Icons.Default.ColorLens, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            },
-            trailingContent = {
-                Icon(Icons.Default.ChevronRight, contentDescription = null)
-            },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(MaterialTheme.shapes.medium)
-                .background(MaterialTheme.colorScheme.surfaceContainer)
-                .clickable { showAccentPicker = true }
-        )
-    }
-
-    if (showAccentPicker) {
-        AccentColorPickerSheet(
-            currentAccent = currentThemeState.accentColor,
-            onAccentSelected = {
-                onThemeChange(currentThemeState.copy(accentColor = it))
-                showAccentPicker = false
-            },
-            onDismiss = { showAccentPicker = false }
-        )
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                ThemeModeSelector(
+                    currentMode = currentThemeState.themeMode,
+                    onModeSelected = { onThemeChange(currentThemeState.copy(themeMode = it)) }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                AccentColorSelector(
+                    currentAccent = currentThemeState.accentColor,
+                    onAccentSelected = { onThemeChange(currentThemeState.copy(accentColor = it)) }
+                )
+            }
+        }
     }
 }
 
 @Composable
 internal fun OnboardingSetupPermissions(
     state: OnboardingUiState,
+    currentThemeState: ThemeState,
+    onThemeChange: (ThemeState) -> Unit,
+    restoreState: OnboardingRestoreState,
+    onChooseRestoreBackup: () -> Unit,
+    onOpenStoragePermissionSettings: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
     showOlderAndroidWarning: Boolean
 ) {
+    val storageBgColor by animateColorAsState(
+        targetValue = if (state.hasStoragePermission) {
+            Color.Transparent
+        } else {
+            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
+        },
+        label = "storage_permission_bg"
+    )
+    val notificationBgColor by animateColorAsState(
+        targetValue = if (state.hasNotificationPermission) {
+            Color.Transparent
+        } else {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.08f)
+        },
+        label = "notification_permission_bg"
+    )
+
     OnboardingPage(
-        icon = if (state.hasStoragePermission) Icons.Default.CheckCircle else Icons.Default.Folder,
-        title = if (state.hasStoragePermission) {
-            stringResource(R.string.onboarding_storage_ready_title)
-        } else {
-            stringResource(R.string.onboarding_storage_title)
-        },
-        description = if (state.hasStoragePermission) {
-            stringResource(R.string.onboarding_storage_ready_description)
-        } else {
-            stringResource(R.string.onboarding_storage_description)
-        },
+        icon = Icons.Default.Settings,
+        title = stringResource(R.string.onboarding_configure_title),
+        description = stringResource(R.string.onboarding_configure_description),
         hasBodyContent = true
     ) {
-        FeatureRow(Icons.Default.CheckCircle, stringResource(R.string.onboarding_storage_can_read), stringResource(R.string.onboarding_storage_can_read_description))
-        FeatureRow(Icons.Default.PrivacyTip, stringResource(R.string.onboarding_storage_private), stringResource(R.string.onboarding_storage_private_description))
-        FeatureRow(Icons.Default.WarningAmber, stringResource(R.string.onboarding_storage_restricted), stringResource(R.string.onboarding_storage_restricted_description))
-        FeatureRow(
-            icon = if (state.hasNotificationPermission) Icons.Default.CheckCircle else Icons.Default.Notifications,
-            title = if (state.hasNotificationPermission) {
-                stringResource(R.string.onboarding_notifications_ready_title)
-            } else {
-                stringResource(R.string.onboarding_notifications_title)
-            },
-            description = if (state.notificationPermissionRequired) {
-                stringResource(R.string.onboarding_notifications_description)
-            } else {
-                stringResource(R.string.onboarding_notifications_not_required_description)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Appearance Selector Card
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                ThemeModeSelector(
+                    currentMode = currentThemeState.themeMode,
+                    onModeSelected = { onThemeChange(currentThemeState.copy(themeMode = it)) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                AccentColorSelector(
+                    currentAccent = currentThemeState.accentColor,
+                    onAccentSelected = { onThemeChange(currentThemeState.copy(accentColor = it)) }
+                )
             }
-        )
-        AnimatedVisibility(visible = showOlderAndroidWarning) {
-            FeatureRow(
-                icon = Icons.Default.WarningAmber,
-                title = stringResource(R.string.onboarding_limited_android_title),
-                description = stringResource(R.string.onboarding_limited_android_description)
-            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Permissions Card
+        Surface(
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 1.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.onboarding_system_access),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                // Storage Permission Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(storageBgColor)
+                        .clickable(enabled = !state.hasStoragePermission) { onOpenStoragePermissionSettings() }
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = if (state.hasStoragePermission) {
+                                stringResource(R.string.onboarding_storage_ready_title)
+                            } else {
+                                stringResource(R.string.onboarding_storage_title)
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (state.hasStoragePermission) {
+                                stringResource(R.string.onboarding_storage_ready_description)
+                            } else {
+                                stringResource(R.string.onboarding_storage_description)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (state.hasStoragePermission) {
+                        PermissionStatusChip(
+                            label = stringResource(R.string.onboarding_permission_granted),
+                            icon = Icons.Default.CheckCircle,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    } else {
+                        SuggestionChip(
+                            onClick = onOpenStoragePermissionSettings,
+                            label = { Text(stringResource(R.string.onboarding_permission_grant)) },
+                            icon = { Icon(Icons.Default.WarningAmber, null, modifier = Modifier.size(16.dp)) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                                labelColor = MaterialTheme.colorScheme.onErrorContainer,
+                                iconContentColor = MaterialTheme.colorScheme.onErrorContainer
+                            ),
+                            border = null,
+                            shape = CircleShape
+                        )
+                    }
+                }
+
+                // Notification Permission Row
+                if (state.notificationPermissionRequired) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.medium)
+                            .background(notificationBgColor)
+                            .clickable(enabled = !state.hasNotificationPermission) { onRequestNotificationPermission() }
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.onboarding_notifications_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = stringResource(R.string.onboarding_notifications_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        if (state.hasNotificationPermission) {
+                            PermissionStatusChip(
+                                label = stringResource(R.string.onboarding_permission_enabled),
+                                icon = Icons.Default.CheckCircle,
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        } else {
+                            SuggestionChip(
+                                onClick = onRequestNotificationPermission,
+                                label = { Text(stringResource(R.string.onboarding_enable_notifications)) },
+                                icon = { Icon(Icons.Default.Notifications, null, modifier = Modifier.size(16.dp)) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                border = null,
+                                shape = CircleShape
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Restore Backup Button
+        FilledTonalButton(
+            onClick = onChooseRestoreBackup,
+            enabled = restoreState != OnboardingRestoreState.Busy,
+            modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape
+        ) {
+            Icon(Icons.Default.SettingsBackupRestore, contentDescription = null)
+            Spacer(modifier = Modifier.size(MaterialTheme.spacing.small))
+            Text(stringResource(R.string.onboarding_restore_backup_action))
+        }
+
+        if (showOlderAndroidWarning) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.WarningAmber,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Column {
+                        Text(
+                            text = stringResource(R.string.onboarding_limited_android_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = stringResource(R.string.onboarding_limited_android_description),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionStatusChip(
+    label: String,
+    icon: ImageVector,
+    containerColor: Color,
+    contentColor: Color
+) {
+    Surface(
+        shape = CircleShape,
+        color = containerColor,
+        contentColor = contentColor
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge)
         }
     }
 }

@@ -70,6 +70,7 @@ import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessState
 import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.shared.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.shared.ui.menus.FabMenuItem
 
@@ -124,7 +125,7 @@ fun QuickAccessScreen(
                         onValueChange = { tempLabel = it },
                         label = { Text(stringResource(R.string.quick_access_label_hint)) },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
@@ -132,7 +133,7 @@ fun QuickAccessScreen(
                         onValueChange = { tempPath = it },
                         label = { Text(stringResource(R.string.quick_access_path_hint)) },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
             },

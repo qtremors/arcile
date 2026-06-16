@@ -19,7 +19,6 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,6 +45,7 @@ import dev.qtremors.arcile.shared.ui.settings.SettingsSection
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
 import dev.qtremors.arcile.shared.ui.ArcileListSurface
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
@@ -80,7 +80,6 @@ fun SettingsScreen(
     onThemeChange: (ThemeState) -> Unit,
     onOpenStorageManagement: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
-    onRunOnboardingAgain: suspend () -> Unit = {},
     onRestartApp: () -> Unit = {},
     backupState: PreferencesBackupUiState = PreferencesBackupUiState.Idle,
     onExportSettingsBackup: (android.net.Uri) -> Unit = {},
@@ -95,8 +94,6 @@ fun SettingsScreen(
     var externalAccessCacheStats by remember {
         mutableStateOf(ExternalFileAccessHelper.StagingCacheStats(fileCount = 0, sizeBytes = 0L))
     }
-    var showResetOnboardingDialog by remember { mutableStateOf(false) }
-    var showRestartDialog by remember { mutableStateOf(false) }
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -112,50 +109,6 @@ fun SettingsScreen(
         externalAccessCacheStats = withContext(Dispatchers.IO) {
             ExternalFileAccessHelper.getStagingCacheStats(context)
         }
-    }
-
-    if (showResetOnboardingDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetOnboardingDialog = false },
-            title = { Text(stringResource(R.string.restart_onboarding_title)) },
-            text = { Text(stringResource(R.string.restart_onboarding_description)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            onRunOnboardingAgain()
-                            showResetOnboardingDialog = false
-                            showRestartDialog = true
-                        }
-                    }
-                ) {
-                    Text(stringResource(R.string.ok))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetOnboardingDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-
-    if (showRestartDialog) {
-        AlertDialog(
-            onDismissRequest = { showRestartDialog = false },
-            title = { Text(stringResource(R.string.restart_onboarding_title)) },
-            text = { Text(stringResource(R.string.run_onboarding_again_description)) },
-            confirmButton = {
-                TextButton(onClick = onRestartApp) {
-                    Text(stringResource(R.string.restart_now))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestartDialog = false }) {
-                    Text(stringResource(R.string.later))
-                }
-            }
-        )
     }
 
     when (val state = backupState) {
@@ -613,17 +566,6 @@ fun SettingsScreen(
                             restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
                         }
                     )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.run_onboarding_again)) },
-                        supportingContent = { Text(stringResource(R.string.run_onboarding_again_description)) },
-                        leadingContent = { Icon(Icons.Default.RestartAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable { showResetOnboardingDialog = true }
-                    )
                 }
             }
 
@@ -746,7 +688,10 @@ fun CustomThemeCreatorPanel(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .keyboardInputField()
         )
 
         OutlinedTextField(
@@ -772,7 +717,10 @@ fun CustomThemeCreatorPanel(
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
+                .keyboardInputField()
         )
 
         if (colorsTooSimilar) {

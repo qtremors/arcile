@@ -105,6 +105,6 @@ class StorageCacheInvalidationObserver @Inject constructor(
     }
 
     private companion object {
-        const val INVALIDATION_DEBOUNCE_MS = 750L
+        const val INVALIDATION_DEBOUNCE_MS = 200L
     }
 }

@@ -33,7 +33,6 @@ interface OnboardingPreferencesStore {
 
     suspend fun markCompleted(completedVersion: Int, notificationPermissionHandled: Boolean)
     suspend fun markNotificationPermissionHandled()
-    suspend fun resetOnboarding()
 }
 
 interface QuickAccessPreferencesStore {
