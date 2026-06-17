@@ -256,6 +256,13 @@ class BrowserViewModel @Inject constructor(
                             }
                             navigationDelegate.refresh()
                         }
+                        is StorageBrowserLocation.Archive -> {
+                            navigationDelegate.openArchive(
+                                archivePath = location.archivePath,
+                                entryPrefix = location.entryPrefix,
+                                seedHistory = false
+                            )
+                        }
                         null -> navigationDelegate.initializeFromArgs()
                     }
                 } else {
@@ -593,4 +600,3 @@ class BrowserViewModel @Inject constructor(
     }
     fun submitArchiveExtractionPassword(password: String) = archiveActionDelegate.retryPendingExtractionWithPassword(password)
 }
-

@@ -207,6 +207,7 @@ private fun BulkFileOperationType.refreshesStorageUsage(): Boolean =
         BulkFileOperationType.SHRED,
         BulkFileOperationType.CREATE_FAKE,
         BulkFileOperationType.EXTRACT_ARCHIVE,
-        BulkFileOperationType.CREATE_ARCHIVE -> true
+        BulkFileOperationType.CREATE_ARCHIVE,
+        BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> true
         BulkFileOperationType.COPY -> false
     }

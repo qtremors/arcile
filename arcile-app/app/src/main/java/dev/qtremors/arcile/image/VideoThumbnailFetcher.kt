@@ -1,10 +1,8 @@
 package dev.qtremors.arcile.image
 
-import android.content.ContentUris
 import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import android.util.Size
 import coil.ImageLoader
 import coil.decode.DataSource
@@ -53,24 +51,6 @@ class VideoThumbnailFetcher(
                         )
                     }
 
-                    val projection = arrayOf(MediaStore.Video.Media._ID)
-                    val selection = "${MediaStore.Video.Media.DATA} = ?"
-                    val selectionArgs = arrayOf(file.absolutePath)
-                    val uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-
-                    context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID))
-                            val contentUri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-                            
-                            val bitmap = context.contentResolver.loadThumbnail(contentUri, Size(targetSize, targetSize), null)
-                            return@withContext DrawableResult(
-                                drawable = BitmapDrawable(context.resources, bitmap),
-                                isSampled = true,
-                                dataSource = DataSource.DISK
-                            )
-                        }
-                    }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                 }

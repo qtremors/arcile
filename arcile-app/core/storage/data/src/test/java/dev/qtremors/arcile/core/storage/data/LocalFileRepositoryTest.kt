@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
+import dev.qtremors.arcile.core.storage.data.manager.TrashTarget
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
@@ -310,6 +311,14 @@ private class RecordingTrashManager : TrashManager {
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> {
         moveToTrashRequests += paths
+        return Result.success(Unit)
+    }
+
+    override suspend fun moveToTrashTargets(
+        targets: List<TrashTarget>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> {
+        moveToTrashRequests += targets.map { it.path }
         return Result.success(Unit)
     }
 

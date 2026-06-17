@@ -223,7 +223,9 @@ To prevent accidental data loss, file conflict resolution runs *before* operatio
 
 ## Room Cache Database
 
-To avoid repeated recursive file-system scans, Arcile uses a local Room database `ArcileDatabase` (file: `arcile-cache.db`, schema version 1) to cache directories and calculations.
+To avoid repeated recursive file-system scans, Arcile uses a local Room database `ArcileDatabase` (file: `arcile-cache.db`, schema version 2) to cache directories and calculations.
+
+Room schemas are exported under `core/storage/data/schemas/` and checked into source control. Cache schema changes are release events: every database version bump must include an updated schema JSON file, a migration or explicit cache-reset test from the previous version, and a changelog note explaining whether cached rows are preserved or intentionally invalidated. Destructive cache invalidation is acceptable for disposable cache data only when it is scoped to the known previous version with `fallbackToDestructiveMigrationFrom(...)`.
 
 ### Database Entities
 
@@ -522,7 +524,7 @@ Arcile uses clear, descriptive names to ensure readability.
 
 1. **Path Traversal Protection:** All file inputs are validated using `PathSafety.isPathSafe` to block path traversal attacks.
 2. **Safe Decompression:** `isArchiveEntrySafe` rejects absolute entries and relative directory escapes (`..`) during archive extraction.
-3. **FileProvider Encapsulation:** `file_provider_paths.xml` restricts external access to the cache-backed `external_access/` staging root; local open/share grants are copied through `external_access/open/` or `external_access/share/`.
+3. **External Handoff Encapsulation:** `file_provider_paths.xml` and the app-owned external handoff provider restrict external access to the cache-backed `external_access/` staging root; local open/share grants are copied through `external_access/open/` or `external_access/share/`, and staged shares expose only display-name and size metadata.
 4. **Staging Cache Lifecycle:** Staged handoff files are tracked in stats and deleted when the staging cache is cleared or after a configurable retention period.
 5. **No Telemetry:** The app has no network access, preventing data leaks.
 6. **Room Database Security:** Caches exclude user keys and access credentials.

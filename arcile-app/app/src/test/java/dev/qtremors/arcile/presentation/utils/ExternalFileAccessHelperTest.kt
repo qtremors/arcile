@@ -11,6 +11,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -122,27 +123,68 @@ class ExternalFileAccessHelperTest {
     }
 
     @Test
-    fun `createOpenIntent resolves missing scoped path through media store`() = runTest {
+    fun `createOpenIntent rejects missing path without media store DATA lookup`() = runTest {
         configureExternalStorageRoot()
         val baseContext = ApplicationProvider.getApplicationContext<Context>()
         val missingPath = File(Environment.getExternalStorageDirectory(), "Pictures/Screenshots/photo.png").absolutePath
         val resolver = mockk<ContentResolver>()
+        var queryCount = 0
         every {
             resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
-        } returns mediaStoreCursor(
-            id = 42L,
-            displayName = "photo.png",
-            mimeType = "image/png",
-            volumeName = MediaStore.VOLUME_EXTERNAL_PRIMARY
-        )
+        } answers {
+            queryCount += 1
+            mediaStoreCursor(
+                id = 42L,
+                displayName = "photo.png",
+                mimeType = "image/png",
+                volumeName = MediaStore.VOLUME_EXTERNAL_PRIMARY
+            )
+        }
         val context = ResolverContext(baseContext, resolver)
 
-        val intent = ExternalFileAccessHelper.createOpenIntent(context, missingPath)
+        try {
+            ExternalFileAccessHelper.createOpenIntent(context, missingPath)
+            fail("Expected missing path to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("Source file does not exist"))
+        }
+
+        assertEquals(0, queryCount)
+    }
+
+    @Test
+    fun `createOpenIntent uses storage node content uri without media store DATA lookup`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val resolver = mockk<ContentResolver>()
+        val uri = Uri.parse("content://media/external_primary/file/42")
+        var queryCount = 0
+        every { resolver.getType(uri) } returns "image/png"
+        every { resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull()) } answers {
+            queryCount += 1
+            MatrixCursor(arrayOf(MediaStore.Files.FileColumns._ID))
+        }
+        val context = ResolverContext(baseContext, resolver)
+
+        val intent = ExternalFileAccessHelper.createOpenIntent(
+            context,
+            ExternalFileAccessHelper.ExternalFileReference(
+                path = "/storage/emulated/0/Pictures/photo.png",
+                displayName = "photo.png",
+                mimeType = "image/png",
+                nodeRef = StorageNodeRef.mediaStore(
+                    id = 42L,
+                    volumeName = MediaStore.VOLUME_EXTERNAL_PRIMARY,
+                    contentUri = uri.toString(),
+                    displayPath = "/storage/emulated/0/Pictures/photo.png"
+                )
+            )
+        )
 
         assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals(uri, intent.data)
         assertEquals("image/png", intent.type)
-        assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
-        assertTrue(intent.data.toString().contains("content://media/external_primary/file/42"))
+        assertEquals("photo.png", intent.getStringExtra(Intent.EXTRA_TITLE))
+        assertEquals(0, queryCount)
     }
 
     @Test
@@ -186,6 +228,88 @@ class ExternalFileAccessHelperTest {
         assertEquals("image/png", targets.single().mimeType)
         assertEquals("photo.png", targets.single().displayName)
         assertEquals(123L, targets.single().sizeBytes)
+    }
+
+    @Test
+    fun `createShareTargets stages local files with collision safe original names`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val root = configureExternalStorageRoot()
+        ExternalFileAccessHelper.clearStagingArea(context)
+        val first = File(root, "Album A/photo.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("first")
+        }
+        val second = File(root, "Album B/photo.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("second")
+        }
+
+        val targets = ExternalFileAccessHelper.createShareTargets(context, listOf(first.absolutePath, second.absolutePath))
+
+        assertEquals(2, targets.size)
+        assertEquals("photo.jpg", targets[0].displayName)
+        assertEquals("photo.jpg", targets[1].displayName)
+        val stagedFiles = File(context.cacheDir, "external_access/share").listFiles()?.map { it.name }.orEmpty()
+        assertTrue(stagedFiles.contains("photo.jpg"))
+        assertTrue(stagedFiles.contains("photo (1).jpg"))
+    }
+
+    @Test
+    fun `createShareTargets skips over existing generated collision names`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val root = configureExternalStorageRoot()
+        ExternalFileAccessHelper.clearStagingArea(context)
+        val first = File(root, "Album A/photo.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("first")
+        }
+        val second = File(root, "Album B/photo.jpg").apply {
+            parentFile?.mkdirs()
+            writeText("second")
+        }
+        val third = File(root, "Album C/photo (1).jpg").apply {
+            parentFile?.mkdirs()
+            writeText("third")
+        }
+
+        val targets = ExternalFileAccessHelper.createShareTargets(
+            context,
+            listOf(first.absolutePath, second.absolutePath, third.absolutePath)
+        )
+
+        assertEquals(3, targets.size)
+        val stagedDir = File(context.cacheDir, "external_access/share")
+        val stagedFiles = stagedDir.listFiles()?.associate { it.name to it.readText() }.orEmpty()
+        assertEquals("first", stagedFiles["photo.jpg"])
+        assertEquals("second", stagedFiles["photo (1).jpg"])
+        assertEquals("third", stagedFiles["photo (1) (1).jpg"])
+    }
+
+    @Test
+    fun `staged share provider exposes original display name and size`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val root = configureExternalStorageRoot()
+        ExternalFileAccessHelper.clearStagingArea(context)
+        val source = File(root, "Report Final.pdf").apply {
+            writeText("shared bytes")
+        }
+
+        val target = ExternalFileAccessHelper.createShareTargets(context, listOf(source.absolutePath)).single()
+        val cursor = context.contentResolver.query(
+            target.uri,
+            arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+            null,
+            null,
+            null
+        )
+
+        assertTrue(target.uri.toString().startsWith("content://${context.packageName}.externalfileaccess/"))
+        assertEquals("Report Final.pdf", target.displayName)
+        cursor.use {
+            assertTrue(it?.moveToFirst() == true)
+            assertEquals("Report Final.pdf", it!!.getString(it.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)))
+            assertEquals(source.length(), it.getLong(it.getColumnIndexOrThrow(OpenableColumns.SIZE)))
+        }
     }
 
     @Test

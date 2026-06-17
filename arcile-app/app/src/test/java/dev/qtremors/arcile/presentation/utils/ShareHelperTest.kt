@@ -32,7 +32,12 @@ class ShareHelperTest {
     fun `shareFiles returns false when no share uris can be created`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         mockkObject(ExternalFileAccessHelper)
-        coEvery { ExternalFileAccessHelper.createShareTargets(context, any()) } returns emptyList()
+        coEvery {
+            ExternalFileAccessHelper.createShareTargets(
+                context,
+                any<List<ExternalFileAccessHelper.ExternalFileReference>>()
+            )
+        } returns emptyList()
 
         try {
             assertFalse(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))
@@ -45,7 +50,12 @@ class ShareHelperTest {
     fun `shareFiles launches chooser intent when uris are available`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         mockkObject(ExternalFileAccessHelper)
-        coEvery { ExternalFileAccessHelper.createShareTargets(context, any()) } returns listOf(
+        coEvery {
+            ExternalFileAccessHelper.createShareTargets(
+                context,
+                any<List<ExternalFileAccessHelper.ExternalFileReference>>()
+            )
+        } returns listOf(
             ExternalFileAccessHelper.ShareTarget(
                 uri = Uri.parse("content://dev.qtremors.arcile/test"),
                 mimeType = "text/plain",
@@ -58,6 +68,9 @@ class ShareHelperTest {
             assertTrue(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))
             val startedIntent = shadowOf(context as android.app.Application).nextStartedActivity
             assertEquals(Intent.ACTION_CHOOSER, startedIntent.action)
+            val sendIntent = startedIntent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+            assertEquals("file.txt", sendIntent?.getStringExtra(Intent.EXTRA_TITLE))
+            assertEquals("file.txt", sendIntent?.clipData?.description?.label?.toString())
         } finally {
             unmockkObject(ExternalFileAccessHelper)
         }

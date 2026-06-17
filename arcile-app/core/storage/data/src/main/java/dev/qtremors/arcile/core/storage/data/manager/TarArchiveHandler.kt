@@ -26,8 +26,6 @@ internal class TarArchiveHandler(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    private val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
-
     fun listEntries(archive: File, format: ArchiveFormat): List<ArchiveEntryModel> {
         if (format.isSingleStreamCompression) {
             val outputName = archive.singleStreamOutputName(format)
@@ -72,8 +70,9 @@ internal class TarArchiveHandler(
         replacementBackups: MutableMap<File, File>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
+        val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
         if (format.isSingleStreamCompression) {
-            extractSingleStream(archive, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, onProgress)
+            extractSingleStream(archive, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, extractionContext, onProgress)
             return
         }
         val entries = listEntries(archive, format).filter { it.path.matchesPrefix(entryPrefix) }
@@ -164,6 +163,7 @@ internal class TarArchiveHandler(
         resolutions: Map<String, ConflictResolution>,
         createdOutputs: MutableSet<File>,
         replacementBackups: MutableMap<File, File>,
+        extractionContext: ArchiveExtractionContext,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val outputName = archive.singleStreamOutputName(format)

@@ -204,6 +204,19 @@ class BrowserPreferencesRepositoryTest {
     }
 
     @Test
+    fun `default save to arcile path is persisted and cleared`() = runBlocking {
+        val repository = BrowserPreferencesRepository(context, dataStore)
+
+        repository.updateDefaultSaveToArcilePath("/storage/emulated/0/Download")
+
+        assertEquals("/storage/emulated/0/Download", repository.preferencesFlow.first().defaultSaveToArcilePath)
+
+        repository.updateDefaultSaveToArcilePath(null)
+
+        assertEquals(null, repository.preferencesFlow.first().defaultSaveToArcilePath)
+    }
+
+    @Test
     fun `image gallery default tab preference is persisted`() = runBlocking {
         val repository = BrowserPreferencesRepository(context, dataStore)
 

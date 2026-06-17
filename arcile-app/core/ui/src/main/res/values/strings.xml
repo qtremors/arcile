@@ -386,6 +386,7 @@
     <string name="file_operation_recovery_cleanup">Clean up</string>
     <string name="file_operation_recovery_dismiss">Dismiss</string>
     <string name="file_operation_recovery_cleanup_complete">Cleanup complete</string>
+    <string name="file_operation_already_running">Another file operation is already running</string>
     <string name="error_search_failed">Search failed</string>
     <string name="error_load_directory_failed">Failed to load directory</string>
     <string name="error_load_category_failed">Failed to load category</string>

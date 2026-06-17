@@ -25,6 +25,7 @@ class FakeBrowserPreferencesStore(
     var lastUpdatedAlbumAspectRatio: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
+    var lastUpdatedDefaultSaveToArcilePath: String? = null
 
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         lastUpdatedGlobalPresentation = presentation
@@ -108,6 +109,11 @@ class FakeBrowserPreferencesStore(
     override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
         lastUpdatedPath = path
         preferences.value = preferences.value.copy(lastOpenedPath = path, lastOpenedVolumeId = volumeId)
+    }
+
+    override suspend fun updateDefaultSaveToArcilePath(path: String?) {
+        lastUpdatedDefaultSaveToArcilePath = path
+        preferences.value = preferences.value.copy(defaultSaveToArcilePath = path)
     }
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) {

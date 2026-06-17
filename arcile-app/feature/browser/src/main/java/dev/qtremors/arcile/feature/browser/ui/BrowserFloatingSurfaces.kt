@@ -295,6 +295,7 @@ private fun recoverySummary(state: BrowserState): String {
         BulkFileOperationType.CREATE_FAKE -> stringResource(R.string.file_operation_creating_fake_file)
         BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
         BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
+        BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
     }
     val current = recovery.currentPath?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
     val progress = stringResource(
@@ -589,6 +590,7 @@ private fun BrowserClipboardOperationToolbar(
                             activeOp?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
                             activeOp?.type == BulkFileOperationType.EXTRACT_ARCHIVE -> Icons.Default.Unarchive
                             activeOp?.type == BulkFileOperationType.CREATE_FAKE -> Icons.Default.Extension
+                            activeOp?.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> Icons.Default.ContentPaste
                             else -> Icons.Default.ContentCopy
                         }
                         val opTint = if (activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH) {
@@ -609,6 +611,7 @@ private fun BrowserClipboardOperationToolbar(
                             val operationTitle = when (activeOp?.type) {
                                 BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
                                 BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
+                                BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
                                 else -> {
                                     val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
                                     pluralStringResource(R.plurals.clipboard_item_count, itemCount, itemCount)

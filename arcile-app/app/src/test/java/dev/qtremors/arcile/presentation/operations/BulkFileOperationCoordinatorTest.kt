@@ -128,6 +128,26 @@ class BulkFileOperationCoordinatorTest {
     }
 
     @Test
+    fun `checkpoints are written to operation journal`() {
+        coordinator.startOperation(BulkFileOperationType.COPY, listOf("/test.txt"), "/dest", emptyMap(), null)
+        val request = coordinator.activeRequest.value!!
+
+        coordinator.onOperationCheckpoint(
+            request = request,
+            stagedPaths = listOf("/dest/.test.txt.arcile-transfer-temp"),
+            finalizedPaths = listOf("/dest/test.txt"),
+            rollbackHints = listOf("created:/dest/test.txt"),
+            trashResultIds = listOf("trash-id")
+        )
+
+        val record = DefaultOperationJournal(context).activeRecord()
+        assertEquals(listOf("/dest/.test.txt.arcile-transfer-temp"), record?.stagedPaths)
+        assertEquals(listOf("/dest/test.txt"), record?.finalizedPaths)
+        assertEquals(listOf("created:/dest/test.txt"), record?.rollbackHints)
+        assertEquals(listOf("trash-id"), record?.trashResultIds)
+    }
+
+    @Test
     fun `accepted operation writes running activity entry`() = testScope.runTest {
         val activityLog = FakeActivityLogStore()
         coordinator = ForegroundBulkFileOperationCoordinator(

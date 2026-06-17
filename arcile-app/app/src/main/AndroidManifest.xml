@@ -73,6 +73,12 @@
                 android:resource="@xml/file_provider_paths" />
         </provider>
 
+        <provider
+            android:name=".presentation.utils.ExternalFileAccessProvider"
+            android:authorities="${applicationId}.externalfileaccess"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         <service
             android:name=".operations.BulkFileOperationService"
             android:exported="false"

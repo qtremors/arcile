@@ -64,6 +64,7 @@ class BrowserPreferencesRepository(
     private val ALBUM_ASPECT_RATIO_KEY = booleanPreferencesKey("album_aspect_ratio")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
+    private val DEFAULT_SAVE_TO_ARCILE_PATH_KEY = stringPreferencesKey("default_save_to_arcile_path")
     private val FAVORITE_FILES_KEY = stringPreferencesKey("gallery_favorites")
     private val ALBUM_COVERS_KEY = stringPreferencesKey("gallery_album_covers")
 
@@ -239,7 +240,8 @@ class BrowserPreferencesRepository(
                 favoriteFiles = favoriteFiles,
                 albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
-                lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
+                lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY],
+                defaultSaveToArcilePath = prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY]
             )
         }
         .flowOn(dispatchers.io)
@@ -354,6 +356,16 @@ class BrowserPreferencesRepository(
             }
         }
         activityLogRepository?.recordFolderOpened(path, volumeId)
+    }
+
+    override suspend fun updateDefaultSaveToArcilePath(path: String?) {
+        dataStore.edit { prefs ->
+            if (path.isNullOrBlank()) {
+                prefs.remove(DEFAULT_SAVE_TO_ARCILE_PATH_KEY)
+            } else {
+                prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY] = path
+            }
+        }
     }
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) {

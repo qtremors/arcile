@@ -15,8 +15,6 @@ internal class SevenZipHandler(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    private val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
-
     fun listEntries(archive: File, password: String?): List<ArchiveEntryModel> =
         openSevenZ(archive, password).use { sevenZ ->
             val safety = ArchiveSafetyTally(safetyPolicy)
@@ -45,6 +43,7 @@ internal class SevenZipHandler(
         replacementBackups: MutableMap<File, File>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
+        val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
         val allEntries = listEntries(archive, password).filter { it.path.matchesPrefix(entryPrefix) }
         val totalBytes = allEntries.sumOf { it.size }.coerceAtLeast(1L)
         var copied = 0L

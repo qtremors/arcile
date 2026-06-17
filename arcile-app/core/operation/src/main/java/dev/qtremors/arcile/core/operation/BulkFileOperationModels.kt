@@ -17,8 +17,17 @@ enum class BulkFileOperationType {
     SHRED,
     CREATE_FAKE,
     EXTRACT_ARCHIVE,
-    CREATE_ARCHIVE
+    CREATE_ARCHIVE,
+    SAVE_TO_ARCILE_IMPORT
 }
+
+@Serializable
+data class SaveToArcileImportItem(
+    val uri: String,
+    val displayName: String,
+    val sizeBytes: Long? = null,
+    val requiresCountedStream: Boolean = false
+)
 
 @Serializable
 data class BulkFileOperationRequest(
@@ -32,7 +41,8 @@ data class BulkFileOperationRequest(
     val archiveEntryPrefix: String? = null,
     val archivePassword: String? = null,
     val archiveNameEncoding: ArchiveNameEncoding? = null,
-    val archiveCompressionLevel: ArchiveCompressionLevel? = null
+    val archiveCompressionLevel: ArchiveCompressionLevel? = null,
+    val importItems: List<SaveToArcileImportItem> = emptyList()
 ) {
     val sourceRefs: List<StorageNodeRef> get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }
     val destinationRef: StorageNodeRef? get() = destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }
@@ -46,6 +56,7 @@ data class OperationRecoveryRecord(
     val updatedAtMillis: Long,
     val progress: BulkFileOperationProgress? = null,
     val stagedPaths: List<String> = emptyList(),
+    val finalizedPaths: List<String> = emptyList(),
     val rollbackHints: List<String> = emptyList(),
     val trashResultIds: List<String> = emptyList(),
     val error: String? = null

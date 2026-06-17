@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -186,6 +188,61 @@ class SaveToArcileActivityTest {
     }
 
     @Test
+    fun `queued import result reports background start instead of saved`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        val message = SaveIncomingResult(savedCount = 0, failures = emptyList(), queued = true)
+            .userMessage(context)
+
+        assertEquals(context.getString(dev.qtremors.arcile.core.ui.R.string.save_to_arcile_import_started), message)
+    }
+
+    @Test
+    fun `default save to arcile folder opens first when it is valid`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val volumeRoot = File(context.cacheDir, "default-volume").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val defaultFolder = File(volumeRoot, "Imports").apply { mkdirs() }
+
+        val resolved = resolveInitialSaveToArcileDirectory(
+            defaultPath = defaultFolder.absolutePath,
+            volumes = listOf(testSaveVolume(volumeRoot))
+        )
+
+        assertEquals(defaultFolder.canonicalFile, resolved?.canonicalFile)
+        volumeRoot.deleteRecursively()
+    }
+
+    @Test
+    fun `default save to arcile folder falls back when missing or outside volumes`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val volumeRoot = File(context.cacheDir, "valid-volume").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val outsideRoot = File(context.cacheDir, "outside-volume").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val outsideFolder = File(outsideRoot, "Imports").apply { mkdirs() }
+        val missingFolder = File(volumeRoot, "Missing")
+
+        assertEquals(
+            null,
+            resolveInitialSaveToArcileDirectory(missingFolder.absolutePath, listOf(testSaveVolume(volumeRoot)))
+        )
+        assertEquals(
+            null,
+            resolveInitialSaveToArcileDirectory(outsideFolder.absolutePath, listOf(testSaveVolume(volumeRoot)))
+        )
+
+        volumeRoot.deleteRecursively()
+        outsideRoot.deleteRecursively()
+    }
+
+    @Test
     fun `manifest exposes send and send multiple share target`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val packageManager = context.packageManager
@@ -203,3 +260,15 @@ class SaveToArcileActivityTest {
         assertTrue(multiple.any { it.activityInfo.name == SaveToArcileActivity::class.java.name })
     }
 }
+
+private fun testSaveVolume(root: File) = StorageVolume(
+    id = root.name,
+    storageKey = root.name,
+    name = root.name,
+    path = root.absolutePath,
+    totalBytes = 100L,
+    freeBytes = 50L,
+    isPrimary = false,
+    isRemovable = true,
+    kind = StorageKind.INTERNAL
+)

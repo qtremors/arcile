@@ -65,7 +65,12 @@ class NavigationDelegate(
             pathHistory.addAll(restoredHistory.mapNotNull { BrowserHistoryEntry.fromSavedValue(it) })
         }
 
-        if (!restoredArchivePath.isNullOrEmpty()) return null
+        if (!restoredArchivePath.isNullOrEmpty()) {
+            return StorageBrowserLocation.Archive(
+                archivePath = restoredArchivePath,
+                entryPrefix = savedStateHandle.get<String>("archiveEntryPrefix")?.takeIf { it.isNotEmpty() }
+            )
+        }
 
         return when {
             isVolumeRootScreen == true -> StorageBrowserLocation.Roots

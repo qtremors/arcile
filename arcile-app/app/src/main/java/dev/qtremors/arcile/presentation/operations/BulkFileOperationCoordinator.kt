@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
+import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -94,7 +96,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         archiveEntryPrefix: String?,
         archivePassword: String?,
         archiveNameEncoding: ArchiveNameEncoding?,
-        archiveCompressionLevel: ArchiveCompressionLevel?
+        archiveCompressionLevel: ArchiveCompressionLevel?,
+        importItems: List<SaveToArcileImportItem>
     ): Boolean {
         if (_activeRequest.value != null) return false
 
@@ -109,7 +112,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             archiveEntryPrefix = archiveEntryPrefix,
             archivePassword = archivePassword?.takeIf { it.isNotEmpty() },
             archiveNameEncoding = archiveNameEncoding,
-            archiveCompressionLevel = archiveCompressionLevel
+            archiveCompressionLevel = archiveCompressionLevel,
+            importItems = importItems
         )
         return startRequest(request)
     }
@@ -131,6 +135,24 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
                 it.copy(phase = OperationPhase.RUNNING, progress = progress)
             }
             _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
+        }
+    }
+
+    override fun onOperationCheckpoint(
+        request: BulkFileOperationRequest,
+        stagedPaths: List<String>,
+        finalizedPaths: List<String>,
+        rollbackHints: List<String>,
+        trashResultIds: List<String>
+    ) {
+        if (_activeRequest.value?.operationId != request.operationId) return
+        operationJournal.update(request.operationId) { record ->
+            record.copy(
+                stagedPaths = (record.stagedPaths + stagedPaths).distinct(),
+                finalizedPaths = (record.finalizedPaths + finalizedPaths).distinct(),
+                rollbackHints = (record.rollbackHints + rollbackHints).distinct(),
+                trashResultIds = (record.trashResultIds + trashResultIds).distinct()
+            )
         }
     }
 
@@ -183,8 +205,9 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     }
 
     override fun cleanupRecoveredOperation(operationId: String) {
-        if (_recoveryRecords.value.none { it.request.operationId == operationId }) return
+        val record = _recoveryRecords.value.firstOrNull { it.request.operationId == operationId } ?: return
         applicationScope.launch {
+            cleanupCheckpointPaths(record.stagedPaths)
             mutationJournal.cleanupAbandonedMutations()
             operationJournal.dismissRecovery(operationId)
             _recoveryRecords.value = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
@@ -240,7 +263,11 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             operationId = request.operationId,
             operationType = request.type.name,
             status = status,
-            sourceCount = request.sourcePaths.size,
+            sourceCount = if (request.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT) {
+                request.importItems.size
+            } else {
+                request.sourcePaths.size
+            },
             destinationPath = request.destinationPath,
             errorMessage = errorMessage
         )
@@ -271,4 +298,21 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             }
         }
     }
+
+    private fun cleanupCheckpointPaths(paths: List<String>) {
+        paths.forEach { path ->
+            runCatching {
+                val file = File(path)
+                if (file.exists() && isKnownOperationTemp(file.name)) {
+                    if (file.isDirectory) file.deleteRecursively() else file.delete()
+                }
+            }
+        }
+    }
+
+    private fun isKnownOperationTemp(name: String): Boolean =
+        name.contains(".arcile-transfer-") ||
+            name.contains(".arcile-replace-") ||
+            name.contains(".arcile-archive-") ||
+            name.contains(".arcile-import-")
 }

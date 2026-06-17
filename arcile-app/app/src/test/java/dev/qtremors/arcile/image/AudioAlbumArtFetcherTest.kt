@@ -6,7 +6,6 @@ import android.content.ContextWrapper
 import android.database.MatrixCursor
 import android.graphics.Bitmap
 import android.net.Uri
-import android.provider.MediaStore
 import android.util.Size
 import androidx.test.core.app.ApplicationProvider
 import coil.fetch.DrawableResult
@@ -42,23 +41,15 @@ class AudioAlbumArtFetcherTest {
     }
 
     @Test
-    fun `fetch uses media store thumbnail when indexed audio row is found`() = runTest {
+    fun `fetch without content uri does not query media store by raw DATA`() = runTest {
         val baseContext = ApplicationProvider.getApplicationContext<Context>()
-        val expectedBitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
         val resolver = mockk<ContentResolver>()
         var queryCount = 0
-        var lastRequestedSize: Size? = null
         every {
             resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
         } answers {
             queryCount += 1
-            MatrixCursor(arrayOf(MediaStore.Audio.Media._ID)).apply {
-                addRow(arrayOf(42L))
-            }
-        }
-        every { resolver.loadThumbnail(any(), any(), any()) } answers {
-            lastRequestedSize = arg(1)
-            expectedBitmap
+            MatrixCursor(arrayOf("_id"))
         }
         val context = ThumbnailContext(baseContext, resolver)
         val options = mockk<Options> {
@@ -66,11 +57,10 @@ class AudioAlbumArtFetcherTest {
             every { size } returns CoilSize(320, 320)
         }
 
-        val result = AudioAlbumArtFetcher(File("/storage/emulated/0/Music/song.mp3"), options).fetch() as DrawableResult
+        val result = AudioAlbumArtFetcher(File("/storage/emulated/0/Music/song.mp3"), options).fetch()
 
-        assertEquals(1, queryCount)
-        assertEquals(Size(320, 320), lastRequestedSize)
-        assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
+        assertNull(result)
+        assertEquals(0, queryCount)
     }
 
     @Test
@@ -84,7 +74,7 @@ class AudioAlbumArtFetcherTest {
             resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
         } answers {
             queryCount += 1
-            MatrixCursor(arrayOf(MediaStore.Audio.Media._ID))
+            MatrixCursor(arrayOf("_id"))
         }
         every { resolver.loadThumbnail(any(), any(), any()) } answers {
             requestedUri = arg(0)
@@ -113,7 +103,7 @@ class AudioAlbumArtFetcherTest {
         val resolver = mockk<ContentResolver>()
         every {
             resolver.query(any(), any(), any<String>(), any<Array<String>>(), isNull())
-        } returns MatrixCursor(arrayOf(MediaStore.Audio.Media._ID))
+        } returns MatrixCursor(arrayOf("_id"))
         val context = ThumbnailContext(baseContext, resolver)
         val options = mockk<Options> {
             every { this@mockk.context } returns context

@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.app.Notification
 import android.app.NotificationManager
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
@@ -45,6 +47,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.android.controller.ServiceController
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -363,6 +366,46 @@ class BulkFileOperationServiceTest {
         assertEquals("secret", extractRequest.password)
     }
 
+    @Test
+    fun `service imports shared files through foreground operation`() {
+        val source = File(context.cacheDir, "shared-source.txt").apply {
+            writeText("shared payload")
+        }
+        val destination = File(context.cacheDir, "foreground-import-dest").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val request = BulkFileOperationRequest(
+            operationId = "op-import",
+            type = BulkFileOperationType.SAVE_TO_ARCILE_IMPORT,
+            sourcePaths = emptyList(),
+            destinationPath = destination.absolutePath,
+            importItems = listOf(
+                SaveToArcileImportItem(
+                    uri = Uri.fromFile(source).toString(),
+                    displayName = "imported.txt",
+                    sizeBytes = source.length()
+                )
+            )
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        verify(timeout = 2_000) {
+            coordinator.onOperationCheckpoint(
+                request = request,
+                stagedPaths = any(),
+                finalizedPaths = any(),
+                rollbackHints = any(),
+                trashResultIds = any()
+            )
+        }
+        assertEquals("shared payload", File(destination, "imported.txt").readText())
+        awaitInactiveMutation()
+    }
+
     private fun awaitInactiveMutation() {
         val deadline = System.currentTimeMillis() + 2_000
         while (storageWorkCoordinator.isMutationActive.value && System.currentTimeMillis() < deadline) {
@@ -395,11 +438,19 @@ class BulkFileOperationServiceTest {
             archiveEntryPrefix: String?,
             archivePassword: String?,
             archiveNameEncoding: ArchiveNameEncoding?,
-            archiveCompressionLevel: ArchiveCompressionLevel?
+            archiveCompressionLevel: ArchiveCompressionLevel?,
+            importItems: List<SaveToArcileImportItem>
         ): Boolean = false
 
         override fun cancelActiveOperation() = Unit
         override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+        override fun onOperationCheckpoint(
+            request: BulkFileOperationRequest,
+            stagedPaths: List<String>,
+            finalizedPaths: List<String>,
+            rollbackHints: List<String>,
+            trashResultIds: List<String>
+        ) = Unit
         override fun onOperationCancelling(request: BulkFileOperationRequest) = Unit
         override fun onOperationCompleted(request: BulkFileOperationRequest) = Unit
         override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {

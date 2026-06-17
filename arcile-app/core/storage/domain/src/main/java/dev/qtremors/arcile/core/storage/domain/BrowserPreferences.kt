@@ -68,7 +68,8 @@ data class BrowserPreferences(
     val favoriteFiles: Set<String> = emptySet(),
     val albumCovers: Map<String, String> = emptyMap(),
     val lastOpenedPath: String? = null,
-    val lastOpenedVolumeId: String? = null
+    val lastOpenedVolumeId: String? = null,
+    val defaultSaveToArcilePath: String? = null
 ) {
     companion object {
         const val MIN_HOME_RECENT_CAROUSEL_LIMIT = 0

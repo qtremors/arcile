@@ -127,6 +127,22 @@ fun AppNavigationGraph(
     val openPathWithSurroundingImages: (String, List<FileModel>) -> Unit = { path, files ->
         openPathWithContext(path, files, false)
     }
+    val fileReferenceFor: (FileModel) -> ExternalFileAccessHelper.ExternalFileReference = { file ->
+        ExternalFileAccessHelper.ExternalFileReference(
+            path = file.absolutePath,
+            displayName = file.name,
+            sizeBytes = file.size,
+            mimeType = file.mimeType,
+            nodeRef = file.nodeRef
+        )
+    }
+    val shareFilesWithKnownModels: suspend (List<String>, List<FileModel>) -> Boolean = { paths, files ->
+        val byPath = files.associateBy { it.absolutePath }
+        val references = paths.map { path ->
+            byPath[path]?.let(fileReferenceFor) ?: ExternalFileAccessHelper.ExternalFileReference(path = path)
+        }
+        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFileReferences(context, references)
+    }
 
     val reducedMotion = LocalReducedMotionEnabled.current
 
@@ -356,7 +372,7 @@ fun AppNavigationGraph(
                                     onResumeRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.SILENT) },
                                     onShareRecentFile = { path ->
                                         coroutineScope.launch {
-                                            dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                                            shareFilesWithKnownModels(listOf(path), state.displayState.todayRecentFiles)
                                         }
                                     },
                                     homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
@@ -405,7 +421,12 @@ fun AppNavigationGraph(
                                     onCancelClipboard = { browserViewModel.cancelClipboard() },
                                     onShareSelected = {
                                         coroutineScope.launch {
-                                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, browserState.selectedFiles.toList())) {
+                                            val browserShareFiles = if (browserState.browserSearchQuery.isNotBlank()) {
+                                                browserState.searchResults
+                                            } else {
+                                                browserState.displayState.visibleFiles
+                                            }
+                                            if (shareFilesWithKnownModels(browserState.selectedFiles.toList(), browserShareFiles)) {
                                                 browserViewModel.clearSelection()
                                             }
                                         }
@@ -479,6 +500,11 @@ fun AppNavigationGraph(
                     androidx.compose.runtime.LaunchedEffect(volumeId) {
                         viewModel.ensureDashboardCategoryBreakdown(volumeId)
                     }
+                    val navigateToBrowserFromDashboard: (AppRoutes.Main) -> Unit = { route ->
+                        navController.navigate(route) {
+                            popUpTo<AppRoutes.StorageDashboard> { inclusive = true }
+                        }
+                    }
                     StorageDashboardScreen(
                         state = state,
                         selectedVolumeId = volumeId,
@@ -487,11 +513,11 @@ fun AppNavigationGraph(
                             if (categoryName == FileCategories.Images.name) {
                                 navController.navigate(AppRoutes.ImageGallery(scopedVolumeId))
                             } else {
-                                navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
+                                navigateToBrowserFromDashboard(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
                             }
                         },
                         onOpenPath = { path ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path))
+                            navigateToBrowserFromDashboard(AppRoutes.Main(initialPage = 1, path = path))
                         },
                         onOpenFile = openPath
                     )
@@ -523,8 +549,8 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenFile = openPathWithSurroundingImages,
-                    onShareSelected = { paths ->
-                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    onShareSelected = { files ->
+                        shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
                     onOpenContainingFolder = { path ->
                         navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
@@ -538,8 +564,8 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenFile = openPath,
-                    onShareSelected = { paths ->
-                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    onShareSelected = { files ->
+                        shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
                     onFeedback = onFeedback
                 )

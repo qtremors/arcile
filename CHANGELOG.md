@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.3
-> **Last Updated:** 2026-06-16
+> **Version:** 1.1.4
+> **Last Updated:** 2026-06-17
 
 ---
+
+## [1.1.4] - 2026-06-17
+
+- **Save to Arcile Defaults and Recents Refresh**: Added a persistent default destination for Save to Arcile imports, opened valid defaults first while keeping folder navigation available, aligned the destination picker closer to Arcile list styling, and fixed Recent Files pull-to-refresh to use the manual refresh path.
+- **Durable Save-to-Arcile Imports**: Routed shared-file imports through the foreground operation pipeline with staged temp files, progress notifications, cancellation cleanup, operation journal recovery, and mutation finalization.
+- **Operation Recovery Checkpoints**: Persisted operation checkpoints for staged files, finalized outputs, rollback hints, and Trash IDs so interrupted foreground work can recover and clean up more precisely.
+- **Archive Extraction Reliability**: Reset archive extraction conflict state for every extraction so skip and keep-both directory decisions cannot leak into later archive operations.
+- **Archive Browser Restoration**: Restored saved archive path and entry-prefix browsing state after process recreation without persisting archive passwords.
+- **Storage Dashboard Back Navigation**: Fixed dashboard and usage-map Browser handoffs so Back returns to Home instead of landing on an unintended Browser route.
+- **Storage Identity and Handoffs**: Routed open/share and media thumbnail fallbacks through carried content URI identity where available, removed raw MediaStore `DATA = ?` lookups from those paths, and made Trash cleanup use supplied MediaStore content URIs.
+- **Shared Filename Preservation**: Staged shared files with collision-safe original display names and served staged handoffs through an app-owned provider that reports `OpenableColumns.DISPLAY_NAME` and size metadata.
+- **Room Cache Schema Discipline**: Enabled Room schema export, committed the version 2 schema, limited destructive cache reset to the explicit version 1 upgrade path, and documented schema bump review requirements.
 
 ## [1.1.3] - 2026-06-16
 

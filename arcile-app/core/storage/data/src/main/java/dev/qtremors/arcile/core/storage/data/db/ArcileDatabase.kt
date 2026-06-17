@@ -17,7 +17,7 @@ import androidx.room.RoomDatabase
         StorageCleanerSnapshotEntity::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class ArcileDatabase : RoomDatabase() {
     abstract fun folderStatsDao(): FolderStatsDao
@@ -44,7 +44,7 @@ abstract class ArcileDatabase : RoomDatabase() {
                         ArcileDatabase::class.java,
                         DATABASE_NAME
                     )
-                        .fallbackToDestructiveMigration(dropAllTables = true)
+                        .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1)
                         .build()
                         .also { instance = it }
                 }
