@@ -8,11 +8,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -97,6 +100,9 @@ data class ImageGalleryState(
     ),
     val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
     val clipboardState: ClipboardState? = null,
+    val pasteConflicts: PersistentList<FileConflict> = persistentListOf(),
+    val showConflictDialog: Boolean = false,
+    val pasteDestinationAlbumPath: String? = null,
     val favoriteFiles: PersistentSet<String> = persistentSetOf(),
     val albumCovers: PersistentMap<String, String> = persistentMapOf()
 )
@@ -250,8 +256,11 @@ class ImageGalleryViewModel @Inject constructor(
         viewModelScope.launch {
             bulkFileOperationCoordinator.events.collect { event ->
                 if (event is BulkFileOperationEvent.Completed && event.request.type in refreshTypes) {
-                    repository.invalidate(event.request.sourcePaths)
-                    _state.update { it.withoutGalleryPaths(event.request.sourcePaths) }
+                    val invalidationPaths = (event.request.sourcePaths + listOfNotNull(event.request.destinationPath)).distinct()
+                    repository.invalidate(invalidationPaths)
+                    if (event.request.type != BulkFileOperationType.COPY) {
+                        _state.update { it.withoutGalleryPaths(event.request.sourcePaths) }
+                    }
                     loadImages(forceRefresh = true, silent = true)
                 }
             }
@@ -470,6 +479,116 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
+    fun pasteFromClipboard(destinationAlbumPath: String?) {
+        if (!isPasteDestinationAlbumPath(destinationAlbumPath)) return
+        val clipboard = _state.value.clipboardState ?: return
+        val sourcePaths = clipboard.files.map { it.absolutePath }
+        if (sourcePaths.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    isRefreshing = true,
+                    error = null,
+                    pasteDestinationAlbumPath = destinationAlbumPath
+                )
+            }
+            clipboardRepository.detectCopyConflicts(sourcePaths, destinationAlbumPath!!).onSuccess { conflicts ->
+                if (conflicts.isNotEmpty()) {
+                    _state.update {
+                        it.copy(
+                            isRefreshing = false,
+                            pasteConflicts = conflicts.toPersistentList(),
+                            showConflictDialog = true,
+                            pasteDestinationAlbumPath = destinationAlbumPath
+                        )
+                    }
+                } else {
+                    executePaste(clipboard, destinationAlbumPath, emptyMap())
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isRefreshing = false,
+                        pasteDestinationAlbumPath = null,
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_check_conflicts_failed)
+                    )
+                }
+            }
+        }
+    }
+
+    fun resolvePasteConflicts(resolutions: Map<String, ConflictResolution>) {
+        val clipboard = _state.value.clipboardState ?: return
+        val destination = _state.value.pasteDestinationAlbumPath ?: return
+        if (!isPasteDestinationAlbumPath(destination)) return
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    showConflictDialog = false,
+                    pasteConflicts = persistentListOf(),
+                    isRefreshing = true
+                )
+            }
+            executePaste(clipboard, destination, resolutions)
+        }
+    }
+
+    fun dismissPasteConflictDialog() {
+        _state.update {
+            it.copy(
+                showConflictDialog = false,
+                pasteConflicts = persistentListOf(),
+                pasteDestinationAlbumPath = null,
+                isRefreshing = false
+            )
+        }
+    }
+
+    fun cancelClipboard() {
+        bulkFileOperationCoordinator.cancelActiveOperation()
+        clipboardRepository.clearClipboardState()
+        dismissPasteConflictDialog()
+    }
+
+    private fun executePaste(
+        clipboard: ClipboardState,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ) {
+        val operationType = if (clipboard.operation == ClipboardOperation.CUT) {
+            BulkFileOperationType.MOVE
+        } else {
+            BulkFileOperationType.COPY
+        }
+        val started = bulkFileOperationCoordinator.startOperation(
+            type = operationType,
+            sourcePaths = clipboard.files.map { it.absolutePath },
+            destinationPath = destinationPath,
+            resolutions = resolutions
+        )
+
+        if (started) {
+            _state.update {
+                it.copy(
+                    isRefreshing = false,
+                    pasteDestinationAlbumPath = null,
+                    showConflictDialog = false,
+                    pasteConflicts = persistentListOf()
+                )
+            }
+        } else {
+            _state.update {
+                it.copy(
+                    isRefreshing = false,
+                    pasteDestinationAlbumPath = null,
+                    error = UiText.StringResource(RuntimeR.string.error_operation_already_running)
+                )
+            }
+        }
+    }
+
     fun createZipFromSelection() {
         val selected = _state.value.selectedFiles.toList()
         if (selected.isEmpty()) return
@@ -546,6 +665,7 @@ class ImageGalleryViewModel @Inject constructor(
         private const val IMAGE_GALLERY_PREF_KEY = "image_gallery"
         private val refreshTypes = setOf(
             BulkFileOperationType.MOVE,
+            BulkFileOperationType.COPY,
             BulkFileOperationType.TRASH,
             BulkFileOperationType.DELETE,
             BulkFileOperationType.SHRED

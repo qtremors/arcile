@@ -34,7 +34,8 @@ interface FolderStatsStore {
     suspend fun getCached(paths: Collection<String>): Map<String, FolderStats>
     fun observeUpdates(): Flow<FolderStatUpdate>
     fun queue(paths: List<String>)
-    fun invalidate(paths: Collection<String>)
+    suspend fun invalidate(paths: Collection<String>)
+    suspend fun clear()
 }
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -136,19 +137,33 @@ class DefaultFolderStatsStore @Inject constructor(
             }
     }
 
-    override fun invalidate(paths: Collection<String>) {
+    override suspend fun invalidate(paths: Collection<String>) = withContext(dispatchers.io) {
         paths.map(::normalizePath).distinct().forEach { path ->
             nextGeneration(path)
             activeJobs.remove(path)?.cancel()
             queuedPaths.remove(path)
             memoryCache.remove(path)
-            workerScope.launch {
-                runCatching { folderStatsDao.delete(listOf(path)) }
-                    .onFailure { error ->
-                        if (error is kotlinx.coroutines.CancellationException) throw error
-                        AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path", error)
-                    }
-            }
+            runCatching { folderStatsDao.delete(listOf(path)) }
+                .onFailure { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path", error)
+                }
+        }
+    }
+
+    override suspend fun clear() {
+        withContext(dispatchers.io) {
+            activeJobs.values.forEach { it.cancel() }
+            activeJobs.clear()
+            queuedPaths.clear()
+            memoryCache.clear()
+            retryCounts.clear()
+            pathGenerations.clear()
+            runCatching { folderStatsDao.clear() }
+                .onFailure { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    AppLogger.w("FolderStatsStore", "Failed to clear folder stats cache", error)
+                }
         }
     }
 

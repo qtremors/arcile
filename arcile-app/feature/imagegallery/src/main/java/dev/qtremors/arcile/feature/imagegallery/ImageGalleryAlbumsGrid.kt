@@ -95,6 +95,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Delete
@@ -191,6 +192,7 @@ fun ImageGalleryAlbumsGrid(
     contentPadding: PaddingValues,
     onSelectAlbum: (String?) -> Unit,
     gridState: LazyGridState,
+    onPasteToAlbum: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val thumbnailPolicy = remember { ThumbnailPolicy() }
@@ -214,6 +216,13 @@ fun ImageGalleryAlbumsGrid(
             favoritesLabel = favoritesLabel
         )
     }
+    val coverLookup = remember(state.files, state.favoriteFiles, state.albumCovers) {
+        buildAlbumCoverLookup(
+            files = state.files,
+            favoriteFiles = state.favoriteFiles,
+            albumCovers = state.albumCovers
+        )
+    }
 
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = gridMinCellSize.dp),
@@ -231,14 +240,8 @@ fun ImageGalleryAlbumsGrid(
             .padding(horizontal = 16.dp)
     ) {
         items(albumsList, key = { it.path ?: it.label }) { album ->
-            val coverFile = remember(album.path, state.files, state.favoriteFiles, state.albumCovers) {
-                resolveAlbumCoverFile(
-                    albumPath = album.path,
-                    files = state.files,
-                    favoriteFiles = state.favoriteFiles,
-                    albumCovers = state.albumCovers
-                )
-            }
+            val coverFile = album.path?.let(coverLookup::get)
+            val canPasteToAlbum = state.clipboardState != null && isPasteDestinationAlbumPath(album.path)
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -292,6 +295,29 @@ fun ImageGalleryAlbumsGrid(
                                     tint = Color.Red,
                                     modifier = Modifier.size(18.dp)
                                 )
+                            }
+                        }
+
+                        if (canPasteToAlbum) {
+                            Surface(
+                                onClick = { album.path?.let(onPasteToAlbum) },
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                shadowElevation = 4.dp,
+                                tonalElevation = 4.dp,
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .size(40.dp)
+                                    .align(Alignment.TopEnd)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentPaste,
+                                        contentDescription = stringResource(R.string.action_paste_here),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
                             }
                         }
                     }

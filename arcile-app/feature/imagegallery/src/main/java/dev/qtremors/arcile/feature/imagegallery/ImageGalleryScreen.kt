@@ -33,6 +33,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
@@ -69,11 +71,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.shared.ui.PasteConflictDialog
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
@@ -117,6 +121,10 @@ fun ImageGalleryScreen(
     onClearError: () -> Unit,
     onCopySelected: () -> Unit = {},
     onCutSelected: () -> Unit = {},
+    onPasteToAlbum: (String) -> Unit = {},
+    onCancelClipboard: () -> Unit = {},
+    onResolvePasteConflicts: (Map<String, ConflictResolution>) -> Unit = {},
+    onDismissPasteConflictDialog: () -> Unit = {},
     onRenameFile: (String, String) -> Unit = { _, _ -> },
     onCreateZipFromSelection: () -> Unit = {},
     onSetAlbumCover: (String, String) -> Unit = { _, _ -> },
@@ -290,7 +298,8 @@ fun ImageGalleryScreen(
                             bottom = bottomPadding
                         ),
                         onSelectAlbum = onSelectAlbum,
-                        gridState = albumsGridState
+                        gridState = albumsGridState,
+                        onPasteToAlbum = onPasteToAlbum
                     )
                 } else {
                     ImageGalleryContent(
@@ -489,36 +498,44 @@ fun ImageGalleryScreen(
                     .then(if (isSelectionMode) Modifier.fillMaxWidth() else Modifier.wrapContentSize())
             ) {
                 if (rotationX <= 90f) {
-                    // Normal state: Photos & Albums tab bar
-                    Row(
-                        modifier = Modifier
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
-                                shape = CircleShape
+                    val albumPastePath = state.selectedAlbumPath?.takeIf(::isPasteDestinationAlbumPath)
+                    if (albumPastePath != null && state.clipboardState != null && currentTab == GalleryTab.ALBUMS) {
+                        GalleryClipboardPasteBar(
+                            onPaste = { onPasteToAlbum(albumPastePath) },
+                            onCancel = onCancelClipboard
+                        )
+                    } else {
+                        // Normal state: Photos & Albums tab bar
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                                    shape = CircleShape
+                                )
+                                .padding(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TabItem(
+                                selected = currentTab == GalleryTab.PHOTOS,
+                                label = stringResource(R.string.image_gallery_tab_photos),
+                                icon = Icons.Default.Image,
+                                onClick = {
+                                    currentTab = GalleryTab.PHOTOS
+                                    onSelectAlbum(null)
+                                    coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                                }
                             )
-                            .padding(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        TabItem(
-                            selected = currentTab == GalleryTab.PHOTOS,
-                            label = stringResource(R.string.image_gallery_tab_photos),
-                            icon = Icons.Default.Image,
-                            onClick = {
-                                currentTab = GalleryTab.PHOTOS
-                                onSelectAlbum(null)
-                                coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                            }
-                        )
-                        TabItem(
-                            selected = currentTab == GalleryTab.ALBUMS,
-                            label = stringResource(R.string.image_gallery_tab_albums),
-                            icon = Icons.Default.Folder,
-                            onClick = {
-                                currentTab = GalleryTab.ALBUMS
-                                coroutineScope.launch { pagerState.animateScrollToPage(1) }
-                            }
-                        )
+                            TabItem(
+                                selected = currentTab == GalleryTab.ALBUMS,
+                                label = stringResource(R.string.image_gallery_tab_albums),
+                                icon = Icons.Default.Folder,
+                                onClick = {
+                                    currentTab = GalleryTab.ALBUMS
+                                    coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                }
+                            )
+                        }
                     }
                 } else {
                     // Flipped selection state: Action buttons (counter-rotated vertical flip)
@@ -681,6 +698,14 @@ fun ImageGalleryScreen(
         )
     }
 
+    if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
+        PasteConflictDialog(
+            conflicts = state.pasteConflicts,
+            onResolve = onResolvePasteConflicts,
+            onDismiss = onDismissPasteConflictDialog
+        )
+    }
+
     if (state.isPropertiesVisible) {
         PropertiesDialog(
             properties = state.properties,
@@ -708,5 +733,33 @@ fun ImageGalleryScreen(
             onDismiss = { showPresentationSheet = false }
         )
     }
+}
+
+@Composable
+private fun GalleryClipboardPasteBar(
+    onPaste: () -> Unit,
+    onCancel: () -> Unit
+) {
+    SplitButtonGroup(
+        actions = listOf(
+            ToolbarAction(
+                icon = Icons.Default.ContentPaste,
+                contentDescription = stringResource(R.string.action_paste_here),
+                onClick = onPaste
+            ),
+            ToolbarAction(
+                icon = Icons.Default.Close,
+                contentDescription = stringResource(R.string.action_cancel_transfer),
+                containerColor = MaterialTheme.colorScheme.error,
+                tint = MaterialTheme.colorScheme.onError,
+                onClick = onCancel
+            )
+        ),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        height = 56.dp,
+        minWidth = 56.dp,
+        iconSize = 24.dp
+    )
 }
 

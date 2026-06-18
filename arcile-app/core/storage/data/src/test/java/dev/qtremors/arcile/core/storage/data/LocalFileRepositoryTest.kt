@@ -378,5 +378,6 @@ private class RecordingFolderStatsStore : FolderStatsStore {
     override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
     override fun observeUpdates(): Flow<FolderStatUpdate> = emptyFlow()
     override fun queue(paths: List<String>) = Unit
-    override fun invalidate(paths: Collection<String>) = Unit
+    override suspend fun invalidate(paths: Collection<String>) = Unit
+    override suspend fun clear() = Unit
 }

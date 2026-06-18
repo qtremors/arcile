@@ -11,6 +11,8 @@ import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
@@ -22,7 +24,9 @@ import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -188,6 +192,82 @@ class RecentFilesViewModelTest {
         assertEquals(StorageScope.AllStorage, repository.requestedRecentScopes.last())
         assertFalse(viewModel.state.value.isPullToRefreshing)
         assertFalse(viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun `storage mutation refreshes recent files without manual pull`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle(
+            initialRecentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("old.jpg")))
+        )
+        val notifier = FakeStorageMutationNotifier()
+        val viewModel = recentViewModel(repository, storageMutationNotifier = notifier)
+
+        advanceUntilIdle()
+        repository.recentFilesByScope = mapOf(StorageScope.AllStorage to listOf(recentFile("new.jpg")))
+        notifier.notify(listOf("/storage/emulated/0/Download/new.jpg"))
+        advanceTimeBy(300)
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.jpg"), viewModel.state.value.recentFiles.map { it.name })
+        assertEquals(1, repository.invalidateAnalyticsCacheCalls)
+    }
+
+    @Test
+    fun `older recent load cannot overwrite newer refresh result`() = runTest(mainDispatcherRule.dispatcher) {
+        val firstLoad = CompletableDeferred<Result<List<FileModel>>>()
+        val secondLoad = CompletableDeferred<Result<List<FileModel>>>()
+        var requestCount = 0
+        val repository = FakeStorageRepositoryBundle().apply {
+            recentFilesResultProvider = { _, _, _, _ ->
+                requestCount += 1
+                if (requestCount == 1) firstLoad.await() else secondLoad.await()
+            }
+        }
+        val viewModel = recentViewModel(repository)
+
+        advanceUntilIdle()
+        viewModel.loadRecentFiles()
+        advanceUntilIdle()
+        viewModel.loadRecentFiles()
+        advanceUntilIdle()
+        secondLoad.complete(Result.success(listOf(recentFile("new.jpg"))))
+        advanceUntilIdle()
+        firstLoad.complete(Result.success(listOf(recentFile("old.jpg"))))
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.jpg"), viewModel.state.value.recentFiles.map { it.name })
+    }
+
+    @Test
+    fun `older load more cannot append after newer refresh result`() = runTest(mainDispatcherRule.dispatcher) {
+        val firstPage = List(50) { index ->
+            recentFile("old_$index.jpg", "/storage/emulated/0/DCIM/old_$index.jpg")
+        }
+        val loadMore = CompletableDeferred<Result<List<FileModel>>>()
+        var refreshCount = 0
+        val repository = FakeStorageRepositoryBundle().apply {
+            recentFilesResultProvider = { _, _, offset, _ ->
+                if (offset > 0) {
+                    loadMore.await()
+                } else {
+                    refreshCount += 1
+                    Result.success(if (refreshCount == 1) firstPage else listOf(recentFile("fresh.jpg")))
+                }
+            }
+        }
+        val notifier = FakeStorageMutationNotifier()
+        val viewModel = recentViewModel(repository, storageMutationNotifier = notifier)
+
+        advanceUntilIdle()
+        viewModel.loadMore()
+        advanceUntilIdle()
+        notifier.notify(listOf("/storage/emulated/0/Download/fresh.jpg"))
+        advanceTimeBy(300)
+        advanceUntilIdle()
+        loadMore.complete(Result.success(listOf(recentFile("stale_more.jpg"))))
+        advanceUntilIdle()
+
+        assertEquals(listOf("fresh.jpg"), viewModel.state.value.recentFiles.map { it.name })
     }
 
     @Test
@@ -360,7 +440,8 @@ private fun recentFile(
 private fun recentViewModel(
     repository: FakeStorageRepositoryBundle,
     coordinator: FakeBulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
-    preferences: FakeBrowserPreferencesStore = FakeBrowserPreferencesStore()
+    preferences: FakeBrowserPreferencesStore = FakeBrowserPreferencesStore(),
+    storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier()
 ) = RecentFilesViewModel(
     volumeRepository = repository.volumeRepository,
     storageAnalyticsRepository = repository.storageAnalyticsRepository,
@@ -368,8 +449,17 @@ private fun recentViewModel(
     searchRepository = repository.searchRepository,
     browserPreferencesRepository = preferences,
     bulkFileOperationCoordinator = coordinator,
+    storageMutationNotifier = storageMutationNotifier,
     savedStateHandle = SavedStateHandle()
 )
+
+private class FakeStorageMutationNotifier : StorageMutationNotifier {
+    private val _events = MutableSharedFlow<StorageMutationEvent>(extraBufferCapacity = 16)
+    override val events = _events
+    override fun notify(paths: Collection<String>) {
+        _events.tryEmit(StorageMutationEvent(paths.toList()))
+    }
+}
 
 private fun recentVolume(id: String, path: String, kind: StorageKind) = testVolume(
     id = id,

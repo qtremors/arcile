@@ -12,12 +12,15 @@ import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
+import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,7 +53,8 @@ class StorageCleanerViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val trashRepository: TrashRepository,
     private val scanner: StorageCleanerScanner,
-    private val preferencesStore: StorageCleanerPreferencesStore
+    private val preferencesStore: StorageCleanerPreferencesStore,
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StorageCleanerState())
@@ -64,6 +68,15 @@ class StorageCleanerViewModel @Inject constructor(
                 _state.update { it.copy(rules = rules) }
                 scan(clearMessages = true)
             }
+        }
+        viewModelScope.launch {
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            storageMutationNotifier.events
+                .debounce(300L)
+                .collectLatest { event ->
+                    scanner.invalidateStorageCleaner(event.paths)
+                    scan(clearMessages = false)
+                }
         }
     }
 

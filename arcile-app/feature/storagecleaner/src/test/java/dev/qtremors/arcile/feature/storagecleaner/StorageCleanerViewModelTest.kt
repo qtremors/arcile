@@ -12,13 +12,17 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
+import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -36,6 +40,7 @@ import java.io.File
 class FakeStorageCleanerScanner : StorageCleanerScanner {
     var result = StorageCleanerResult(groups = emptyList(), scannedFiles = 0, isPartial = false)
     val scannedRules = mutableListOf<StorageCleanerRules>()
+    val invalidatedPaths = mutableListOf<List<String>>()
     override suspend fun scan(
         rootPaths: List<String>,
         now: Long,
@@ -44,6 +49,18 @@ class FakeStorageCleanerScanner : StorageCleanerScanner {
     ): StorageCleanerResult {
         scannedRules += rules
         return result
+    }
+
+    override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
+        invalidatedPaths += paths.toList()
+    }
+}
+
+private class FakeStorageMutationNotifier : StorageMutationNotifier {
+    private val _events = MutableSharedFlow<StorageMutationEvent>(extraBufferCapacity = 16)
+    override val events = _events
+    override fun notify(paths: Collection<String>) {
+        _events.tryEmit(StorageMutationEvent(paths.toList()))
     }
 }
 
@@ -85,6 +102,7 @@ class StorageCleanerViewModelTest {
         Dispatchers.setMain(dispatcher)
         fakeScanner.result = StorageCleanerResult(groups = emptyList(), scannedFiles = 0, isPartial = false)
         fakeScanner.scannedRules.clear()
+        fakeScanner.invalidatedPaths.clear()
     }
 
     @After
@@ -316,6 +334,30 @@ class StorageCleanerViewModelTest {
         assertTrue(ignoredPath in viewModel.state.value.rules.ignoredPaths)
         assertTrue(fakeScanner.scannedRules.size > initialScanCount)
         assertTrue(ignoredPath in fakeScanner.scannedRules.last().ignoredPaths)
+    }
+
+    @Test
+    fun `storage mutation invalidates cleaner snapshot and rescans`() = runTest(dispatcher) {
+        val root = File("internal")
+        val changedPath = File(root, "Download/new.apk").absolutePath
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
+        val notifier = FakeStorageMutationNotifier()
+        StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore,
+            notifier
+        )
+        advanceUntilIdle()
+        val initialScanCount = fakeScanner.scannedRules.size
+
+        notifier.notify(listOf(changedPath))
+        advanceTimeBy(300)
+        advanceUntilIdle()
+
+        assertEquals(listOf(changedPath), fakeScanner.invalidatedPaths.last())
+        assertTrue(fakeScanner.scannedRules.size > initialScanCount)
     }
 
     private fun volume(id: String, root: File, kind: StorageKind) = testVolume(

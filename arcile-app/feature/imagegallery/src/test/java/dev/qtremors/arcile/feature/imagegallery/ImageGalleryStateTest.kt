@@ -174,6 +174,30 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `album cover lookup precomputes custom fallback and favorites covers`() {
+        val fallback = FileModel("one.jpg", "album/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val custom = FileModel("two.jpg", "album/two.jpg", size = 200, lastModified = 200, isDirectory = false)
+        val favorite = FileModel("fav.jpg", "favorites/fav.jpg", size = 300, lastModified = 300, isDirectory = false)
+
+        val lookup = buildAlbumCoverLookup(
+            files = listOf(fallback, custom, favorite),
+            favoriteFiles = linkedSetOf(fallback.absolutePath, favorite.absolutePath),
+            albumCovers = mapOf("album" to custom.absolutePath)
+        )
+
+        assertEquals(custom, lookup["album"])
+        assertEquals(favorite, lookup[FAVORITES_ALBUM_PATH])
+    }
+
+    @Test
+    fun `only real albums are valid paste destinations`() {
+        assertTrue(isPasteDestinationAlbumPath("/storage/emulated/0/Pictures/Camera"))
+        assertTrue(!isPasteDestinationAlbumPath(null))
+        assertTrue(!isPasteDestinationAlbumPath(""))
+        assertTrue(!isPasteDestinationAlbumPath(FAVORITES_ALBUM_PATH))
+    }
+
+    @Test
     fun `custom album cover falls back to album image when persisted cover is missing`() {
         val fallback = FileModel("one.jpg", "album/one.jpg", size = 100, lastModified = 100, isDirectory = false)
 

@@ -3,7 +3,10 @@ package dev.qtremors.arcile.feature.imagegallery
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
+import dev.qtremors.arcile.di.ArcileDispatchers
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 interface ImageGalleryRepository {
@@ -28,7 +31,13 @@ data class ImageGalleryAlbum(
 
 class DefaultImageGalleryRepository @Inject constructor(
     private val imageCatalogRepository: ImageCatalogRepository,
-    private val storageMutationNotifier: StorageMutationNotifier
+    private val storageMutationNotifier: StorageMutationNotifier,
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
+        io = Dispatchers.IO,
+        default = Dispatchers.Default,
+        main = Dispatchers.Main,
+        storage = Dispatchers.IO
+    )
 ) : ImageGalleryRepository {
     private val snapshotLock = Any()
     private val snapshots = LinkedHashMap<String, ImageGallerySnapshot>()
@@ -41,19 +50,21 @@ class DefaultImageGalleryRepository @Inject constructor(
         if (cached != null && !forceRefresh) return cached.copy(isStale = false)
 
         val catalog = imageCatalogRepository.loadImages(volumeId, forceRefresh).getOrThrow()
-        val files = catalog.items
-            .map { it.file }
-            .distinctBy { it.absolutePath }
-            .sortedByDescending { it.lastModified }
-        val aspectRatios = catalog.items
-            .mapNotNull { item -> item.aspectRatio?.let { item.file.absolutePath to it } }
-            .toMap()
-        val snapshot = ImageGallerySnapshot(
-            files = files,
-            albums = buildImageGalleryAlbums(files),
-            aspectRatios = aspectRatios,
-            isStale = catalog.isStale
-        )
+        val snapshot = withContext(dispatchers.default) {
+            val files = catalog.items
+                .map { it.file }
+                .distinctBy { it.absolutePath }
+                .sortedByDescending { it.lastModified }
+            val aspectRatios = catalog.items
+                .mapNotNull { item -> item.aspectRatio?.let { item.file.absolutePath to it } }
+                .toMap()
+            ImageGallerySnapshot(
+                files = files,
+                albums = buildImageGalleryAlbums(files),
+                aspectRatios = aspectRatios,
+                isStale = catalog.isStale
+            )
+        }
         synchronized(snapshotLock) { snapshots[key] = snapshot }
         return snapshot
     }

@@ -65,7 +65,8 @@ class FileSystemDataSourceTest {
             override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
             override fun observeUpdates() = emptyFlow<FolderStatUpdate>()
             override fun queue(paths: List<String>) = Unit
-            override fun invalidate(paths: Collection<String>) = Unit
+            override suspend fun invalidate(paths: Collection<String>) = Unit
+            override suspend fun clear() = Unit
         }
 
         dataSource = DefaultFileSystemDataSource(

@@ -12,6 +12,7 @@ import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -215,6 +216,114 @@ class BrowserViewModelNavigationTest {
         viewModel.selectFolderTab("/storage/emulated/0/DCIM")
 
         assertEquals("/storage/emulated/0/DCIM", viewModel.state.value.selectedFolderTabPath)
+    }
+
+    @Test
+    fun `storage mutation refreshes current folder without manual pull`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repository = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(browserFile("old.jpg", "/storage/emulated/0/Download/old.jpg"))
+            )
+        )
+        val notifier = FakeStorageMutationNotifier()
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "currentPath" to "/storage/emulated/0/Download",
+                    "currentVolumeId" to "primary",
+                    "isVolumeRootScreen" to false,
+                    "isCategoryScreen" to false
+                )
+            ),
+            storageMutationNotifier = notifier
+        )
+
+        advanceUntilIdle()
+        repository.filesByPath = mapOf(
+            "/storage/emulated/0/Download" to listOf(browserFile("new.jpg", "/storage/emulated/0/Download/new.jpg"))
+        )
+        notifier.notify(listOf("/storage/emulated/0/Download/new.jpg"))
+        advanceTimeBy(300)
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.jpg"), viewModel.state.value.files.map { it.name })
+    }
+
+    @Test
+    fun `unrelated storage mutation does not refresh current folder or clear selection`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val selectedPath = "/storage/emulated/0/Download/keep.jpg"
+        val repository = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(browserFile("keep.jpg", selectedPath))
+            )
+        )
+        val notifier = FakeStorageMutationNotifier()
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "currentPath" to "/storage/emulated/0/Download",
+                    "currentVolumeId" to "primary",
+                    "isVolumeRootScreen" to false,
+                    "isCategoryScreen" to false
+                )
+            ),
+            storageMutationNotifier = notifier
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleSelection(selectedPath)
+        repository.filesByPath = mapOf(
+            "/storage/emulated/0/Download" to listOf(browserFile("replacement.jpg", "/storage/emulated/0/Download/replacement.jpg"))
+        )
+        notifier.notify(listOf("/storage/emulated/0/Pictures/new.jpg", "/storage/emulated/0/Pictures"))
+        advanceTimeBy(300)
+        advanceUntilIdle()
+
+        assertEquals(listOf("keep.jpg"), viewModel.state.value.files.map { it.name })
+        assertEquals(setOf(selectedPath), viewModel.state.value.selectedFiles)
+    }
+
+    @Test
+    fun `parent folder storage mutation does not refresh selected child folder`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val selectedPath = "/storage/emulated/0/Download/Sub/keep.jpg"
+        val repository = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download/Sub" to listOf(browserFile("keep.jpg", selectedPath))
+            )
+        )
+        val notifier = FakeStorageMutationNotifier()
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    "currentPath" to "/storage/emulated/0/Download/Sub",
+                    "currentVolumeId" to "primary",
+                    "isVolumeRootScreen" to false,
+                    "isCategoryScreen" to false
+                )
+            ),
+            storageMutationNotifier = notifier
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleSelection(selectedPath)
+        repository.filesByPath = mapOf(
+            "/storage/emulated/0/Download/Sub" to listOf(browserFile("replacement.jpg", "/storage/emulated/0/Download/Sub/replacement.jpg"))
+        )
+        notifier.notify(listOf("/storage/emulated/0/Download/sibling.jpg", "/storage/emulated/0/Download"))
+        advanceTimeBy(300)
+        advanceUntilIdle()
+
+        assertEquals(listOf("keep.jpg"), viewModel.state.value.files.map { it.name })
+        assertEquals(setOf(selectedPath), viewModel.state.value.selectedFiles)
     }
 
     @Test

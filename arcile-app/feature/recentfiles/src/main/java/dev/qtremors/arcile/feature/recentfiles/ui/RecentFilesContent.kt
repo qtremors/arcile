@@ -32,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.shared.ui.lists.FileGrid
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.shared.ui.lists.FileList
@@ -52,27 +51,13 @@ internal fun RecentFilesContent(
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
-    onRefresh: () -> Unit,
     onLoadMore: () -> Unit
 ) {
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val topPadding = contentPadding.calculateTopPadding()
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
 
-    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
-        isRefreshing = state.isPullToRefreshing,
-        onRefresh = onRefresh,
-        state = pullRefreshState,
-        modifier = Modifier.fillMaxSize(),
-        indicator = {
-            ArcilePullRefreshIndicator(
-                isRefreshing = state.isPullToRefreshing,
-                state = pullRefreshState
-            )
-        }
-    ) {
-        val isGroupingEnabled = shouldGroupRecentFiles(showSearchBar, state.presentation)
+    val isGroupingEnabled = shouldGroupRecentFiles(showSearchBar, state.presentation)
 
         if (state.presentation.viewMode == BrowserViewMode.GRID) {
             val gridState = rememberLazyGridState()
@@ -258,5 +243,4 @@ internal fun RecentFilesContent(
                 contentPadding = PaddingValues(bottom = bottomPadding)
             )
         }
-    }
 }

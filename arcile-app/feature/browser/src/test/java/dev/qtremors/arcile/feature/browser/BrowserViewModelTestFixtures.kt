@@ -22,6 +22,8 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
@@ -32,12 +34,14 @@ import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 fun createViewModel(
     repository: BrowserFakeFileRepository,
     browserPreferencesRepository: BrowserPreferencesStore = FakeBrowserPreferencesStore(),
     savedStateHandle: SavedStateHandle,
-    bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator()
+    bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
+    storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier()
 ): BrowserViewModel = BrowserViewModel(
     fileBrowserRepository = repository.fileBrowserRepository,
     fileMutationRepository = repository.fileMutationRepository,
@@ -49,8 +53,17 @@ fun createViewModel(
     browserPreferencesRepository = browserPreferencesRepository,
     savedStateHandle = savedStateHandle,
     getStorageVolumesUseCase = GetStorageVolumesUseCase(repository.volumeRepository),
-    bulkFileCoordinator = bulkFileOperationCoordinator
+    bulkFileCoordinator = bulkFileOperationCoordinator,
+    storageMutationNotifier = storageMutationNotifier
 )
+
+class FakeStorageMutationNotifier : StorageMutationNotifier {
+    private val _events = MutableSharedFlow<StorageMutationEvent>(extraBufferCapacity = 16)
+    override val events = _events
+    override fun notify(paths: Collection<String>) {
+        _events.tryEmit(StorageMutationEvent(paths.toList()))
+    }
+}
 
 class BrowserFakeFileRepository(
     volumes: List<StorageVolume> = emptyList(),

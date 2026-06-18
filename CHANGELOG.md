@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.4
-> **Last Updated:** 2026-06-17
+> **Version:** 1.1.5
+> **Last Updated:** 2026-06-18
 
 ---
+
+## [1.1.5] - 2026-06-18
+
+- **Live Media Refresh**: Wired MediaStore multi-URI change callbacks into shared storage invalidation, refresh storage caches on app startup, and made Recent Files and Browser subscribe to storage mutation events so downloads and external file changes refresh recents, Home carousel data, Gallery, albums, categories, and open folders without per-page manual pulls.
+- **Recent Files Pull Refresh**: Moved pull-to-refresh to cover the whole Recent Files screen body and positioned it below the top app bar so the indicator and pull motion are visible from empty, loading, search, grid, and list states.
+- **Refresh Consistency**: Extended startup and external MediaStore invalidation to storage-usage, cleaner, and folder stats caches, made Storage Cleaner listen for storage mutations, prevented unrelated Browser mutations from clearing the current folder state, and guarded Recent Files against stale overlapping reloads.
+- **Gallery Album Paste**: Added direct copy/cut paste support for real gallery albums, including paste actions inside an open album and on album cards, with shared conflict resolution and foreground COPY/MOVE operations.
+- **Gallery Refresh Reliability**: Refreshed gallery snapshots after copy and move operations using both source and destination invalidation so album contents update without detouring through Browser.
+- **Gallery Performance**: Moved image snapshot shaping off the main thread and precomputed album cover lookups to reduce gallery loading and album-grid recomposition churn.
 
 ## [1.1.4] - 2026-06-17
 
