@@ -406,6 +406,47 @@ class BulkFileOperationServiceTest {
         awaitInactiveMutation()
     }
 
+    @Test
+    fun `service import checkpoints staged finalized and rollback metadata for recovery`() {
+        val source = File(context.cacheDir, "shared-recovery-source.txt").apply {
+            writeText("shared payload")
+        }
+        val destination = File(context.cacheDir, "foreground-import-recovery-dest").apply {
+            deleteRecursively()
+            mkdirs()
+        }
+        val request = BulkFileOperationRequest(
+            operationId = "op-import-recovery",
+            type = BulkFileOperationType.SAVE_TO_ARCILE_IMPORT,
+            sourcePaths = emptyList(),
+            destinationPath = destination.absolutePath,
+            importItems = listOf(
+                SaveToArcileImportItem(
+                    uri = Uri.fromFile(source).toString(),
+                    displayName = "imported.txt",
+                    sizeBytes = source.length()
+                )
+            )
+        )
+        val recordingCoordinator = RecordingBulkFileOperationCoordinator(request)
+        coordinator = recordingCoordinator
+        service.coordinator = recordingCoordinator
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        recordingCoordinator.awaitCompleted(request)
+        val stagedCheckpoint = recordingCoordinator.checkpoints.first { it.stagedPaths.isNotEmpty() }
+        val finalizedCheckpoint = recordingCoordinator.checkpoints.first { it.finalizedPaths.isNotEmpty() }
+        val expectedFinalPath = File(destination, "imported.txt").absolutePath
+
+        assertEquals(1, stagedCheckpoint.stagedPaths.size)
+        assertTrue(stagedCheckpoint.stagedPaths.single().contains(".arcile-import-"))
+        assertEquals(listOf(expectedFinalPath), finalizedCheckpoint.finalizedPaths)
+        assertEquals(listOf("created:$expectedFinalPath"), finalizedCheckpoint.rollbackHints)
+        assertEquals("shared payload", File(destination, "imported.txt").readText())
+        awaitInactiveMutation()
+    }
+
     private fun awaitInactiveMutation() {
         val deadline = System.currentTimeMillis() + 2_000
         while (storageWorkCoordinator.isMutationActive.value && System.currentTimeMillis() < deadline) {
@@ -427,6 +468,9 @@ class BulkFileOperationServiceTest {
         override val recoveryRecords = MutableStateFlow(emptyList<dev.qtremors.arcile.core.operation.OperationRecoveryRecord>())
         override val events: SharedFlow<dev.qtremors.arcile.core.operation.BulkFileOperationEvent> = MutableSharedFlow()
         var failedMessage: String? = null
+        val checkpoints = mutableListOf<Checkpoint>()
+        private val completedRequests = mutableSetOf<String>()
+        private val completedLatch = CountDownLatch(1)
 
         override fun startOperation(
             type: BulkFileOperationType,
@@ -450,9 +494,14 @@ class BulkFileOperationServiceTest {
             finalizedPaths: List<String>,
             rollbackHints: List<String>,
             trashResultIds: List<String>
-        ) = Unit
+        ) {
+            checkpoints += Checkpoint(stagedPaths, finalizedPaths, rollbackHints, trashResultIds)
+        }
         override fun onOperationCancelling(request: BulkFileOperationRequest) = Unit
-        override fun onOperationCompleted(request: BulkFileOperationRequest) = Unit
+        override fun onOperationCompleted(request: BulkFileOperationRequest) {
+            completedRequests += request.operationId
+            completedLatch.countDown()
+        }
         override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {
             failedMessage = message
         }
@@ -460,5 +509,17 @@ class BulkFileOperationServiceTest {
         override fun retryRecoveredOperation(operationId: String): Boolean = false
         override fun cleanupRecoveredOperation(operationId: String) = Unit
         override fun dismissRecoveredOperation(operationId: String) = Unit
+
+        fun awaitCompleted(request: BulkFileOperationRequest) {
+            completedLatch.await(2, TimeUnit.SECONDS)
+            assertTrue(request.operationId in completedRequests)
+        }
+
+        data class Checkpoint(
+            val stagedPaths: List<String>,
+            val finalizedPaths: List<String>,
+            val rollbackHints: List<String>,
+            val trashResultIds: List<String>
+        )
     }
 }

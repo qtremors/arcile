@@ -203,17 +203,6 @@ class DefaultFileSystemDataSource(
                 return@flow
             }
 
-            storageNodeDao?.listChildren(directory.absolutePath)
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { cachedChildren ->
-                    emitPages(
-                        path = path,
-                        files = cachedChildren.map { it.toFileModel() },
-                        pageSize = pageSize
-                    ) { page -> emit(page) }
-                    return@flow
-                }
-
             val children = directory.listFiles()
                 ?: run {
                     emit(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))

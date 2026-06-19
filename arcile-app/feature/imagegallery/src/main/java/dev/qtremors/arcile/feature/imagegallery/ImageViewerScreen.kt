@@ -60,7 +60,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -68,6 +67,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -96,7 +96,9 @@ import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -110,7 +112,7 @@ fun ImageViewerScreen(
     onShareFile: (String) -> Unit,
     onOpenWith: (String) -> Unit
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val externalFiles = remember(contextPaths) {
         contextPaths.distinct().map(::fileModelFromPath)
     }
@@ -125,14 +127,14 @@ fun ImageViewerScreen(
     val haptics = rememberArcileHaptics()
     val coroutineScope = rememberCoroutineScope()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
-    var showMetadataSheet by remember { mutableStateOf(false) }
+    val showMetadataSheet = state.viewerMetadataPath != null
 
     val isMetadataOpen = showMetadataSheet
     BackHandler(enabled = isDeleteDialogVisible || isMetadataOpen) {
         if (isDeleteDialogVisible) {
             viewModel.dismissDeleteConfirmation()
         } else if (isMetadataOpen) {
-            showMetadataSheet = false
+            viewModel.setViewerMetadataVisible(null, visible = false)
         }
     }
 
@@ -163,8 +165,12 @@ fun ImageViewerScreen(
         return
     }
 
+    val restoredPage = state.viewerCurrentPath
+        ?.let { restoredPath -> displayedFiles.indexOfFirst { it.absolutePath == restoredPath } }
+        ?.takeIf { it >= 0 }
+        ?: viewerContext.initialPage
     val pagerState = rememberPagerState(
-        initialPage = viewerContext.initialPage,
+        initialPage = restoredPage,
         pageCount = { displayedFiles.size }
     )
 
@@ -174,33 +180,48 @@ fun ImageViewerScreen(
         }
     }
 
-    // Store custom visual rotations (multiples of 90 degrees) per image path
-    val rotationStates = remember { mutableStateMapOf<String, Float>() }
-
-    var isUiVisible by remember { mutableStateOf(true) }
-
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color.Black
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             var currentScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
-            LaunchedEffect(pagerState.currentPage) {
-                currentScale = 1f
-                showMetadataSheet = false
+            var previousPagePath by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(pagerState.currentPage, displayedFiles) {
+                val pagePath = displayedFiles.getOrNull(pagerState.currentPage)?.absolutePath
+                if (previousPagePath != null && previousPagePath != pagePath) {
+                    currentScale = 1f
+                    viewModel.setViewerMetadataVisible(null, visible = false)
+                }
+                previousPagePath = pagePath
+                viewModel.setViewerCurrentPath(pagePath)
             }
 
             val currentFileForSheet = displayedFiles.getOrNull(pagerState.currentPage)
             val currentFile = currentFileForSheet
+            val metadataCache = remember { mutableStateMapOf<String, GalleryFileMetadata>() }
+            LaunchedEffect(state.isRefreshing) {
+                if (state.isRefreshing) {
+                    metadataCache.clear()
+                }
+            }
+            val currentPath = currentFile?.absolutePath
+            LaunchedEffect(currentPath, state.isRefreshing) {
+                val file = currentFile ?: return@LaunchedEffect
+                if (!state.isRefreshing && metadataCache[file.absolutePath] == null) {
+                    metadataCache[file.absolutePath] = withContext(Dispatchers.IO) {
+                        ExifMetadataReader.readMetadata(file.absolutePath, file.mimeType)
+                    }
+                }
+            }
 
-            val dateFormatter = remember { java.text.SimpleDateFormat("MMMM d", java.util.Locale.getDefault()) }
-            val timeFormatter = remember { java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()) }
-            val dateText = remember(currentFile) {
-                if (currentFile != null) dateFormatter.format(java.util.Date(currentFile.lastModified)) else ""
-            }
-            val timeText = remember(currentFile) {
-                if (currentFile != null) timeFormatter.format(java.util.Date(currentFile.lastModified)) else ""
-            }
+            val dateText = remember(currentFile) { currentFile?.let { formatViewerDateTime(it.lastModified) }.orEmpty() }
+            val currentResolution = currentPath
+                ?.let(metadataCache::get)
+                ?.let { formatResolution(it.width, it.height) }
+                .orEmpty()
+            val positionText = viewerPositionLabel(pagerState.currentPage, displayedFiles.size)
+            val titleText = currentFile?.name.orEmpty()
 
             HorizontalPager(
                 state = pagerState,
@@ -210,33 +231,35 @@ fun ImageViewerScreen(
             ) { page ->
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
-                    val rotation = rotationStates[file.absolutePath] ?: 0f
+                    val rotation = state.viewerRotationDegrees[file.absolutePath] ?: 0f
 
-                    var showEraseDialog by remember { mutableStateOf(false) }
+                    val showEraseDialog = state.viewerEraseDialogPath == file.absolutePath
 
                     val verticalPagerState = rememberPagerState(
-                        initialPage = 0,
+                        initialPage = if (state.viewerMetadataPath == file.absolutePath) 1 else 0,
                         pageCount = { 2 }
                     )
 
                     val isCurrentPage = pagerState.currentPage == page
                     var metadata by remember(file.absolutePath, state.isRefreshing) {
-                        mutableStateOf<GalleryFileMetadata?>(null)
+                        mutableStateOf<GalleryFileMetadata?>(metadataCache[file.absolutePath])
                     }
                     LaunchedEffect(file.absolutePath, state.isRefreshing, showMetadataSheet, isCurrentPage) {
                         if (!state.isRefreshing && showMetadataSheet && isCurrentPage && metadata == null) {
-                            val data = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            val data = withContext(Dispatchers.IO) {
                                 ExifMetadataReader.readMetadata(file.absolutePath, file.mimeType)
                             }
+                            metadataCache[file.absolutePath] = data
                             metadata = data
                         }
                     }
 
                     LaunchedEffect(showMetadataSheet, isCurrentPage) {
                         if (isCurrentPage) {
-                            if (showMetadataSheet && verticalPagerState.currentPage == 0) {
+                            val shouldShowMetadata = state.viewerMetadataPath == file.absolutePath
+                            if (shouldShowMetadata && verticalPagerState.currentPage == 0) {
                                 verticalPagerState.animateScrollToPage(1)
-                            } else if (!showMetadataSheet && verticalPagerState.currentPage == 1) {
+                            } else if (!shouldShowMetadata && verticalPagerState.currentPage == 1) {
                                 verticalPagerState.animateScrollToPage(0)
                             }
                         }
@@ -244,7 +267,10 @@ fun ImageViewerScreen(
 
                     LaunchedEffect(verticalPagerState.currentPage, isCurrentPage) {
                         if (isCurrentPage) {
-                            showMetadataSheet = verticalPagerState.currentPage == 1
+                            viewModel.setViewerMetadataVisible(
+                                path = file.absolutePath,
+                                visible = verticalPagerState.currentPage == 1
+                            )
                         }
                     }
 
@@ -258,35 +284,34 @@ fun ImageViewerScreen(
                                 file = file,
                                 rotation = rotation,
                                 onDismiss = onNavigateBack,
-                                onTap = { isUiVisible = !isUiVisible },
+                                onTap = { viewModel.toggleViewerUi() },
                                 onScaleChanged = { scaleVal ->
                                     if (pagerState.currentPage == page) {
                                         currentScale = scaleVal
                                     }
                                 },
                                 onSwipeUp = {
-                                    showMetadataSheet = true
+                                    viewModel.setViewerMetadataVisible(file.absolutePath, visible = true)
                                 }
                             )
                         } else {
                             MetadataSheet(
                                 file = file,
                                 metadata = metadata,
-                                onEraseMetadata = { showEraseDialog = true },
-                                onDismiss = { showMetadataSheet = false }
+                                onEraseMetadata = { viewModel.setViewerEraseDialogPath(file.absolutePath) },
+                                onDismiss = { viewModel.setViewerMetadataVisible(null, visible = false) }
                             )
                         }
                     }
 
                     if (showEraseDialog) {
                         androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { showEraseDialog = false },
+                            onDismissRequest = { viewModel.setViewerEraseDialogPath(null) },
                             title = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_title)) },
                             text = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_message)) },
                             confirmButton = {
                                 androidx.compose.material3.TextButton(
                                     onClick = {
-                                        showEraseDialog = false
                                         viewModel.eraseMetadata(file.absolutePath)
                                     }
                                 ) {
@@ -294,7 +319,7 @@ fun ImageViewerScreen(
                                 }
                             },
                             dismissButton = {
-                                androidx.compose.material3.TextButton(onClick = { showEraseDialog = false }) {
+                                androidx.compose.material3.TextButton(onClick = { viewModel.setViewerEraseDialogPath(null) }) {
                                     Text(stringResource(R.string.cancel))
                                 }
                             }
@@ -305,7 +330,7 @@ fun ImageViewerScreen(
 
             // Top overlay bar
             AnimatedVisibility(
-                visible = isUiVisible && !showMetadataSheet,
+                visible = state.viewerUiVisible && !showMetadataSheet,
                 enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 modifier = Modifier
@@ -334,26 +359,34 @@ fun ImageViewerScreen(
                         )
                     }
 
-                    // Center: Date & Time pill
-                    if (dateText.isNotEmpty()) {
+                    if (currentFile != null) {
                         Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
+                            horizontalAlignment = Alignment.Start,
                             modifier = Modifier
                                 .align(Alignment.Center)
+                                .padding(horizontal = 72.dp)
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color.Black.copy(alpha = 0.5f))
-                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                text = dateText,
+                                text = if (titleText.isBlank()) positionText else "$positionText • $titleText",
                                 color = Color.White,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = timeText,
-                                color = Color.White.copy(alpha = 0.7f),
-                                style = MaterialTheme.typography.bodySmall
-                            )
+                            if (dateText.isNotEmpty() || currentResolution.isNotEmpty()) {
+                                Text(
+                                    text = listOf(dateText, currentResolution)
+                                        .filter { it.isNotBlank() }
+                                        .joinToString(" • "),
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
 
@@ -384,7 +417,7 @@ fun ImageViewerScreen(
 
             // Bottom overlay bar containing thumbnail strip and action bar
             AnimatedVisibility(
-                visible = isUiVisible && !showMetadataSheet,
+                visible = state.viewerUiVisible && !showMetadataSheet,
                 enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
                 modifier = Modifier
@@ -476,7 +509,7 @@ fun ImageViewerScreen(
                                     contentDescription = infoDescription,
                                     tint = Color.White,
                                     onClick = {
-                                        showMetadataSheet = true
+                                        currentFile?.let { viewModel.setViewerMetadataVisible(it.absolutePath, visible = true) }
                                     }
                                 ),
                                 ToolbarAction(
@@ -486,8 +519,7 @@ fun ImageViewerScreen(
                                     onClick = {
                                         if (currentFile != null) {
                                             haptics.selectionChanged()
-                                            val currentRot = rotationStates[currentFile.absolutePath] ?: 0f
-                                            rotationStates[currentFile.absolutePath] = (currentRot + 90f) % 360f
+                                            viewModel.rotateViewerImage(currentFile.absolutePath)
                                         }
                                     }
                                 )

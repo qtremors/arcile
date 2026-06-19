@@ -15,6 +15,8 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -24,6 +26,20 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class VideoThumbnailFetcherTest {
+    @Test
+    fun `factory creates fetcher for common video extensions`() {
+        val factory = VideoThumbnailFetcher.Factory()
+        val options = mockk<Options> {
+            every { context } returns ApplicationProvider.getApplicationContext()
+        }
+
+        assertNotNull(factory.create(File("clip.mp4"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(File("clip.M2TS"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(File("clip.mpg"), options, mockk(relaxed = true)))
+        assertNull(factory.create(File("photo.jpg"), options, mockk(relaxed = true)))
+        assertNotNull(VideoThumbnailFetcher.KeyFactory().create(ThumbnailKey.from(File("clip.m2ts")), options, mockk(relaxed = true)))
+    }
+
     @Test
     fun `fetch uses content uri directly when thumbnail key has media store uri`() = runTest {
         val baseContext = ApplicationProvider.getApplicationContext<Context>()

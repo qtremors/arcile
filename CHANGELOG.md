@@ -1,10 +1,23 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.5
-> **Last Updated:** 2026-06-18
+> **Version:** 1.1.6
+> **Last Updated:** 2026-06-19
 
 ---
+
+## [1.1.6] - 2026-06-19
+
+- **Image Viewer Info Details**: Added dynamic viewer position, filename, date/time, and resolution details to the image viewer overlay, and expanded the metadata sheet with title, date, resolution, size, URI, path, MIME type, and extension rows.
+- **Image Viewer Metadata Freshness**: Kept viewer metadata fresh after metadata erase/refresh events and restored EXIF date-taken display in the details sheet.
+- **Browser Folder Listing Freshness**: Made Browser directory listings read live filesystem children instead of trusting partial media cache rows, preventing Gallery image cache entries from hiding folders in locations such as Pictures.
+- **Browser Folder Stats Cache Display**: Kept cached folder stats visible while a background refresh is queued so folder rows can show the previous size/count immediately and then update when fresh stats arrive.
+- **Browser Video Thumbnails**: Restored video thumbnails for raw browser file paths by falling back to `MediaMetadataRetriever` when a MediaStore thumbnail URI is unavailable, and expanded common video extension recognition across browser icons, categories, cleaner scans, and thumbnail eligibility.
+- **Image Viewer State Restoration**: Made the image viewer collect gallery state with lifecycle awareness and persist viewer chrome, metadata sheet, current image, rotation, and erase-dialog state through activity recreation.
+- **Gallery Clipboard UX**: Added Browser-aligned clipboard management in Gallery with a persistent clipboard/progress pill, queued item inspection and removal, paste/cancel controls for real albums, and foreground operation status feedback.
+- **Gallery Cache Completeness**: Prevented Browser directory-listing cache rows from seeding partial Gallery image snapshots, so Gallery waits for the MediaStore-backed catalog instead of briefly showing only direct Pictures-folder images.
+- **Release Regression Gates**: Added focused coverage for viewer saved-state restoration, Save-to-Arcile import checkpoints, and repeated archive extraction state isolation.
+- **Storage Documentation Sync**: Reconciled release docs with Room cache schema version 2, cache-backed external handoff providers, and v1.1.6 release metadata.
 
 ## [1.1.5] - 2026-06-18
 

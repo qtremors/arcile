@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.image
 
 import android.graphics.drawable.BitmapDrawable
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.util.Size
@@ -53,11 +54,41 @@ class VideoThumbnailFetcher(
 
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
+                    // Fall back to MediaMetadataRetriever below for raw browser paths or provider failures.
                 }
             }
 
-            // Fallback for older APIs or if not in MediaStore
-            null
+            if (contentUri == null && (!file.exists() || !file.isFile)) return@withContext null
+
+            val retriever = MediaMetadataRetriever()
+            try {
+                if (contentUri != null) {
+                    retriever.setDataSource(context, Uri.parse(contentUri))
+                } else {
+                    retriever.setDataSource(file.absolutePath)
+                }
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    retriever.getScaledFrameAtTime(
+                        -1,
+                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        targetSize,
+                        targetSize
+                    )
+                } else {
+                    retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                } ?: return@withContext null
+
+                DrawableResult(
+                    drawable = BitmapDrawable(context.resources, bitmap),
+                    isSampled = true,
+                    dataSource = DataSource.DISK
+                )
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                null
+            } finally {
+                retriever.release()
+            }
         }
     }
 

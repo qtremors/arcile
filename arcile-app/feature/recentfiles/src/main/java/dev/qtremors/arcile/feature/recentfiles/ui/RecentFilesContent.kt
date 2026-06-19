@@ -59,96 +59,22 @@ internal fun RecentFilesContent(
 
     val isGroupingEnabled = shouldGroupRecentFiles(showSearchBar, state.presentation)
 
-        if (state.presentation.viewMode == BrowserViewMode.GRID) {
-            val gridState = rememberLazyGridState()
-            val shouldLoadMore by remember {
-                derivedStateOf {
-                    val totalItems = gridState.layoutInfo.totalItemsCount
-                    val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                    totalItems > 0 && lastVisibleItem >= totalItems - 5
-                }
+    if (state.presentation.viewMode == BrowserViewMode.GRID) {
+        val gridState = rememberLazyGridState()
+        val shouldLoadMore by remember {
+            derivedStateOf {
+                val totalItems = gridState.layoutInfo.totalItemsCount
+                val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                totalItems > 0 && lastVisibleItem >= totalItems - 5
             }
-            LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
-                if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
-                    onLoadMore()
-                }
+        }
+        LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+            if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                onLoadMore()
             }
-            
-            if (isGroupingEnabled) {
-                val groupFormat = rememberDateFormatter("EEEE, MMM dd")
-                val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
-                    filesToDisplay.groupBy { file ->
-                        when {
-                            file.lastModified >= state.todayStart -> todayLabel
-                            file.lastModified >= state.yesterdayStart -> yesterdayLabel
-                            else -> groupFormat.format(Date(file.lastModified))
-                        }
-                    }
-                }
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = topPadding),
-                    state = gridState,
-                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding),
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
-                ) {
-                    groupedFiles.forEach { (dateHeader, files) ->
-                        stickyHeader {
-                            RecentDateHeaderPill(dateHeader = dateHeader)
-                        }
-                        gridItemsIndexed(
-                            items = files,
-                            key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
-                            contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
-                        ) { _, file ->
-                            dev.qtremors.arcile.shared.ui.lists.FileGridItem(
-                                modifier = Modifier.animateItem(),
-                                file = file,
-                                formattedDate = formatter.format(Date(file.lastModified)),
-                                isSelected = state.selectedFiles.contains(file.absolutePath),
-                                showThumbnails = state.presentation.showThumbnails,
-                                onClick = {
-                                    if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
-                                },
-                                onLongClick = { onToggleSelection(file.absolutePath) }
-                            )
-                        }
-                    }
-                    if (state.isLoadingMore) {
-                        item(span = { GridItemSpan(maxLineSpan) }) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                LoadingIndicator()
-                            }
-                        }
-                    }
-                }
-            } else {
-                FileGrid(
-                    files = filesToDisplay,
-                    selectedFiles = state.selectedFiles,
-                    onNavigateTo = {},
-                    onOpenFile = onOpenFile,
-                    onToggleSelection = onToggleSelection,
-                    onSelectMultiple = onSelectMultiple,
-                    gridState = gridState,
-                    minCellSize = state.presentation.gridMinCellSize.dp,
-                    showThumbnails = state.presentation.showThumbnails,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = topPadding),
-                    contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding)
-                )
-            }
-        } else if (isGroupingEnabled) {
-            val listState = rememberLazyListState()
+        }
+        
+        if (isGroupingEnabled) {
             val groupFormat = rememberDateFormatter("EEEE, MMM dd")
             val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
                 filesToDisplay.groupBy { file ->
@@ -159,39 +85,30 @@ internal fun RecentFilesContent(
                     }
                 }
             }
-            val shouldLoadMore by remember {
-                derivedStateOf {
-                    val totalItems = listState.layoutInfo.totalItemsCount
-                    val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                    totalItems > 0 && lastVisibleItem >= totalItems - 5
-                }
-            }
-            LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
-                if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
-                    onLoadMore()
-                }
-            }
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = topPadding),
-                state = listState,
-                contentPadding = PaddingValues(bottom = bottomPadding)
+                state = gridState,
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
             ) {
                 groupedFiles.forEach { (dateHeader, files) ->
                     stickyHeader {
                         RecentDateHeaderPill(dateHeader = dateHeader)
                     }
-                    itemsIndexed(
+                    gridItemsIndexed(
                         items = files,
                         key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
                         contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
                     ) { _, file ->
-                        FileItemRow(
+                        dev.qtremors.arcile.shared.ui.lists.FileGridItem(
+                            modifier = Modifier.animateItem(),
                             file = file,
                             formattedDate = formatter.format(Date(file.lastModified)),
                             isSelected = state.selectedFiles.contains(file.absolutePath),
-                            zoom = state.presentation.listZoom,
                             showThumbnails = state.presentation.showThumbnails,
                             onClick = {
                                 if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
@@ -201,7 +118,7 @@ internal fun RecentFilesContent(
                     }
                 }
                 if (state.isLoadingMore) {
-                    item {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -214,33 +131,116 @@ internal fun RecentFilesContent(
                 }
             }
         } else {
-            val listState = rememberLazyListState()
-            val shouldLoadMore by remember {
-                derivedStateOf {
-                    val totalItems = listState.layoutInfo.totalItemsCount
-                    val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-                    totalItems > 0 && lastVisibleItem >= totalItems - 5
-                }
-            }
-            LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
-                if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
-                    onLoadMore()
-                }
-            }
-            FileList(
+            FileGrid(
                 files = filesToDisplay,
                 selectedFiles = state.selectedFiles,
                 onNavigateTo = {},
                 onOpenFile = onOpenFile,
                 onToggleSelection = onToggleSelection,
                 onSelectMultiple = onSelectMultiple,
-                listState = listState,
-                zoom = state.presentation.listZoom,
+                gridState = gridState,
+                minCellSize = state.presentation.gridMinCellSize.dp,
                 showThumbnails = state.presentation.showThumbnails,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = topPadding),
-                contentPadding = PaddingValues(bottom = bottomPadding)
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = bottomPadding)
             )
         }
+    } else if (isGroupingEnabled) {
+        val listState = rememberLazyListState()
+        val groupFormat = rememberDateFormatter("EEEE, MMM dd")
+        val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
+            filesToDisplay.groupBy { file ->
+                when {
+                    file.lastModified >= state.todayStart -> todayLabel
+                    file.lastModified >= state.yesterdayStart -> yesterdayLabel
+                    else -> groupFormat.format(Date(file.lastModified))
+                }
+            }
+        }
+        val shouldLoadMore by remember {
+            derivedStateOf {
+                val totalItems = listState.layoutInfo.totalItemsCount
+                val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                totalItems > 0 && lastVisibleItem >= totalItems - 5
+            }
+        }
+        LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+            if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                onLoadMore()
+            }
+        }
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = topPadding),
+            state = listState,
+            contentPadding = PaddingValues(bottom = bottomPadding)
+        ) {
+            groupedFiles.forEach { (dateHeader, files) ->
+                stickyHeader {
+                    RecentDateHeaderPill(dateHeader = dateHeader)
+                }
+                itemsIndexed(
+                    items = files,
+                    key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
+                    contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
+                ) { _, file ->
+                    FileItemRow(
+                        file = file,
+                        formattedDate = formatter.format(Date(file.lastModified)),
+                        isSelected = state.selectedFiles.contains(file.absolutePath),
+                        zoom = state.presentation.listZoom,
+                        showThumbnails = state.presentation.showThumbnails,
+                        onClick = {
+                            if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
+                        },
+                        onLongClick = { onToggleSelection(file.absolutePath) }
+                    )
+                }
+            }
+            if (state.isLoadingMore) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                }
+            }
+        }
+    } else {
+        val listState = rememberLazyListState()
+        val shouldLoadMore by remember {
+            derivedStateOf {
+                val totalItems = listState.layoutInfo.totalItemsCount
+                val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                totalItems > 0 && lastVisibleItem >= totalItems - 5
+            }
+        }
+        LaunchedEffect(shouldLoadMore, state.isLoadingMore, state.hasMore, showSearchBar) {
+            if (shouldLoadMore && !state.isLoadingMore && state.hasMore && !showSearchBar) {
+                onLoadMore()
+            }
+        }
+        FileList(
+            files = filesToDisplay,
+            selectedFiles = state.selectedFiles,
+            onNavigateTo = {},
+            onOpenFile = onOpenFile,
+            onToggleSelection = onToggleSelection,
+            onSelectMultiple = onSelectMultiple,
+            listState = listState,
+            zoom = state.presentation.listZoom,
+            showThumbnails = state.presentation.showThumbnails,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = topPadding),
+            contentPadding = PaddingValues(bottom = bottomPadding)
+        )
+    }
 }

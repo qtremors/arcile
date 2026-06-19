@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.lifecycle.SavedStateHandle
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -27,6 +29,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -138,7 +141,146 @@ class ImageGalleryViewModelPasteTest {
         )
     }
 
-    private fun createFixture(): Fixture {
+    @Test
+    fun `removeFromClipboard removes item and clears clipboard when empty`() = runTest(mainDispatcherRule.dispatcher) {
+        val fixture = createFixture()
+        val first = galleryFile("first.jpg", "/storage/emulated/0/DCIM/first.jpg")
+        val second = galleryFile("second.jpg", "/storage/emulated/0/DCIM/second.jpg")
+        fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(first, second)))
+        advanceUntilIdle()
+
+        fixture.viewModel.removeFromClipboard(first.absolutePath)
+        advanceUntilIdle()
+
+        assertEquals(listOf(second), fixture.viewModel.state.value.clipboardState?.files)
+
+        fixture.viewModel.removeFromClipboard(second.absolutePath)
+        advanceUntilIdle()
+
+        assertNull(fixture.viewModel.state.value.clipboardState)
+    }
+
+    @Test
+    fun `operation progress events populate active gallery operation state`() = runTest(mainDispatcherRule.dispatcher) {
+        val fixture = createFixture()
+        val source = galleryFile("source.jpg", "/storage/emulated/0/DCIM/source.jpg")
+        fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(source)))
+        advanceUntilIdle()
+
+        fixture.viewModel.pasteFromClipboard("/storage/emulated/0/Pictures/Album")
+        advanceUntilIdle()
+        val request = fixture.operationCoordinator.startedRequests.single()
+
+        fixture.operationCoordinator.onOperationProgress(
+            request,
+            BulkFileOperationProgress(
+                completedItems = 1,
+                totalItems = 2,
+                currentPath = source.absolutePath,
+                bytesCopied = 50L,
+                totalBytes = 100L
+            )
+        )
+        advanceUntilIdle()
+
+        val operation = fixture.viewModel.state.value.activeFileOperation
+        assertEquals(BulkFileOperationType.COPY, operation?.type)
+        assertEquals(1, operation?.completedItems)
+        assertEquals(2, operation?.totalItems)
+        assertEquals(50L, operation?.bytesCopied)
+        assertEquals(100L, operation?.totalBytes)
+        assertEquals(source.absolutePath, operation?.currentPath)
+    }
+
+    @Test
+    fun `operation terminal events update terminal state and clear clipboard`() = runTest(mainDispatcherRule.dispatcher) {
+        val fixture = createFixture()
+        val source = galleryFile("source.jpg", "/storage/emulated/0/DCIM/source.jpg")
+        fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(source)))
+        advanceUntilIdle()
+        fixture.viewModel.pasteFromClipboard("/storage/emulated/0/Pictures/Album")
+        advanceUntilIdle()
+        val request = fixture.operationCoordinator.startedRequests.single()
+
+        fixture.operationCoordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+
+        assertEquals(OperationCompletionStatus.SUCCESS, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
+        assertNull(fixture.viewModel.state.value.clipboardState)
+
+        fixture.viewModel.clearActiveFileOperation()
+        fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(source)))
+        advanceUntilIdle()
+        fixture.viewModel.pasteFromClipboard("/storage/emulated/0/Pictures/Album")
+        advanceUntilIdle()
+        val failedRequest = fixture.operationCoordinator.startedRequests.last()
+
+        fixture.operationCoordinator.onOperationFailed(failedRequest, "failed")
+        advanceUntilIdle()
+
+        assertEquals(OperationCompletionStatus.FAILED, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
+        assertNull(fixture.viewModel.state.value.clipboardState)
+
+        fixture.viewModel.clearActiveFileOperation()
+        fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(source)))
+        advanceUntilIdle()
+        fixture.viewModel.pasteFromClipboard("/storage/emulated/0/Pictures/Album")
+        advanceUntilIdle()
+        val cancelledRequest = fixture.operationCoordinator.startedRequests.last()
+
+        fixture.operationCoordinator.onOperationCancelled(cancelledRequest)
+        advanceUntilIdle()
+
+        assertEquals(OperationCompletionStatus.CANCELLED, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
+        assertNull(fixture.viewModel.state.value.clipboardState)
+    }
+
+    @Test
+    fun `archive operation terminal event does not clear queued clipboard`() = runTest(mainDispatcherRule.dispatcher) {
+        val fixture = createFixture()
+        val source = galleryFile("source.jpg", "/storage/emulated/0/DCIM/source.jpg")
+        val clipboard = ClipboardState(ClipboardOperation.COPY, listOf(source))
+        fixture.clipboardRepository.setClipboardState(clipboard)
+        advanceUntilIdle()
+
+        fixture.operationCoordinator.startOperation(
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = listOf(source.absolutePath),
+            destinationPath = "/storage/emulated/0/DCIM/source.zip",
+            resolutions = emptyMap()
+        )
+        advanceUntilIdle()
+        val request = fixture.operationCoordinator.startedRequests.single()
+
+        fixture.operationCoordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+
+        assertEquals(OperationCompletionStatus.SUCCESS, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
+        assertEquals(clipboard, fixture.viewModel.state.value.clipboardState)
+    }
+
+    @Test
+    fun `viewer state restores from saved state handle after recreation`() = runTest(mainDispatcherRule.dispatcher) {
+        val savedStateHandle = SavedStateHandle()
+        val fixture = createFixture(savedStateHandle)
+        val path = "/storage/emulated/0/DCIM/photo.jpg"
+
+        fixture.viewModel.setViewerCurrentPath(path)
+        fixture.viewModel.setViewerMetadataVisible(path, visible = true)
+        fixture.viewModel.setViewerUiVisible(false)
+        fixture.viewModel.rotateViewerImage(path)
+        fixture.viewModel.setViewerEraseDialogPath(path)
+
+        val recreated = createFixture(savedStateHandle).viewModel.state.value
+
+        assertEquals(path, recreated.viewerCurrentPath)
+        assertEquals(path, recreated.viewerMetadataPath)
+        assertFalse(recreated.viewerUiVisible)
+        assertEquals(90f, recreated.viewerRotationDegrees[path])
+        assertEquals(path, recreated.viewerEraseDialogPath)
+    }
+
+    private fun createFixture(savedStateHandle: SavedStateHandle = SavedStateHandle()): Fixture {
         val repository = RecordingGalleryRepository()
         val clipboardRepository = FakeClipboardRepository()
         val operationCoordinator = FakeBulkFileOperationCoordinator()
@@ -151,7 +293,7 @@ class ImageGalleryViewModelPasteTest {
             browserPreferencesStore = FakeBrowserPreferencesStore(),
             bulkFileOperationCoordinator = operationCoordinator,
             context = RuntimeEnvironment.getApplication(),
-            savedStateHandle = SavedStateHandle()
+            savedStateHandle = savedStateHandle
         )
         return Fixture(viewModel, repository, clipboardRepository, operationCoordinator)
     }

@@ -12,6 +12,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,16 +21,19 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
@@ -63,14 +67,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
@@ -82,6 +94,7 @@ import dev.qtremors.arcile.shared.ui.SplitButtonGroup
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.shared.ui.dialogs.ClipboardContentsDialog
 import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
@@ -90,7 +103,11 @@ import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val GALLERY_PROGRESS_PILL_TERMINAL_HOLD_MS = 800L
+private const val GALLERY_PROGRESS_PILL_WIDTH_DP = 192
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 
@@ -123,6 +140,8 @@ fun ImageGalleryScreen(
     onCutSelected: () -> Unit = {},
     onPasteToAlbum: (String) -> Unit = {},
     onCancelClipboard: () -> Unit = {},
+    onRemoveFromClipboard: (String) -> Unit = {},
+    onClearActiveFileOperation: () -> Unit = {},
     onResolvePasteConflicts: (Map<String, ConflictResolution>) -> Unit = {},
     onDismissPasteConflictDialog: () -> Unit = {},
     onRenameFile: (String, String) -> Unit = { _, _ -> },
@@ -141,6 +160,7 @@ fun ImageGalleryScreen(
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var showClipboardContents by rememberSaveable { mutableStateOf(false) }
     var currentTab by rememberSaveable { mutableStateOf(GalleryTab.PHOTOS) }
     var defaultTabApplied by rememberSaveable { mutableStateOf(false) }
     val albumsGridState = rememberLazyGridState()
@@ -499,10 +519,14 @@ fun ImageGalleryScreen(
             ) {
                 if (rotationX <= 90f) {
                     val albumPastePath = state.selectedAlbumPath?.takeIf(::isPasteDestinationAlbumPath)
-                    if (albumPastePath != null && state.clipboardState != null && currentTab == GalleryTab.ALBUMS) {
-                        GalleryClipboardPasteBar(
-                            onPaste = { onPasteToAlbum(albumPastePath) },
-                            onCancel = onCancelClipboard
+                    if (state.clipboardState != null || state.activeFileOperation != null) {
+                        GalleryClipboardOperationToolbar(
+                            state = state,
+                            pasteDestinationPath = albumPastePath.takeIf { currentTab == GalleryTab.ALBUMS },
+                            onPasteToAlbum = onPasteToAlbum,
+                            onCancelClipboard = onCancelClipboard,
+                            onShowClipboardContents = { showClipboardContents = true },
+                            onClearActiveFileOperation = onClearActiveFileOperation
                         )
                     } else {
                         // Normal state: Photos & Albums tab bar
@@ -706,6 +730,14 @@ fun ImageGalleryScreen(
         )
     }
 
+    if (showClipboardContents && state.clipboardState != null) {
+        ClipboardContentsDialog(
+            state = state.clipboardState,
+            onRemoveItem = onRemoveFromClipboard,
+            onDismiss = { showClipboardContents = false }
+        )
+    }
+
     if (state.isPropertiesVisible) {
         PropertiesDialog(
             properties = state.properties,
@@ -736,30 +768,188 @@ fun ImageGalleryScreen(
 }
 
 @Composable
-private fun GalleryClipboardPasteBar(
-    onPaste: () -> Unit,
-    onCancel: () -> Unit
+private fun GalleryClipboardOperationToolbar(
+    state: ImageGalleryState,
+    pasteDestinationPath: String?,
+    onPasteToAlbum: (String) -> Unit,
+    onCancelClipboard: () -> Unit,
+    onShowClipboardContents: () -> Unit,
+    onClearActiveFileOperation: () -> Unit
 ) {
-    SplitButtonGroup(
-        actions = listOf(
-            ToolbarAction(
-                icon = Icons.Default.ContentPaste,
-                contentDescription = stringResource(R.string.action_paste_here),
-                onClick = onPaste
-            ),
+    val clipboard = state.clipboardState
+    val activeOp = state.activeFileOperation
+
+    LaunchedEffect(activeOp?.terminalStatus) {
+        if (activeOp?.terminalStatus != null) {
+            delay(GALLERY_PROGRESS_PILL_TERMINAL_HOLD_MS)
+            onClearActiveFileOperation()
+        }
+    }
+
+    val toolbarActions = when {
+        activeOp != null && activeOp.terminalStatus == null -> listOf(
             ToolbarAction(
                 icon = Icons.Default.Close,
                 contentDescription = stringResource(R.string.action_cancel_transfer),
                 containerColor = MaterialTheme.colorScheme.error,
                 tint = MaterialTheme.colorScheme.onError,
-                onClick = onCancel
+                onClick = onCancelClipboard
             )
-        ),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        height = 56.dp,
-        minWidth = 56.dp,
-        iconSize = 24.dp
-    )
+        )
+        activeOp == null && clipboard != null -> buildList {
+            if (pasteDestinationPath != null) {
+                add(
+                    ToolbarAction(
+                        icon = Icons.Default.ContentPaste,
+                        contentDescription = stringResource(R.string.action_paste_here),
+                        onClick = { onPasteToAlbum(pasteDestinationPath) }
+                    )
+                )
+            }
+            add(
+                ToolbarAction(
+                    icon = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.action_cancel_transfer),
+                    containerColor = MaterialTheme.colorScheme.error,
+                    tint = MaterialTheme.colorScheme.onError,
+                    onClick = onCancelClipboard
+                )
+            )
+        }
+        else -> emptyList()
+    }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        GalleryClipboardProgressPill(
+            clipboardOperation = clipboard?.operation,
+            clipboardItemCount = clipboard?.files?.size ?: 0,
+            clipboardTotalSize = clipboard?.totalSize ?: 0L,
+            activeOperation = activeOp,
+            onClick = {
+                if (activeOp == null && clipboard != null) {
+                    onShowClipboardContents()
+                }
+            }
+        )
+        SplitButtonGroup(
+            actions = toolbarActions,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            height = 56.dp,
+            minWidth = 56.dp,
+            iconSize = 24.dp
+        )
+    }
 }
 
+@Composable
+private fun GalleryClipboardProgressPill(
+    clipboardOperation: ClipboardOperation?,
+    clipboardItemCount: Int,
+    clipboardTotalSize: Long,
+    activeOperation: ImageGalleryOperationUiState?,
+    onClick: () -> Unit
+) {
+    val rawProgress = activeOperation?.let { operation ->
+        val byteProgress = operation.totalBytes
+            ?.takeIf { it > 0L }
+            ?.let { total -> ((operation.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+        val itemProgress = operation.totalItems
+            .takeIf { it > 0 }
+            ?.let { total -> operation.completedItems.toFloat() / total.toFloat() }
+            ?.coerceIn(0f, 1f)
+        byteProgress ?: itemProgress
+    } ?: 0f
+    val displayedProgress = if (activeOperation?.terminalStatus != null) 1f else rawProgress
+    val progressFillColor = when (activeOperation?.terminalStatus) {
+        OperationCompletionStatus.SUCCESS -> Color(0xFF4CAF50).copy(alpha = 0.25f)
+        OperationCompletionStatus.FAILED,
+        OperationCompletionStatus.CANCELLED -> MaterialTheme.colorScheme.error.copy(alpha = 0.25f)
+        null -> MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+    }
+
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 4.dp,
+        shadowElevation = 2.dp,
+        modifier = Modifier
+            .height(56.dp)
+            .padding(end = 8.dp)
+            .width(GALLERY_PROGRESS_PILL_WIDTH_DP.dp)
+            .animateContentSize()
+    ) {
+        Box(
+            contentAlignment = Alignment.CenterStart,
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (activeOperation != null) {
+                        Modifier.drawBehind {
+                            drawRect(
+                                color = progressFillColor,
+                                size = Size(size.width * displayedProgress, size.height)
+                            )
+                        }
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val icon = when {
+                    activeOperation?.type == BulkFileOperationType.MOVE || clipboardOperation == ClipboardOperation.CUT -> Icons.Default.ContentCut
+                    activeOperation?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
+                    else -> Icons.Default.ContentCopy
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
+                    val itemCount = activeOperation?.totalItems ?: clipboardItemCount
+                    Text(
+                        text = pluralStringResource(R.plurals.clipboard_item_count, itemCount, itemCount),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    val subtitle = if (activeOperation != null) {
+                        activeOperation.totalBytes
+                            ?.takeIf { it > 0L }
+                            ?.let { total -> formatFileSize((total - (activeOperation.bytesCopied ?: 0L)).coerceAtLeast(0L)) }
+                            ?: stringResource(
+                                R.string.transfer_progress_items,
+                                activeOperation.completedItems,
+                                activeOperation.totalItems
+                            )
+                    } else {
+                        formatFileSize(clipboardTotalSize)
+                    }
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}

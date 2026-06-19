@@ -19,7 +19,10 @@ object FileCategories {
     val Videos = CategoryDef(
         name = "Videos",
         mimePrefix = "video/",
-        extensions = setOf("mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "ts")
+        extensions = setOf(
+            "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "3g2",
+            "ts", "mts", "m2ts", "mpeg", "mpg", "vob", "ogv"
+        )
     )
 
     val Audio = CategoryDef(
@@ -55,7 +58,8 @@ object FileCategories {
         if (normalizedMime == null && normalizedExt.isNotEmpty()) {
             normalizedMime = when (normalizedExt) {
                 "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico", "tiff", "tif" -> "image/$normalizedExt"
-                "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "ts" -> "video/$normalizedExt"
+                "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "3g2",
+                "ts", "mts", "m2ts", "mpeg", "mpg", "vob", "ogv" -> "video/$normalizedExt"
                 "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus", "amr" -> "audio/$normalizedExt"
                 "pdf" -> "application/pdf"
                 "zip" -> "application/zip"

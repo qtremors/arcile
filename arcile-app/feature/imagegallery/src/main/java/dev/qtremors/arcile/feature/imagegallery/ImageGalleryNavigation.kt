@@ -73,6 +73,8 @@ fun NavGraphBuilder.imageGalleryScreen(
             onCutSelected = viewModel::cutSelectedToClipboard,
             onPasteToAlbum = viewModel::pasteFromClipboard,
             onCancelClipboard = viewModel::cancelClipboard,
+            onRemoveFromClipboard = viewModel::removeFromClipboard,
+            onClearActiveFileOperation = viewModel::clearActiveFileOperation,
             onResolvePasteConflicts = viewModel::resolvePasteConflicts,
             onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
             onRenameFile = viewModel::renameFile,

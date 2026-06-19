@@ -510,6 +510,30 @@ class ArchiveManagerTest {
     }
 
     @Test
+    fun `same archive manager does not leak directory conflict state between extractions`() = runTest {
+        val firstArchive = zipWithEntries(
+            "first-dir-conflict.zip",
+            "folder/" to null,
+            "folder/new.txt" to "incoming"
+        )
+        val secondArchive = zipWithEntries(
+            "second-dir-clean.zip",
+            "other/" to null,
+            "other/file.txt" to "second"
+        )
+        val destination = File(root, "same-handler-state-out").apply { mkdirs() }
+        File(destination, "folder").mkdirs()
+        File(destination, "folder/old.txt").writeText("old")
+
+        assertTrue(manager.extractArchive(firstArchive.absolutePath, destination.absolutePath).isSuccess)
+        assertTrue(manager.extractArchive(secondArchive.absolutePath, destination.absolutePath).isSuccess)
+
+        assertEquals("incoming", File(destination, "folder (1)/new.txt").readText())
+        assertEquals("second", File(destination, "other/file.txt").readText())
+        assertFalse(File(destination, "other (1)").exists())
+    }
+
+    @Test
     fun `failed nested directory replace restores old tree`() = runTest {
         val archive = File(root, "dir-replace-partial.zip")
         ZipArchiveOutputStream(archive).use { zip ->

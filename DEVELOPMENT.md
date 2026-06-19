@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.1.0 | **Last Updated:** 2026-06-14  
+**Version:** 1.1.6 | **Last Updated:** 2026-06-19  
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -497,8 +497,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 112 |
-| **Version Name** | `1.1.2` |
+| **Version Code** | 116 |
+| **Version Name** | `1.1.6` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -578,7 +578,7 @@ Arcile features a comprehensive test suite of **unit, Robolectric, and instrumen
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-Use `./gradlew check` for normal local verification. Use `./gradlew check connectedCheck` for the entire suite when a device or emulator is available; `connectedCheck` runs instrumented Android tests across modules that define them.
+Use `./gradlew check` for normal local verification. Use `./gradlew check connectedCheck` for the entire suite when a device or emulator is available; `connectedCheck` runs instrumented Android tests across modules that define them. Process-death behavior is covered by focused Robolectric/unit gates where possible.
 
 ### Per-Module Test Commands
 
@@ -628,8 +628,8 @@ To package the application:
 ```
 
 ### APK Naming Standards
-- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.1.0-debug.apk`
-- **Release Package:** `app/build/outputs/apk/release/Arcile-1.1.0.apk`
+- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.1.6-debug.apk`
+- **Release Package:** `app/build/outputs/apk/release/Arcile-1.1.6.apk`
 
 ---
 

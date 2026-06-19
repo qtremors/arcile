@@ -91,6 +91,60 @@ import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
 
+internal data class MetadataDetailLabels(
+    val title: String,
+    val date: String,
+    val dateTaken: String,
+    val resolution: String,
+    val size: String,
+    val uri: String,
+    val path: String,
+    val mimeType: String,
+    val extension: String
+)
+
+internal data class MetadataDetailRow(
+    val label: String,
+    val value: String
+)
+
+internal fun buildMetadataDetailRows(
+    file: FileModel,
+    metadata: GalleryFileMetadata?,
+    labels: MetadataDetailLabels,
+    dateText: String? = formatViewerDateTime(file.lastModified)
+): List<MetadataDetailRow> {
+    val rows = mutableListOf<MetadataDetailRow>()
+    if (file.name.isNotBlank()) {
+        rows += MetadataDetailRow(labels.title, file.name)
+    }
+    if (!dateText.isNullOrBlank()) {
+        rows += MetadataDetailRow(labels.date, dateText)
+    }
+    metadata?.dateTaken?.takeIf { it.isNotBlank() }?.let { dateTaken ->
+        rows += MetadataDetailRow(labels.dateTaken, dateTaken)
+    }
+    if (metadata != null) {
+        formatResolution(metadata.width, metadata.height)?.let { resolution ->
+            rows += MetadataDetailRow(labels.resolution, resolution)
+        }
+    }
+    rows += MetadataDetailRow(labels.size, formatFileSize(file.size))
+    file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let { uri ->
+        rows += MetadataDetailRow(labels.uri, uri)
+    }
+    if (file.absolutePath.isNotBlank()) {
+        rows += MetadataDetailRow(labels.path, file.absolutePath)
+    }
+    (metadata?.mimeType ?: file.mimeType)?.takeIf { it.isNotBlank() }?.let { mime ->
+        rows += MetadataDetailRow(labels.mimeType, mime)
+    }
+    file.extension.takeIf { it.isNotBlank() }?.let { extension ->
+        rows += MetadataDetailRow(labels.extension, extension.uppercase())
+    }
+    return rows
+}
+
 @Composable
 fun MetadataSheet(
     file: FileModel,
@@ -163,20 +217,20 @@ fun MetadataSheet(
                     .padding(horizontal = 24.dp)
             ) {
                 item {
+                    val labels = MetadataDetailLabels(
+                        title = stringResource(R.string.image_gallery_metadata_label_title),
+                        date = stringResource(R.string.image_gallery_metadata_label_date),
+                        dateTaken = stringResource(R.string.image_gallery_metadata_label_date_taken),
+                        resolution = stringResource(R.string.image_gallery_metadata_label_resolution),
+                        size = stringResource(R.string.image_gallery_metadata_label_size),
+                        uri = stringResource(R.string.image_gallery_metadata_label_uri),
+                        path = stringResource(R.string.image_gallery_metadata_label_path),
+                        mimeType = stringResource(R.string.image_gallery_metadata_label_mime_type),
+                        extension = stringResource(R.string.image_gallery_metadata_label_extension)
+                    )
                     MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_file_information))
-                    MetadataRow(label = "Path", value = file.absolutePath)
-                    MetadataRow(label = "Size", value = formatFileSize(file.size))
-                    if (metadata != null && metadata.width > 0) {
-                        MetadataRow(
-                            label = "Dimensions",
-                            value = "${metadata.width} x ${metadata.height} (${metadata.megapixel} MP)"
-                        )
-                    }
-                    if (metadata?.mimeType != null) {
-                        MetadataRow(label = "Mime Type", value = metadata.mimeType)
-                    }
-                    if (metadata?.dateTaken != null) {
-                        MetadataRow(label = "Date Taken", value = metadata.dateTaken)
+                    buildMetadataDetailRows(file, metadata, labels).forEach { row ->
+                        MetadataRow(label = row.label, value = row.value)
                     }
                 }
 

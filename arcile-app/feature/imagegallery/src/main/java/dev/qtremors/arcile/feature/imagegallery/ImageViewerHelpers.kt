@@ -87,6 +87,10 @@ import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 
@@ -138,3 +142,24 @@ fun fileModelFromPath(path: String): FileModel {
 
 fun FileModel.openableReference(): String =
     nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: absolutePath
+
+internal fun viewerPositionLabel(currentPage: Int, total: Int): String {
+    if (total <= 0) return "0/0"
+    return "${currentPage.coerceIn(0, total - 1) + 1}/$total"
+}
+
+internal fun formatViewerDateTime(
+    timestampMillis: Long,
+    locale: Locale = Locale.getDefault(),
+    timeZone: TimeZone = TimeZone.getDefault()
+): String? {
+    if (timestampMillis <= 0L) return null
+    return SimpleDateFormat("MMM d, yyyy • h:mm a", locale)
+        .apply { this.timeZone = timeZone }
+        .format(Date(timestampMillis))
+}
+
+internal fun formatResolution(width: Int, height: Int): String? {
+    if (width <= 0 || height <= 0) return null
+    return "$width x $height"
+}

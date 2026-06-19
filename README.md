@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.1.1-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.1.6-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">
@@ -89,8 +89,8 @@ Release builds enable R8 minification and resource shrinking.
 | **UI** | Jetpack Compose BOM 2026.05.00, Material 3 1.5.0-alpha19, Material 3 Adaptive |
 | **Architecture** | Modular MVVM with Gradle boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
 | **Navigation** | Navigation Compose with `kotlinx.serialization` typed routes |
-| **Storage** | `java.io.File`, `StatFs`, MediaStore, FileProvider, foreground service operations |
-| **Persistence** | Room cache database plus DataStore Preferences for theme, browser presentation, storage classification, quick access, cleaner rules, and onboarding |
+| **Storage** | `java.io.File`, `StatFs`, MediaStore, cache-backed FileProvider handoffs, foreground service operations |
+| **Persistence** | Room cache database (`arcile-cache.db`, schema version 2) plus DataStore Preferences for theme, browser presentation, storage classification, quick access, cleaner rules, and onboarding |
 | **Media** | Coil with custom APK icon, audio album art, PDF, and video thumbnail fetchers |
 | **Archives** | Apache Commons Compress, Tukaani XZ, and Zip4j |
 | **Android Support** | Android 11 or newer |
