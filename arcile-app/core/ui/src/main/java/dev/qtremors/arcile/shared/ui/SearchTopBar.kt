@@ -3,6 +3,11 @@ import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -56,7 +61,12 @@ fun SearchTopBar(
 
     TopAppBar(
         navigationIcon = {
-            IconButton(onClick = onClose) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .bounceClickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.action_close_search)

@@ -14,10 +14,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.composed
+import androidx.compose.ui.semantics.Role
 
 
 val LocalReducedMotionEnabled = staticCompositionLocalOf { false }
@@ -79,6 +82,7 @@ object ArcileMotion {
 
 fun Modifier.bounceClickable(
     enabled: Boolean = true,
+    role: Role? = Role.Button,
     onClick: () -> Unit
 ): Modifier = composed {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -104,6 +108,7 @@ fun Modifier.bounceClickable(
             interactionSource = interactionSource,
             indication = androidx.compose.foundation.LocalIndication.current,
             enabled = enabled,
+            role = role,
             onClick = {
                 try {
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -113,4 +118,76 @@ fun Modifier.bounceClickable(
                 onClick()
             }
         )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+fun Modifier.bounceCombinedClickable(
+    enabled: Boolean = true,
+    role: Role? = Role.Button,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit
+): Modifier = composed {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && !reducedMotion) 0.96f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.75f,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        ),
+        label = "bounceCombinedClickScale"
+    )
+
+    this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .combinedClickable(
+            interactionSource = interactionSource,
+            indication = androidx.compose.foundation.LocalIndication.current,
+            enabled = enabled,
+            role = role,
+            onClick = {
+                try {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                } catch (e: Exception) {
+                    // Ignore haptic failures
+                }
+                onClick()
+            },
+            onLongClick = onLongClick?.let {
+                {
+                    try {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    } catch (e: Exception) {
+                        // Ignore haptic failures
+                    }
+                    it()
+                }
+            }
+        )
+}
+
+fun Modifier.pressScale(
+    interactionSource: androidx.compose.foundation.interaction.InteractionSource,
+    scaleOnPress: Float = 0.95f
+): Modifier = composed {
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && !reducedMotion) scaleOnPress else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.75f,
+            stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+        ),
+        label = "pressScale"
+    )
+    this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
 }

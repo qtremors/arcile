@@ -205,6 +205,50 @@ class BrowserViewModelOperationTest {
     }
 
     @Test
+    fun `completed paste refreshes initially empty destination folder contents`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Source" to listOf(browserFile("copied.txt", "/storage/emulated/0/Source/copied.txt")),
+                "/storage/emulated/0/Download" to emptyList()
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Source")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/Source/copied.txt")
+        viewModel.copySelectedToClipboard()
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.files.isEmpty())
+
+        viewModel.pasteFromClipboard()
+        advanceUntilIdle()
+        val request = coordinator.activeRequest.value!!
+        repo.filesByPath = mapOf(
+            "/storage/emulated/0/Source" to listOf(browserFile("copied.txt", "/storage/emulated/0/Source/copied.txt")),
+            "/storage/emulated/0/Download" to listOf(browserFile("copied.txt", "/storage/emulated/0/Download/copied.txt"))
+        )
+
+        coordinator.onOperationCompleted(request)
+        advanceUntilIdle()
+
+        assertEquals(BulkFileOperationType.COPY, request.type)
+        assertEquals(listOf("copied.txt"), viewModel.state.value.files.map { it.name })
+        assertEquals(UiText.PluralResource(R.plurals.file_operation_copied_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
+    }
+
+    @Test
     fun `requestDeleteSelected shows mixed explanation for cross-policy selection`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val otg = browserVolume("otg", "USB", "/storage/otg", isPrimary = false, isRemovable = true, kind = StorageKind.OTG)

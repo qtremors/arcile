@@ -92,23 +92,7 @@ internal fun BrowserContent(
             .fillMaxSize()
             .padding(top = scaffoldPadding.calculateTopPadding())
     ) {
-        if (targetKey.isSearch) {
-            BrowserSearchResults(
-                state = state,
-                currentPresentation = currentPresentation,
-                actions = actions,
-                onShowSearchBarChange = onShowSearchBarChange
-            )
-        } else if (showSearchBar && state.isSearching) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                LoadingIndicator()
-            }
-        } else {
+        if (!targetKey.isSearch && !(showSearchBar && state.isSearching)) {
             if (state.archiveContext != null) {
                 ArchiveBreadcrumbs(
                     archiveName = state.archiveContext.archiveName,
@@ -157,57 +141,77 @@ internal fun BrowserContent(
                     onSelectTab = actions.onSelectFolderTab
                 )
             }
+        }
 
-            val pullRefreshState = rememberPullToRefreshState()
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = actions.onRefresh,
-                state = pullRefreshState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .then(
-                        if (state.isCategoryScreen && categoryFolderTabs.size > 1) {
-                            Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
-                                var horizontalDrag = 0f
-                                detectHorizontalDragGestures(
-                                    onDragStart = { horizontalDrag = 0f },
-                                    onHorizontalDrag = { change, dragAmount ->
-                                        horizontalDrag += dragAmount
-                                        if (abs(horizontalDrag) > 96f) {
-                                            change.consume()
-                                            onSwitchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
-                                            horizontalDrag = 0f
-                                        }
-                                    },
-                                    onDragEnd = { horizontalDrag = 0f },
-                                    onDragCancel = { horizontalDrag = 0f }
-                                )
-                            }
-                        } else {
-                            Modifier
+        val pullRefreshState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = actions.onRefresh,
+            state = pullRefreshState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .then(
+                    if (state.isCategoryScreen && categoryFolderTabs.size > 1 && !targetKey.isSearch && !showSearchBar) {
+                        Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
+                            var horizontalDrag = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { horizontalDrag = 0f },
+                                onHorizontalDrag = { change, dragAmount ->
+                                    horizontalDrag += dragAmount
+                                    if (abs(horizontalDrag) > 96f) {
+                                        change.consume()
+                                        onSwitchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
+                                        horizontalDrag = 0f
+                                    }
+                                },
+                                onDragEnd = { horizontalDrag = 0f },
+                                onDragCancel = { horizontalDrag = 0f }
+                            )
                         }
-                    ),
-                indicator = {
-                    ArcilePullRefreshIndicator(
-                        isRefreshing = isRefreshing,
-                        state = pullRefreshState
+                    } else {
+                        Modifier
+                    }
+                ),
+            indicator = {
+                ArcilePullRefreshIndicator(
+                    isRefreshing = isRefreshing,
+                    state = pullRefreshState
+                )
+            }
+        ) {
+            when {
+                targetKey.isSearch -> {
+                    BrowserSearchResults(
+                        state = state,
+                        currentPresentation = currentPresentation,
+                        actions = actions,
+                        onShowSearchBarChange = onShowSearchBarChange
                     )
                 }
-            ) {
-                BrowserListingContent(
-                    state = state,
-                    displayedFiles = displayedFiles,
-                    currentPresentation = currentPresentation,
-                    showLoading = showLoading,
-                    isRefreshing = isRefreshing,
-                    bottomContentPadding = bottomContentPadding,
-                    scaffoldPadding = scaffoldPadding,
-                    layoutDirection = layoutDirection,
-                    listState = listState,
-                    gridState = gridState,
-                    actions = actions
-                )
+                showSearchBar && state.isSearching -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
+                    }
+                }
+                else -> {
+                    BrowserListingContent(
+                        state = state,
+                        displayedFiles = displayedFiles,
+                        currentPresentation = currentPresentation,
+                        showLoading = showLoading,
+                        isRefreshing = isRefreshing,
+                        bottomContentPadding = bottomContentPadding,
+                        scaffoldPadding = scaffoldPadding,
+                        layoutDirection = layoutDirection,
+                        listState = listState,
+                        gridState = gridState,
+                        actions = actions
+                    )
+                }
             }
         }
     }

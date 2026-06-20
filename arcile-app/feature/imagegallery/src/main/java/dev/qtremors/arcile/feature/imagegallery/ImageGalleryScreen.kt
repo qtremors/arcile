@@ -318,6 +318,7 @@ fun ImageGalleryScreen(
                             bottom = bottomPadding
                         ),
                         onSelectAlbum = onSelectAlbum,
+                        onRefresh = onRefresh,
                         gridState = albumsGridState,
                         onPasteToAlbum = onPasteToAlbum
                     )

@@ -62,6 +62,7 @@ import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import java.io.File
 
 internal const val HomeRecentFilesCarouselThumbnailSizePx = 512
@@ -150,7 +151,7 @@ fun RecentFileCarouselItem(
     Card(
         modifier = modifier
             .height(itemHeight)
-            .clickable { onClick() },
+            .bounceClickable { onClick() },
         shape = RoundedCornerShape(0.dp), // Let maskClip handle the shape
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest

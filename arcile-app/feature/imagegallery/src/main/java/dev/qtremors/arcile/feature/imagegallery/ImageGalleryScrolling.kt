@@ -138,9 +138,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.rotate
+import kotlin.math.cos
+import kotlin.math.sin
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -354,18 +367,53 @@ fun FastScrollbar(
                 )
             }
 
-            val thumbHeight = 48.dp
+            val thumbHeight = 24.dp
             val maxOffset = trackHeight - thumbHeight
             val thumbOffset = maxOffset * activeFraction
 
-            Box(
+            Canvas(
                 modifier = Modifier
                     .offset(y = thumbOffset)
-                    .width(thumbWidth)
-                    .height(thumbHeight)
+                    .size(24.dp)
                     .align(Alignment.TopEnd)
-                    .background(thumbColor, CircleShape)
-            )
+                    .graphicsLayer {
+                        compositingStrategy = CompositingStrategy.Offscreen
+                    }
+            ) {
+                val cx = size.width / 2f
+                val cy = size.height / 2f
+                val outerRadiusPx = size.width / 2f
+                val holeRadiusPx = outerRadiusPx * 0.2f
+                
+                val rotationAngle = activeFraction * 360f * 4f
+                
+                rotate(degrees = rotationAngle, pivot = Offset(cx, cy)) {
+                    val path = Path()
+                    val numLobes = 12
+                    val amplitude = outerRadiusPx * 0.08f
+                    val steps = 120
+                    for (i in 0..steps) {
+                        val angle = (i * 2f * Math.PI / steps).toFloat()
+                        val r = outerRadiusPx - amplitude + amplitude * cos(numLobes * angle)
+                        val x = cx + r * cos(angle)
+                        val y = cy + r * sin(angle)
+                        if (i == 0) {
+                            path.moveTo(x, y)
+                        } else {
+                            path.lineTo(x, y)
+                        }
+                    }
+                    path.close()
+                    drawPath(path, color = thumbColor)
+                    
+                    drawCircle(
+                        color = Color.Transparent,
+                        radius = holeRadiusPx,
+                        center = Offset(cx, cy),
+                        blendMode = BlendMode.Clear
+                    )
+                }
+            }
 
             if (tooltipAlpha > 0f) {
                 val tooltipOffset = thumbOffset + (thumbHeight / 2) - 20.dp
@@ -373,7 +421,7 @@ fun FastScrollbar(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer
                     ),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = WavyShape(numLobes = 12, amplitudeFraction = 0.06f),
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                     modifier = Modifier
                         .offset(
@@ -395,7 +443,7 @@ fun FastScrollbar(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
                     )
                 }
             }
@@ -438,5 +486,38 @@ fun Modifier.pinchToResize(
             val finalSize = (startCellSize * accumulatedScale).coerceIn(minSize, maxSize)
             onSizeFinalized(finalSize)
         }
+    }
+}
+
+class WavyShape(
+    private val numLobes: Int = 12,
+    private val amplitudeFraction: Float = 0.08f
+) : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density
+    ): Outline {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val rBase = minOf(size.width, size.height) / 2f
+        val amplitude = rBase * amplitudeFraction
+        val path = Path()
+        val steps = 180
+        for (i in 0..steps) {
+            val angle = (i * 2f * Math.PI / steps).toFloat()
+            val r = rBase - amplitude + amplitude * cos(numLobes * angle)
+            val rx = r * cos(angle)
+            val ry = r * sin(angle)
+            val x = cx + rx * (size.width / (rBase * 2f))
+            val y = cy + ry * (size.height / (rBase * 2f))
+            if (i == 0) {
+                path.moveTo(x, y)
+            } else {
+                path.lineTo(x, y)
+            }
+        }
+        path.close()
+        return Outline.Generic(path)
     }
 }

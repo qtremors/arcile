@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.trash
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.feature.trash.TrashState
 import dev.qtremors.arcile.testutil.ArcileTestTheme
@@ -19,6 +19,7 @@ class TrashScreenTest {
 
     @Test
     fun `empty trash renders trash empty state`() {
+        composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             ArcileTestTheme {
                 TrashScreen(
@@ -43,6 +44,7 @@ class TrashScreenTest {
 
     @Test
     fun `empty trash search renders search empty state`() {
+        composeRule.mainClock.autoAdvance = false
         composeRule.setContent {
             ArcileTestTheme {
                 TrashScreen(

@@ -191,10 +191,12 @@ fun ImageGalleryAlbumsGrid(
     onAlbumsGridCellSizeFinalized: (Float) -> Unit,
     contentPadding: PaddingValues,
     onSelectAlbum: (String?) -> Unit,
+    onRefresh: () -> Unit,
     gridState: LazyGridState,
     onPasteToAlbum: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val sortedAlbums = remember(state.albums, state.albumPresentation.sortOption) {
         when (state.albumPresentation.sortOption) {
@@ -224,121 +226,134 @@ fun ImageGalleryAlbumsGrid(
         )
     }
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = gridMinCellSize.dp),
-        state = gridState,
-        contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        modifier = modifier
-            .fillMaxSize()
-            .pinchToResize(
-                currentCellSize = gridMinCellSize,
-                onSizeChanged = onAlbumsGridCellSizeChange,
-                onSizeFinalized = onAlbumsGridCellSizeFinalized
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = onRefresh,
+        state = pullRefreshState,
+        modifier = modifier.fillMaxSize(),
+        indicator = {
+            ArcilePullRefreshIndicator(
+                isRefreshing = state.isRefreshing,
+                state = pullRefreshState
             )
-            .padding(horizontal = 16.dp)
+        }
     ) {
-        items(albumsList, key = { it.path ?: it.label }) { album ->
-            val coverFile = album.path?.let(coverLookup::get)
-            val canPasteToAlbum = state.clipboardState != null && isPasteDestinationAlbumPath(album.path)
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                ),
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelectAlbum(album.path) }
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        if (coverFile != null) {
-                            GalleryThumbnail(
-                                file = coverFile,
-                                thumbnailKey = ThumbnailKey.from(coverFile),
-                                thumbnailPolicy = thumbnailPolicy,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Folder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    modifier = Modifier.size(48.dp)
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = gridMinCellSize.dp),
+            state = gridState,
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .pinchToResize(
+                    currentCellSize = gridMinCellSize,
+                    onSizeChanged = onAlbumsGridCellSizeChange,
+                    onSizeFinalized = onAlbumsGridCellSizeFinalized
+                )
+                .padding(horizontal = 16.dp)
+        ) {
+            items(albumsList, key = { it.path ?: it.label }) { album ->
+                val coverFile = album.path?.let(coverLookup::get)
+                val canPasteToAlbum = state.clipboardState != null && isPasteDestinationAlbumPath(album.path)
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectAlbum(album.path) }
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            if (coverFile != null) {
+                                GalleryThumbnail(
+                                    file = coverFile,
+                                    thumbnailKey = ThumbnailKey.from(coverFile),
+                                    thumbnailPolicy = thumbnailPolicy,
+                                    modifier = Modifier.fillMaxSize()
                                 )
-                            }
-                        }
-
-                        if (album.path == "__favorites__") {
-                            Box(
-                                modifier = Modifier
-                                    .padding(8.dp)
-                                    .background(Color.Black.copy(alpha = 0.6f), CircleShape)
-                                    .size(32.dp)
-                                    .align(Alignment.TopStart),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Favorite,
-                                    contentDescription = null,
-                                    tint = Color.Red,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-
-                        if (canPasteToAlbum) {
-                            Surface(
-                                onClick = { album.path?.let(onPasteToAlbum) },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                shadowElevation = 4.dp,
-                                tonalElevation = 4.dp,
-                                modifier = Modifier
-                                    .padding(8.dp)
-                                    .size(40.dp)
-                                    .align(Alignment.TopEnd)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
+                            } else {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.ContentPaste,
-                                        contentDescription = stringResource(R.string.action_paste_here),
-                                        modifier = Modifier.size(22.dp)
+                                        imageVector = Icons.Default.Folder,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(48.dp)
                                     )
                                 }
                             }
+
+                            if (album.path == "__favorites__") {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                        .size(32.dp)
+                                        .align(Alignment.TopStart),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Favorite,
+                                        contentDescription = null,
+                                        tint = Color.Red,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            if (canPasteToAlbum) {
+                                Surface(
+                                    onClick = { album.path?.let(onPasteToAlbum) },
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    shadowElevation = 4.dp,
+                                    tonalElevation = 4.dp,
+                                    modifier = Modifier
+                                        .padding(8.dp)
+                                        .size(40.dp)
+                                        .align(Alignment.TopEnd)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentPaste,
+                                            contentDescription = stringResource(R.string.action_paste_here),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp)
-                    ) {
-                        Text(
-                            text = album.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = stringResource(R.string.image_gallery_album_count, album.count),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = album.label,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = stringResource(R.string.image_gallery_album_count, album.count),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }

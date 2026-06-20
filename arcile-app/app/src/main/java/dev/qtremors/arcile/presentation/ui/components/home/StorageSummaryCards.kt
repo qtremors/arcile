@@ -77,6 +77,7 @@ import dev.qtremors.arcile.ui.theme.bodySmallMedium
 
 import dev.qtremors.arcile.ui.theme.titleLargeBold
 import dev.qtremors.arcile.ui.theme.titleMediumBold
+import dev.qtremors.arcile.ui.theme.bounceCombinedClickable
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 
@@ -128,7 +129,7 @@ fun StorageSummaryCard(
                 .heightIn(min = 144.dp)
                 .padding(MaterialTheme.spacing.medium)
                 .clip(MaterialTheme.shapes.extraLarge)
-                .combinedClickable(
+                .bounceCombinedClickable(
                     onClick = onOpenFileBrowser,
                     onLongClick = { onOpenStorageDashboard(primaryVolume?.id) }
                 )
@@ -271,7 +272,7 @@ fun StorageVolumeCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.extraLarge)
-            .combinedClickable(
+            .bounceCombinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick
             ),

@@ -34,6 +34,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 @Composable
 fun QuickAccessGrid(
@@ -92,18 +93,18 @@ fun QuickAccessGrid(
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.surfaceContainer,
-                        onClick = {
-                            if (folder.id == "internal_all_files") {
-                                onOpenFileBrowser()
-                            } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF || folder.type == QuickAccessType.FILES_APP) {
-                                onNavigateToSaf(folder.path)
-                            } else {
-                                onNavigateToPath(folder.path)
-                            }
-                        },
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp)
+                            .bounceClickable {
+                                if (folder.id == "internal_all_files") {
+                                    onOpenFileBrowser()
+                                } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF || folder.type == QuickAccessType.FILES_APP) {
+                                    onNavigateToSaf(folder.path)
+                                } else {
+                                    onNavigateToPath(folder.path)
+                                }
+                            }
                     ) {
                         Row(
                             modifier = Modifier

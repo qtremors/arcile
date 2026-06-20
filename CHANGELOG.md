@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.6
-> **Last Updated:** 2026-06-19
+> **Version:** 1.1.7
+> **Last Updated:** 2026-06-20
 
 ---
+
+## [1.1.7] - 2026-06-20
+
+- **System Predictive Back & Expressive Motion**: Enabled Android 14+ system predictive back gestures, custom spring horizontal page scroll animations, and bouncy touch scaling animations with haptic feedback across all main clickable cards, buttons, lists, split button groups, and toolbar navigation actions.
+- **Refresh Coverage Fixes**: Extended pull-to-refresh across Browser search/loading/empty states, Gallery albums, and Trash lists and empty states, kept the shared refresh indicator above page content, and added regression coverage so completed paste operations refresh initially empty Browser folders immediately.
 
 ## [1.1.6] - 2026-06-19
 

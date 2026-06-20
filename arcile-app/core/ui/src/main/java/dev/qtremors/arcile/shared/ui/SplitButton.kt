@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -39,13 +40,13 @@ fun SplitButtonGroup(
             }
             
             Surface(
-                onClick = action.onClick,
                 shape = shape,
                 color = action.containerColor ?: containerColor,
                 contentColor = action.tint ?: contentColor,
                 modifier = Modifier
                     .height(height)
                     .widthIn(min = minWidth)
+                    .bounceClickable { action.onClick() }
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
                     Icon(

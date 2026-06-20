@@ -58,6 +58,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.rememberScrollState
@@ -100,6 +102,7 @@ import dev.qtremors.arcile.feature.trash.TrashState
 import dev.qtremors.arcile.feature.trash.TrashSortOption
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.feature.trash.ui.EmptyTrashDialog
 import dev.qtremors.arcile.feature.trash.ui.TrashList
 
@@ -135,6 +138,7 @@ fun TrashScreen(
     onClearSnackbarMessage: () -> Unit = {},
     onUndoLastRestore: () -> Unit = {},
     onClearPendingRestoreUndo: () -> Unit = {},
+    onRefresh: (() -> Unit)? = null,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
@@ -335,43 +339,36 @@ fun TrashScreen(
                 TrashInfoCard()
             }
 
-            Box(modifier = Modifier.weight(1f)) {
-                if (showLoading && state.trashFiles.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
-                    }
-                } else if (state.trashFiles.isEmpty() && !state.isLoading && !showSearchBar) {
-                    EmptyState(
-                        variant = EmptyStateVariant.Trash,
-                        title = stringResource(R.string.trash_is_empty),
-                        description = stringResource(R.string.trash_empty_description),
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else if (showSearchBar && state.isSearching) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
-                    }
-                } else if (showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty()) {
-                    EmptyState(
-                        variant = EmptyStateVariant.Search,
-                        title = stringResource(R.string.no_results_found),
-                        description = stringResource(R.string.no_results_description, state.searchQuery),
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    TrashList(
-                        files = if (showSearchBar) state.searchResults else state.visibleTrashFiles,
-                        selectedFiles = state.selectedFiles,
-                        onToggleSelection = onToggleSelection,
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            bottom = bottomContentPadding
+            if (onRefresh != null) {
+                val pullRefreshState = rememberPullToRefreshState()
+                PullToRefreshBox(
+                    isRefreshing = state.isLoading,
+                    onRefresh = onRefresh,
+                    state = pullRefreshState,
+                    modifier = Modifier.weight(1f),
+                    indicator = {
+                        ArcilePullRefreshIndicator(
+                            isRefreshing = state.isLoading,
+                            state = pullRefreshState
                         )
+                    }
+                ) {
+                    TrashBody(
+                        state = state,
+                        showLoading = showLoading,
+                        showSearchBar = showSearchBar,
+                        bottomContentPadding = bottomContentPadding,
+                        onToggleSelection = onToggleSelection
+                    )
+                }
+            } else {
+                Box(modifier = Modifier.weight(1f)) {
+                    TrashBody(
+                        state = state,
+                        showLoading = showLoading,
+                        showSearchBar = showSearchBar,
+                        bottomContentPadding = bottomContentPadding,
+                        onToggleSelection = onToggleSelection
                     )
                 }
             }
@@ -530,6 +527,57 @@ fun TrashScreen(
             TrashPropertiesDialog(
                 properties = state.properties,
                 onDismiss = onDismissProperties
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun TrashBody(
+    state: TrashState,
+    showLoading: Boolean,
+    showSearchBar: Boolean,
+    bottomContentPadding: androidx.compose.ui.unit.Dp,
+    onToggleSelection: (String) -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showLoading && state.trashFiles.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingIndicator()
+            }
+        } else if (state.trashFiles.isEmpty() && !state.isLoading && !showSearchBar) {
+            EmptyState(
+                variant = EmptyStateVariant.Trash,
+                title = stringResource(R.string.trash_is_empty),
+                description = stringResource(R.string.trash_empty_description),
+                modifier = Modifier.fillMaxSize()
+            )
+        } else if (showSearchBar && state.isSearching) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                LoadingIndicator()
+            }
+        } else if (showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty()) {
+            EmptyState(
+                variant = EmptyStateVariant.Search,
+                title = stringResource(R.string.no_results_found),
+                description = stringResource(R.string.no_results_description, state.searchQuery),
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            TrashList(
+                files = if (showSearchBar) state.searchResults else state.visibleTrashFiles,
+                selectedFiles = state.selectedFiles,
+                onToggleSelection = onToggleSelection,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    bottom = bottomContentPadding
+                )
             )
         }
     }

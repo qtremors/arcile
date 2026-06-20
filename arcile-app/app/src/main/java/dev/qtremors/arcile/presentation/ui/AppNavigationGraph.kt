@@ -206,7 +206,10 @@ fun AppNavigationGraph(
                             when (browserBackFallback(navController.previousBackStackEntry != null)) {
                                 BrowserBackFallback.PopAppBackStack -> navController.popBackStack()
                                 BrowserBackFallback.ShowHomePager -> coroutineScope.launch {
-                                    pagerState.animateScrollToPage(0)
+                                    pagerState.animateScrollToPage(
+                                        page = 0,
+                                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                    )
                                 }
                             }
                         }
@@ -287,7 +290,12 @@ fun AppNavigationGraph(
                                     onOpenFileBrowser = {
                                         pendingExplicitBrowserEntry = true
                                         browserViewModel.openFileBrowser(restorePersistentLocation = false)
-                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(
+                                                page = 1,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                            )
+                                        }
                                     },
                                     onSwipeToBrowser = {
                                         // Handled by Pager
@@ -295,7 +303,12 @@ fun AppNavigationGraph(
                                     onNavigateToPath = { path ->
                                         pendingExplicitBrowserEntry = true
                                         browserViewModel.navigateToSpecificFolder(path)
-                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(
+                                                page = 1,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                            )
+                                        }
                                     },
                                     onOpenFile = openPath,
                                     onOpenFileWithContext = openPathWithSurroundingImages,
@@ -308,7 +321,12 @@ fun AppNavigationGraph(
                                         } else {
                                             pendingExplicitBrowserEntry = true
                                             browserViewModel.navigateToCategory(categoryName)
-                                            coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(
+                                                    page = 1,
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                                )
+                                            }
                                         }
                                     },
                                     onSettingsClick = {
