@@ -43,4 +43,10 @@
     <string name="image_gallery_cover_set_success">Album cover updated</string>
     <string name="image_gallery_favorites_folder">Favorites</string>
     <string name="image_gallery_open_with">Open with…</string>
+    <string name="image_gallery_section_favourites">Favourites</string>
+    <string name="image_gallery_section_pinned">Pinned Albums</string>
+    <string name="image_gallery_section_groups">Groups</string>
+    <string name="image_gallery_section_albums">Albums</string>
+    <string name="image_gallery_action_pin_album">Pin Album</string>
+    <string name="image_gallery_action_unpin_album">Unpin Album</string>
 </resources>

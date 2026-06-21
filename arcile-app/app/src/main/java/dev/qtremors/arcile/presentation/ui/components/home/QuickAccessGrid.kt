@@ -63,18 +63,7 @@ fun QuickAccessGrid(
     }
 
 
-    val allFilesLabel = stringResource(R.string.all_files)
-    // Include "All Files" as the final fallback action
-    val allFilesItem = QuickAccessItem(
-        id = "internal_all_files",
-        label = allFilesLabel,
-        path = "",
-        type = QuickAccessType.STANDARD,
-        isPinned = true,
-        isEnabled = true
-    )
-    
-    val folders = quickAccessItems.filter { it.isPinned } + allFilesItem
+    val folders = quickAccessItems.filter { it.isPinned }
 
     Column(
         modifier = Modifier

@@ -85,6 +85,7 @@ fun NavGraphBuilder.imageGalleryScreen(
             onGroupingChange = viewModel::updateGrouping,
             onDefaultTabChange = viewModel::updateDefaultTab,
             onAlbumPresentationChange = viewModel::updateAlbumPresentation,
+            onTogglePinnedAlbum = viewModel::togglePinnedAlbum,
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )

@@ -24,8 +24,9 @@ class QuickAccessScreenTest {
     fun quickAccessScreen_rendersSections() {
         val items = listOf(
             QuickAccessItem("1", "Downloads", "/downloads", QuickAccessType.STANDARD, isPinned = true),
-            QuickAccessItem("2", "Work", "/work", QuickAccessType.CUSTOM, isPinned = true),
-            QuickAccessItem("3", "Android Data", "uri://data", QuickAccessType.SAF_TREE, isPinned = true)
+            QuickAccessItem("2", "WhatsApp", "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media", QuickAccessType.STANDARD, isPinned = true),
+            QuickAccessItem("3", "Work", "/work", QuickAccessType.CUSTOM, isPinned = true),
+            QuickAccessItem("4", "Android Data", "uri://data", QuickAccessType.SAF_TREE, isPinned = true)
         )
 
         composeTestRule.setContent {
@@ -37,17 +38,20 @@ class QuickAccessScreenTest {
                 onTogglePin = {},
                 onRemoveItem = {},
                 onAddCustomFolder = { _, _ -> },
-                onAddSafFolder = { _, _ -> }
+                onAddSafFolder = { _, _ -> },
+                onReorderItems = {}
             )
         }
 
         // Verify section headers are displayed
         composeTestRule.onNodeWithText("SYSTEM FOLDERS").assertIsDisplayed()
+        composeTestRule.onNodeWithText("APP FOLDERS").assertIsDisplayed()
+        composeTestRule.onNodeWithText("FILES APP SECTION").assertIsDisplayed()
         composeTestRule.onNodeWithText("CUSTOM FOLDERS").assertIsDisplayed()
-        composeTestRule.onNodeWithText("SCOPED STORAGE").assertIsDisplayed()
 
         // Verify labels are displayed
         composeTestRule.onNodeWithText("Downloads").assertIsDisplayed()
+        composeTestRule.onNodeWithText("WhatsApp").assertIsDisplayed()
         composeTestRule.onNodeWithText("Work").assertIsDisplayed()
         composeTestRule.onNodeWithText("Android Data").assertIsDisplayed()
     }
@@ -68,7 +72,8 @@ class QuickAccessScreenTest {
                 onTogglePin = {},
                 onRemoveItem = {},
                 onAddCustomFolder = { _, _ -> },
-                onAddSafFolder = { _, _ -> }
+                onAddSafFolder = { _, _ -> },
+                onReorderItems = {}
             )
         }
 
@@ -93,7 +98,8 @@ class QuickAccessScreenTest {
                 onTogglePin = { toggledItem = it },
                 onRemoveItem = {},
                 onAddCustomFolder = { _, _ -> },
-                onAddSafFolder = { _, _ -> }
+                onAddSafFolder = { _, _ -> },
+                onReorderItems = {}
             )
         }
 

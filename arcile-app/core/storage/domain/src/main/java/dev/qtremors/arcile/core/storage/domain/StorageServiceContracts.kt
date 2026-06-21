@@ -26,6 +26,7 @@ interface BrowserPreferencesStore {
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
     suspend fun updateDefaultSaveToArcilePath(path: String?)
     suspend fun updateFavorite(path: String, isFavorite: Boolean)
+    suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean)
     suspend fun updateAlbumCover(albumPath: String, coverPath: String)
 }
 

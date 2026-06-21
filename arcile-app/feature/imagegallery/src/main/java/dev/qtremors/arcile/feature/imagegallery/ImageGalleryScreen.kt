@@ -152,6 +152,7 @@ fun ImageGalleryScreen(
     onGroupingChange: (ImageGalleryGrouping) -> Unit = {},
     onDefaultTabChange: (ImageGalleryDefaultTab) -> Unit = {},
     onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
+    onTogglePinnedAlbum: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: SharedFlow<android.content.IntentSender>? = null
 ) {
@@ -320,7 +321,8 @@ fun ImageGalleryScreen(
                         onSelectAlbum = onSelectAlbum,
                         onRefresh = onRefresh,
                         gridState = albumsGridState,
-                        onPasteToAlbum = onPasteToAlbum
+                        onPasteToAlbum = onPasteToAlbum,
+                        onTogglePinnedAlbum = onTogglePinnedAlbum
                     )
                 } else {
                     ImageGalleryContent(

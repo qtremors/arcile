@@ -179,7 +179,7 @@
     <string name="insights_unavailable">Insights unavailable</string>
     <string name="no_indexed_volumes">"We couldn't find any indexed storage volumes to analyze."</string>
     <string name="categories_title">Categories</string>
-    <string name="other_files_system">System &amp; inaccessible data</string>
+    <string name="other_files_system">System &amp; Inaccessible Data</string>
     <string name="temp_storage_description">"This storage is treated as temporary, so dashboard insights are unavailable. Temporary storage stays browsable but is excluded from indexed categories, recents, search, and dashboard totals until it is classified as an SD card."</string>
     <string name="storage_dashboard_summary_tab">Summary</string>
     <string name="storage_dashboard_usage_map_tab">Usage Map</string>
@@ -210,7 +210,7 @@
     <string name="thumbnail">Thumbnail</string>
 
     <string name="folders">Folders</string>
-    <string name="all_files">All</string>
+    <string name="all_files">Arcile</string>
     <string name="folder_tabs_content_description">Folder filters</string>
     <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
     <string name="open_containing_folder">Open containing folder</string>
@@ -591,6 +591,8 @@
     <string name="add_android_data">Add Android/data</string>
     <string name="add_android_obb">Add Android/obb</string>
     <string name="quick_access_section_system">System Folders</string>
+    <string name="quick_access_section_apps">App Folders</string>
+    <string name="quick_access_section_files">Files App Section</string>
     <string name="quick_access_section_custom">Custom Folders</string>
     <string name="quick_access_section_scoped">Scoped Storage</string>
     <string name="quick_access_section_handoff">Open In Files App</string>
@@ -600,6 +602,11 @@
     <string name="quick_access_remove_message">Are you sure you want to remove %1$s from Quick Access?</string>
     <string name="quick_access_show_on_home">Show on Home</string>
     <string name="quick_access_pinned">Pinned \'%1$s\' to Quick Access</string>
+    <string name="quick_access_arrange_title">Arrange Order</string>
+    <string name="quick_access_arrange_description">Arrange the order of enabled quick access shortcuts on the home screen.</string>
+    <string name="quick_access_arrange_order">Arrange Order</string>
+    <string name="quick_access_move_up">Move up</string>
+    <string name="quick_access_move_down">Move down</string>
     <string name="remove">Remove</string>
     <string name="toggle_pin">Toggle Home shortcut</string>
     <string name="search_filters_title">Search Filters</string>

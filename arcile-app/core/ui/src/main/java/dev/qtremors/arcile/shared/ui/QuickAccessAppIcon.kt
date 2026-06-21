@@ -30,7 +30,7 @@ fun QuickAccessAppIcon(
 ) {
     val context = LocalContext.current
     val resolvedPackageName = remember(context, item.id, item.type, item.path) {
-        packageNameForQuickAccessItem(item) ?: item.takeIf { it.opensInFilesApp() }
+        packageNameForQuickAccessItem(item, context) ?: item.takeIf { it.opensInFilesApp() }
             ?.let { context.resolveFilesAppPackageName() }
     }
     val appIcon = remember(context, resolvedPackageName) {
@@ -56,12 +56,13 @@ private fun QuickAccessItem.opensInFilesApp(): Boolean {
     return type == QuickAccessType.FILES_APP || type == QuickAccessType.EXTERNAL_HANDOFF
 }
 
-fun packageNameForQuickAccessItem(item: QuickAccessItem): String? {
+fun packageNameForQuickAccessItem(item: QuickAccessItem, context: Context? = null): String? {
     return when (item.id) {
         WHATSAPP_MEDIA_QUICK_ACCESS_ID -> when {
             item.path.contains(WHATSAPP_BUSINESS_PACKAGE_NAME) -> WHATSAPP_BUSINESS_PACKAGE_NAME
             else -> WHATSAPP_PACKAGE_NAME
         }
+        "internal_all_files" -> context?.packageName ?: "dev.qtremors.arcile"
         else -> null
     }
 }

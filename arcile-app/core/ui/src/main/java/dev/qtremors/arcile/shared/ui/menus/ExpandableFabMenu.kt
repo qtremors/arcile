@@ -34,8 +34,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 
 data class FabMenuItem(
     val label: String,
-    val icon: ImageVector,
-    val onClick: () -> Unit
+    val icon: ImageVector? = null,
+    val onClick: () -> Unit,
+    val iconContent: (@Composable () -> Unit)? = null
 )
 
 @Composable
@@ -76,7 +77,13 @@ fun ExpandableFabMenu(
                             pressedElevation = 4.dp
                         ),
                         text = { Text(item.label, style = MaterialTheme.typography.labelLarge) },
-                        icon = { Icon(item.icon, contentDescription = null) },
+                        icon = {
+                            if (item.iconContent != null) {
+                                item.iconContent.invoke()
+                            } else if (item.icon != null) {
+                                Icon(item.icon, contentDescription = null)
+                            }
+                        },
                         modifier = androidx.compose.ui.Modifier.padding(end = 2.dp).pressScale(interactionSource)
                     )
                 }

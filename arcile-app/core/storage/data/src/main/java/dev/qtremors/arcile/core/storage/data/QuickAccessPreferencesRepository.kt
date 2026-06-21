@@ -109,6 +109,14 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 isEnabled = true
             ),
             QuickAccessItem(
+                id = "internal_all_files",
+                label = "Arcile",
+                path = "",
+                type = QuickAccessType.STANDARD,
+                isPinned = true,
+                isEnabled = true
+            ),
+            QuickAccessItem(
                 id = "standard_pictures",
                 label = "Pictures",
                 path = File(root, Environment.DIRECTORY_PICTURES).absolutePath,
@@ -153,10 +161,9 @@ class QuickAccessPreferencesRepository @Inject constructor(
     }
 
     private fun mergeDefaultAndStored(storedItems: List<QuickAccessItem>): List<QuickAccessItem> {
-        val defaultItemIds = defaultItems.map { it.id }.toSet()
-        return (defaultItems.map { defaultItem ->
-            storedItems.find { it.id == defaultItem.id } ?: defaultItem
-        } + storedItems.filter { it.id !in defaultItemIds })
+        val storedIds = storedItems.map { it.id }.toSet()
+        val missingDefaultItems = defaultItems.filter { it.id !in storedIds }
+        return (storedItems + missingDefaultItems)
             .distinctBy { it.id }
             .filter { it.isEnabled }
     }

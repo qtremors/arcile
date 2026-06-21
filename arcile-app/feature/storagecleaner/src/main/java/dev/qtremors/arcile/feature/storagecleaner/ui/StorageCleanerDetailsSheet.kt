@@ -537,10 +537,16 @@ internal fun CleanerCandidateRow(
         Spacer(modifier = Modifier.height(4.dp))
         
         Row(
-            modifier = Modifier.padding(start = 104.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 104.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RiskSummary(file = file, appContext = appContext)
+            RiskSummary(
+                file = file,
+                appContext = appContext,
+                modifier = Modifier.weight(1f)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
                 Text(stringResource(R.string.cleaner_ignore))
@@ -696,10 +702,16 @@ internal fun DuplicateFileRow(
         Spacer(modifier = Modifier.height(4.dp))
         
         Row(
-            modifier = Modifier.padding(start = 104.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 104.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RiskSummary(file = file, appContext = appContext)
+            RiskSummary(
+                file = file,
+                appContext = appContext,
+                modifier = Modifier.weight(1f)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
                 Text(stringResource(R.string.cleaner_ignore))
@@ -734,7 +746,8 @@ private fun CleanerFileActions(
 @Composable
 private fun RiskSummary(
     file: CleanerCandidate,
-    appContext: CleanerAppContext? = null
+    appContext: CleanerAppContext? = null,
+    modifier: Modifier = Modifier
 ) {
     val reasonLabels = mutableListOf<String>()
     for (reason in file.riskReasons.take(2)) {
@@ -745,6 +758,7 @@ private fun RiskSummary(
     val reasons = reasonLabels.joinToString(", ")
 
     Row(
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -776,7 +790,8 @@ private fun RiskSummary(
                 style = MaterialTheme.typography.labelSmall,
                 color = cleanerRiskColor(file.riskLevel),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
         }
     }

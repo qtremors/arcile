@@ -117,4 +117,14 @@ class QuickAccessViewModel @Inject constructor(
             )
         }
     }
+
+    fun updateItemsOrder(orderedPinnedItems: List<QuickAccessItem>) {
+        viewModelScope.launch {
+            val currentItems = _state.value.items
+            val pinnedIds = orderedPinnedItems.map { it.id }.toSet()
+            val unpinnedItems = currentItems.filter { it.id !in pinnedIds }
+            val reorderedList = orderedPinnedItems + unpinnedItems
+            quickAccessRepository.updateItems(reorderedList)
+        }
+    }
 }

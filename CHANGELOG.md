@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.8
+> **Version:** 1.1.9
 > **Last Updated:** 2026-06-21
 
 ---
+
+## [1.1.9] - 2026-06-21
+
+- **Segmented Quick Access Groups & Toggle Symbols**: Reorganized the Manage Quick Access screen to display folders in sequentially ordered, visually segmented stacked cards (System Folders, App Folders, Files App Section, and Custom Folders) with thin dividers between items, and added checkmark and close symbols inside the Show on Home toggle switches.
+- **Image Viewer Selected Thumbnail Polish**: Enhanced the bottom thumbnail strip in the image viewer to animate the selected thumbnail's width (28dp to 36dp), height (42dp to 54dp), and shadow elevation (0dp to 6dp) with spring physics and z-indexing to draw it on top of neighboring thumbnails.
+- **Home "Arcile" Shortcut**: Updated the Home screen Quick Access "All" shortcut's label text from "All" to "Arcile", and made it load and display the actual launcher icon of the Arcile app dynamically, ensuring compatibility with all build variants (including debug builds).
+- **Quick Access Reordering & Switch Haptics**: Added a fullscreen drag-to-reorder dialog for enabled quick access shortcuts (including the "Arcile" shortcut) with viewport auto-scrolling, root-coordinate gesture tracking to prevent touch sticking, mechanical tactile haptic ticks, and a prominent filled Apply button in the TopAppBar. Enabled keyboard-tap haptics on the show-on-home switch toggles.
+- **Storage Cleaner Layout Polish**: Fixed a UI issue where the "Ignore" text button next to risk reasons in the storage cleaner candidate rows and duplicate rows would wrap vertically when risk reasons labels were long. Weighted the RiskSummary component and reasons text so that long reasons truncate with an ellipsis, allowing the Ignore button to retain its full preferred width.
 
 ## [1.1.8] - 2026-06-21
 

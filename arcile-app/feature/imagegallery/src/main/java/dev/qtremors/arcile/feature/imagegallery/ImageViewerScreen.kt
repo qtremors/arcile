@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -70,6 +71,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -426,16 +429,36 @@ fun ImageViewerScreen(
                         LazyRow(
                             state = lazyListState,
                             modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                             contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
                         ) {
                             items(displayedFiles.size) { index ->
                                 val file = displayedFiles[index]
                                 val isSelected = pagerState.currentPage == index
+                                
+                                val animWidth by animateDpAsState(
+                                    targetValue = if (isSelected) 36.dp else 28.dp,
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                    label = "thumbnailWidth"
+                                )
+                                val animHeight by animateDpAsState(
+                                    targetValue = if (isSelected) 54.dp else 42.dp,
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                    label = "thumbnailHeight"
+                                )
+                                val animElevation by animateDpAsState(
+                                    targetValue = if (isSelected) 6.dp else 0.dp,
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+                                    label = "thumbnailElevation"
+                                )
+
                                 Box(
                                     modifier = Modifier
-                                        .width(thumbnailWidth)
-                                        .height(42.dp)
+                                        .width(animWidth)
+                                        .height(animHeight)
+                                        .zIndex(if (isSelected) 1f else 0f)
+                                        .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
                                         .clip(RoundedCornerShape(4.dp))
                                         .border(
                                             width = if (isSelected) 2.dp else 0.dp,

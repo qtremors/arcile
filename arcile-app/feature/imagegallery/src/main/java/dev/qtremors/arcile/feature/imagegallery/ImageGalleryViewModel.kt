@@ -122,6 +122,7 @@ data class ImageGalleryState(
     val showConflictDialog: Boolean = false,
     val pasteDestinationAlbumPath: String? = null,
     val favoriteFiles: PersistentSet<String> = persistentSetOf(),
+    val pinnedAlbums: PersistentSet<String> = persistentSetOf(),
     val albumCovers: PersistentMap<String, String> = persistentMapOf(),
     val viewerSessionInitialPath: String? = null,
     val viewerCurrentPath: String? = null,
@@ -411,6 +412,7 @@ class ImageGalleryViewModel @Inject constructor(
                 preferencesLoaded = true,
                 albumPresentation = preferences.albumPresentation,
                 favoriteFiles = preferences.favoriteFiles.toPersistentSet(),
+                pinnedAlbums = preferences.pinnedAlbums.toPersistentSet(),
                 albumCovers = preferences.albumCovers.toPersistentMap()
             ).withDisplayedFiles()
         }
@@ -795,6 +797,13 @@ class ImageGalleryViewModel @Inject constructor(
         val isFav = path in _state.value.favoriteFiles
         viewModelScope.launch {
             browserPreferencesStore.updateFavorite(path, !isFav)
+        }
+    }
+
+    fun togglePinnedAlbum(path: String) {
+        val isPinned = path in _state.value.pinnedAlbums
+        viewModelScope.launch {
+            browserPreferencesStore.updatePinnedAlbum(path, !isPinned)
         }
     }
 

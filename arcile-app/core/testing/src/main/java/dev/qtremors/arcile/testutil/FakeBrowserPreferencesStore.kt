@@ -126,6 +126,16 @@ class FakeBrowserPreferencesStore(
         preferences.value = preferences.value.copy(favoriteFiles = newFavorites)
     }
 
+    override suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
+        val currentPinned = preferences.value.pinnedAlbums
+        val newPinned = if (isPinned) {
+            currentPinned + albumPath
+        } else {
+            currentPinned - albumPath
+        }
+        preferences.value = preferences.value.copy(pinnedAlbums = newPinned)
+    }
+
     override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
         val currentCovers = preferences.value.albumCovers
         val newCovers = if (coverPath.isEmpty()) {
