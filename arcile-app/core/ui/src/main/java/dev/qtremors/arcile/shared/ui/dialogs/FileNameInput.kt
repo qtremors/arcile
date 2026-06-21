@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -14,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -21,6 +25,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.keyboardInputField
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.delay
 
 enum class FileNameValidationError {
@@ -70,6 +75,7 @@ fun FileNameInput(
     validationValue: String = value,
     showValidationErrors: Boolean = true,
     autoFocus: Boolean = false,
+    leadingIcon: ImageVector = Icons.Default.DriveFileRenameOutline,
     onDone: () -> Unit = {}
 ) {
     val validation = remember(validationValue, existingNames, ignoredName) {
@@ -91,8 +97,16 @@ fun FileNameInput(
             value = value,
             onValueChange = onValueChange,
             label = { Text(label) },
+            leadingIcon = {
+                Icon(
+                    imageVector = leadingIcon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
             isError = validation.error != null && showValidationErrors,
             singleLine = true,
+            shape = ExpressiveShapes.medium,
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)

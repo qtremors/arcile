@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Folder
@@ -45,17 +45,12 @@ import androidx.compose.material.icons.filled.Source
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.InputChipDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SuggestionChip
-import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -74,10 +69,14 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 
 @Composable
 internal fun OnboardingPage(
@@ -207,7 +206,7 @@ internal fun OnboardingWelcomeAndFeatures() {
         ) {
             features.forEachIndexed { index, feature ->
                 val isSelected = selectedFeatureIndex == index
-                InputChip(
+                ExpressiveFilterChip(
                     selected = isSelected,
                     onClick = { selectedFeatureIndex = index },
                     label = { 
@@ -223,17 +222,7 @@ internal fun OnboardingWelcomeAndFeatures() {
                             modifier = Modifier.size(16.dp)
                         )
                     },
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                    colors = InputChipDefaults.inputChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        leadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    border = null,
-                    shape = CircleShape
+                    modifier = Modifier.padding(horizontal = 4.dp)
                 )
             }
         }
@@ -351,6 +340,7 @@ internal fun OnboardingSetupPermissions(
     onRequestNotificationPermission: () -> Unit,
     showOlderAndroidWarning: Boolean
 ) {
+    val haptics = rememberArcileHaptics()
     val storageBgColor by animateColorAsState(
         targetValue = if (state.hasStoragePermission) {
             Color.Transparent
@@ -416,12 +406,19 @@ internal fun OnboardingSetupPermissions(
                 )
 
                 // Storage Permission Row
+                val openStorageClick = {
+                    haptics.selectionChanged()
+                    onOpenStoragePermissionSettings()
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.medium)
+                        .clip(ExpressiveShapes.medium)
                         .background(storageBgColor)
-                        .clickable(enabled = !state.hasStoragePermission) { onOpenStoragePermissionSettings() }
+                        .bounceClickable(
+                            enabled = !state.hasStoragePermission,
+                            onClick = openStorageClick
+                        )
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -455,17 +452,12 @@ internal fun OnboardingSetupPermissions(
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     } else {
-                        SuggestionChip(
-                            onClick = onOpenStoragePermissionSettings,
-                            label = { Text(stringResource(R.string.onboarding_permission_grant)) },
-                            icon = { Icon(Icons.Default.WarningAmber, null, modifier = Modifier.size(16.dp)) },
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                                labelColor = MaterialTheme.colorScheme.onErrorContainer,
-                                iconContentColor = MaterialTheme.colorScheme.onErrorContainer
-                            ),
-                            border = null,
-                            shape = CircleShape
+                        OnboardingActionChip(
+                            onClick = openStorageClick,
+                            label = stringResource(R.string.onboarding_permission_grant),
+                            icon = Icons.Default.WarningAmber,
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
                 }
@@ -473,12 +465,19 @@ internal fun OnboardingSetupPermissions(
                 // Notification Permission Row
                 if (state.notificationPermissionRequired) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    val openNotificationsClick = {
+                        haptics.selectionChanged()
+                        onRequestNotificationPermission()
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
+                            .clip(ExpressiveShapes.medium)
                             .background(notificationBgColor)
-                            .clickable(enabled = !state.hasNotificationPermission) { onRequestNotificationPermission() }
+                            .bounceClickable(
+                                enabled = !state.hasNotificationPermission,
+                                onClick = openNotificationsClick
+                            )
                             .padding(horizontal = 12.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -504,17 +503,12 @@ internal fun OnboardingSetupPermissions(
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         } else {
-                            SuggestionChip(
-                                onClick = onRequestNotificationPermission,
-                                label = { Text(stringResource(R.string.onboarding_enable_notifications)) },
-                                icon = { Icon(Icons.Default.Notifications, null, modifier = Modifier.size(16.dp)) },
-                                colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    iconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                border = null,
-                                shape = CircleShape
+                            OnboardingActionChip(
+                                onClick = openNotificationsClick,
+                                label = stringResource(R.string.onboarding_enable_notifications),
+                                icon = Icons.Default.Notifications,
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -525,11 +519,20 @@ internal fun OnboardingSetupPermissions(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Restore Backup Button
+        val chooseRestoreBackupClick = {
+            haptics.selectionChanged()
+            onChooseRestoreBackup()
+        }
         FilledTonalButton(
-            onClick = onChooseRestoreBackup,
+            onClick = chooseRestoreBackupClick,
             enabled = restoreState != OnboardingRestoreState.Busy,
-            modifier = Modifier.fillMaxWidth(),
-            shape = CircleShape
+            modifier = Modifier
+                .fillMaxWidth()
+                .bounceClickable(
+                    enabled = restoreState != OnboardingRestoreState.Busy,
+                    onClick = chooseRestoreBackupClick
+                ),
+            shape = ExpressiveShapes.medium
         ) {
             Icon(Icons.Default.SettingsBackupRestore, contentDescription = null)
             Spacer(modifier = Modifier.size(MaterialTheme.spacing.small))
@@ -572,6 +575,33 @@ internal fun OnboardingSetupPermissions(
 }
 
 @Composable
+private fun OnboardingActionChip(
+    onClick: () -> Unit,
+    label: String,
+    icon: ImageVector,
+    containerColor: Color,
+    contentColor: Color
+) {
+    Surface(
+        shape = ExpressiveShapes.medium,
+        color = containerColor,
+        contentColor = contentColor,
+        modifier = Modifier
+            .clip(ExpressiveShapes.medium)
+            .bounceClickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
 private fun PermissionStatusChip(
     label: String,
     icon: ImageVector,
@@ -591,6 +621,21 @@ private fun PermissionStatusChip(
             Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
             Text(label, style = MaterialTheme.typography.labelLarge)
         }
+    }
+}
+
+@Composable
+private fun RestoreStatusPill(label: String) {
+    Surface(
+        shape = ExpressiveShapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+        )
     }
 }
 
@@ -661,6 +706,7 @@ internal fun OnboardingRestoreDialog(
     onDismissRestoreBackup: () -> Unit,
     onRestartApp: () -> Unit
 ) {
+    val haptics = rememberArcileHaptics()
     when (state) {
         OnboardingRestoreState.Idle,
         OnboardingRestoreState.Busy -> Unit
@@ -676,12 +722,30 @@ internal fun OnboardingRestoreDialog(
                 )
             },
             confirmButton = {
-                FilledTonalButton(onClick = onApplyRestoreBackup) {
+                val applyClick = {
+                    haptics.selectionChanged()
+                    onApplyRestoreBackup()
+                }
+                FilledTonalButton(
+                    onClick = applyClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = applyClick)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.settings_backup_restore))
                 }
             },
             dismissButton = {
-                FilledTonalButton(onClick = onDismissRestoreBackup) {
+                val dismissClick = {
+                    haptics.selectionChanged()
+                    onDismissRestoreBackup()
+                }
+                FilledTonalButton(
+                    onClick = dismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                ) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -698,12 +762,30 @@ internal fun OnboardingRestoreDialog(
                 )
             },
             confirmButton = {
-                FilledTonalButton(onClick = onRestartApp) {
+                val restartClick = {
+                    haptics.selectionChanged()
+                    onRestartApp()
+                }
+                FilledTonalButton(
+                    onClick = restartClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = restartClick)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.restart_now))
                 }
             },
             dismissButton = {
-                FilledTonalButton(onClick = onDismissRestoreBackup) {
+                val dismissClick = {
+                    haptics.selectionChanged()
+                    onDismissRestoreBackup()
+                }
+                FilledTonalButton(
+                    onClick = dismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                ) {
                     Text(stringResource(R.string.later))
                 }
             }
@@ -714,7 +796,17 @@ internal fun OnboardingRestoreDialog(
             title = { Text(stringResource(R.string.settings_backup_failed_title)) },
             text = { Text(state.message) },
             confirmButton = {
-                FilledTonalButton(onClick = onDismissRestoreBackup) {
+                val dismissClick = {
+                    haptics.selectionChanged()
+                    onDismissRestoreBackup()
+                }
+                FilledTonalButton(
+                    onClick = dismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.ok))
                 }
             }
@@ -747,7 +839,7 @@ private fun OnboardingRestoreItemList(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(item.label, style = MaterialTheme.typography.bodyMedium)
-                        AssistChip(onClick = {}, label = { Text(item.status) })
+                        RestoreStatusPill(label = item.status)
                     }
                 }
             }

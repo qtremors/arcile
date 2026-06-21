@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.trash
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -17,11 +15,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 @Composable
 internal fun TrashFilterRow(
@@ -36,7 +38,7 @@ internal fun TrashFilterRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         TrashFilter.entries.forEach { filter ->
-            FilterChip(
+            ExpressiveFilterChip(
                 selected = selected == filter,
                 onClick = { onFilterChange(filter) },
                 label = {
@@ -70,7 +72,9 @@ internal fun TrashSortDialog(
                 TrashSortOption.entries.forEach { option ->
                     ListItem(
                         headlineContent = { Text(trashSortLabel(option)) },
-                        modifier = Modifier.clickable { onSelect(option) },
+                        modifier = Modifier
+                            .clip(ExpressiveShapes.medium)
+                            .bounceClickable { onSelect(option) },
                         colors = ListItemDefaults.colors(
                             containerColor = if (selected == option) {
                                 MaterialTheme.colorScheme.secondaryContainer
@@ -83,7 +87,11 @@ internal fun TrashSortDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

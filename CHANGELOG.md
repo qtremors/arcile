@@ -1,10 +1,32 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.0
+> **Version:** 1.2.1
 > **Last Updated:** 2026-06-21
 
 ---
+
+## [1.2.1] - 2026-06-21
+
+- **Material 3 Expressive UI Pass**: Updated dialogs, sheets, toolbar actions, chips, list rows, and cleaner/gallery controls with rounded expressive styling, tactile feedback, and clipped touch states.
+- **Search and File Dialog Polish**: Improved search filter controls and refreshed file/archive creation dialogs with clearer expressive inputs and actions.
+- **Gallery and Viewer Polish**: Converted gallery Search, Sort, and More into split actions, refined image viewer bottom chrome, and improved thumbnail strip behavior.
+- **Gallery Tab Touch Polish**: Clipped Photos and Albums bottom tab hover states to their pill shapes.
+- **Browser Top Bar Touch Polish**: Clipped Browser top-bar hover and touch states to their circular and split-button shapes.
+- **Dynamic Toast Polish**: Made in-app feedback toasts/snackbars content-sized so short messages no longer stretch across the screen.
+- **Storage Touch Polish**: Replaced storage breadcrumbs and classification chips with expressive rounded surfaces and shaped storage usage actions.
+- **Archive Viewer Touch Polish**: Clipped archive viewer toolbar and list-row touch states to their circular and rounded row shapes.
+- **Trash Touch Polish**: Shaped Trash top-bar actions, empty-trash controls, restore destination rows, and dialog actions to match their rounded UI surfaces.
+- **Home and App Toolbar Touch Polish**: Rounded Home header actions and clipped About, Licenses, and Activity toolbar buttons to circular touch states.
+- **Shared Dialog Touch Polish**: Shaped shared sort, search filter, and clipboard dialog actions with expressive sheets, rounded buttons, and clipped icon targets.
+- **Gallery Surface Shape Polish**: Aligned gallery photo and album touch surfaces with shared expressive shape tokens.
+- **Archive and Dialog Touch Polish**: Replaced archive chips and shared create/rename dismiss actions with expressive rounded touch surfaces.
+- **Onboarding Chip Polish**: Replaced remaining standard onboarding chips with expressive rounded chip surfaces.
+- **Quick Access and Cleaner Polish**: Refined Quick Access management controls and Storage Cleaner duplicate/detail interactions with consistent expressive surfaces.
+- **Top Bar and Import Touch Polish**: Clipped Quick Access, Recent Files, Storage Cleaner, gallery, standalone image viewer, and Save to Arcile action states to their visible rounded shapes.
+- **Remaining Component Shape Polish**: Removed stale standard chip references and rounded additional archive, browser transfer, gallery options, storage dashboard, and cleaner dialog controls.
+- **Dropdown Menu Touch Polish**: Routed app overflow and picker menu rows through a rounded dropdown item wrapper so hover and ripple states match expressive menu shapes.
+- **List and Breadcrumb Touch Polish**: Clipped volume root rows, archive encoding choices, Tools shortcuts, Settings navigation, and breadcrumb segments to rounded touch-state bounds.
 
 ## [1.2.0] - 2026-06-21
 

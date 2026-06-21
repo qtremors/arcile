@@ -48,7 +48,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -87,6 +86,7 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.PasteConflictDialog
@@ -621,7 +621,7 @@ fun ImageGalleryScreen(
                                         val actions = mutableListOf<@Composable () -> Unit>()
 
                                         actions.add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.archive_compress_zip)) },
                                                 leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
                                                 onClick = {
@@ -633,7 +633,7 @@ fun ImageGalleryScreen(
 
                                         if (state.selectedFiles.size == 1 && state.selectedAlbumPath != null && state.selectedAlbumPath != "__favorites__") {
                                             actions.add {
-                                                DropdownMenuItem(
+                                                ArcileDropdownMenuItem(
                                                     text = { Text(stringResource(R.string.image_gallery_set_as_cover)) },
                                                     leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
                                                     onClick = {
@@ -646,7 +646,7 @@ fun ImageGalleryScreen(
                                         }
 
                                         actions.add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.share)) },
                                                 leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                                                 onClick = {
@@ -657,7 +657,7 @@ fun ImageGalleryScreen(
                                         }
 
                                         actions.add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.properties_title)) },
                                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                                 onClick = {

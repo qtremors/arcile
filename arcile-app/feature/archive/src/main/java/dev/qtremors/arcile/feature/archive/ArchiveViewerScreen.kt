@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,14 +43,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -86,6 +83,7 @@ import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.shared.ui.ConflictCard
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
@@ -211,7 +209,7 @@ fun ArchiveViewerScreen(
         },
         isLoading = state.isLoading,
         snackbarHost = {
-            SnackbarHost(
+            ArcileSnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier.navigationBarsPadding()
             )
@@ -244,13 +242,16 @@ fun ArchiveViewerScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        if (isInSelectionMode) {
-                            onClearSelection()
-                        } else if (!onNavigateUpInArchive()) {
-                            onNavigateBack()
-                        }
-                    }) {
+                    IconButton(
+                        onClick = {
+                            if (isInSelectionMode) {
+                                onClearSelection()
+                            } else if (!onNavigateUpInArchive()) {
+                                onNavigateBack()
+                            }
+                        },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(
                             imageVector = if (isInSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(if (isInSelectionMode) R.string.clear_selection else R.string.back)
@@ -259,24 +260,39 @@ fun ArchiveViewerScreen(
                 },
                 actions = {
                     if (isInSelectionMode) {
-                        IconButton(onClick = onSelectAll) {
+                        IconButton(
+                            onClick = onSelectAll,
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
                             Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
                         }
-                        IconButton(onClick = { onExtractSelected(null) }) {
+                        IconButton(
+                            onClick = { onExtractSelected(null) },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
                             Icon(Icons.Default.Unarchive, contentDescription = stringResource(R.string.archive_extract_archive))
                         }
                     } else {
                         if (state.archiveFormat == ArchiveFormat.ZIP) {
-                            IconButton(onClick = { showEncodingDialog = true }) {
+                            IconButton(
+                                onClick = { showEncodingDialog = true },
+                                modifier = Modifier.clip(CircleShape)
+                            ) {
                                 Icon(Icons.Default.TextFields, contentDescription = state.nameEncoding.displayName)
                             }
                         }
                         if (state.currentPrefix != null) {
-                            IconButton(onClick = { onExtractCurrentFolder(null) }) {
+                            IconButton(
+                                onClick = { onExtractCurrentFolder(null) },
+                                modifier = Modifier.clip(CircleShape)
+                            ) {
                                 Icon(Icons.Default.Unarchive, contentDescription = stringResource(R.string.archive_extract_folder))
                             }
                         }
-                        IconButton(onClick = { onExtractAll(null) }) {
+                        IconButton(
+                            onClick = { onExtractAll(null) },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
                             Icon(Icons.Default.FolderZip, contentDescription = stringResource(R.string.archive_extract_archive))
                         }
                     }
@@ -339,8 +355,9 @@ fun ArchiveViewerScreen(
                     targetValue = if (isSelected) 4.dp else 0.dp,
                     label = "archiveItemVPadding"
                 )
+                val itemShape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
                 Surface(
-                    shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
+                    shape = itemShape,
                     color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -401,18 +418,20 @@ fun ArchiveViewerScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.combinedClickable(
-                            onClick = {
-                                if (isInSelectionMode) {
+                        modifier = Modifier
+                            .clip(itemShape)
+                            .combinedClickable(
+                                onClick = {
+                                    if (isInSelectionMode) {
+                                        onToggleItemSelection(item.path)
+                                    } else if (item.isDirectory) {
+                                        onOpenFolder(item.path)
+                                    }
+                                },
+                                onLongClick = {
                                     onToggleItemSelection(item.path)
-                                } else if (item.isDirectory) {
-                                    onOpenFolder(item.path)
                                 }
-                            },
-                            onLongClick = {
-                                onToggleItemSelection(item.path)
-                            }
-                        )
+                            )
                     )
                 }
             }

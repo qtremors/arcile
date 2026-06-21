@@ -10,8 +10,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 @Composable
 fun EmptyTrashDialog(
@@ -29,6 +32,8 @@ fun EmptyTrashDialog(
                 onClick = {
                     onConfirm()
                 },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onConfirm),
                 colors = ButtonDefaults.filledTonalButtonColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -38,7 +43,11 @@ fun EmptyTrashDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismissRequest) {
+            TextButton(
+                onClick = onDismissRequest,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismissRequest)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

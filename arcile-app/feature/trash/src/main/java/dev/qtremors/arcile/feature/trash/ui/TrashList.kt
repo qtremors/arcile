@@ -93,6 +93,7 @@ private fun TrashRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(MaterialTheme.shapes.large)
             .combinedClickable(
                 onClick = { onToggleSelection(trashItem.id) },
                 onLongClick = { onToggleSelection(trashItem.id) }

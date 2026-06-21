@@ -27,14 +27,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.foundation.clickable
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.shared.ui.ExpressiveSegmentedRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilledTonalButton
@@ -108,12 +106,10 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
+
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -174,8 +170,10 @@ import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
 import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
+import androidx.compose.material.icons.filled.Check
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.utils.formatFileSize
@@ -198,6 +196,7 @@ fun GalleryViewOptionsDialog(
     onShowFileDetailsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val haptics = rememberArcileHaptics()
     var draftPhotosPreferences by remember(photosPresentation) {
         mutableStateOf(photosPresentation.normalized())
     }
@@ -252,32 +251,28 @@ fun GalleryViewOptionsDialog(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Medium
                         )
-                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                            BrowserViewMode.entries.forEachIndexed { index, mode ->
-                                SegmentedButton(
-                                    shape = SegmentedButtonDefaults.itemShape(
-                                        index = index,
-                                        count = BrowserViewMode.entries.size
-                                    ),
-                                    onClick = { draftPhotosPreferences = draftPhotosPreferences.copy(viewMode = mode) },
-                                    selected = draftPhotosPreferences.viewMode == mode,
-                                    icon = {
-                                        Icon(
-                                            imageVector = if (mode == BrowserViewMode.LIST) {
-                                                Icons.AutoMirrored.Filled.ViewList
-                                            } else {
-                                                Icons.Default.GridView
-                                            },
-                                            contentDescription = null
-                                        )
+                        ExpressiveSegmentedRow(
+                            options = BrowserViewMode.entries,
+                            selectedOption = draftPhotosPreferences.viewMode,
+                            onOptionSelected = { mode -> draftPhotosPreferences = draftPhotosPreferences.copy(viewMode = mode) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { mode ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (mode == BrowserViewMode.LIST) {
+                                        Icons.AutoMirrored.Filled.ViewList
+                                    } else {
+                                        Icons.Default.GridView
                                     },
-                                    label = {
-                                        Text(
-                                            stringResource(
-                                                if (mode == BrowserViewMode.LIST) R.string.list_view else R.string.grid_view
-                                            )
-                                        )
-                                    }
+                                    contentDescription = null
+                                )
+                                Text(
+                                    stringResource(
+                                        if (mode == BrowserViewMode.LIST) R.string.list_view else R.string.grid_view
+                                    )
                                 )
                             }
                         }
@@ -361,12 +356,12 @@ fun GalleryViewOptionsDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                FilterChip(
+                                ExpressiveFilterChip(
                                     selected = !draftPhotosAspectRatio,
                                     onClick = { draftPhotosAspectRatio = false },
                                     label = { Text(stringResource(R.string.image_gallery_view_mode_square)) }
                                 )
-                                FilterChip(
+                                ExpressiveFilterChip(
                                     selected = draftPhotosAspectRatio,
                                     onClick = { draftPhotosAspectRatio = true },
                                     label = { Text(stringResource(R.string.image_gallery_view_mode_aspect)) }
@@ -422,7 +417,7 @@ fun GalleryViewOptionsDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ImageGalleryGrouping.entries.forEach { mode ->
-                                FilterChip(
+                                ExpressiveFilterChip(
                                     selected = draftGrouping == mode,
                                     onClick = { draftGrouping = mode },
                                     label = {
@@ -541,23 +536,41 @@ fun GalleryViewOptionsDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    val cancelClick = {
+                        haptics.selectionChanged()
+                        onDismiss()
+                    }
+                    val applyClick = {
+                        haptics.selectionChanged()
+                        if (currentTab == GalleryTab.PHOTOS) {
+                            onPhotosPresentationChange(draftPhotosPreferences.normalized())
+                            onPhotosAspectRatioChange(draftPhotosAspectRatio)
+                            onGroupingChange(draftGrouping)
+                            onShowFileDetailsChange(draftShowDetails)
+                        } else {
+                            onAlbumPresentationChange(draftAlbumPreferences.normalized())
+                        }
+                        onDismiss()
+                    }
+                    TextButton(
+                        onClick = cancelClick,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = cancelClick)
+                    ) {
                         Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     FilledTonalButton(
-                        onClick = {
-                            if (currentTab == GalleryTab.PHOTOS) {
-                                onPhotosPresentationChange(draftPhotosPreferences.normalized())
-                                onPhotosAspectRatioChange(draftPhotosAspectRatio)
-                                onGroupingChange(draftGrouping)
-                                onShowFileDetailsChange(draftShowDetails)
-                            } else {
-                                onAlbumPresentationChange(draftAlbumPreferences.normalized())
-                            }
-                            onDismiss()
-                        }
+                        onClick = applyClick,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = applyClick)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(stringResource(R.string.apply))
                     }
                 }
@@ -573,7 +586,7 @@ fun SortChip(
     modifier: Modifier = Modifier,
     onSelect: (FileSortOption) -> Unit
 ) {
-    FilterChip(
+    ExpressiveFilterChip(
         selected = preferences.sortOption == option,
         onClick = { onSelect(option) },
         label = {

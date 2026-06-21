@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.browser.ui
 
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +26,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -48,6 +48,8 @@ import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.shared.ui.lists.FileListRows
 import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
 import dev.qtremors.arcile.shared.ui.rememberDateOnlyFormatter
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.ui.theme.spacing
 import java.util.Date
 import kotlin.math.abs
@@ -240,7 +242,10 @@ private fun ArchiveBreadcrumbs(
             text = archiveName,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable(onClick = onArchiveRootClick)
+            modifier = Modifier
+                .clip(ExpressiveShapes.medium)
+                .bounceClickable(onClick = onArchiveRootClick)
+                .padding(horizontal = 8.dp, vertical = 4.dp)
         )
         var running = ""
         segments.forEach { segment ->
@@ -251,7 +256,10 @@ private fun ArchiveBreadcrumbs(
                 text = segment,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onEntryClick(target) }
+                modifier = Modifier
+                    .clip(ExpressiveShapes.medium)
+                    .bounceClickable { onEntryClick(target) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             )
         }
     }

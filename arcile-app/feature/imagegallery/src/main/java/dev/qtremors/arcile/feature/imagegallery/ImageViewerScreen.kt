@@ -12,7 +12,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +48,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,7 +59,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -92,10 +92,13 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
@@ -322,21 +325,43 @@ fun ImageViewerScreen(
                     }
 
                     if (showEraseDialog) {
+                        val confirmClick = {
+                            haptics.destructiveConfirm()
+                            viewModel.eraseMetadata(file.absolutePath)
+                        }
+                        val cancelClick = {
+                            haptics.selectionChanged()
+                            viewModel.setViewerEraseDialogPath(null)
+                        }
                         androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { viewModel.setViewerEraseDialogPath(null) },
+                            onDismissRequest = cancelClick,
                             title = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_title)) },
                             text = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_message)) },
                             confirmButton = {
-                                androidx.compose.material3.TextButton(
-                                    onClick = {
-                                        viewModel.eraseMetadata(file.absolutePath)
-                                    }
+                                Button(
+                                    onClick = confirmClick,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.bounceClickable(onClick = confirmClick),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    )
                                 ) {
-                                    Text(stringResource(R.string.settings_clear_thumbnail_cache), color = MaterialTheme.colorScheme.error)
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(R.string.settings_clear_thumbnail_cache))
                                 }
                             },
                             dismissButton = {
-                                androidx.compose.material3.TextButton(onClick = { viewModel.setViewerEraseDialogPath(null) }) {
+                                androidx.compose.material3.TextButton(
+                                    onClick = cancelClick,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.bounceClickable(onClick = cancelClick)
+                                ) {
                                     Text(stringResource(R.string.cancel))
                                 }
                             }
@@ -409,7 +434,6 @@ fun ImageViewerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.5f))
                         .navigationBarsPadding()
                 ) {
                     // 1. Thumbnail Strip
@@ -429,6 +453,7 @@ fun ImageViewerScreen(
                     BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .background(Color.Black.copy(alpha = 0.5f))
                             .padding(vertical = 8.dp)
                     ) {
                         val thumbnailWidth = 28.dp
@@ -473,7 +498,7 @@ fun ImageViewerScreen(
                                             color = if (isSelected) Color.White else Color.Transparent,
                                             shape = RoundedCornerShape(4.dp)
                                         )
-                                        .clickable {
+                                        .bounceClickable {
                                             coroutineScope.launch {
                                                 pagerState.animateScrollToPage(index)
                                             }
@@ -585,7 +610,7 @@ fun ImageViewerScreen(
                                 val menuActions = remember(currentFile) {
                                     mutableListOf<@Composable () -> Unit>().apply {
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = {
                                                     Text(
                                                         text = stringResource(R.string.action_info),
@@ -603,7 +628,7 @@ fun ImageViewerScreen(
                                             )
                                         }
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = {
                                                     Text(
                                                         text = stringResource(R.string.image_gallery_open_with),
@@ -623,7 +648,7 @@ fun ImageViewerScreen(
                                             )
                                         }
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = {
                                                     Text(
                                                         text = stringResource(R.string.share),

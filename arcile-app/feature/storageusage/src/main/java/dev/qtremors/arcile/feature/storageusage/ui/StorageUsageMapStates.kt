@@ -23,16 +23,12 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -78,6 +74,8 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
 import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.titleMediumBold
@@ -107,7 +105,8 @@ fun StorageUsageBreadcrumbs(
         verticalAlignment = Alignment.CenterVertically
     ) {
         breadcrumbs.forEachIndexed { index, node ->
-            AssistChip(
+            ExpressiveFilterChip(
+                selected = false,
                 onClick = { onBreadcrumbClick(index) },
                 label = {
                     Text(
@@ -187,7 +186,10 @@ fun StorageUsageError(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onErrorContainer
             )
-            OutlinedButton(onClick = onRefresh) {
+            OutlinedButton(
+                onClick = onRefresh,
+                shape = ExpressiveShapes.medium
+            ) {
                 Icon(Icons.Default.Refresh, contentDescription = null)
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(stringResource(R.string.refresh))

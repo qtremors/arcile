@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -210,7 +209,7 @@ fun StandaloneImageViewer(
                             }
                         }
                         DropdownMenu(expanded = menuVisible, onDismissRequest = { menuVisible = false }) {
-                            DropdownMenuItem(
+                            ArcileDropdownMenuItem(
                                 text = { Text(stringResource(R.string.action_info)) },
                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                 onClick = {
@@ -218,7 +217,7 @@ fun StandaloneImageViewer(
                                     metadataVisible = true
                                 }
                             )
-                            DropdownMenuItem(
+                            ArcileDropdownMenuItem(
                                 text = { Text(stringResource(R.string.image_gallery_open_with)) },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                                 onClick = {
@@ -226,7 +225,7 @@ fun StandaloneImageViewer(
                                     onOpenWith()
                                 }
                             )
-                            DropdownMenuItem(
+                            ArcileDropdownMenuItem(
                                 text = { Text(stringResource(R.string.share)) },
                                 leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                                 onClick = {
@@ -278,7 +277,10 @@ private fun StandaloneImageMetadata(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.clip(CircleShape)
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
                 Spacer(modifier = Modifier.width(8.dp))

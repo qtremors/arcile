@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import android.graphics.Bitmap
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +43,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.ui.theme.sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -105,7 +107,8 @@ internal fun CleanerDetailsSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = ExpressiveShapes.sheet
     ) {
         Column(
             modifier = Modifier
@@ -125,13 +128,25 @@ internal fun CleanerDetailsSheet(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { showSectionSettings = true }) {
+                    val settingsClick = { showSectionSettings = true }
+                    IconButton(
+                        onClick = settingsClick,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = settingsClick)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(R.string.cleaner_section_settings)
                         )
                     }
-                    IconButton(onClick = { showRiskInfo = true }) {
+                    val riskInfoClick = { showRiskInfo = true }
+                    IconButton(
+                        onClick = riskInfoClick,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = riskInfoClick)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = stringResource(R.string.cleaner_risk_info_title)
@@ -151,11 +166,13 @@ internal fun CleanerDetailsSheet(
                             })
                         }
                     )
-                    Text(
-                        text = stringResource(R.string.cleaner_select_all),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.clickable {
+                Text(
+                    text = stringResource(R.string.cleaner_select_all),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(ExpressiveShapes.medium)
+                        .bounceClickable {
                             val selectablePaths = selectableCandidates.map { it.absolutePath }.toSet()
                             onSelectedFilesChange(if (selectablePaths.isNotEmpty() && selectablePaths.all { it in selectedFiles }) {
                                 selectedFiles - selectablePaths
@@ -163,7 +180,8 @@ internal fun CleanerDetailsSheet(
                                 selectedFiles + selectablePaths
                             })
                         }
-                    )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
                 }
             }
 
@@ -238,6 +256,7 @@ internal fun CleanerDetailsSheet(
             Button(
                 onClick = { onRequestClean(selectedFiles) },
                 enabled = selectedFiles.isNotEmpty() && !isCleaning,
+                shape = ExpressiveShapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -259,7 +278,12 @@ internal fun CleanerDetailsSheet(
             title = { Text(stringResource(R.string.cleaner_risk_info_title)) },
             text = { Text(stringResource(R.string.cleaner_risk_info_description)) },
             confirmButton = {
-                TextButton(onClick = { showRiskInfo = false }) {
+                val dismissClick = { showRiskInfo = false }
+                TextButton(
+                    onClick = dismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                ) {
                     Text(stringResource(R.string.ok))
                 }
             }
@@ -344,6 +368,7 @@ private fun CleanerSectionSettingsDialog(
                         label = { Text(stringResource(R.string.cleaner_large_threshold_mb)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
+                        shape = ExpressiveShapes.medium,
                         modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
@@ -354,6 +379,7 @@ private fun CleanerSectionSettingsDialog(
                         label = { Text(stringResource(R.string.cleaner_old_download_age_days)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
+                        shape = ExpressiveShapes.medium,
                         modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
@@ -388,28 +414,39 @@ private fun CleanerSectionSettingsDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    onSave(
-                        CleanerSectionRule(
-                            enabled = enabled,
-                            ignoredNamePatterns = namePatterns,
-                            ignoredPathPatterns = pathPatterns,
-                            largeFileThresholdBytes = largeThresholdMb.toLongOrNull()?.times(1024L * 1024L),
-                            oldDownloadAgeMs = oldDownloadAgeDays.toLongOrNull()?.times(DAY_MS)
-                        )
+            val saveClick = {
+                onSave(
+                    CleanerSectionRule(
+                        enabled = enabled,
+                        ignoredNamePatterns = namePatterns,
+                        ignoredPathPatterns = pathPatterns,
+                        largeFileThresholdBytes = largeThresholdMb.toLongOrNull()?.times(1024L * 1024L),
+                        oldDownloadAgeMs = oldDownloadAgeDays.toLongOrNull()?.times(DAY_MS)
                     )
-                }
+                )
+            }
+            TextButton(
+                onClick = saveClick,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = saveClick)
             ) {
                 Text(stringResource(R.string.apply))
             }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onReset) {
+                TextButton(
+                    onClick = onReset,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onReset)
+                ) {
                     Text(stringResource(R.string.reset))
                 }
-                TextButton(onClick = onDismiss) {
+                TextButton(
+                    onClick = onDismiss,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onDismiss)
+                ) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -438,10 +475,15 @@ private fun PatternEditor(
                 onValueChange = onInputChange,
                 label = { Text(stringResource(R.string.cleaner_patterns_hint)) },
                 singleLine = true,
+                shape = ExpressiveShapes.medium,
                 modifier = Modifier.weight(1f).keyboardInputField()
             )
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = onAdd) {
+            TextButton(
+                onClick = onAdd,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onAdd)
+            ) {
                 Text(stringResource(R.string.add))
             }
         }
@@ -457,7 +499,11 @@ private fun PatternEditor(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                TextButton(onClick = { onRemove(pattern) }) {
+                TextButton(
+                    onClick = { onRemove(pattern) },
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable { onRemove(pattern) }
+                ) {
                     Text(stringResource(R.string.remove))
                 }
             }
@@ -479,7 +525,8 @@ internal fun CleanerCandidateRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
+            .clip(ExpressiveShapes.medium)
+            .bounceClickable(onClick = onToggle)
             .padding(vertical = 8.dp)
     ) {
         Row(
@@ -497,7 +544,7 @@ internal fun CleanerCandidateRow(
                 badgeBgColor = MaterialTheme.colorScheme.surface,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .clickable {
+                    .bounceClickable {
                         if (file.isDirectory) {
                             onOpenContainingFolder(file.absolutePath)
                         } else {
@@ -523,7 +570,7 @@ internal fun CleanerCandidateRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .clip(MaterialTheme.shapes.small)
-                        .clickable { onOpenContainingFolder(file.absolutePath) }
+                        .bounceClickable { onOpenContainingFolder(file.absolutePath) }
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -548,7 +595,11 @@ internal fun CleanerCandidateRow(
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
+            TextButton(
+                onClick = { onIgnoreFile(file.absolutePath) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable { onIgnoreFile(file.absolutePath) }
+            ) {
                 Text(stringResource(R.string.cleaner_ignore))
             }
         }
@@ -603,7 +654,11 @@ internal fun DuplicateGroupCard(
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                TextButton(onClick = onCompare) {
+                TextButton(
+                    onClick = onCompare,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onCompare)
+                ) {
                     Text(stringResource(R.string.cleaner_compare))
                 }
             }
@@ -656,7 +711,8 @@ internal fun DuplicateFileRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
+            .clip(ExpressiveShapes.medium)
+            .bounceClickable(onClick = onToggle)
             .padding(vertical = 8.dp)
     ) {
         Row(
@@ -673,7 +729,7 @@ internal fun DuplicateFileRow(
                 badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier
                     .clip(CircleShape)
-                    .clickable { onOpenFile(file.absolutePath) }
+                    .bounceClickable { onOpenFile(file.absolutePath) }
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -685,7 +741,7 @@ internal fun DuplicateFileRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .clip(MaterialTheme.shapes.small)
-                        .clickable { onOpenContainingFolder(file.absolutePath) }
+                        .bounceClickable { onOpenContainingFolder(file.absolutePath) }
                 )
                 if (dateString.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -713,7 +769,11 @@ internal fun DuplicateFileRow(
                 modifier = Modifier.weight(1f)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
+            TextButton(
+                onClick = { onIgnoreFile(file.absolutePath) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable { onIgnoreFile(file.absolutePath) }
+            ) {
                 Text(stringResource(R.string.cleaner_ignore))
             }
         }
@@ -729,13 +789,21 @@ private fun CleanerFileActions(
     Spacer(modifier = Modifier.height(4.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         if (!file.isDirectory) {
-            TextButton(onClick = { onOpenFile(file.absolutePath) }) {
+            TextButton(
+                onClick = { onOpenFile(file.absolutePath) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable { onOpenFile(file.absolutePath) }
+            ) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(stringResource(R.string.cleaner_open_file))
             }
         }
-        TextButton(onClick = { onOpenContainingFolder(file.absolutePath) }) {
+        TextButton(
+            onClick = { onOpenContainingFolder(file.absolutePath) },
+            shape = ExpressiveShapes.medium,
+            modifier = Modifier.bounceClickable { onOpenContainingFolder(file.absolutePath) }
+        ) {
             Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text(stringResource(R.string.cleaner_open_folder))

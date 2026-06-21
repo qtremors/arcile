@@ -88,6 +88,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -101,6 +102,8 @@ import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
 import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.shared.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.shared.ui.menus.FabMenuItem
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -180,6 +183,7 @@ fun QuickAccessScreen(
                         onValueChange = { tempLabel = it },
                         label = { Text(stringResource(R.string.quick_access_label_hint)) },
                         singleLine = true,
+                        shape = ExpressiveShapes.medium,
                         modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -188,24 +192,33 @@ fun QuickAccessScreen(
                         onValueChange = { tempPath = it },
                         label = { Text(stringResource(R.string.quick_access_path_hint)) },
                         singleLine = true,
+                        shape = ExpressiveShapes.medium,
                         modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (tempPath.isNotBlank() && tempLabel.isNotBlank()) {
-                            onAddCustomFolder(tempPath, tempLabel)
-                            showCustomDialog = false
-                        }
+                val addClick = {
+                    if (tempPath.isNotBlank() && tempLabel.isNotBlank()) {
+                        onAddCustomFolder(tempPath, tempLabel)
+                        showCustomDialog = false
                     }
+                }
+                TextButton(
+                    onClick = addClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = addClick)
                 ) {
                     Text(stringResource(R.string.add))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showCustomDialog = false }) { Text(stringResource(R.string.cancel)) }
+                val dismissClick = { showCustomDialog = false }
+                TextButton(
+                    onClick = dismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                ) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -228,14 +241,25 @@ fun QuickAccessScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.quick_access_manage_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = onNavigateBack)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
                     val pinnedItems = state.items.filter { it.isPinned }
                     if (pinnedItems.isNotEmpty()) {
-                        IconButton(onClick = { showReorderSheet = true }) {
+                        val reorderClick = { showReorderSheet = true }
+                        IconButton(
+                            onClick = reorderClick,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .bounceClickable(onClick = reorderClick)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Reorder,
                                 contentDescription = stringResource(R.string.quick_access_arrange_order)
@@ -484,17 +508,25 @@ fun QuickAccessListItem(
             title = { Text(stringResource(R.string.quick_access_remove_title)) },
             text = { Text(stringResource(R.string.quick_access_remove_message, item.label)) },
             confirmButton = {
+                val removeClick = {
+                    onRemove()
+                    showRemoveDialog = false
+                }
                 TextButton(
-                    onClick = {
-                        onRemove()
-                        showRemoveDialog = false
-                    }
+                    onClick = removeClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = removeClick)
                 ) {
                     Text(stringResource(R.string.remove))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showRemoveDialog = false }) { Text(stringResource(R.string.cancel)) }
+                val dismissClick = { showRemoveDialog = false }
+                TextButton(
+                    onClick = dismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                ) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -507,7 +539,8 @@ fun QuickAccessListItem(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onNavigate)
+                .clip(ExpressiveShapes.medium)
+                .bounceClickable(onClick = onNavigate)
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -585,7 +618,13 @@ fun QuickAccessListItem(
             )
 
             if (item.type != QuickAccessType.STANDARD) {
-                IconButton(onClick = { showRemoveDialog = true }) {
+                val removeClick = { showRemoveDialog = true }
+                IconButton(
+                    onClick = removeClick,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .bounceClickable(onClick = removeClick)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = stringResource(R.string.remove),
@@ -697,14 +736,23 @@ fun ArrangeQuickAccessDialog(
                     TopAppBar(
                         title = { Text(stringResource(R.string.quick_access_arrange_title)) },
                         navigationIcon = {
-                            IconButton(onClick = onDismiss) {
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .bounceClickable(onClick = onDismiss)
+                            ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                             }
                         },
                         actions = {
+                            val applyClick = { onApply(draftItems) }
                             Button(
-                                onClick = { onApply(draftItems) },
-                                modifier = Modifier.padding(end = 8.dp)
+                                onClick = applyClick,
+                                shape = ExpressiveShapes.medium,
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .bounceClickable(onClick = applyClick)
                             ) {
                                 Text(
                                     text = stringResource(R.string.apply),

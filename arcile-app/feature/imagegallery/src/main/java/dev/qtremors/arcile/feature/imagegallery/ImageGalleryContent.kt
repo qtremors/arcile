@@ -27,7 +27,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.foundation.clickable
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
@@ -108,12 +107,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -166,6 +162,7 @@ import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
@@ -546,7 +543,7 @@ fun ImageGalleryAlbumChips(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            FilterChip(
+            ExpressiveFilterChip(
                 selected = state.selectedAlbumPath == null,
                 onClick = { onSelectAlbum(null) },
                 label = { Text(stringResource(R.string.image_gallery_all_album, state.files.size)) },
@@ -556,7 +553,7 @@ fun ImageGalleryAlbumChips(
             )
         }
         items(state.albums, key = { it.path ?: it.label }) { album ->
-            FilterChip(
+            ExpressiveFilterChip(
                 selected = state.selectedAlbumPath == album.path,
                 onClick = { onSelectAlbum(album.path) },
                 label = {

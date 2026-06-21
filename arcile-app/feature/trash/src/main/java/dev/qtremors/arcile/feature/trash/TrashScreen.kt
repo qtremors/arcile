@@ -2,11 +2,7 @@ package dev.qtremors.arcile.feature.trash
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,22 +26,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -62,13 +58,8 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.foundation.rememberScrollState
 import dev.qtremors.arcile.shared.ui.SearchTopBar
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -77,25 +68,13 @@ import androidx.compose.foundation.layout.width
 import kotlinx.coroutines.delay
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.Surface
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.isIndexed
-import androidx.compose.foundation.clickable
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import dev.qtremors.arcile.feature.trash.TrashFilter
 import dev.qtremors.arcile.feature.trash.TrashPropertiesUiModel
 import dev.qtremors.arcile.feature.trash.TrashState
@@ -274,11 +253,17 @@ fun TrashScreen(
                     scrollBehavior = scrollBehavior,
                     navigationIcon = {
                         if (isSelectionMode) {
-                            IconButton(onClick = onClearSelection) {
+                            IconButton(
+                                onClick = onClearSelection,
+                                modifier = Modifier.clip(CircleShape)
+                            ) {
                                 Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
                             }
                         } else {
-                            IconButton(onClick = onNavigateBack) {
+                            IconButton(
+                                onClick = onNavigateBack,
+                                modifier = Modifier.clip(CircleShape)
+                            ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                             }
                         }
@@ -316,6 +301,7 @@ fun TrashScreen(
                     text = { Text(stringResource(R.string.empty_trash)) },
                     icon = { Icon(Icons.Default.DeleteSweep, contentDescription = null) },
                     onClick = { showEmptyTrashConfirmation = true },
+                    shape = ExpressiveShapes.large,
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     expanded = true
@@ -430,7 +416,7 @@ fun TrashScreen(
                                     .clip(RoundedCornerShape(24.dp))
                                     .background(MaterialTheme.colorScheme.surfaceContainerHighest)
                             ) {
-                                androidx.compose.material3.DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.properties_title)) },
                                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                     onClick = {
@@ -475,7 +461,11 @@ fun TrashScreen(
                     title = { Text(stringResource(R.string.no_restore_destination_title)) },
                     text = { Text(stringResource(R.string.no_restore_destination_description)) },
                     confirmButton = {
-                        TextButton(onClick = onDismissDestinationPicker) {
+                        TextButton(
+                            onClick = onDismissDestinationPicker,
+                            shape = ExpressiveShapes.medium,
+                            modifier = Modifier.bounceClickable(onClick = onDismissDestinationPicker)
+                        ) {
                             Text(stringResource(R.string.dismiss))
                         }
                     }
@@ -493,10 +483,12 @@ fun TrashScreen(
                                     ListItem(
                                         headlineContent = { Text(volume.name) },
                                         supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                        modifier = Modifier.clickable {
-                                            onRestoreToDestination(state.selectedTrashIdsForDestination, volume.path)
-                                            onDismissDestinationPicker()
-                                        },
+                                        modifier = Modifier
+                                            .clip(ExpressiveShapes.medium)
+                                            .bounceClickable {
+                                                onRestoreToDestination(state.selectedTrashIdsForDestination, volume.path)
+                                                onDismissDestinationPicker()
+                                            },
                                         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
                                     )
                                 }
@@ -504,7 +496,11 @@ fun TrashScreen(
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = onDismissDestinationPicker) {
+                        TextButton(
+                            onClick = onDismissDestinationPicker,
+                            shape = ExpressiveShapes.medium,
+                            modifier = Modifier.bounceClickable(onClick = onDismissDestinationPicker)
+                        ) {
                             Text(stringResource(R.string.cancel))
                         }
                     }
@@ -613,7 +609,11 @@ private fun TrashPropertiesDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.ok))
             }
         }

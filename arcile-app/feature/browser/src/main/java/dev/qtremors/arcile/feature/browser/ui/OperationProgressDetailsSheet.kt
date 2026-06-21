@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.shared.ui.ArcileActionSheet
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.utils.formatFileSize
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,7 +99,10 @@ private fun TransferDetailsHeader(onDismissRequest: () -> Unit) {
         )
         IconButton(
             onClick = onDismissRequest,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .bounceClickable(onClick = onDismissRequest)
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
         }
@@ -171,13 +175,17 @@ private fun TransferCancelButton(
     actions: BrowserUiActions,
     onDismissRequest: () -> Unit
 ) {
+    val onCancelClick = {
+        actions.onCancelClipboard()
+        onDismissRequest()
+    }
     Button(
-        onClick = {
-            actions.onCancelClipboard()
-            onDismissRequest()
-        },
+        onClick = onCancelClick,
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-        modifier = Modifier.fillMaxWidth()
+        shape = dev.qtremors.arcile.ui.theme.ExpressiveShapes.medium,
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClickable(onClick = onCancelClick)
     ) {
         Text(stringResource(R.string.transfer_cancel_operation), color = Color.White)
     }

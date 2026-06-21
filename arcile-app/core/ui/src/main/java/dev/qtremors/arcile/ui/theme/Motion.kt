@@ -106,7 +106,7 @@ fun Modifier.bounceClickable(
         }
         .clickable(
             interactionSource = interactionSource,
-            indication = androidx.compose.foundation.LocalIndication.current,
+            indication = null,
             enabled = enabled,
             role = role,
             onClick = {
@@ -148,7 +148,7 @@ fun Modifier.bounceCombinedClickable(
         }
         .combinedClickable(
             interactionSource = interactionSource,
-            indication = androidx.compose.foundation.LocalIndication.current,
+            indication = null,
             enabled = enabled,
             role = role,
             onClick = {

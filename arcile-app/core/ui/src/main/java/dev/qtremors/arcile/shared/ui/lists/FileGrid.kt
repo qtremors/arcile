@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -291,6 +292,7 @@ fun FileGridItem(
         label = "gridItemScale"
     )
     val subtitleText = row.displaySubtitle(isFolderStatsLoading)
+    val itemShape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
 
     Card(
         modifier = modifier
@@ -311,13 +313,14 @@ fun FileGridItem(
                 onOpenDirectly = onOpenDirectly,
                 onToggleSelectionDirectly = onToggleSelectionDirectly
             )
+            .clip(itemShape)
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
-        shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
+        shape = itemShape,
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
         )

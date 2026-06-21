@@ -317,8 +317,10 @@ fun FileItemRow(
         label = "fileItemScale"
     )
 
+    val itemShape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
+
     Surface(
-        shape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge,
+        shape = itemShape,
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         modifier = modifier
             .padding(
@@ -341,6 +343,7 @@ fun FileItemRow(
                 onOpenDirectly = onOpenDirectly,
                 onToggleSelectionDirectly = onToggleSelectionDirectly
             )
+            .clip(itemShape)
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = LocalIndication.current,

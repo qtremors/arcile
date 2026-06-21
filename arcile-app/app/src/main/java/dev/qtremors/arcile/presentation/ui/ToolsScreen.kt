@@ -20,6 +20,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
 
@@ -50,6 +51,7 @@ fun ToolsScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
                             .bounceClickable { onNavigateBack() },
                         contentAlignment = Alignment.Center
                     ) {
@@ -103,6 +105,7 @@ fun ToolsScreen(
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
                                 .size(36.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
                                 .bounceClickable { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) }
                         ) {
                             Box(contentAlignment = Alignment.Center) {

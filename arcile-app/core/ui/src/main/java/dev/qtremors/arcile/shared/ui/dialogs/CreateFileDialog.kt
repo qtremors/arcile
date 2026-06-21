@@ -1,7 +1,14 @@
 package dev.qtremors.arcile.shared.ui.dialogs
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -10,10 +17,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 @Composable
 fun CreateFileDialog(
@@ -46,6 +56,7 @@ fun CreateFileDialog(
                     existingNames = existingNames,
                     showValidationErrors = hasEditedFileName,
                     autoFocus = true,
+                    leadingIcon = Icons.Default.Description,
                     onDone = {
                         if (validation.isValid) {
                             onConfirm(validation.sanitizedName)
@@ -69,13 +80,24 @@ fun CreateFileDialog(
         confirmButton = {
             FilledTonalButton(
                 onClick = { onConfirm(validation.sanitizedName) },
-                enabled = validation.isValid
+                enabled = validation.isValid,
+                shape = ExpressiveShapes.medium
             ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

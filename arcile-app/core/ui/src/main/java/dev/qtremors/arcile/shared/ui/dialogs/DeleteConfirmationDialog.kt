@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.shared.ui.dialogs
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -27,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.DeleteDestination
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.utils.formatFileSize
 
 @Composable
@@ -155,6 +156,10 @@ fun DeleteConfirmationDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        val togglePermanentDeleteClick = {
+                            haptics.selectionChanged()
+                            onTogglePermanentDelete()
+                        }
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -164,10 +169,10 @@ fun DeleteConfirmationDialog(
                                 .semantics(mergeDescendants = true) {
                                     if (!isPermanentDeleteToggleEnabled) disabled()
                                 }
-                                .clickable(enabled = isPermanentDeleteToggleEnabled) {
-                                    haptics.selectionChanged()
-                                    onTogglePermanentDelete()
-                                }
+                                .bounceClickable(
+                                    enabled = isPermanentDeleteToggleEnabled,
+                                    onClick = togglePermanentDeleteClick
+                                )
                         ) {
                             ListItem(
                                 headlineContent = {
@@ -210,16 +215,17 @@ fun DeleteConfirmationDialog(
                         }
 
                         if (isPermanentDeleteChecked && onToggleShred != null) {
+                            val toggleShredClick = {
+                                haptics.selectionChanged()
+                                onToggleShred()
+                            }
                             Surface(
                                 shape = MaterialTheme.shapes.large,
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(MaterialTheme.shapes.large)
-                                    .clickable {
-                                        haptics.selectionChanged()
-                                        onToggleShred()
-                                    }
+                                    .bounceClickable(onClick = toggleShredClick)
                             ) {
                                 ListItem(
                                     headlineContent = {
@@ -253,11 +259,14 @@ fun DeleteConfirmationDialog(
         },
         confirmButton = {
             if (resolvedDecision.destination != DeleteDestination.MixedBlocked) {
+                val confirmClick = {
+                    if (irreversible) haptics.destructiveConfirm() else haptics.selectionChanged()
+                    onConfirm()
+                }
                 Button(
-                    onClick = {
-                        if (irreversible) haptics.destructiveConfirm() else haptics.selectionChanged()
-                        onConfirm()
-                    },
+                    onClick = confirmClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = confirmClick),
                     colors = if (irreversible) {
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
@@ -267,6 +276,12 @@ fun DeleteConfirmationDialog(
                         ButtonDefaults.buttonColors()
                     }
                 ) {
+                    Icon(
+                        imageVector = if (isPermanentDeleteChecked) Icons.Outlined.DeleteForever else Icons.Outlined.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         if (resolvedDecision.destination == DeleteDestination.Trash && !isPermanentDeleteChecked)
                             stringResource(R.string.move_to_trash)
@@ -277,7 +292,10 @@ fun DeleteConfirmationDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

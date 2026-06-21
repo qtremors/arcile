@@ -4,7 +4,6 @@ import androidx.compose.ui.res.stringResource
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +57,8 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import dev.qtremors.arcile.shared.ui.rememberDateFormatter
@@ -128,17 +129,24 @@ fun PasteConflictDialog(
                 )
 
                 if (!isLastConflict) {
+                    val toggleApplyToAllClick = {
+                        haptics.selectionChanged()
+                        applyToAll = !applyToAll
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(MaterialTheme.shapes.small)
-                            .clickable { applyToAll = !applyToAll }
+                            .bounceClickable(onClick = toggleApplyToAllClick)
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
                             checked = applyToAll,
-                            onCheckedChange = { applyToAll = it }
+                            onCheckedChange = {
+                                haptics.selectionChanged()
+                                applyToAll = it
+                            }
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -154,7 +162,7 @@ fun PasteConflictDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val handleAction = { resolution: ConflictResolution ->
+                    val handleAction: (ConflictResolution) -> Unit = { resolution ->
                         haptics.selectionChanged()
                         if (applyToAll) {
                             for (i in currentIndex until conflicts.size) {
@@ -171,27 +179,39 @@ fun PasteConflictDialog(
                         }
                     }
 
+                    val onReplaceClick = { handleAction(ConflictResolution.REPLACE) }
                     Button(
-                        onClick = { handleAction(ConflictResolution.REPLACE) },
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = onReplaceClick,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bounceClickable(onClick = onReplaceClick)
                     ) {
                         Text(
                             text = if (currentConflict.sourceFile.isDirectory) stringResource(R.string.action_merge) else stringResource(R.string.action_replace)
                         )
                     }
 
+                    val onKeepBothClick = { handleAction(ConflictResolution.KEEP_BOTH) }
                     FilledTonalButton(
-                        onClick = { handleAction(ConflictResolution.KEEP_BOTH) },
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = onKeepBothClick,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bounceClickable(onClick = onKeepBothClick)
                     ) {
                         Text(
                             text = stringResource(R.string.action_keep_both)
                         )
                     }
 
+                    val onSkipClick = { handleAction(ConflictResolution.SKIP) }
                     OutlinedButton(
-                        onClick = { handleAction(ConflictResolution.SKIP) },
-                        modifier = Modifier.fillMaxWidth()
+                        onClick = onSkipClick,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bounceClickable(onClick = onSkipClick)
                     ) {
                         Text(
                             text = stringResource(R.string.action_skip)
@@ -199,9 +219,15 @@ fun PasteConflictDialog(
                     }
                 }
 
+                val onCancelPasteClick = {
+                    haptics.selectionChanged()
+                    onDismiss()
+                }
                 TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth()
+                    onClick = onCancelPasteClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bounceClickable(onClick = onCancelPasteClick)
                 ) {
                     Text(stringResource(R.string.action_cancel_paste), color = MaterialTheme.colorScheme.error)
                 }

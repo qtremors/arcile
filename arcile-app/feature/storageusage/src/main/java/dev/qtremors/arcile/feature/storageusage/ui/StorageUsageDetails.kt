@@ -19,17 +19,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -78,6 +75,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
 import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.titleMediumBold
@@ -121,7 +119,7 @@ fun StorageUsageDetails(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector = if (node.kind == StorageUsageNodeKind.File) Icons.Default.InsertDriveFile else Icons.Default.Folder,
+                    imageVector = if (node.kind == StorageUsageNodeKind.File) Icons.AutoMirrored.Filled.InsertDriveFile else Icons.Default.Folder,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
@@ -168,6 +166,7 @@ fun StorageUsageDetails(
                 if (node.isContainer && node.children.isNotEmpty()) {
                     Button(
                         onClick = { onDrillInto(node) },
+                        shape = ExpressiveShapes.medium,
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(stringResource(R.string.storage_usage_map_drill_in))
@@ -180,13 +179,17 @@ fun StorageUsageDetails(
                         } else {
                             onOpenPath(node.path)
                         }
-                    }
+                    },
+                    shape = ExpressiveShapes.medium
                 ) {
-                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(8.dp))
                     Text(stringResource(R.string.open))
                 }
-                TextButton(onClick = onRefresh) {
+                TextButton(
+                    onClick = onRefresh,
+                    shape = ExpressiveShapes.medium
+                ) {
                     Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.size(8.dp))
                     Text(stringResource(R.string.refresh))

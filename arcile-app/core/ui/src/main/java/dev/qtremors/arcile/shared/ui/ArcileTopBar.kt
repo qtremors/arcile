@@ -29,7 +29,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import dev.qtremors.arcile.shared.ui.TopBarAction
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
@@ -128,6 +127,7 @@ fun ArcileTopBar(
                 Box(
                     modifier = androidx.compose.ui.Modifier
                         .size(48.dp)
+                        .clip(CircleShape)
                         .bounceClickable { onClearSelection() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -137,6 +137,7 @@ fun ArcileTopBar(
                 Box(
                     modifier = androidx.compose.ui.Modifier
                         .size(48.dp)
+                        .clip(CircleShape)
                         .bounceClickable { onBackClick() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -149,6 +150,7 @@ fun ArcileTopBar(
                 Box(
                     modifier = androidx.compose.ui.Modifier
                         .size(48.dp)
+                        .clip(CircleShape)
                         .bounceClickable { onActionSelected(TopBarAction.SelectAll) },
                     contentAlignment = Alignment.Center
                 ) {
@@ -160,6 +162,7 @@ fun ArcileTopBar(
                 Box(
                     modifier = androidx.compose.ui.Modifier
                         .size(48.dp)
+                        .clip(CircleShape)
                         .bounceClickable { onActionSelected(TopBarAction.InvertSelection) },
                     contentAlignment = Alignment.Center
                 ) {
@@ -200,6 +203,7 @@ fun ArcileTopBar(
                             color = Color.Transparent,
                             modifier = androidx.compose.ui.Modifier
                                 .size(48.dp)
+                                .clip(CircleShape)
                                 .bounceClickable { onSettingsClick() }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -220,6 +224,7 @@ fun ArcileTopBar(
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = androidx.compose.ui.Modifier
                                 .size(48.dp)
+                                .clip(CircleShape)
                                 .bounceClickable { showMenu = true }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -240,7 +245,7 @@ fun ArcileTopBar(
                                 mutableListOf<@Composable () -> Unit>().apply {
                                     if (showNewFolderAction) {
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.new_folder)) },
                                                 leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
                                                 onClick = {
@@ -252,7 +257,7 @@ fun ArcileTopBar(
                                     }
                                     if (showPinAction) {
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.pin_to_quick_access)) },
                                                 leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
                                                 onClick = {
@@ -264,7 +269,7 @@ fun ArcileTopBar(
                                     }
                                     if (showSettingsMenuAction && !showSettingsIcon) {
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.settings_title)) },
                                                 leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
                                                 onClick = {
@@ -276,7 +281,7 @@ fun ArcileTopBar(
                                     }
                                     if (showAboutAction) {
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(stringResource(R.string.about_title)) },
                                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                                 onClick = {
@@ -288,7 +293,7 @@ fun ArcileTopBar(
                                     }
                                     if (showGridViewAction) {
                                         add {
-                                            DropdownMenuItem(
+                                            ArcileDropdownMenuItem(
                                                 text = { Text(if (isGridView) stringResource(R.string.list_view) else stringResource(R.string.grid_view)) },
                                                 leadingIcon = {
                                                     Icon(

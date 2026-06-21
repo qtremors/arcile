@@ -27,7 +27,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.foundation.clickable
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
@@ -80,6 +79,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -108,12 +108,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -202,6 +199,7 @@ fun FloatingGalleryTopBar(
     onSelectAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptics = rememberArcileHaptics()
     var showOverflowMenu by rememberSaveable { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val searchFocusRequester = remember { FocusRequester() }
@@ -228,7 +226,16 @@ fun FloatingGalleryTopBar(
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onClearSearch) {
+                val clearSearchClick = {
+                    haptics.selectionChanged()
+                    onClearSearch()
+                }
+                IconButton(
+                    onClick = clearSearchClick,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .bounceClickable(onClick = clearSearchClick)
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
                 androidx.compose.foundation.text.BasicTextField(
@@ -253,7 +260,16 @@ fun FloatingGalleryTopBar(
                     }
                 )
                 if (state.searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
+                    val resetQueryClick = {
+                        haptics.selectionChanged()
+                        onSearchQueryChange("")
+                    }
+                    IconButton(
+                        onClick = resetQueryClick,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = resetQueryClick)
+                    ) {
                         Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_clear))
                     }
                 }
@@ -266,8 +282,11 @@ fun FloatingGalleryTopBar(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .height(56.dp)
         ) {
+            val navigateBackClick = {
+                haptics.selectionChanged()
+                onNavigateBack()
+            }
             Surface(
-                onClick = onNavigateBack,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
                 contentColor = MaterialTheme.colorScheme.onSurface,
@@ -276,6 +295,7 @@ fun FloatingGalleryTopBar(
                 modifier = Modifier
                     .size(48.dp)
                     .align(Alignment.CenterStart)
+                    .bounceClickable(onClick = navigateBackClick)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -286,122 +306,138 @@ fun FloatingGalleryTopBar(
                 }
             }
 
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 4.dp,
-                shadowElevation = 4.dp,
+            Box(
                 modifier = Modifier
                     .height(48.dp)
                     .align(Alignment.CenterEnd)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                ) {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search), modifier = Modifier.size(22.dp))
-                    }
-                    IconButton(onClick = onSortClick) {
-                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = stringResource(R.string.action_sort), modifier = Modifier.size(22.dp))
-                    }
-                    Box {
-                        IconButton(onClick = { showOverflowMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options), modifier = Modifier.size(22.dp))
+                val searchLabel = stringResource(R.string.action_search)
+                val sortLabel = stringResource(R.string.action_sort)
+                val moreOptionsLabel = stringResource(R.string.action_more_options)
+                val topActions = listOf(
+                    ToolbarAction(
+                        icon = Icons.Default.Search,
+                        contentDescription = searchLabel,
+                        onClick = {
+                            haptics.selectionChanged()
+                            onSearchClick()
                         }
-                        DropdownMenu(
-                            shape = MaterialTheme.shapes.extraLarge,
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                            expanded = showOverflowMenu,
-                            onDismissRequest = { showOverflowMenu = false },
-                            modifier = Modifier.width(260.dp)
-                        ) {
-                            val menuActions = remember(
-                                state.imageGalleryDefaultTab,
-                                state.displayedFiles.isNotEmpty()
-                            ) {
-                                mutableListOf<@Composable () -> Unit>().apply {
-                                    ImageGalleryDefaultTab.entries.forEach { tab ->
-                                        add {
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = stringResource(
-                                                            when (tab) {
-                                                                ImageGalleryDefaultTab.PHOTOS -> R.string.image_gallery_open_to_photos
-                                                                ImageGalleryDefaultTab.ALBUMS -> R.string.image_gallery_open_to_albums
-                                                            }
-                                                        ),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        imageVector = when (tab) {
-                                                            ImageGalleryDefaultTab.PHOTOS -> Icons.Default.Image
-                                                            ImageGalleryDefaultTab.ALBUMS -> Icons.Default.Folder
-                                                        },
-                                                        contentDescription = null
-                                                    )
-                                                },
-                                                trailingIcon = if (state.imageGalleryDefaultTab == tab) {
-                                                    {
-                                                        Icon(Icons.Default.CheckCircle, contentDescription = null)
+                    ),
+                    ToolbarAction(
+                        icon = Icons.AutoMirrored.Filled.Sort,
+                        contentDescription = sortLabel,
+                        onClick = {
+                            haptics.selectionChanged()
+                            onSortClick()
+                        }
+                    ),
+                    ToolbarAction(
+                        icon = Icons.Default.MoreVert,
+                        contentDescription = moreOptionsLabel,
+                        onClick = {
+                            haptics.toggleMenu()
+                            showOverflowMenu = true
+                        }
+                    )
+                )
+                SplitButtonGroup(
+                    actions = topActions,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    height = 48.dp,
+                    minWidth = 48.dp,
+                    iconSize = 22.dp
+                )
+                DropdownMenu(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    expanded = showOverflowMenu,
+                    onDismissRequest = { showOverflowMenu = false },
+                    modifier = Modifier.width(260.dp)
+                ) {
+                    val menuActions = remember(
+                        state.imageGalleryDefaultTab,
+                        state.displayedFiles.isNotEmpty()
+                    ) {
+                        mutableListOf<@Composable () -> Unit>().apply {
+                            ImageGalleryDefaultTab.entries.forEach { tab ->
+                                add {
+                                    ArcileDropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = stringResource(
+                                                    when (tab) {
+                                                        ImageGalleryDefaultTab.PHOTOS -> R.string.image_gallery_open_to_photos
+                                                        ImageGalleryDefaultTab.ALBUMS -> R.string.image_gallery_open_to_albums
                                                     }
-                                                } else {
-                                                    null
-                                                },
-                                                onClick = {
-                                                    onDefaultTabChange(tab)
-                                                    showOverflowMenu = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                                ),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
-                                        }
-                                    }
-                                    if (state.displayedFiles.isNotEmpty()) {
-                                        add {
-                                            DropdownMenuItem(
-                                                text = {
-                                                    Text(
-                                                        text = stringResource(R.string.select_all),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = when (tab) {
+                                                    ImageGalleryDefaultTab.PHOTOS -> Icons.Default.Image
+                                                    ImageGalleryDefaultTab.ALBUMS -> Icons.Default.Folder
                                                 },
-                                                leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
-                                                onClick = {
-                                                    onSelectAll()
-                                                    showOverflowMenu = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                                contentDescription = null
                                             )
-                                        }
-                                    }
+                                        },
+                                        trailingIcon = if (state.imageGalleryDefaultTab == tab) {
+                                            {
+                                                Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                            }
+                                        } else {
+                                            null
+                                        },
+                                        onClick = {
+                                            onDefaultTabChange(tab)
+                                            showOverflowMenu = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    )
                                 }
                             }
+                            if (state.displayedFiles.isNotEmpty()) {
+                                add {
+                                    ArcileDropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = stringResource(R.string.select_all),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        },
+                                        leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                        onClick = {
+                                            onSelectAll()
+                                            showOverflowMenu = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
 
-                            menuActions.forEachIndexed { index, action ->
-                                val shape = when {
-                                    menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                                    index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                                    index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                                    else -> MaterialTheme.shapes.menuGroupMiddle
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                                        .clip(shape)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                ) {
-                                    action()
-                                }
-                            }
+                    menuActions.forEachIndexed { index, action ->
+                        val shape = when {
+                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                            else -> MaterialTheme.shapes.menuGroupMiddle
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .clip(shape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        ) {
+                            action()
                         }
                     }
                 }
@@ -419,6 +455,7 @@ fun FloatingGallerySelectionTopBar(
     onInvertSelection: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptics = rememberArcileHaptics()
     Box(
         modifier = modifier
             .statusBarsPadding()
@@ -439,7 +476,16 @@ fun FloatingGallerySelectionTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(start = 4.dp, end = 16.dp)
             ) {
-                IconButton(onClick = onClearSelection) {
+                val clearSelectionClick = {
+                    haptics.selectionChanged()
+                    onClearSelection()
+                }
+                IconButton(
+                    onClick = clearSelectionClick,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .bounceClickable(onClick = clearSelectionClick)
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), modifier = Modifier.size(24.dp))
                 }
                 Spacer(modifier = Modifier.width(4.dp))
@@ -472,14 +518,32 @@ fun FloatingGallerySelectionTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 4.dp)
             ) {
-                IconButton(onClick = onSelectAll) {
+                val selectAllClick = {
+                    haptics.selectionChanged()
+                    onSelectAll()
+                }
+                val invertSelectionClick = {
+                    haptics.selectionChanged()
+                    onInvertSelection()
+                }
+                IconButton(
+                    onClick = selectAllClick,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .bounceClickable(onClick = selectAllClick)
+                ) {
                     Icon(
                         imageVector = Icons.Default.GridView,
                         contentDescription = stringResource(R.string.select_all),
                         modifier = Modifier.size(22.dp)
                     )
                 }
-                IconButton(onClick = onInvertSelection) {
+                IconButton(
+                    onClick = invertSelectionClick,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .bounceClickable(onClick = invertSelectionClick)
+                ) {
                     Icon(
                         imageVector = Icons.Default.SelectAll,
                         contentDescription = stringResource(R.string.invert_selection),
@@ -522,6 +586,7 @@ fun TabItem(
         contentColor = contentColor,
         modifier = Modifier
             .height(44.dp)
+            .clip(CircleShape)
             .bounceClickable(onClick = onClick)
     ) {
         Row(

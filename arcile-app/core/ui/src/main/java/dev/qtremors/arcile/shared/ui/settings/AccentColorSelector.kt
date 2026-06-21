@@ -29,6 +29,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.titleMediumBold
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.sheet
+import dev.qtremors.arcile.ui.theme.bounceClickable
 
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
@@ -147,7 +150,8 @@ fun AccentColorPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = ExpressiveShapes.sheet
     ) {
         Column(
             modifier = Modifier
@@ -217,7 +221,7 @@ fun AccentColorPickerSheet(
                                         color = if (isSelected) MaterialTheme.colorScheme.onSurface else displayColor.copy(alpha = 0.2f),
                                         shape = CircleShape
                                     )
-                                    .clickable { onAccentSelected(accent) }
+                                    .bounceClickable { onAccentSelected(accent) }
                                     .semantics {
                                         contentDescription = accentLabel
                                         selected = isSelected
@@ -261,11 +265,10 @@ fun SpecialAccentItem(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.medium,
+        shape = ExpressiveShapes.medium,
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
         border = if (!isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
-        modifier = modifier
+        modifier = modifier.bounceClickable { onClick() }
     ) {
         Row(
             modifier = Modifier.padding(12.dp),

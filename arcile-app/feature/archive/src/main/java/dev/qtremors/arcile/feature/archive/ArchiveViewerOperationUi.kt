@@ -44,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
@@ -87,6 +86,7 @@ import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ConflictCard
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.DateFormat
@@ -129,7 +129,8 @@ fun ArchiveOperationCard(
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 TextButton(
                     enabled = !operation.isCancelling && operation.terminalStatus == null,
-                    onClick = onCancel
+                    onClick = onCancel,
+                    shape = ExpressiveShapes.medium
                 ) {
                     Text(stringResource(R.string.cancel))
                 }

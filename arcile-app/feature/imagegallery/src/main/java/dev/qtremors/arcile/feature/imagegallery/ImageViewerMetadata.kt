@@ -147,7 +147,10 @@ fun MetadataSheet(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onDismiss) {
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.clip(CircleShape)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = stringResource(R.string.action_close),
@@ -176,7 +179,10 @@ fun MetadataSheet(
                 }
 
                 if (hasExif) {
-                    IconButton(onClick = onEraseMetadata) {
+                    IconButton(
+                        onClick = onEraseMetadata,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = stringResource(R.string.image_gallery_metadata_erase),

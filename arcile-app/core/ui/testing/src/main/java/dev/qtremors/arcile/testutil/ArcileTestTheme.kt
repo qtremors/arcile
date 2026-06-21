@@ -1,8 +1,10 @@
 package dev.qtremors.arcile.testutil
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import dev.qtremors.arcile.ui.theme.AccentColor
 import dev.qtremors.arcile.ui.theme.ArcileTheme
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.ThemeState
 
@@ -14,6 +16,11 @@ fun ArcileTestTheme(content: @Composable () -> Unit) {
             accentColor = AccentColor.BLUE
         ),
         darkTheme = false,
-        content = content
+        content = {
+            CompositionLocalProvider(
+                LocalReducedMotionEnabled provides true,
+                content = content
+            )
+        }
     )
 }

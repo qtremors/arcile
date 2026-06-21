@@ -5,7 +5,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +43,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
@@ -76,6 +74,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.keyboardInputField
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
 import dev.qtremors.arcile.feature.archive.ArchiveOperationUiState
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
@@ -85,6 +85,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ConflictCard
@@ -123,6 +124,7 @@ fun ArchivePasswordDialog(
                     modifier = Modifier.fillMaxWidth().keyboardInputField(),
                     label = { Text(stringResource(R.string.archive_password)) },
                     supportingText = { Text(stringResource(R.string.archive_password_description)) },
+                    shape = ExpressiveShapes.medium,
                     visualTransformation = if (passwordVisible) {
                         VisualTransformation.None
                     } else {
@@ -137,7 +139,11 @@ fun ArchivePasswordDialog(
                                 R.string.archive_password_show
                             }
                         )
-                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        val togglePasswordVisibility = { passwordVisible = !passwordVisible }
+                        IconButton(
+                            onClick = togglePasswordVisibility,
+                            modifier = Modifier.bounceClickable(onClick = togglePasswordVisibility)
+                        ) {
                             Icon(icon, contentDescription = label)
                         }
                     }
@@ -154,7 +160,7 @@ fun ArchivePasswordDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             ArchiveNameEncoding.entries.forEach { encoding ->
-                                FilterChip(
+                                ExpressiveFilterChip(
                                     selected = encoding == nameEncoding,
                                     onClick = { onSelectNameEncoding(encoding) },
                                     label = { Text(encoding.displayName) }
@@ -166,15 +172,22 @@ fun ArchivePasswordDialog(
             }
         },
         confirmButton = {
+            val onConfirmClick = { onConfirm(password) }
             TextButton(
                 enabled = password.isNotEmpty(),
-                onClick = { onConfirm(password) }
+                onClick = onConfirmClick,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(enabled = password.isNotEmpty(), onClick = onConfirmClick)
             ) {
                 Text(stringResource(R.string.open))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }
@@ -194,6 +207,7 @@ fun ArchiveEncodingDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 ArchiveNameEncoding.entries.forEach { encoding ->
+                    val onEncodingSelect = { onSelect(encoding) }
                     ListItem(
                         headlineContent = { Text(encoding.displayName) },
                         supportingContent = if (encoding == selected) {
@@ -201,13 +215,19 @@ fun ArchiveEncodingDialog(
                         } else {
                             null
                         },
-                        modifier = Modifier.clickable { onSelect(encoding) }
+                        modifier = Modifier
+                            .clip(ExpressiveShapes.medium)
+                            .bounceClickable(onClick = onEncodingSelect)
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }
@@ -234,13 +254,28 @@ fun ArchiveConflictDialog(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.KEEP_BOTH) }) {
+                    val onKeepBothAll = { onApplyConflictResolutionToAll(ConflictResolution.KEEP_BOTH) }
+                    TextButton(
+                        onClick = onKeepBothAll,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onKeepBothAll)
+                    ) {
                         Text(stringResource(R.string.action_keep_both))
                     }
-                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.REPLACE) }) {
+                    val onReplaceAll = { onApplyConflictResolutionToAll(ConflictResolution.REPLACE) }
+                    TextButton(
+                        onClick = onReplaceAll,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onReplaceAll)
+                    ) {
                         Text(stringResource(R.string.action_replace))
                     }
-                    TextButton(onClick = { onApplyConflictResolutionToAll(ConflictResolution.SKIP) }) {
+                    val onSkipAll = { onApplyConflictResolutionToAll(ConflictResolution.SKIP) }
+                    TextButton(
+                        onClick = onSkipAll,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onSkipAll)
+                    ) {
                         Text(stringResource(R.string.action_skip))
                     }
                 }
@@ -257,13 +292,28 @@ fun ArchiveConflictDialog(
                                 onResolutionChange = { onSetConflictResolution(conflict.sourcePath, it) }
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.KEEP_BOTH) }) {
+                                val onKeepBoth = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.KEEP_BOTH) }
+                                TextButton(
+                                    onClick = onKeepBoth,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.bounceClickable(onClick = onKeepBoth)
+                                ) {
                                     Text(stringResource(R.string.action_keep_both))
                                 }
-                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.REPLACE) }) {
+                                val onReplace = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.REPLACE) }
+                                TextButton(
+                                    onClick = onReplace,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.bounceClickable(onClick = onReplace)
+                                ) {
                                     Text(stringResource(R.string.action_replace))
                                 }
-                                TextButton(onClick = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.SKIP) }) {
+                                val onSkip = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.SKIP) }
+                                TextButton(
+                                    onClick = onSkip,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.bounceClickable(onClick = onSkip)
+                                ) {
                                     Text(stringResource(R.string.action_skip))
                                 }
                             }
@@ -273,12 +323,22 @@ fun ArchiveConflictDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = allResolved, onClick = onConfirm) {
+            val onConfirmClick = onConfirm
+            TextButton(
+                enabled = allResolved,
+                onClick = onConfirmClick,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(enabled = allResolved, onClick = onConfirmClick)
+            ) {
                 Text(stringResource(R.string.archive_extract_archive))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

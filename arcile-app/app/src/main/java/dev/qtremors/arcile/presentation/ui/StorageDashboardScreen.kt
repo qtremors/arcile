@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,11 +33,11 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import dev.qtremors.arcile.shared.ui.ExpressiveTab
-import dev.qtremors.arcile.shared.ui.SpringyTabIndicator
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -164,7 +163,12 @@ fun StorageDashboardScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.storage_dashboard_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = onNavigateBack)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
@@ -177,14 +181,8 @@ fun StorageDashboardScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
         ) {
-            TabRow(
-                selectedTabIndex = selectedTabIndex,
-                indicator = { tabPositions ->
-                    SpringyTabIndicator(
-                        tabPositions = tabPositions,
-                        selectedIndex = selectedTabIndex
-                    )
-                }
+            PrimaryTabRow(
+                selectedTabIndex = selectedTabIndex
             ) {
                 ExpressiveTab(
                     selected = selectedTabIndex == 0,
@@ -538,7 +536,7 @@ fun CategoryListTile(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(MaterialTheme.shapes.extraLarge)
-            .clickable(onClick = onClick),
+            .bounceClickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = MaterialTheme.shapes.extraLarge
     ) {

@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.presentation.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,6 +37,8 @@ import dev.qtremors.arcile.ui.theme.ThemePreset
 import dev.qtremors.arcile.ui.theme.titleMediumBold
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
 import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
@@ -125,12 +126,20 @@ fun SettingsScreen(
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = { onApplySettingsRestore(state.uri) }) {
+                    val onConfirmClick = { onApplySettingsRestore(state.uri) }
+                    TextButton(
+                        onClick = onConfirmClick,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onConfirmClick)
+                    ) {
                         Text(stringResource(R.string.settings_backup_restore))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = onClearBackupState) {
+                    TextButton(
+                        onClick = onClearBackupState,
+                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
+                    ) {
                         Text(stringResource(R.string.cancel))
                     }
                 }
@@ -150,7 +159,11 @@ fun SettingsScreen(
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = onClearBackupState) {
+                    TextButton(
+                        onClick = onClearBackupState,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
+                    ) {
                         Text(stringResource(R.string.ok))
                     }
                 }
@@ -170,12 +183,19 @@ fun SettingsScreen(
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = onRestartApp) {
+                    TextButton(
+                        onClick = onRestartApp,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onRestartApp)
+                    ) {
                         Text(stringResource(R.string.restart_now))
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = onClearBackupState) {
+                    TextButton(
+                        onClick = onClearBackupState,
+                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
+                    ) {
                         Text(stringResource(R.string.later))
                     }
                 }
@@ -187,7 +207,11 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.settings_backup_failed_title)) },
                 text = { Text(state.message) },
                 confirmButton = {
-                    TextButton(onClick = onClearBackupState) {
+                    TextButton(
+                        onClick = onClearBackupState,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
+                    ) {
                         Text(stringResource(R.string.ok))
                     }
                 }
@@ -202,7 +226,12 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.settings_title)) },
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = onNavigateBack)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
@@ -279,7 +308,7 @@ fun SettingsScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable { onShowThumbnailsChange(!showThumbnails) }
+                                    .bounceClickable { onShowThumbnailsChange(!showThumbnails) }
                                     .testTag("thumbnail_setting_row")
                             )
                             HorizontalDivider(
@@ -304,7 +333,13 @@ fun SettingsScreen(
                                 )
                                 Slider(
                                     value = homeRecentCarouselLimit.toFloat(),
-                                    onValueChange = { value -> onHomeRecentCarouselLimitChange(value.toInt()) },
+                                    onValueChange = { value ->
+                                        val intVal = value.toInt()
+                                        if (intVal != homeRecentCarouselLimit) {
+                                            haptics.selectionChanged()
+                                            onHomeRecentCarouselLimitChange(intVal)
+                                        }
+                                    },
                                     valueRange = BrowserPreferences.MIN_HOME_RECENT_CAROUSEL_LIMIT.toFloat()..
                                         BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT.toFloat(),
                                     steps = BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT - 1,
@@ -335,7 +370,7 @@ fun SettingsScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable { onShowHiddenFilesChange(!showHiddenFiles) }
+                                    .bounceClickable { onShowHiddenFilesChange(!showHiddenFiles) }
                                     .testTag("hidden_files_setting_row")
                             )
                             HorizontalDivider(
@@ -365,7 +400,7 @@ fun SettingsScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable {
+                                    .bounceClickable {
                                         haptics.toggleMenu()
                                         onThemeChange(currentThemeState.copy(harmonizeColors = !currentThemeState.harmonizeColors))
                                     }
@@ -398,7 +433,7 @@ fun SettingsScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable {
+                                    .bounceClickable {
                                         haptics.toggleMenu()
                                         onThemeChange(currentThemeState.copy(vibrationsEnabled = !currentThemeState.vibrationsEnabled))
                                     }
@@ -437,7 +472,7 @@ fun SettingsScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable {
+                                    .bounceClickable {
                                         haptics.toggleMenu()
                                         val isChecked = !currentThemeState.doubleLineFilenames
                                         val newMarquee = if (isChecked) false else currentThemeState.marqueeFilenames
@@ -483,7 +518,7 @@ fun SettingsScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(MaterialTheme.shapes.medium)
-                                    .clickable {
+                                    .bounceClickable {
                                         haptics.toggleMenu()
                                         val isChecked = !currentThemeState.marqueeFilenames
                                         val newDouble = if (isChecked) false else currentThemeState.doubleLineFilenames
@@ -508,7 +543,7 @@ fun SettingsScreen(
                         supportingContent = { Text(stringResource(R.string.manage_classification_description)) },
                         leadingContent = { Icon(Icons.Default.Storage, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(onClick = onOpenStorageManagement)
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onOpenStorageManagement)
                     )
                     ListItem(
                         headlineContent = { Text(stringResource(R.string.clear_external_access_cache)) },
@@ -522,7 +557,7 @@ fun SettingsScreen(
                         },
                         leadingContent = { Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable {
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable {
                             coroutineScope.launch {
                                 externalAccessCacheStats = withContext(Dispatchers.IO) {
                                     ExternalFileAccessHelper.clearStagingArea(context)
@@ -545,7 +580,7 @@ fun SettingsScreen(
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(
                             enabled = backupState != PreferencesBackupUiState.Busy
                         ) {
                             exportBackupLauncher.launch("arcile-settings-backup.json")
@@ -560,7 +595,7 @@ fun SettingsScreen(
                         supportingContent = { Text(stringResource(R.string.settings_backup_restore_description)) },
                         leadingContent = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).clickable(
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(
                             enabled = backupState != PreferencesBackupUiState.Busy
                         ) {
                             restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
@@ -576,7 +611,7 @@ fun SettingsScreen(
                         supportingContent = { Text(stringResource(R.string.about_description)) },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.padding(horizontal = 4.dp).clip(MaterialTheme.shapes.medium).clickable(onClick = onNavigateToAbout)
+                        modifier = Modifier.padding(horizontal = 4.dp).clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onNavigateToAbout)
                     )
                 }
             }
@@ -617,11 +652,15 @@ fun ThemePresetSelector(
 
                 val border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
 
+                val onPresetClick = { onPresetSelected(preset) }
                 OutlinedButton(
-                    onClick = { onPresetSelected(preset) },
+                    onClick = onPresetClick,
                     colors = colors,
                     border = border,
-                    modifier = Modifier.weight(1f),
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier
+                        .weight(1f)
+                        .bounceClickable(onClick = onPresetClick),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) {
                     Text(text = label, style = MaterialTheme.typography.labelMedium)
@@ -688,6 +727,7 @@ fun CustomThemeCreatorPanel(
                     )
                 }
             },
+            shape = ExpressiveShapes.medium,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
@@ -717,6 +757,7 @@ fun CustomThemeCreatorPanel(
                     )
                 }
             },
+            shape = ExpressiveShapes.medium,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
@@ -805,7 +846,17 @@ private fun BackupItemRow(item: PreferencesBackupItem) {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(item.label, style = MaterialTheme.typography.bodyMedium)
-            AssistChip(onClick = {}, label = { Text(label) })
+            Surface(
+                shape = ExpressiveShapes.medium,
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FolderZip
@@ -36,12 +38,14 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.Refresh
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,6 +71,7 @@ import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.shared.ui.ToolbarAction
 import dev.qtremors.arcile.shared.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.shared.ui.menus.FabMenuItem
@@ -269,13 +274,46 @@ private fun BrowserRecoveryToolbar(
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedButton(onClick = { actions.onDismissRecoveredOperation(recovery.operationId) }) {
+                val onDismissClick = { actions.onDismissRecoveredOperation(recovery.operationId) }
+                OutlinedButton(
+                    onClick = onDismissClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onDismissClick)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.file_operation_recovery_dismiss))
                 }
-                OutlinedButton(onClick = { actions.onCleanupRecoveredOperation(recovery.operationId) }) {
+                val onCleanupClick = { actions.onCleanupRecoveredOperation(recovery.operationId) }
+                OutlinedButton(
+                    onClick = onCleanupClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onCleanupClick)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DeleteSweep,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.file_operation_recovery_cleanup))
                 }
-                Button(onClick = { actions.onRetryRecoveredOperation(recovery.operationId) }) {
+                val onRetryClick = { actions.onRetryRecoveredOperation(recovery.operationId) }
+                Button(
+                    onClick = onRetryClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onRetryClick)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.file_operation_recovery_retry))
                 }
             }
@@ -392,7 +430,7 @@ private fun BrowserSelectionToolbar(
                     val menuActions = remember(actions.onShareSelected, state.selectedFiles, isArchiveSelection) {
                         mutableListOf<@Composable () -> Unit>().apply {
                             if (!isArchiveSelection) add {
-                                DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.archive_compress_zip)) },
                                     leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
                                     onClick = {
@@ -403,7 +441,7 @@ private fun BrowserSelectionToolbar(
                             }
                             if (selectedArchive) {
                                 add {
-                                    DropdownMenuItem(
+                                    ArcileDropdownMenuItem(
                                         text = { Text(stringResource(R.string.archive_extract_here)) },
                                         leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
                                         onClick = {
@@ -414,7 +452,7 @@ private fun BrowserSelectionToolbar(
                                 }
                             }
                             if (!isArchiveSelection) add {
-                                DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.share)) },
                                     leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                                     onClick = {
@@ -424,7 +462,7 @@ private fun BrowserSelectionToolbar(
                                 )
                             }
                             add {
-                                DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.properties_title)) },
                                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                     onClick = {

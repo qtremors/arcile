@@ -13,13 +13,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
 
 @Composable
 fun ActiveFiltersRow(
@@ -80,11 +80,11 @@ fun ActiveFiltersRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(activeChips) { (label, updatedFilter) ->
-                InputChip(
+                ExpressiveFilterChip(
                     selected = true,
                     onClick = { onClearFilter(updatedFilter) },
                     label = { Text(label, style = MaterialTheme.typography.labelSmall) },
-                    trailingIcon = {
+                    leadingIcon = {
                         Icon(
                             Icons.Default.Clear,
                             contentDescription = stringResource(R.string.action_clear),

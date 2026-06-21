@@ -163,6 +163,7 @@ fun CategoryItem(
                 scaleY = scale
             }
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(MaterialTheme.shapes.extraLarge)
             .clickable(
                 interactionSource = interactionSource,
                 indication = androidx.compose.foundation.LocalIndication.current,

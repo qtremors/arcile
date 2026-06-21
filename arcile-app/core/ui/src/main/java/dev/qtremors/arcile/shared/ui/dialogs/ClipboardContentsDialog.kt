@@ -25,6 +25,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.utils.formatFileSize
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,7 +74,10 @@ fun ClipboardContentsDialog(
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) {
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
                     }
                 }
@@ -114,7 +118,10 @@ fun ClipboardContentsDialog(
                         )
                     }
                     
-                    TextButton(onClick = onDismiss) {
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = ExpressiveShapes.medium
+                    ) {
                         Text(stringResource(R.string.done))
                     }
                 }
@@ -164,7 +171,9 @@ private fun ClipboardFileItem(
 
             IconButton(
                 onClick = onRemove,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,

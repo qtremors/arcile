@@ -4,7 +4,6 @@ package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,7 +36,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -64,8 +62,10 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.image.ThumbnailKey
 import dev.qtremors.arcile.image.ThumbnailPolicy
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -259,15 +259,17 @@ private fun AlbumGridItem(
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    val albumShape = ExpressiveShapes.large
 
     Box(modifier = modifier) {
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer
             ),
-            shape = RoundedCornerShape(16.dp),
+            shape = albumShape,
             modifier = Modifier
                 .fillMaxWidth()
+                .clip(albumShape)
                 .combinedClickable(
                     onClick = { onSelectAlbum(album.path) },
                     onLongClick = {
@@ -390,7 +392,7 @@ private fun AlbumGridItem(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false }
             ) {
-                DropdownMenuItem(
+                ArcileDropdownMenuItem(
                     text = {
                         Text(
                             text = if (isPinned) {

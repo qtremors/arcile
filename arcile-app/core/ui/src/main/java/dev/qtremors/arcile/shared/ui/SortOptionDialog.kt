@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.shared.ui
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -15,15 +14,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.GridView
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.shared.ui.ExpressiveSegmentedRow
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -43,6 +40,9 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.ui.theme.sheet
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -65,7 +65,8 @@ fun SortOptionDialog(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState
+        sheetState = sheetState,
+        shape = ExpressiveShapes.sheet
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -97,28 +98,25 @@ fun SortOptionDialog(
                         style = MaterialTheme.typography.titleMedium
                     )
 
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        BrowserViewMode.entries.forEachIndexed { index, mode ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(
-                                    index = index,
-                                    count = BrowserViewMode.entries.size
-                                ),
-                                colors = SegmentedButtonDefaults.colors(),
-                                onClick = { draftPreferences = draftPreferences.copy(viewMode = mode) },
-                                selected = draftPreferences.viewMode == mode,
-                                icon = {
-                                    Icon(
-                                        imageVector = if (mode == BrowserViewMode.LIST) {
-                                            Icons.AutoMirrored.Filled.ViewList
-                                        } else {
-                                            Icons.Default.GridView
-                                        },
-                                        contentDescription = null
-                                    )
+                    ExpressiveSegmentedRow(
+                        options = BrowserViewMode.entries,
+                        selectedOption = draftPreferences.viewMode,
+                        onOptionSelected = { mode -> draftPreferences = draftPreferences.copy(viewMode = mode) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { mode ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (mode == BrowserViewMode.LIST) {
+                                    Icons.AutoMirrored.Filled.ViewList
+                                } else {
+                                    Icons.Default.GridView
                                 },
-                                label = { Text(viewModeLabel(mode)) }
+                                contentDescription = null
                             )
+                            Text(viewModeLabel(mode))
                         }
                     }
 
@@ -229,7 +227,7 @@ fun SortOptionDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(MaterialTheme.shapes.large)
-                            .clickable { applyToSubfolders = !applyToSubfolders }
+                            .bounceClickable { applyToSubfolders = !applyToSubfolders }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -258,7 +256,10 @@ fun SortOptionDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = ExpressiveShapes.medium
+                    ) {
                         Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -266,7 +267,8 @@ fun SortOptionDialog(
                         onClick = {
                             onApply(draftPreferences.normalized(), applyToSubfolders)
                             onDismiss()
-                        }
+                        },
+                        shape = ExpressiveShapes.medium
                     ) {
                         Text(stringResource(R.string.apply))
                     }
@@ -283,7 +285,7 @@ private fun SortOptionChip(
     modifier: Modifier = Modifier,
     onSelect: (FileSortOption) -> Unit
 ) {
-    FilterChip(
+    ExpressiveFilterChip(
         selected = preferences.sortOption == option,
         onClick = { onSelect(option) },
         label = { 

@@ -27,7 +27,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.foundation.clickable
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
@@ -108,12 +107,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -173,6 +169,7 @@ import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
@@ -206,14 +203,16 @@ fun GalleryImageItem(
     )
 
     if (showDetails) {
+        val itemShape = ExpressiveShapes.medium
         Card(
-            shape = RoundedCornerShape(8.dp),
+            shape = itemShape,
             colors = CardDefaults.cardColors(
                 containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
             ),
             modifier = modifier
                 .fillMaxWidth()
                 .graphicsLayer(scaleX = scale, scaleY = scale)
+                .clip(itemShape)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick
@@ -289,11 +288,12 @@ fun GalleryImageItem(
             }
         }
     } else {
+        val itemShape = ExpressiveShapes.medium
         Box(
             modifier = modifier
                 .aspectRatio(aspectRatio)
                 .graphicsLayer(scaleX = scale, scaleY = scale)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(itemShape)
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick
@@ -437,6 +437,7 @@ fun GalleryImageListItem(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer(scaleX = scale, scaleY = scale)
+            .clip(MaterialTheme.shapes.extraLarge)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick

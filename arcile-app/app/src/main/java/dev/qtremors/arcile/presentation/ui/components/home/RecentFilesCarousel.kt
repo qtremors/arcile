@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -54,6 +53,7 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.image.ThumbnailKey
 import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailTargetSize
@@ -291,7 +291,7 @@ fun RecentFileCarouselItem(
                     val menuActions = remember(onClick, file, onNavigateToPath, onShareFile) {
                         mutableListOf<@Composable () -> Unit>().apply {
                             add {
-                                DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.open)) },
                                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                                     onClick = {
@@ -301,7 +301,7 @@ fun RecentFileCarouselItem(
                                 )
                             }
                             add {
-                                DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.open_containing_folder)) },
                                     leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
                                     onClick = {
@@ -311,7 +311,7 @@ fun RecentFileCarouselItem(
                                 )
                             }
                             add {
-                                DropdownMenuItem(
+                                ArcileDropdownMenuItem(
                                     text = { Text(stringResource(R.string.share)) },
                                     leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                                     onClick = {

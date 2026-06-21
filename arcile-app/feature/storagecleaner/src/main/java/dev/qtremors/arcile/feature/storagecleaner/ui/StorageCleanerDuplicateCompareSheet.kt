@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +30,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.ui.theme.sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -66,7 +68,8 @@ internal fun DuplicateCompareSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = ExpressiveShapes.sheet
     ) {
         Column(
             modifier = Modifier
@@ -117,10 +120,15 @@ internal fun DuplicateCompareSheet(
                 Button(
                     onClick = { onRequestClean(selectedComparePaths) },
                     enabled = selectedComparePaths.isNotEmpty(),
+                    shape = ExpressiveShapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
+                        .bounceClickable(
+                            enabled = selectedComparePaths.isNotEmpty(),
+                            onClick = { onRequestClean(selectedComparePaths) }
+                        )
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -181,7 +189,7 @@ private fun DuplicateComparePane(
                     badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .clickable {
+                        .bounceClickable {
                             if (file.isDirectory) {
                                 onOpenContainingFolder(file.absolutePath)
                             } else {
@@ -251,7 +259,7 @@ private fun DuplicateComparePane(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .clip(MaterialTheme.shapes.medium)
-                    .clickable { onOpenContainingFolder(file.absolutePath) },
+                    .bounceClickable { onOpenContainingFolder(file.absolutePath) },
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = MaterialTheme.shapes.medium
             ) {
@@ -285,7 +293,8 @@ private fun DuplicateComparePane(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable(onClick = onToggle)
+                        .clip(ExpressiveShapes.medium)
+                        .bounceClickable(onClick = onToggle)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -308,6 +317,8 @@ private fun DuplicateComparePane(
                     onClick = onDelete,
                     modifier = Modifier
                         .padding(end = 8.dp)
+                        .clip(CircleShape)
+                        .bounceClickable(onClick = onDelete)
                         .semantics { contentDescription = deleteDescription }
                 ) {
                     Icon(
@@ -318,7 +329,10 @@ private fun DuplicateComparePane(
                 }
                 TextButton(
                     onClick = { onIgnoreFile(file.absolutePath) },
-                    modifier = Modifier.padding(end = 8.dp)
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .bounceClickable { onIgnoreFile(file.absolutePath) }
                 ) {
                     Text(stringResource(R.string.cleaner_ignore))
                 }

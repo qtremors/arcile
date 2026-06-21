@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Folder
@@ -52,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +65,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.ArcileTheme
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.ThemeState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -615,10 +618,13 @@ private fun SaveToArcileScreen(
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.save_to_arcile_title)) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        val parent = currentDir?.parentFile
-                        if (currentDir != null && parent != null) currentDir = parent else onCancel()
-                    }) {
+                    IconButton(
+                        onClick = {
+                            val parent = currentDir?.parentFile
+                            if (currentDir != null && parent != null) currentDir = parent else onCancel()
+                        },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
@@ -648,6 +654,7 @@ private fun SaveToArcileScreen(
                         if (selectedDirectory != null) {
                             TextButton(
                                 enabled = !isSaving && canUseSelectedDirectory,
+                                shape = ExpressiveShapes.medium,
                                 onClick = {
                                     scope.launch {
                                         saveDefaultPath(selectedDirectory.absolutePath)
@@ -661,6 +668,7 @@ private fun SaveToArcileScreen(
                         }
                         Button(
                             enabled = !isSaving && canUseSelectedDirectory,
+                            shape = ExpressiveShapes.medium,
                             onClick = {
                                 val destination = selectedDirectory?.takeIf {
                                     isValidSaveToArcileDirectory(it, volumes)
@@ -720,7 +728,10 @@ private fun SaveToArcileScreen(
                                 headlineContent = { Text(volume.name) },
                                 supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 leadingContent = { Icon(Icons.Outlined.Storage, contentDescription = null) },
-                                modifier = Modifier.clickable { currentDir = File(volume.path) }
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .clip(ExpressiveShapes.medium)
+                                    .clickable { currentDir = File(volume.path) }
                             )
                         }
                     } else {
@@ -729,7 +740,10 @@ private fun SaveToArcileScreen(
                                 headlineContent = { Text(directory.name) },
                                 supportingContent = { Text(directory.absolutePath, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 leadingContent = { Icon(Icons.Outlined.Folder, contentDescription = null) },
-                                modifier = Modifier.clickable { currentDir = directory }
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .clip(ExpressiveShapes.medium)
+                                    .clickable { currentDir = directory }
                             )
                         }
                     }

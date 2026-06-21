@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,8 +33,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AudioFile
@@ -88,7 +85,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.combinedClickable
 import dev.qtremors.arcile.shared.ui.TopBarAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -105,6 +101,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.material.icons.filled.SdCard
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.ui.theme.titleLargeBold
 import dev.qtremors.arcile.ui.theme.titleMediumBold
@@ -226,7 +223,7 @@ fun StorageClassificationPrompt(
                     Button(
                         onClick = { onClassify(StorageKind.SD_CARD) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = CircleShape
+                        shape = ExpressiveShapes.medium
                     ) {
                         Text(stringResource(R.string.sd_card), maxLines = 1)
                     }
@@ -242,7 +239,7 @@ fun StorageClassificationPrompt(
                     OutlinedButton(
                         onClick = { onClassify(StorageKind.OTG) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = CircleShape
+                        shape = ExpressiveShapes.medium
                     ) {
                         Text(stringResource(R.string.otg_usb), maxLines = 1)
                     }
@@ -259,6 +256,7 @@ fun StorageClassificationPrompt(
             
             TextButton(
                 onClick = onDecideLater,
+                shape = ExpressiveShapes.medium,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
                 Text(stringResource(R.string.decide_later))
@@ -459,7 +457,10 @@ fun HomeScreen(
                                 text = stringResource(R.string.quick_access),
                                 style = MaterialTheme.typography.titleMediumBold
                             )
-                            TextButton(onClick = onNavigateToQuickAccess) {
+                            TextButton(
+                                onClick = onNavigateToQuickAccess,
+                                shape = ExpressiveShapes.medium
+                            ) {
                                 Text(stringResource(R.string.manage))
                             }
                         }
@@ -491,7 +492,10 @@ fun HomeScreen(
                                 text = stringResource(R.string.utilities),
                                 style = MaterialTheme.typography.titleMediumBold
                             )
-                            TextButton(onClick = onNavigateToTools) {
+                            TextButton(
+                                onClick = onNavigateToTools,
+                                shape = ExpressiveShapes.medium
+                            ) {
                                 Text(stringResource(R.string.show_all))
                             }
                         }
@@ -546,7 +550,10 @@ fun HomeScreen(
                                     text = stringResource(R.string.recent_files),
                                     style = MaterialTheme.typography.titleMediumBold
                                 )
-                                TextButton(onClick = onNavigateToRecentFiles) {
+                                TextButton(
+                                    onClick = onNavigateToRecentFiles,
+                                    shape = ExpressiveShapes.medium
+                                ) {
                                     Text(stringResource(R.string.see_all))
                                 }
                             }

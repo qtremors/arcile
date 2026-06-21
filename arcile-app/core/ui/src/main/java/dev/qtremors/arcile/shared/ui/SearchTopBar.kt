@@ -5,7 +5,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardActions
@@ -64,6 +66,7 @@ fun SearchTopBar(
             Box(
                 modifier = Modifier
                     .size(48.dp)
+                    .clip(CircleShape)
                     .bounceClickable { onClose() },
                 contentAlignment = Alignment.Center
             ) {

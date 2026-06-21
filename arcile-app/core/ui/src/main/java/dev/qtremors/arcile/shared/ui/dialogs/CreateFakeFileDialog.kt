@@ -10,6 +10,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.keyboardInputField
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.DataUsage
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.Check
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,14 +41,30 @@ fun CreateFakeFileDialog(
                     value = fileName,
                     onValueChange = { fileName = it },
                     label = { Text(stringResource(R.string.label_fake_file_name)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
                     singleLine = true,
+                    shape = ExpressiveShapes.medium,
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 OutlinedTextField(
                     value = extension,
                     onValueChange = { extension = it },
                     label = { Text(stringResource(R.string.label_fake_file_extension)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Extension,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
                     singleLine = true,
+                    shape = ExpressiveShapes.medium,
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 Row(
@@ -55,8 +79,16 @@ fun CreateFakeFileDialog(
                             }
                         },
                         label = { Text(stringResource(R.string.label_fake_file_size)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.DataUsage,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
+                        shape = ExpressiveShapes.medium,
                         modifier = Modifier.weight(1f).keyboardInputField()
                     )
                     
@@ -72,14 +104,15 @@ fun CreateFakeFileDialog(
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                             colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
                             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                            label = { Text(stringResource(R.string.label_fake_file_unit)) }
+                            label = { Text(stringResource(R.string.label_fake_file_unit)) },
+                            shape = ExpressiveShapes.medium
                         )
                         ExposedDropdownMenu(
                             expanded = expanded,
                             onDismissRequest = { expanded = false }
                         ) {
                             FileSizeUnit.entries.forEach { selectedUnit ->
-                                DropdownMenuItem(
+                                dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem(
                                     text = { Text(stringResource(selectedUnit.labelRes)) },
                                     onClick = {
                                         unit = selectedUnit
@@ -102,13 +135,24 @@ fun CreateFakeFileDialog(
                     val sizeInBytes = size * unit.multiplier
                     onConfirm(fullFileName, sizeInBytes)
                 },
-                enabled = isEnabled
+                enabled = isEnabled,
+                shape = ExpressiveShapes.medium
             ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.action_create))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }

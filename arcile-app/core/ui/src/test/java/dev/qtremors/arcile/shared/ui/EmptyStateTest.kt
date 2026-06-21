@@ -4,9 +4,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,12 +26,14 @@ class EmptyStateTest {
     fun `empty state renders title description and custom action slot`() {
         composeRule.setContent {
             ArcileTestTheme {
-                EmptyState(
-                    icon = Icons.Default.Info,
-                    title = "Nothing here",
-                    description = "Try adding an item first.",
-                    action = { Box { Text("Retry") } }
-                )
+                CompositionLocalProvider(LocalReducedMotionEnabled provides true) {
+                    EmptyState(
+                        icon = Icons.Default.Info,
+                        title = "Nothing here",
+                        description = "Try adding an item first.",
+                        action = { Box { Text("Retry") } }
+                    )
+                }
             }
         }
 
@@ -42,7 +46,9 @@ class EmptyStateTest {
     fun `folder variant renders localized default copy`() {
         composeRule.setContent {
             ArcileTestTheme {
-                EmptyState(variant = EmptyStateVariant.Folder)
+                CompositionLocalProvider(LocalReducedMotionEnabled provides true) {
+                    EmptyState(variant = EmptyStateVariant.Folder)
+                }
             }
         }
 
@@ -54,7 +60,9 @@ class EmptyStateTest {
     fun `archive variant renders localized default copy`() {
         composeRule.setContent {
             ArcileTestTheme {
-                EmptyState(variant = EmptyStateVariant.Archive)
+                CompositionLocalProvider(LocalReducedMotionEnabled provides true) {
+                    EmptyState(variant = EmptyStateVariant.Archive)
+                }
             }
         }
 
@@ -66,11 +74,13 @@ class EmptyStateTest {
     fun `reduce motion override renders content immediately`() {
         composeRule.setContent {
             ArcileTestTheme {
-                EmptyState(
-                    variant = EmptyStateVariant.Search,
-                    title = "No matches",
-                    description = "Try another query."
-                )
+                CompositionLocalProvider(LocalReducedMotionEnabled provides true) {
+                    EmptyState(
+                        variant = EmptyStateVariant.Search,
+                        title = "No matches",
+                        description = "Try another query."
+                    )
+                }
             }
         }
 

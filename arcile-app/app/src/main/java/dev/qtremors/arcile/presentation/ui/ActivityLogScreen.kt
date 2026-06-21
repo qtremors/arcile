@@ -8,17 +8,24 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material3.AlertDialog
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -36,10 +43,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -98,17 +107,31 @@ fun ActivityLogScreen(
             title = { Text(stringResource(R.string.activity_log_clear_title)) },
             text = { Text(stringResource(R.string.activity_log_clear_message)) },
             confirmButton = {
+                val onConfirmClick = {
+                    showClearConfirmation = false
+                    onClearActivity()
+                }
                 TextButton(
-                    onClick = {
-                        showClearConfirmation = false
-                        onClearActivity()
-                    }
+                    onClick = onConfirmClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onConfirmClick)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.action_clear))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearConfirmation = false }) {
+                val onCancelClick = { showClearConfirmation = false }
+                TextButton(
+                    onClick = onCancelClick,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable(onClick = onCancelClick)
+                ) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -121,14 +144,26 @@ fun ActivityLogScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.activity_log_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = onNavigateBack)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
+                    val onClearClick = { showClearConfirmation = true }
                     IconButton(
-                        onClick = { showClearConfirmation = true },
-                        enabled = entries.isNotEmpty()
+                        onClick = onClearClick,
+                        enabled = entries.isNotEmpty(),
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(
+                                enabled = entries.isNotEmpty(),
+                                onClick = onClearClick
+                            )
                     ) {
                         Icon(Icons.Default.DeleteSweep, contentDescription = stringResource(R.string.activity_log_clear_action))
                     }

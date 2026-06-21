@@ -77,6 +77,7 @@ import dev.qtremors.arcile.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.ui.theme.bodyMediumBold
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.ui.theme.titleMediumBold
+import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.utils.formatFileSize
 import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.layout.ContentScale
@@ -229,18 +230,28 @@ fun StorageCleanerScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.storage_cleaner_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showIgnoredItems = true }) {
+                    IconButton(
+                        onClick = { showIgnoredItems = true },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(R.string.cleaner_ignored_items)
                         )
                     }
-                    IconButton(onClick = onRefresh, enabled = !state.isScanning && !state.isCleaning) {
+                    IconButton(
+                        onClick = onRefresh,
+                        enabled = !state.isScanning && !state.isCleaning,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = stringResource(R.string.refresh),
@@ -351,15 +362,17 @@ fun StorageCleanerScreen(
                         confirmCleanerPaths = emptySet()
                     },
                     enabled = !hasHighRisk || highRiskAcknowledged,
+                    shape = ExpressiveShapes.medium,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    dismissDeleteConfirmation()
-                }) {
+                TextButton(
+                    onClick = { dismissDeleteConfirmation() },
+                    shape = ExpressiveShapes.medium
+                ) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -408,7 +421,10 @@ private fun IgnoredItemsDialog(
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            TextButton(onClick = { onUnignorePath(path) }) {
+                            TextButton(
+                                onClick = { onUnignorePath(path) },
+                                shape = ExpressiveShapes.medium
+                            ) {
                                 Text(stringResource(R.string.cleaner_restore_item))
                             }
                         }
@@ -417,7 +433,10 @@ private fun IgnoredItemsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium
+            ) {
                 Text(stringResource(R.string.ok))
             }
         }

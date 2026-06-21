@@ -44,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
@@ -84,6 +83,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ConflictCard
@@ -142,7 +142,7 @@ fun ArchiveContextHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             breadcrumbs.forEach { (label, path) ->
-                FilterChip(
+                ExpressiveFilterChip(
                     selected = path == currentPrefix,
                     onClick = { if (path != null) onOpenFolder(path) },
                     label = {

@@ -5,7 +5,7 @@
 <h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>
 
 <p align="center">
-  A private, modern Android file manager for fast browsing, safe file operations, storage cleanup, archives, and a clean Material 3 interface.
+  A Private & Modern Android file manager.
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 </p>
 
 > [!NOTE]
-> **Privacy Model** Arcile does not request `android.permission.INTERNET`. File management, indexing, archive handling, thumbnails, and preferences are designed to stay local to the device.
+> **Privacy Model** Arcile does not request `android.permission.INTERNET`.
 
 ---
 
