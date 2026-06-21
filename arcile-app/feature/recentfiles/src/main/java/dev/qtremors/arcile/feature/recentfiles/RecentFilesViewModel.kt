@@ -16,6 +16,8 @@ import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
@@ -80,6 +82,7 @@ class RecentFilesViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -90,6 +93,8 @@ class RecentFilesViewModel @Inject constructor(
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     private var searchJob: Job? = null
+    private var recentLoadJob: Job? = null
+    private var recentLoadGeneration = 0L
 
     private val deleteFlowDelegate = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
@@ -204,6 +209,15 @@ class RecentFilesViewModel @Inject constructor(
                     loadRecentFiles(false)
                 }
         }
+        viewModelScope.launch {
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            storageMutationNotifier.events
+                .debounce(300L)
+                .collectLatest {
+                    storageAnalyticsRepository.invalidateAnalyticsCache()
+                    loadRecentFiles(false)
+                }
+        }
     }
 
     fun loadRecentFiles(pullToRefresh: Boolean = false, loadMore: Boolean = false) {
@@ -219,8 +233,17 @@ class RecentFilesViewModel @Inject constructor(
         val capturedState = _state.value
         if (loadMore && (capturedState.isLoadingMore || !capturedState.hasMore)) return
 
+        val loadGeneration = if (loadMore) {
+            recentLoadGeneration
+        } else {
+            recentLoadGeneration += 1
+            recentLoadGeneration
+        }
         val offset = if (loadMore) capturedState.currentOffset + 50 else 0
 
+        if (!loadMore) {
+            recentLoadJob?.cancel()
+        }
         _state.update {
             if (loadMore) {
                 it.copy(isLoadingMore = true, error = null, todayStart = newTodayStart, yesterdayStart = newYesterdayStart)
@@ -236,7 +259,7 @@ class RecentFilesViewModel @Inject constructor(
                 )
             }
         }
-        viewModelScope.launch {
+        val job = viewModelScope.launch {
             val scope = capturedState.currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage
             if (pullToRefresh && !loadMore) {
                 storageAnalyticsRepository.invalidateAnalyticsCache()
@@ -244,6 +267,7 @@ class RecentFilesViewModel @Inject constructor(
             val result = storageAnalyticsRepository.getRecentFiles(scope = scope, limit = 50, offset = offset)
             result.onSuccess { files ->
                 _state.update {
+                    if (loadGeneration != recentLoadGeneration) return@update it
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
                     val newFiles = if (loadMore) {
                         (it.recentFiles + files).distinctBy { file -> file.absolutePath }
@@ -265,6 +289,7 @@ class RecentFilesViewModel @Inject constructor(
                 }
             }.onFailure { error ->
                 _state.update {
+                    if (loadGeneration != recentLoadGeneration) return@update it
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
                     it.copy(
                         isLoading = false,
@@ -274,6 +299,9 @@ class RecentFilesViewModel @Inject constructor(
                     )
                 }
             }
+        }
+        if (!loadMore) {
+            recentLoadJob = job
         }
     }
 

@@ -87,6 +87,10 @@ import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 
@@ -102,6 +106,12 @@ data class ViewerFileContext(
     val files: List<FileModel>,
     val initialPage: Int
 )
+
+enum class ViewerThumbnailScrollAction {
+    None,
+    Jump,
+    Animate
+}
 
 fun viewerFileContextForInitialPath(
     initialPath: String,
@@ -121,6 +131,34 @@ fun viewerFileContextForInitialPath(
     return ViewerFileContext(listOf(fileModelFromPath(initialPath)), 0)
 }
 
+internal fun viewerInitialPageForSession(
+    initialPath: String,
+    viewerSessionInitialPath: String?,
+    viewerCurrentPath: String?,
+    viewerContext: ViewerFileContext
+): Int {
+    val restoredPath = viewerCurrentPath.takeIf { viewerSessionInitialPath == initialPath }
+    return restoredPath
+        ?.let { path -> viewerContext.files.indexOfFirst { it.absolutePath == path } }
+        ?.takeIf { it >= 0 }
+        ?: viewerContext.initialPage
+}
+
+internal fun viewerThumbnailScrollAction(
+    previousIndex: Int?,
+    targetIndex: Int,
+    maxAnimatedDistance: Int = 12
+): ViewerThumbnailScrollAction {
+    if (targetIndex < 0) return ViewerThumbnailScrollAction.None
+    val previous = previousIndex ?: return ViewerThumbnailScrollAction.Jump
+    if (previous == targetIndex) return ViewerThumbnailScrollAction.None
+    return if (kotlin.math.abs(targetIndex - previous) <= maxAnimatedDistance) {
+        ViewerThumbnailScrollAction.Animate
+    } else {
+        ViewerThumbnailScrollAction.Jump
+    }
+}
+
 fun fileModelFromPath(path: String): FileModel {
     val file = java.io.File(path)
     return FileModel(
@@ -138,3 +176,24 @@ fun fileModelFromPath(path: String): FileModel {
 
 fun FileModel.openableReference(): String =
     nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: absolutePath
+
+internal fun viewerPositionLabel(currentPage: Int, total: Int): String {
+    if (total <= 0) return "0/0"
+    return "${currentPage.coerceIn(0, total - 1) + 1}/$total"
+}
+
+internal fun formatViewerDateTime(
+    timestampMillis: Long,
+    locale: Locale = Locale.getDefault(),
+    timeZone: TimeZone = TimeZone.getDefault()
+): String? {
+    if (timestampMillis <= 0L) return null
+    return SimpleDateFormat("MMM d, yyyy • h:mm a", locale)
+        .apply { this.timeZone = timeZone }
+        .format(Date(timestampMillis))
+}
+
+internal fun formatResolution(width: Int, height: Int): String? {
+    if (width <= 0 || height <= 0) return null
+    return "$width x $height"
+}

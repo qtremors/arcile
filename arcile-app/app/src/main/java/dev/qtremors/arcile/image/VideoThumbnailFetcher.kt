@@ -1,10 +1,9 @@
 package dev.qtremors.arcile.image
 
-import android.content.ContentUris
 import android.graphics.drawable.BitmapDrawable
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
-import android.provider.MediaStore
 import android.util.Size
 import coil.ImageLoader
 import coil.decode.DataSource
@@ -53,31 +52,43 @@ class VideoThumbnailFetcher(
                         )
                     }
 
-                    val projection = arrayOf(MediaStore.Video.Media._ID)
-                    val selection = "${MediaStore.Video.Media.DATA} = ?"
-                    val selectionArgs = arrayOf(file.absolutePath)
-                    val uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI
-
-                    context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID))
-                            val contentUri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
-                            
-                            val bitmap = context.contentResolver.loadThumbnail(contentUri, Size(targetSize, targetSize), null)
-                            return@withContext DrawableResult(
-                                drawable = BitmapDrawable(context.resources, bitmap),
-                                isSampled = true,
-                                dataSource = DataSource.DISK
-                            )
-                        }
-                    }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
+                    // Fall back to MediaMetadataRetriever below for raw browser paths or provider failures.
                 }
             }
 
-            // Fallback for older APIs or if not in MediaStore
-            null
+            if (contentUri == null && (!file.exists() || !file.isFile)) return@withContext null
+
+            val retriever = MediaMetadataRetriever()
+            try {
+                if (contentUri != null) {
+                    retriever.setDataSource(context, Uri.parse(contentUri))
+                } else {
+                    retriever.setDataSource(file.absolutePath)
+                }
+                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                    retriever.getScaledFrameAtTime(
+                        -1,
+                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                        targetSize,
+                        targetSize
+                    )
+                } else {
+                    retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                } ?: return@withContext null
+
+                DrawableResult(
+                    drawable = BitmapDrawable(context.resources, bitmap),
+                    isSampled = true,
+                    dataSource = DataSource.DISK
+                )
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                null
+            } finally {
+                retriever.release()
+            }
         }
     }
 

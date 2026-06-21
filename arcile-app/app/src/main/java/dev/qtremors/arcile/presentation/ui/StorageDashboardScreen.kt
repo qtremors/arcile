@@ -34,10 +34,11 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import dev.qtremors.arcile.shared.ui.ExpressiveTab
+import dev.qtremors.arcile.shared.ui.SpringyTabIndicator
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -176,15 +177,27 @@ fun StorageDashboardScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
         ) {
-            TabRow(selectedTabIndex = selectedTabIndex) {
-                Tab(
+            TabRow(
+                selectedTabIndex = selectedTabIndex,
+                indicator = { tabPositions ->
+                    SpringyTabIndicator(
+                        tabPositions = tabPositions,
+                        selectedIndex = selectedTabIndex
+                    )
+                }
+            ) {
+                ExpressiveTab(
                     selected = selectedTabIndex == 0,
                     onClick = { selectedTabIndex = 0 },
+                    index = 0,
+                    selectedIndex = selectedTabIndex,
                     text = { Text(stringResource(R.string.storage_dashboard_summary_tab)) }
                 )
-                Tab(
+                ExpressiveTab(
                     selected = selectedTabIndex == 1,
                     onClick = { selectedTabIndex = 1 },
+                    index = 1,
+                    selectedIndex = selectedTabIndex,
                     text = { Text(stringResource(R.string.storage_dashboard_usage_map_tab)) }
                 )
             }

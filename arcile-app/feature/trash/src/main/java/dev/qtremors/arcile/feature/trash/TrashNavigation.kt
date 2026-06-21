@@ -50,6 +50,7 @@ fun NavGraphBuilder.trashScreen(
             onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
             onUndoLastRestore = { viewModel.undoLastRestore() },
             onClearPendingRestoreUndo = { viewModel.clearPendingRestoreUndo() },
+            onRefresh = { viewModel.loadTrashFiles() },
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )

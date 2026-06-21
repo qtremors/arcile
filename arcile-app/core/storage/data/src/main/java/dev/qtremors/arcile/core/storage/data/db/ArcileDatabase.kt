@@ -17,7 +17,7 @@ import androidx.room.RoomDatabase
         StorageCleanerSnapshotEntity::class
     ],
     version = 2,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class ArcileDatabase : RoomDatabase() {
     abstract fun folderStatsDao(): FolderStatsDao
@@ -30,20 +30,35 @@ abstract class ArcileDatabase : RoomDatabase() {
 
     companion object {
         private const val DATABASE_NAME = "arcile-cache.db"
+        private const val RESTORED_CACHE_INVALIDATED_MARKER = "arcile-cache-restored-state-invalidated"
 
         @Volatile
         private var instance: ArcileDatabase? = null
 
         fun getInstance(context: Context): ArcileDatabase =
             instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    ArcileDatabase::class.java,
-                    DATABASE_NAME
-                )
-                    .fallbackToDestructiveMigration(dropAllTables = true)
-                    .build()
-                    .also { instance = it }
+                instance ?: run {
+                    invalidateLegacyRestoredCacheIfNeeded(context.applicationContext)
+                    Room.databaseBuilder(
+                        context.applicationContext,
+                        ArcileDatabase::class.java,
+                        DATABASE_NAME
+                    )
+                        .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1)
+                        .build()
+                        .also { instance = it }
+                }
             }
+
+        private fun invalidateLegacyRestoredCacheIfNeeded(context: Context) {
+            val marker = context.noBackupFilesDir.resolve(RESTORED_CACHE_INVALIDATED_MARKER)
+            if (marker.exists()) return
+
+            context.deleteDatabase(DATABASE_NAME)
+            runCatching {
+                marker.parentFile?.mkdirs()
+                marker.writeText("1")
+            }
+        }
     }
 }

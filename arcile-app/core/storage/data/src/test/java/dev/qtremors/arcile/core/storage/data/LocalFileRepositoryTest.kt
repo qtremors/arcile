@@ -1,6 +1,11 @@
 package dev.qtremors.arcile.core.storage.data
 
+import android.content.Context
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
+import dev.qtremors.arcile.core.storage.data.manager.TrashTarget
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
@@ -134,6 +139,40 @@ class LocalFileRepositoryTest {
     }
 
     @Test
+    fun `recent files query returns fresh media store results instead of stale snapshot`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = Room.inMemoryDatabaseBuilder(context, ArcileDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val snapshotStore = RecentFilesSnapshotStore(database.recentFilesSnapshotDao())
+            val scope = StorageScope.AllStorage
+            val stale = testFile("stale.jpg", "/storage/emulated/0/DCIM/stale.jpg")
+            val fresh = testFile("fresh.jpg", "/storage/emulated/0/DCIM/fresh.jpg")
+            snapshotStore.put(scope, limit = 10, minTimestamp = 0L, files = listOf(stale))
+
+            val mediaStoreClient = RecordingMediaStoreClient().apply {
+                recentFilesResult = Result.success(listOf(fresh))
+            }
+            val repository = LocalFileRepository(
+                RecordingVolumeProvider(listOf(testVolume("primary", "/storage/emulated/0", kind = StorageKind.INTERNAL))),
+                mediaStoreClient,
+                RecordingTrashManager(),
+                RecordingFileSystemDataSource(),
+                RecordingFolderStatsStore(),
+                recentFilesSnapshotStore = snapshotStore
+            )
+
+            val result = repository.getRecentFiles(scope, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()
+
+            assertEquals(listOf(fresh), result)
+            assertEquals(1, mediaStoreClient.recentFilesRequests)
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
     fun `selection properties include thumbnails descendants excluded from folder stats`() = runTest {
         val root = createTempStorageRoot("repo-properties-thumbnails")
         try {
@@ -236,11 +275,15 @@ private class RecordingMediaStoreClient : MediaStoreClient {
     var categorySizesResult: Result<List<CategoryStorage>> = Result.success(emptyList())
     var categoryFilesResult: Result<List<FileModel>> = Result.success(emptyList())
     var searchResult: Result<List<FileModel>> = Result.success(emptyList())
+    var recentFilesResult: Result<List<FileModel>> = Result.success(emptyList())
+    var recentFilesRequests = 0
     var lastCategoryScope: Pair<String, StorageScope>? = null
     var lastSearchRequest: Triple<String, StorageScope, SearchFilters?>? = null
 
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> =
-        Result.success(emptyList())
+    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
+        recentFilesRequests += 1
+        return recentFilesResult
+    }
 
     override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> {
         lastCategoryScope = "Images" to scope
@@ -268,6 +311,14 @@ private class RecordingTrashManager : TrashManager {
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> {
         moveToTrashRequests += paths
+        return Result.success(Unit)
+    }
+
+    override suspend fun moveToTrashTargets(
+        targets: List<TrashTarget>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> {
+        moveToTrashRequests += targets.map { it.path }
         return Result.success(Unit)
     }
 
@@ -327,5 +378,6 @@ private class RecordingFolderStatsStore : FolderStatsStore {
     override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
     override fun observeUpdates(): Flow<FolderStatUpdate> = emptyFlow()
     override fun queue(paths: List<String>) = Unit
-    override fun invalidate(paths: Collection<String>) = Unit
+    override suspend fun invalidate(paths: Collection<String>) = Unit
+    override suspend fun clear() = Unit
 }

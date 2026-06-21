@@ -24,11 +24,31 @@ interface BulkFileOperationCoordinator {
         archiveEntryPrefix: String? = null,
         archivePassword: String? = null,
         archiveNameEncoding: ArchiveNameEncoding? = null,
-        archiveCompressionLevel: ArchiveCompressionLevel? = null
+        archiveCompressionLevel: ArchiveCompressionLevel? = null,
+        importItems: List<SaveToArcileImportItem> = emptyList()
     ): Boolean
+
+    fun startImportOperation(
+        destinationPath: String,
+        importItems: List<SaveToArcileImportItem>
+    ): Boolean =
+        startOperation(
+            type = BulkFileOperationType.SAVE_TO_ARCILE_IMPORT,
+            sourcePaths = emptyList(),
+            destinationPath = destinationPath,
+            resolutions = emptyMap(),
+            importItems = importItems
+        )
 
     fun cancelActiveOperation()
     fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress)
+    fun onOperationCheckpoint(
+        request: BulkFileOperationRequest,
+        stagedPaths: List<String> = emptyList(),
+        finalizedPaths: List<String> = emptyList(),
+        rollbackHints: List<String> = emptyList(),
+        trashResultIds: List<String> = emptyList()
+    )
     fun onOperationCancelling(request: BulkFileOperationRequest)
     fun onOperationCompleted(request: BulkFileOperationRequest)
     fun onOperationFailed(request: BulkFileOperationRequest, message: String)
@@ -53,11 +73,19 @@ object NoOpBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         archiveEntryPrefix: String?,
         archivePassword: String?,
         archiveNameEncoding: ArchiveNameEncoding?,
-        archiveCompressionLevel: ArchiveCompressionLevel?
+        archiveCompressionLevel: ArchiveCompressionLevel?,
+        importItems: List<SaveToArcileImportItem>
     ): Boolean = false
 
     override fun cancelActiveOperation() = Unit
     override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+    override fun onOperationCheckpoint(
+        request: BulkFileOperationRequest,
+        stagedPaths: List<String>,
+        finalizedPaths: List<String>,
+        rollbackHints: List<String>,
+        trashResultIds: List<String>
+    ) = Unit
     override fun onOperationCancelling(request: BulkFileOperationRequest) = Unit
     override fun onOperationCompleted(request: BulkFileOperationRequest) = Unit
     override fun onOperationFailed(request: BulkFileOperationRequest, message: String) = Unit

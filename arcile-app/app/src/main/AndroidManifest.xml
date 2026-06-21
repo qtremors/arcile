@@ -25,6 +25,7 @@
 
     <application
         android:name=".ArcileApp"
+        android:enableOnBackInvokedCallback="true"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -63,6 +64,20 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ImageViewerActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:process=":imageviewer"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -72,6 +87,12 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_provider_paths" />
         </provider>
+
+        <provider
+            android:name=".presentation.utils.ExternalFileAccessProvider"
+            android:authorities="${applicationId}.externalfileaccess"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <service
             android:name=".operations.BulkFileOperationService"

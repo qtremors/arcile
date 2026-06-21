@@ -65,7 +65,12 @@ class NavigationDelegate(
             pathHistory.addAll(restoredHistory.mapNotNull { BrowserHistoryEntry.fromSavedValue(it) })
         }
 
-        if (!restoredArchivePath.isNullOrEmpty()) return null
+        if (!restoredArchivePath.isNullOrEmpty()) {
+            return StorageBrowserLocation.Archive(
+                archivePath = restoredArchivePath,
+                entryPrefix = savedStateHandle.get<String>("archiveEntryPrefix")?.takeIf { it.isNotEmpty() }
+            )
+        }
 
         return when {
             isVolumeRootScreen == true -> StorageBrowserLocation.Roots
@@ -246,7 +251,7 @@ class NavigationDelegate(
         loadDirectory(path, state.value.currentVolumeId, clearHistory = false)
     }
 
-    fun navigateBack(): Boolean {
+    fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean {
         if (state.value.browserSearchQuery.isNotEmpty()) {
             onClearSearch()
             return true
@@ -308,7 +313,7 @@ class NavigationDelegate(
             }
         }
 
-        if (!state.value.isVolumeRootScreen && state.value.storageVolumes.size > 1) {
+        if (allowVolumeRootFallback && !state.value.isVolumeRootScreen && state.value.storageVolumes.size > 1) {
             openVolumeRoots()
             return true
         }

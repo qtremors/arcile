@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.utils
 
 import android.content.Context
+import android.content.ClipData
 import android.content.Intent
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.utils.AppLogger
@@ -8,16 +9,31 @@ import java.util.ArrayList
 
 object ShareHelper {
     suspend fun shareFiles(context: Context, filePaths: List<String>): Boolean {
-        if (filePaths.isEmpty()) return false
+        return shareFileReferences(
+            context,
+            filePaths.map { ExternalFileAccessHelper.ExternalFileReference(path = it) }
+        )
+    }
+
+    suspend fun shareFileReferences(
+        context: Context,
+        references: List<ExternalFileAccessHelper.ExternalFileReference>
+    ): Boolean {
+        if (references.isEmpty()) return false
 
         try {
-            val targets = ExternalFileAccessHelper.createShareTargets(context, filePaths)
+            val targets = ExternalFileAccessHelper.createShareTargets(context, references)
             if (targets.isEmpty()) return false
             val uris = ArrayList(targets.map { it.uri })
 
             val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
                 type = commonMimeType(targets.map { it.mimeType })
                 putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                if (targets.size == 1) {
+                    putExtra(Intent.EXTRA_TITLE, targets.single().displayName)
+                    putExtra(Intent.EXTRA_SUBJECT, targets.single().displayName)
+                }
+                clipData = shareClipData(targets)
                 flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
 
@@ -29,6 +45,19 @@ object ShareHelper {
             if (e is kotlinx.coroutines.CancellationException) throw e
             AppLogger.e("ShareHelper", "Failed to share files", e)
             return false
+        }
+    }
+
+    private fun shareClipData(targets: List<ExternalFileAccessHelper.ShareTarget>): ClipData {
+        val first = targets.first()
+        return ClipData(
+            first.displayName,
+            arrayOf(first.mimeType),
+            ClipData.Item(first.displayName, null, null, first.uri)
+        ).apply {
+            targets.drop(1).forEach { target ->
+                addItem(ClipData.Item(target.displayName, null, null, target.uri))
+            }
         }
     }
 

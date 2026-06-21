@@ -85,11 +85,43 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataDetailLabels
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataDetailRow
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataRow
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataSectionHeader
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataSections
+import dev.qtremors.arcile.shared.ui.metadata.buildImageMetadataDetailRows
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
+
+internal typealias MetadataDetailLabels = ImageMetadataDetailLabels
+internal typealias MetadataDetailRow = ImageMetadataDetailRow
+
+internal fun buildMetadataDetailRows(
+    file: FileModel,
+    metadata: GalleryFileMetadata?,
+    labels: MetadataDetailLabels,
+    dateText: String? = formatViewerDateTime(file.lastModified)
+): List<MetadataDetailRow> = buildImageMetadataDetailRows(
+    title = file.name,
+    reference = file.absolutePath,
+    size = file.size,
+    lastModifiedText = dateText,
+    mimeType = file.mimeType,
+    extension = file.extension,
+    metadata = metadata,
+    labels = labels,
+    isUriReference = false
+).let { rows ->
+    val uri = file.nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: return@let rows
+    val pathIndex = rows.indexOfFirst { it.label == labels.path }.takeIf { it >= 0 } ?: rows.size
+    rows.toMutableList().apply {
+        add(pathIndex, MetadataDetailRow(labels.uri, uri))
+    }
+}
 
 @Composable
 fun MetadataSheet(
@@ -163,74 +195,24 @@ fun MetadataSheet(
                     .padding(horizontal = 24.dp)
             ) {
                 item {
-                    MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_file_information))
-                    MetadataRow(label = "Path", value = file.absolutePath)
-                    MetadataRow(label = "Size", value = formatFileSize(file.size))
-                    if (metadata != null && metadata.width > 0) {
-                        MetadataRow(
-                            label = "Dimensions",
-                            value = "${metadata.width} x ${metadata.height} (${metadata.megapixel} MP)"
-                        )
-                    }
-                    if (metadata?.mimeType != null) {
-                        MetadataRow(label = "Mime Type", value = metadata.mimeType)
-                    }
-                    if (metadata?.dateTaken != null) {
-                        MetadataRow(label = "Date Taken", value = metadata.dateTaken)
-                    }
-                }
-
-                if (metadata != null && (
-                    metadata.cameraMaker != null ||
-                    metadata.cameraModel != null ||
-                    metadata.lensModel != null ||
-                    metadata.iso != null ||
-                    metadata.exposureTime != null ||
-                    metadata.fNumber != null ||
-                    metadata.focalLength != null
-                )) {
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_camera_exif))
-                        if (metadata.cameraMaker != null || metadata.cameraModel != null) {
-                            MetadataRow(
-                                label = "Device",
-                                value = listOfNotNull(metadata.cameraMaker, metadata.cameraModel).joinToString(" ")
-                            )
-                        }
-                        if (metadata.lensModel != null) {
-                            MetadataRow(label = "Lens", value = metadata.lensModel)
-                        }
-                        if (metadata.exposureTime != null) {
-                            MetadataRow(label = "Exposure Time", value = metadata.exposureTime)
-                        }
-                        if (metadata.fNumber != null) {
-                            MetadataRow(label = "Aperture", value = "f/${metadata.fNumber}")
-                        }
-                        if (metadata.iso != null) {
-                            MetadataRow(label = "ISO", value = metadata.iso.toString())
-                        }
-                        if (metadata.focalLength != null) {
-                            MetadataRow(label = "Focal Length", value = "${metadata.focalLength} mm")
-                        }
-                        if (metadata.whiteBalance != null) {
-                            MetadataRow(label = "White Balance", value = metadata.whiteBalance)
-                        }
-                        if (metadata.flash != null) {
-                            MetadataRow(label = "Flash", value = metadata.flash)
-                        }
-                    }
-                }
-
-                if (metadata?.latitude != null && metadata.longitude != null) {
-                    item {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        MetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_location))
-                        MetadataRow(label = "Coordinates", value = "${metadata.latitude}, ${metadata.longitude}")
-                        if (metadata.altitude != null) {
-                            MetadataRow(label = "Altitude", value = "${metadata.altitude} m")
-                        }
-                    }
+                    val labels = MetadataDetailLabels(
+                        title = stringResource(R.string.image_gallery_metadata_label_title),
+                        date = stringResource(R.string.image_gallery_metadata_label_date),
+                        dateTaken = stringResource(R.string.image_gallery_metadata_label_date_taken),
+                        resolution = stringResource(R.string.image_gallery_metadata_label_resolution),
+                        size = stringResource(R.string.image_gallery_metadata_label_size),
+                        uri = stringResource(R.string.image_gallery_metadata_label_uri),
+                        path = stringResource(R.string.image_gallery_metadata_label_path),
+                        mimeType = stringResource(R.string.image_gallery_metadata_label_mime_type),
+                        extension = stringResource(R.string.image_gallery_metadata_label_extension)
+                    )
+                    ImageMetadataSections(
+                        fileRows = buildMetadataDetailRows(file, metadata, labels),
+                        metadata = metadata,
+                        sectionTitle = stringResource(R.string.image_gallery_metadata_file_information),
+                        cameraTitle = stringResource(R.string.image_gallery_metadata_camera_exif),
+                        locationTitle = stringResource(R.string.image_gallery_metadata_location)
+                    )
                 }
 
                 item {
@@ -243,35 +225,11 @@ fun MetadataSheet(
 
 @Composable
 fun MetadataSectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.primary,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(vertical = 8.dp)
-    )
+    ImageMetadataSectionHeader(title)
 }
 
 @Composable
 fun MetadataRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(120.dp)
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
-    }
+    ImageMetadataRow(label, value)
 }
 

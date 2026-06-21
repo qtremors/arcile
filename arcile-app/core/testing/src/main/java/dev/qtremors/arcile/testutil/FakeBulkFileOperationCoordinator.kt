@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
+import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -36,10 +37,24 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         archiveEntryPrefix: String?,
         archivePassword: String?,
         archiveNameEncoding: ArchiveNameEncoding?,
-        archiveCompressionLevel: ArchiveCompressionLevel?
+        archiveCompressionLevel: ArchiveCompressionLevel?,
+        importItems: List<SaveToArcileImportItem>
     ): Boolean {
         if (!startResult) return false
-        val request = BulkFileOperationRequest("test-op-${startedRequests.size}", type, sourcePaths, destinationPath, resolutions, fakeFileSize, archiveFormat, archiveEntryPrefix, archivePassword, archiveNameEncoding, archiveCompressionLevel)
+        val request = BulkFileOperationRequest(
+            operationId = "test-op-${startedRequests.size}",
+            type = type,
+            sourcePaths = sourcePaths,
+            destinationPath = destinationPath,
+            resolutions = resolutions,
+            fakeFileSize = fakeFileSize,
+            archiveFormat = archiveFormat,
+            archiveEntryPrefix = archiveEntryPrefix,
+            archivePassword = archivePassword,
+            archiveNameEncoding = archiveNameEncoding,
+            archiveCompressionLevel = archiveCompressionLevel,
+            importItems = importItems
+        )
         startedRequests += request
         _activeRequest.value = request
         _events.tryEmit(BulkFileOperationEvent.Started(request))
@@ -55,6 +70,14 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
         _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
     }
+
+    override fun onOperationCheckpoint(
+        request: BulkFileOperationRequest,
+        stagedPaths: List<String>,
+        finalizedPaths: List<String>,
+        rollbackHints: List<String>,
+        trashResultIds: List<String>
+    ) = Unit
 
     override fun onOperationCancelling(request: BulkFileOperationRequest) {
         _events.tryEmit(BulkFileOperationEvent.Cancelling(request))

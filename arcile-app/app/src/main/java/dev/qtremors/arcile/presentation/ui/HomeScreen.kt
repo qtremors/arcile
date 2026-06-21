@@ -156,9 +156,10 @@ import dev.qtremors.arcile.image.ThumbnailKey
 import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.presentation.ui.components.home.HomeRecentFilesCarouselThumbnailSizePx
+import dev.qtremors.arcile.presentation.ui.components.home.homeThumbnailCacheKey
 
 private const val HomeRecentFilesPreloadLimit = 6
-private const val HomeRecentFilesPreloadSizePx = 384
 /**
  * Dashboard screen shown when the app first launches.
  *
@@ -266,17 +267,6 @@ fun StorageClassificationPrompt(
     }
 }
 
-private fun homeRecentPreloadCacheKey(file: FileModel): String =
-    buildString {
-        append("home-recent:")
-        append(file.absolutePath)
-        append(':')
-        append(file.lastModified)
-        append(':')
-        append(file.size)
-        append(':')
-        append(HomeRecentFilesPreloadSizePx)
-    }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
@@ -304,7 +294,8 @@ fun HomeScreen(
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
     onHideClassificationPrompt: (String) -> Unit = {},
-    onNavigateToCleaner: () -> Unit = {}
+    onNavigateToCleaner: () -> Unit = {},
+    onNavigateToActivity: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -333,12 +324,14 @@ fun HomeScreen(
                     ThumbnailType.Apk -> thumbnailKey
                     else -> File(file.absolutePath)
                 }
+                val thumbnailCacheKey = homeThumbnailCacheKey(file)
                 context.imageLoader.enqueue(
                     ImageRequest.Builder(context)
                         .data(thumbnailData)
-                        .size(ThumbnailTargetSize.fromBounds(HomeRecentFilesPreloadSizePx))
-                        .memoryCacheKey(homeRecentPreloadCacheKey(file))
-                        .diskCacheKey(homeRecentPreloadCacheKey(file))
+                        .size(ThumbnailTargetSize.fromBounds(HomeRecentFilesCarouselThumbnailSizePx))
+                        .memoryCacheKey(thumbnailCacheKey)
+                        .placeholderMemoryCacheKey(thumbnailCacheKey)
+                        .diskCacheKey(thumbnailCacheKey)
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
                         .crossfade(false)
@@ -524,6 +517,7 @@ fun HomeScreen(
                                                 when (definition.action) {
                                                     UtilityAction.Trash -> onNavigateToTrash()
                                                     UtilityAction.Cleaner -> onNavigateToCleaner()
+                                                    UtilityAction.Activity -> onNavigateToActivity()
                                                     UtilityAction.None -> Unit
                                                 }
                                             }

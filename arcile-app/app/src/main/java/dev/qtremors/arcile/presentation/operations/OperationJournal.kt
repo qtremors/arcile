@@ -121,6 +121,7 @@ data class OperationJournalRecord(
     val updatedAtMillis: Long,
     val progress: BulkFileOperationProgress? = null,
     val stagedPaths: List<String> = emptyList(),
+    val finalizedPaths: List<String> = emptyList(),
     val rollbackHints: List<String> = emptyList(),
     val trashResultIds: List<String> = emptyList(),
     val error: String? = null
@@ -158,6 +159,7 @@ fun OperationJournalRecord.toRecoveryRecord(): OperationRecoveryRecord =
         updatedAtMillis = updatedAtMillis,
         progress = progress,
         stagedPaths = stagedPaths,
+        finalizedPaths = finalizedPaths,
         rollbackHints = rollbackHints,
         trashResultIds = trashResultIds,
         error = error

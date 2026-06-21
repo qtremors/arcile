@@ -44,7 +44,8 @@ fun NavGraphBuilder.quickAccessScreen(
                 } else {
                     viewModel.addSafFolder(uri, label)
                 }
-            }
+            },
+            onReorderItems = { viewModel.updateItemsOrder(it) }
         )
     }
 }

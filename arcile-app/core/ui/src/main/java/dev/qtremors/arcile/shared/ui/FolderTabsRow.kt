@@ -2,8 +2,7 @@ package dev.qtremors.arcile.shared.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -26,17 +25,25 @@ fun FolderTabsRow(
 
     val selectedIndex = tabs.indexOfFirst { it.path == selectedPath }.takeIf { it >= 0 } ?: 0
     val contentDescription = stringResource(R.string.folder_tabs_content_description)
-    PrimaryScrollableTabRow(
+    ScrollableTabRow(
         selectedTabIndex = selectedIndex,
         modifier = modifier
             .fillMaxWidth()
             .semantics { this.contentDescription = contentDescription },
-        edgePadding = 16.dp
+        edgePadding = 16.dp,
+        indicator = { tabPositions ->
+            SpringyTabIndicator(
+                tabPositions = tabPositions,
+                selectedIndex = selectedIndex
+            )
+        }
     ) {
-        tabs.forEach { tab ->
-            Tab(
+        tabs.forEachIndexed { idx, tab ->
+            ExpressiveTab(
                 selected = tab.path == selectedPath,
                 onClick = { onSelectTab(tab.path) },
+                index = idx,
+                selectedIndex = selectedIndex,
                 text = {
                     Text(
                         text = "${tab.label} (${tab.count}) • ${formatFileSize(tab.totalSizeBytes)}",

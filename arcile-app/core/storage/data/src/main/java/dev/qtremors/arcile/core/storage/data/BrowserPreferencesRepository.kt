@@ -33,6 +33,7 @@ val Context.browserDataStore by preferencesDataStore(name = "browser_prefs")
 class BrowserPreferencesRepository(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.browserDataStore,
+    private val activityLogRepository: ActivityLogRepository? = null,
     private val dispatchers: ArcileDispatchers = ArcileDispatchers(
         io = Dispatchers.IO,
         default = Dispatchers.Default,
@@ -63,7 +64,9 @@ class BrowserPreferencesRepository(
     private val ALBUM_ASPECT_RATIO_KEY = booleanPreferencesKey("album_aspect_ratio")
     private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
     private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
+    private val DEFAULT_SAVE_TO_ARCILE_PATH_KEY = stringPreferencesKey("default_save_to_arcile_path")
     private val FAVORITE_FILES_KEY = stringPreferencesKey("gallery_favorites")
+    private val PINNED_ALBUMS_KEY = stringPreferencesKey("gallery_pinned_albums")
     private val ALBUM_COVERS_KEY = stringPreferencesKey("gallery_album_covers")
 
     override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
@@ -209,6 +212,13 @@ class BrowserPreferencesRepository(
                 emptySet()
             }
 
+            val pinnedAlbumsStr = prefs[PINNED_ALBUMS_KEY]
+            val pinnedAlbums: Set<String> = if (!pinnedAlbumsStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Set<String>>(pinnedAlbumsStr) }.getOrDefault(emptySet())
+            } else {
+                emptySet()
+            }
+
             val albumCoversStr = prefs[ALBUM_COVERS_KEY]
             val albumCovers: Map<String, String> = if (!albumCoversStr.isNullOrEmpty()) {
                 runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
@@ -236,9 +246,11 @@ class BrowserPreferencesRepository(
                 albumPresentation = albumPresentation,
                 albumAspectRatio = albumAspectRatio,
                 favoriteFiles = favoriteFiles,
+                pinnedAlbums = pinnedAlbums,
                 albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
-                lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY]
+                lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY],
+                defaultSaveToArcilePath = prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY]
             )
         }
         .flowOn(dispatchers.io)
@@ -352,6 +364,17 @@ class BrowserPreferencesRepository(
                 prefs.remove(LAST_OPENED_VOLUME_ID_KEY)
             }
         }
+        activityLogRepository?.recordFolderOpened(path, volumeId)
+    }
+
+    override suspend fun updateDefaultSaveToArcilePath(path: String?) {
+        dataStore.edit { prefs ->
+            if (path.isNullOrBlank()) {
+                prefs.remove(DEFAULT_SAVE_TO_ARCILE_PATH_KEY)
+            } else {
+                prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY] = path
+            }
+        }
     }
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
@@ -368,6 +391,23 @@ class BrowserPreferencesRepository(
                 currentFavorites - path
             }
             prefs[FAVORITE_FILES_KEY] = Json.encodeToString(newFavorites)
+        }
+    }
+
+    override suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
+        dataStore.edit { prefs ->
+            val pinnedStr = prefs[PINNED_ALBUMS_KEY]
+            val currentPinned = if (!pinnedStr.isNullOrEmpty()) {
+                runCatching { Json.decodeFromString<Set<String>>(pinnedStr) }.getOrDefault(emptySet())
+            } else {
+                emptySet()
+            }
+            val newPinned = if (isPinned) {
+                currentPinned + albumPath
+            } else {
+                currentPinned - albumPath
+            }
+            prefs[PINNED_ALBUMS_KEY] = Json.encodeToString(newPinned)
         }
     }
 

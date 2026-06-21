@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -100,6 +101,24 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.graphics.graphicsLayer
 
+enum class StorageCleanerBackAction {
+    DismissIgnoredItems,
+    DismissDeleteConfirmation,
+    DismissDetails,
+    NavigateBack
+}
+
+fun resolveStorageCleanerBackAction(
+    showIgnoredItems: Boolean,
+    showDeleteConfirm: Boolean,
+    hasActiveDetails: Boolean
+): StorageCleanerBackAction = when {
+    showIgnoredItems -> StorageCleanerBackAction.DismissIgnoredItems
+    showDeleteConfirm -> StorageCleanerBackAction.DismissDeleteConfirmation
+    hasActiveDetails -> StorageCleanerBackAction.DismissDetails
+    else -> StorageCleanerBackAction.NavigateBack
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StorageCleanerScreen(
@@ -127,6 +146,32 @@ fun StorageCleanerScreen(
     var highRiskAcknowledged by remember { mutableStateOf(false) }
 
     val haptics = rememberArcileHaptics()
+    fun dismissActiveDetails() {
+        activeCleanerGroup = null
+        confirmCleanerGroup = null
+        selectedCleanerPaths = emptySet()
+        confirmCleanerPaths = emptySet()
+        highRiskAcknowledged = false
+    }
+
+    fun dismissDeleteConfirmation() {
+        showDeleteConfirm = false
+        confirmCleanerGroup = null
+        confirmCleanerPaths = emptySet()
+    }
+
+    fun handleBack() {
+        when (resolveStorageCleanerBackAction(showIgnoredItems, showDeleteConfirm, activeCleanerGroup != null)) {
+            StorageCleanerBackAction.DismissIgnoredItems -> showIgnoredItems = false
+            StorageCleanerBackAction.DismissDeleteConfirmation -> dismissDeleteConfirmation()
+            StorageCleanerBackAction.DismissDetails -> dismissActiveDetails()
+            StorageCleanerBackAction.NavigateBack -> onNavigateBack()
+        }
+    }
+
+    BackHandler {
+        handleBack()
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "refreshRotation")
     val rotation by if (state.isScanning) {
@@ -262,13 +307,7 @@ fun StorageCleanerScreen(
             isCleaning = state.isCleaning,
             selectedFiles = selectedCleanerPaths,
             onSelectedFilesChange = { selectedCleanerPaths = it },
-            onDismiss = {
-                activeCleanerGroup = null
-                confirmCleanerGroup = null
-                selectedCleanerPaths = emptySet()
-                confirmCleanerPaths = emptySet()
-                highRiskAcknowledged = false
-            },
+            onDismiss = { dismissActiveDetails() },
             onRequestClean = { paths ->
                 confirmCleanerGroup = activeCleanerGroup
                 activeCleanerGroup = null
@@ -292,9 +331,7 @@ fun StorageCleanerScreen(
         val hasHighRisk = selectedCandidates.any { it.riskLevel == CleanerRiskLevel.High }
         AlertDialog(
             onDismissRequest = {
-                showDeleteConfirm = false
-                confirmCleanerGroup = null
-                confirmCleanerPaths = emptySet()
+                dismissDeleteConfirmation()
             },
             title = { Text(stringResource(R.string.clean_confirm_title)) },
             text = {
@@ -321,9 +358,7 @@ fun StorageCleanerScreen(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    showDeleteConfirm = false
-                    confirmCleanerGroup = null
-                    confirmCleanerPaths = emptySet()
+                    dismissDeleteConfirmation()
                 }) {
                     Text(stringResource(R.string.cancel))
                 }

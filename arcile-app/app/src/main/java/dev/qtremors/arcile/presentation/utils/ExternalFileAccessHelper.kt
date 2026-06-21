@@ -5,18 +5,18 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
-import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
-import androidx.core.content.FileProvider
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.security.MessageDigest
+import kotlin.jvm.JvmName
 
 object ExternalFileAccessHelper {
     private const val STAGING_ROOT = "external_access"
+    private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
     private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
     private const val MAX_CACHE_AGE_MS = 6L * 60 * 60 * 1000 // 6 hours
@@ -35,16 +35,27 @@ object ExternalFileAccessHelper {
         val sizeBytes: Long
     )
 
+    data class ExternalFileReference(
+        val path: String,
+        val displayName: String? = null,
+        val sizeBytes: Long? = null,
+        val mimeType: String? = null,
+        val nodeRef: StorageNodeRef? = null
+    ) {
+        val contentUri: String?
+            get() = nodeRef?.contentUri?.takeIf { it.isNotBlank() }
+    }
+
     private data class OpenTarget(
         val uri: Uri,
         val mimeType: String,
         val displayName: String
     )
 
-    internal var directOpenUriFactory: (Context, File) -> Uri = ::createFileProviderUri
+    internal var directOpenUriFactory: (Context, File) -> Uri = ::createStagedContentUri
 
     internal fun resetDirectOpenUriFactoryForTest() {
-        directOpenUriFactory = ::createFileProviderUri
+        directOpenUriFactory = ::createStagedContentUri
     }
 
     fun cleanupStagingArea(context: Context): StagingCacheStats {
@@ -112,11 +123,6 @@ object ExternalFileAccessHelper {
             .forEach { it.delete() }
     }
 
-    private fun sha1(value: String): String {
-        val digest = MessageDigest.getInstance("SHA-1").digest(value.toByteArray())
-        return digest.joinToString("") { "%02x".format(it) }
-    }
-
     private fun allowedStorageRoots(context: Context): List<String> {
         val roots = mutableSetOf<String>()
         roots += Environment.getExternalStorageDirectory().canonicalPath
@@ -168,18 +174,22 @@ object ExternalFileAccessHelper {
     private fun isContentReference(reference: String): Boolean =
         runCatching { Uri.parse(reference).scheme == "content" }.getOrDefault(false)
 
-    private fun createFileProviderUri(context: Context, file: File): Uri =
-        FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    private fun createStagedContentUri(context: Context, file: File): Uri =
+        ExternalFileAccessProvider.uriFor(context, file)
 
-    private suspend fun stageFile(context: Context, file: File, purpose: String): File = withContext(Dispatchers.IO) {
+    private suspend fun stageFile(
+        context: Context,
+        file: File,
+        purpose: String,
+        stagedName: String = file.name
+    ): File = withContext(Dispatchers.IO) {
         require(file.exists() && file.isFile) { "Source file does not exist" }
         require(isAllowedUserFile(context, file)) { "Unsupported file path" }
 
         cleanupStagingArea(context)
 
         val stagingDir = File(context.cacheDir, "$STAGING_ROOT${File.separator}$purpose").apply { mkdirs() }
-        val extension = file.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
-        val stagedFile = File(stagingDir, "${sha1(file.canonicalPath)}$extension")
+        val stagedFile = File(stagingDir, sanitizeDisplayName(stagedName))
         file.inputStream().use { input ->
             stagedFile.outputStream().use { output ->
                 input.copyTo(output)
@@ -187,6 +197,38 @@ object ExternalFileAccessHelper {
         }
         stagedFile.setLastModified(file.lastModified())
         stagedFile
+    }
+
+    private fun sanitizeDisplayName(name: String): String =
+        name
+            .replace('\\', '_')
+            .replace('/', '_')
+            .replace('\u0000', '_')
+            .takeIf { it.isNotBlank() && it != "." && it != ".." }
+            ?: "File"
+
+    private fun collisionSafeNames(references: List<ExternalFileReference>): List<String> {
+        val occupied = mutableSetOf<String>()
+        return references.map { reference ->
+            val baseName = sanitizeDisplayName(
+                reference.displayName
+                    ?: reference.nodeRef?.displayPath?.absolutePath?.let(::File)?.name
+                    ?: File(reference.path).name
+                    ?: "File"
+            )
+            val stem = baseName.substringBeforeLast('.', baseName)
+            val extension = baseName.substringAfterLast('.', missingDelimiterValue = "")
+                .takeIf { it.isNotBlank() && it != baseName }
+                ?.let { ".$it" }
+                .orEmpty()
+            var index = 0
+            var candidate = baseName
+            while (!occupied.add(candidate.lowercase())) {
+                index += 1
+                candidate = "$stem ($index)$extension"
+            }
+            candidate
+        }
     }
 
     private fun validateShareBatch(files: List<File>) {
@@ -203,27 +245,40 @@ object ExternalFileAccessHelper {
         }
     }
 
-    suspend fun createOpenIntent(context: Context, path: String): Intent {
-        val target = if (isContentReference(path)) {
-            val uri = Uri.parse(path)
+    suspend fun createOpenIntent(context: Context, path: String): Intent =
+        createOpenIntent(context, ExternalFileReference(path = path))
+
+    suspend fun createOpenIntent(context: Context, reference: ExternalFileReference): Intent {
+        val contentUri = reference.contentUri ?: reference.path.takeIf(::isContentReference)
+        val target = if (contentUri != null) {
+            val uri = Uri.parse(contentUri)
+            val displayName = reference.displayName
+                ?: displayNameForContentUri(context, uri)
+                ?: uri.lastPathSegment
+                ?: "File"
             OpenTarget(
                 uri = uri,
-                mimeType = context.contentResolver.getType(uri) ?: mimeTypeForPath(path),
-                displayName = displayNameForContentUri(context, uri) ?: uri.lastPathSegment ?: "File"
+                mimeType = reference.mimeType ?: context.contentResolver.getType(uri) ?: mimeTypeForPath(displayName),
+                displayName = displayName
             )
         } else {
+            val path = reference.path
             val sourceFile = File(path)
             require(isAllowedUserFile(context, sourceFile)) { "Unsupported file path" }
             if (sourceFile.exists() && sourceFile.isFile) {
+                val stagedFile = stageFile(context, sourceFile, OPEN_STAGING, reference.displayName ?: sourceFile.name)
                 val uri = runCatching {
-                    directOpenUriFactory(context, sourceFile)
+                    directOpenUriFactory(context, stagedFile)
                 }.getOrElse { error ->
                     throw IllegalArgumentException("Unable to create file access grant", error)
                 }
-                OpenTarget(uri = uri, mimeType = mimeTypeFor(sourceFile), displayName = sourceFile.name)
+                OpenTarget(
+                    uri = uri,
+                    mimeType = reference.mimeType ?: mimeTypeFor(sourceFile),
+                    displayName = reference.displayName ?: sourceFile.name
+                )
             } else {
-                resolveMediaStoreOpenTarget(context, path)
-                    ?: throw IllegalArgumentException("Source file does not exist")
+                throw IllegalArgumentException("Source file does not exist")
             }
         }
         return Intent(Intent.ACTION_VIEW).apply {
@@ -233,73 +288,46 @@ object ExternalFileAccessHelper {
         }
     }
 
-    private suspend fun resolveMediaStoreOpenTarget(context: Context, path: String): OpenTarget? =
-        withContext(Dispatchers.IO) {
-            val projection = arrayOf(
-                MediaStore.Files.FileColumns._ID,
-                MediaStore.Files.FileColumns.DISPLAY_NAME,
-                MediaStore.Files.FileColumns.MIME_TYPE,
-                MediaStore.MediaColumns.VOLUME_NAME
-            )
-            context.contentResolver.query(
-                MediaStore.Files.getContentUri("external"),
-                projection,
-                "${MediaStore.Files.FileColumns.DATA} = ?",
-                arrayOf(path),
-                null
-            )?.use { cursor ->
-                if (!cursor.moveToFirst()) return@withContext null
-                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID))
-                val name = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME))
-                    ?: File(path).name
-                val mimeType = cursor.getString(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE))
-                val volumeNameIndex = cursor.getColumnIndex(MediaStore.MediaColumns.VOLUME_NAME)
-                val volumeName = if (volumeNameIndex >= 0 && !cursor.isNull(volumeNameIndex)) {
-                    cursor.getString(volumeNameIndex)
-                } else {
-                    MediaStore.VOLUME_EXTERNAL
-                }
-                OpenTarget(
-                    uri = android.content.ContentUris.withAppendedId(
-                        MediaStore.Files.getContentUri(volumeName ?: MediaStore.VOLUME_EXTERNAL),
-                        id
-                    ),
-                    mimeType = mimeTypeForPath(path, mimeType),
-                    displayName = name
-                )
-            }
-        }
-
     suspend fun createShareUris(context: Context, filePaths: List<String>): List<Uri> {
         return createShareTargets(context, filePaths).map { it.uri }
     }
 
-    suspend fun createShareTargets(context: Context, filePaths: List<String>): List<ShareTarget> = withContext(Dispatchers.IO) {
-        val files = filePaths.filterNot(::isContentReference).map(::File)
-        validateShareBatch(files)
+    suspend fun createShareTargets(context: Context, filePaths: List<String>): List<ShareTarget> =
+        createShareTargets(context, filePaths.map { ExternalFileReference(path = it) })
 
-        filePaths.mapNotNull { reference ->
+    @JvmName("createShareTargetsForReferences")
+    suspend fun createShareTargets(context: Context, references: List<ExternalFileReference>): List<ShareTarget> = withContext(Dispatchers.IO) {
+        val files = references.filter { it.contentUri == null && !isContentReference(it.path) }.map { File(it.path) }
+        validateShareBatch(files)
+        val stagedNames = collisionSafeNames(references)
+
+        references.mapIndexedNotNull { index, reference ->
             runCatching {
-                if (isContentReference(reference)) {
-                    val uri = Uri.parse(reference)
+                val contentUri = reference.contentUri ?: reference.path.takeIf(::isContentReference)
+                if (contentUri != null) {
+                    val uri = Uri.parse(contentUri)
+                    val displayName = reference.displayName
+                        ?: displayNameForContentUri(context, uri)
+                        ?: uri.lastPathSegment
+                        ?: "File"
                     return@runCatching ShareTarget(
                         uri = uri,
-                        mimeType = context.contentResolver.getType(uri) ?: mimeTypeForPath(reference),
-                        displayName = displayNameForContentUri(context, uri) ?: uri.lastPathSegment ?: "File",
-                        sizeBytes = sizeForContentUri(context, uri) ?: 0L
+                        mimeType = reference.mimeType ?: context.contentResolver.getType(uri) ?: mimeTypeForPath(displayName),
+                        displayName = displayName,
+                        sizeBytes = reference.sizeBytes ?: sizeForContentUri(context, uri) ?: 0L
                     )
                 }
-                val file = File(reference)
-                val stagedFile = stageFile(context, file, SHARE_STAGING)
+                val file = File(reference.path)
+                val stagedFile = stageFile(context, file, SHARE_STAGING, stagedNames[index])
                 ShareTarget(
-                    uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", stagedFile),
-                    mimeType = mimeTypeFor(file),
-                    displayName = file.name,
-                    sizeBytes = file.length()
+                    uri = createStagedContentUri(context, stagedFile),
+                    mimeType = reference.mimeType ?: mimeTypeFor(file),
+                    displayName = reference.displayName ?: file.name,
+                    sizeBytes = reference.sizeBytes ?: file.length()
                 )
             }.getOrElse { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: $reference")
+                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: ${reference.path}")
                 null
             }
         }

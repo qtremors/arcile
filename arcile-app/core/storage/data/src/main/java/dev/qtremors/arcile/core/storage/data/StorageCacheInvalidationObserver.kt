@@ -8,7 +8,9 @@ import android.os.Looper
 import android.provider.MediaStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
+import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.di.ApplicationScope
 import java.util.concurrent.atomic.AtomicBoolean
@@ -24,8 +26,12 @@ class StorageCacheInvalidationObserver @Inject constructor(
     @param:ApplicationContext private val context: Context,
     @param:ApplicationScope private val applicationScope: CoroutineScope,
     private val mediaStoreClient: MediaStoreClient,
+    private val volumeProvider: VolumeProvider,
     private val storageNodeDao: StorageNodeDao,
+    private val folderStatsStore: FolderStatsStore,
     private val recentFilesSnapshotStore: RecentFilesSnapshotStore,
+    private val storageUsageSnapshotStore: StorageUsageSnapshotStore,
+    private val storageCleanerSnapshotStore: StorageCleanerSnapshotStore,
     private val storageMutationNotifier: StorageMutationNotifier
 ) {
     private val registered = AtomicBoolean(false)
@@ -41,6 +47,14 @@ class StorageCacheInvalidationObserver @Inject constructor(
         override fun onChange(selfChange: Boolean, uri: Uri?) {
             scheduleInvalidation(uri)
         }
+
+        override fun onChange(selfChange: Boolean, uris: Collection<Uri>, flags: Int) {
+            if (uris.isEmpty()) {
+                scheduleInvalidation(null)
+                return
+            }
+            uris.forEach(::scheduleInvalidation)
+        }
     }
 
     fun register() {
@@ -50,6 +64,7 @@ class StorageCacheInvalidationObserver @Inject constructor(
             true,
             observer
         )
+        scheduleInvalidation(null)
     }
 
     private fun scheduleInvalidation(uri: Uri?) {
@@ -73,25 +88,42 @@ class StorageCacheInvalidationObserver @Inject constructor(
             if (broadInvalidation) {
                 mediaStoreClient.invalidateCache()
                 storageNodeDao.clear()
+                folderStatsStore.clear()
                 recentFilesSnapshotStore.clear()
+                storageUsageSnapshotStore.invalidate(emptyList())
+                storageCleanerSnapshotStore.clear()
                 storageMutationNotifier.notify(emptyList())
                 return@launch
             }
 
             val targets = uris.mapNotNull { mediaStoreClient.resolveInvalidationUri(it) }
+            val hasUnresolvedTarget = targets.any { it.path.isNullOrBlank() }
             val paths = targets.mapNotNull { it.path }.distinct()
             val parentPaths = targets.mapNotNull { it.parentPath }.distinct()
+            val affectedPaths = (paths + parentPaths)
+                .flatMap(::pathWithAncestors)
+                .distinct()
             val contentUris = (targets.mapNotNull { it.contentUri } + uris.map { it.toString() }).distinct()
             val mediaStoreIds = targets.mapNotNull { it.mediaStoreId }.distinct()
 
             if (paths.isNotEmpty()) {
-                mediaStoreClient.invalidateCache(*paths.toTypedArray())
+                if (hasUnresolvedTarget) {
+                    mediaStoreClient.invalidateCache()
+                } else {
+                    mediaStoreClient.invalidateCache(*paths.toTypedArray())
+                }
                 storageNodeDao.delete(paths)
                 paths.forEach { path -> storageNodeDao.deleteTree(path, "$path/%") }
                 parentPaths.forEach { parent -> storageNodeDao.deleteChildren(parent) }
+                folderStatsStore.invalidate(affectedPaths)
+                storageUsageSnapshotStore.invalidate(affectedPaths)
+                storageCleanerSnapshotStore.clear()
                 storageMutationNotifier.notify((paths + parentPaths).distinct())
             } else {
                 mediaStoreClient.invalidateCache()
+                folderStatsStore.clear()
+                storageUsageSnapshotStore.invalidate(emptyList())
+                storageCleanerSnapshotStore.clear()
                 storageMutationNotifier.notify(emptyList())
             }
             if (contentUris.isNotEmpty()) {
@@ -104,7 +136,10 @@ class StorageCacheInvalidationObserver @Inject constructor(
         }
     }
 
+    private fun pathWithAncestors(path: String): List<String> =
+        PathSafety.pathWithAncestors(path, volumeProvider.activeStorageRoots)
+
     private companion object {
-        const val INVALIDATION_DEBOUNCE_MS = 750L
+        const val INVALIDATION_DEBOUNCE_MS = 200L
     }
 }

@@ -18,6 +18,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import java.util.Locale
+import java.util.TimeZone
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -171,6 +173,30 @@ class ImageGalleryStateTest {
         )
 
         assertEquals(custom, cover)
+    }
+
+    @Test
+    fun `album cover lookup precomputes custom fallback and favorites covers`() {
+        val fallback = FileModel("one.jpg", "album/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val custom = FileModel("two.jpg", "album/two.jpg", size = 200, lastModified = 200, isDirectory = false)
+        val favorite = FileModel("fav.jpg", "favorites/fav.jpg", size = 300, lastModified = 300, isDirectory = false)
+
+        val lookup = buildAlbumCoverLookup(
+            files = listOf(fallback, custom, favorite),
+            favoriteFiles = linkedSetOf(fallback.absolutePath, favorite.absolutePath),
+            albumCovers = mapOf("album" to custom.absolutePath)
+        )
+
+        assertEquals(custom, lookup["album"])
+        assertEquals(favorite, lookup[FAVORITES_ALBUM_PATH])
+    }
+
+    @Test
+    fun `only real albums are valid paste destinations`() {
+        assertTrue(isPasteDestinationAlbumPath("/storage/emulated/0/Pictures/Camera"))
+        assertTrue(!isPasteDestinationAlbumPath(null))
+        assertTrue(!isPasteDestinationAlbumPath(""))
+        assertTrue(!isPasteDestinationAlbumPath(FAVORITES_ALBUM_PATH))
     }
 
     @Test
@@ -330,6 +356,157 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `viewer initial page restores only within same viewer session`() {
+        val first = FileModel("one.jpg", "/photos/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val second = FileModel("two.jpg", "/photos/two.jpg", size = 100, lastModified = 200, isDirectory = false)
+        val third = FileModel("three.jpg", "/photos/three.jpg", size = 100, lastModified = 300, isDirectory = false)
+        val context = ViewerFileContext(files = listOf(first, second, third), initialPage = 2)
+
+        assertEquals(
+            1,
+            viewerInitialPageForSession(
+                initialPath = third.absolutePath,
+                viewerSessionInitialPath = third.absolutePath,
+                viewerCurrentPath = second.absolutePath,
+                viewerContext = context
+            )
+        )
+        assertEquals(
+            2,
+            viewerInitialPageForSession(
+                initialPath = third.absolutePath,
+                viewerSessionInitialPath = first.absolutePath,
+                viewerCurrentPath = second.absolutePath,
+                viewerContext = context
+            )
+        )
+    }
+
+    @Test
+    fun `viewer position label is based on current page and context size`() {
+        assertEquals("3/100", viewerPositionLabel(currentPage = 2, total = 100))
+        assertEquals("1/1", viewerPositionLabel(currentPage = 0, total = 1))
+        assertEquals("0/0", viewerPositionLabel(currentPage = 0, total = 0))
+    }
+
+    @Test
+    fun `viewer thumbnail strip jumps for first and far positioning`() {
+        assertEquals(
+            ViewerThumbnailScrollAction.Jump,
+            viewerThumbnailScrollAction(previousIndex = null, targetIndex = 400)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.Jump,
+            viewerThumbnailScrollAction(previousIndex = 10, targetIndex = 200)
+        )
+    }
+
+    @Test
+    fun `viewer thumbnail strip animates only nearby positioning`() {
+        assertEquals(
+            ViewerThumbnailScrollAction.Animate,
+            viewerThumbnailScrollAction(previousIndex = 20, targetIndex = 24)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.None,
+            viewerThumbnailScrollAction(previousIndex = 20, targetIndex = 20)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.None,
+            viewerThumbnailScrollAction(previousIndex = 20, targetIndex = -1)
+        )
+    }
+
+    @Test
+    fun `viewer date time uses compact display format`() {
+        val timestamp = 1_781_086_440_000L
+
+        assertEquals(
+            "Jun 10, 2026 • 10:14 AM",
+            formatViewerDateTime(timestamp, Locale.US, TimeZone.getTimeZone("UTC"))
+        )
+    }
+
+    @Test
+    fun `metadata detail rows include core file information when available`() {
+        val file = FileModel(
+            name = "photo.jpg",
+            absolutePath = "/storage/emulated/0/DCIM/photo.jpg",
+            size = 30_360L,
+            lastModified = 1_781_086_440_000L,
+            extension = "jpg",
+            mimeType = "image/jpeg",
+            nodeRef = StorageNodeRef.mediaStore(
+                id = 42L,
+                volumeName = "external",
+                contentUri = "content://media/external/images/media/42",
+                displayPath = "/storage/emulated/0/DCIM/photo.jpg"
+            )
+        )
+        val metadata = GalleryFileMetadata(
+            path = file.absolutePath,
+            size = file.size,
+            mimeType = file.mimeType,
+            width = 1053,
+            height = 317,
+            megapixel = 0.33,
+            cameraMaker = null,
+            cameraModel = null,
+            lensModel = null,
+            iso = null,
+            exposureTime = null,
+            fNumber = null,
+            focalLength = null,
+            whiteBalance = null,
+            flash = null,
+            dateTaken = "2026:06:10 10:14:00",
+            latitude = null,
+            longitude = null,
+            altitude = null
+        )
+
+        val rows = buildMetadataDetailRows(
+            file = file,
+            metadata = metadata,
+            labels = testMetadataLabels,
+            dateText = formatViewerDateTime(file.lastModified, Locale.US, TimeZone.getTimeZone("UTC"))
+        )
+
+        assertEquals("photo.jpg", rows.valueFor("Title"))
+        assertEquals("Jun 10, 2026 • 10:14 AM", rows.valueFor("Date"))
+        assertEquals("2026:06:10 10:14:00", rows.valueFor("Date taken"))
+        assertEquals("1053 x 317", rows.valueFor("Resolution"))
+        assertEquals("29.65 KB", rows.valueFor("Size"))
+        assertEquals("content://media/external/images/media/42", rows.valueFor("URI"))
+        assertEquals("/storage/emulated/0/DCIM/photo.jpg", rows.valueFor("Path"))
+        assertEquals("image/jpeg", rows.valueFor("MIME type"))
+        assertEquals("JPG", rows.valueFor("Extension"))
+    }
+
+    @Test
+    fun `metadata detail rows omit unavailable uri and resolution`() {
+        val file = FileModel(
+            name = "photo",
+            absolutePath = "/storage/emulated/0/DCIM/photo",
+            size = 0L,
+            lastModified = 0L,
+            isDirectory = false
+        )
+
+        val rows = buildMetadataDetailRows(
+            file = file,
+            metadata = null,
+            labels = testMetadataLabels
+        )
+
+        assertNull(rows.valueFor("Date"))
+        assertNull(rows.valueFor("Resolution"))
+        assertNull(rows.valueFor("URI"))
+        assertEquals("0 B", rows.valueFor("Size"))
+        assertEquals("/storage/emulated/0/DCIM/photo", rows.valueFor("Path"))
+    }
+
+    @Test
     fun `removing gallery paths updates displayed files favorites and album counts`() {
         val kept = FileModel("kept.jpg", "/photos/album/kept.jpg", size = 100, lastModified = 100, isDirectory = false)
         val deleted = FileModel("deleted.jpg", "/photos/album/deleted.jpg", size = 100, lastModified = 200, isDirectory = false)
@@ -356,4 +533,19 @@ class ImageGalleryStateTest {
         assertTrue(next.albumCovers.isEmpty())
         assertEquals(1, next.albums.first { it.path == "/photos/album" }.count)
     }
+
+    private fun List<MetadataDetailRow>.valueFor(label: String): String? =
+        firstOrNull { it.label == label }?.value
+
+    private val testMetadataLabels = MetadataDetailLabels(
+        title = "Title",
+        date = "Date",
+        dateTaken = "Date taken",
+        resolution = "Resolution",
+        size = "Size",
+        uri = "URI",
+        path = "Path",
+        mimeType = "MIME type",
+        extension = "Extension"
+    )
 }

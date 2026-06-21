@@ -1,14 +1,72 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.1.0
-> **Last Updated:** 2026-06-14
+> **Version:** 1.2.0
+> **Last Updated:** 2026-06-21
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
 
+---
+
+# v1.2.0
+
+**Release Date:** June 21, 2026
+
+**Previous public release:** v1.1.0
+
+**Candidate range included:** v1.1.1 through v1.2.0
+
+Arcile v1.2.0 consolidates the v1.1.x follow-up series into a public release focused on reliability, recovery, refresh behavior, Gallery and image viewer polish, Quick Access improvements, and predictable back navigation. It does not change Arcile's local-first privacy model or add background-process lifetime behavior.
+
+## What's New Since v1.1.0
+
+### Activity, Backup & Recovery
+- **Activity Log:** Added a local Activity tool for opened folders and foreground file-operation history, with clear controls and Home/Tools navigation.
+- **Manual settings backup and restore:** Added file-based preference export and restore from Settings and onboarding, including previews, restore results, theme support, and safe error handling.
+- **Durable Save to Arcile imports:** Shared-file imports now run through foreground operations with staged temp files, progress notifications, cancellation cleanup, recovery checkpoints, and mutation finalization.
+- **Operation recovery checkpoints:** Interrupted copy/import work has stronger checkpoint data for staged files, finalized outputs, rollback hints, and Trash IDs.
+
+### Refresh & Storage Reliability
+- **Live media refresh:** Downloads, screenshots, gallery changes, external file updates, category data, open folders, Home carousel data, and Recent Files refresh more reliably after MediaStore and storage mutation events.
+- **Recent Files refresh polish:** Pull-to-refresh now covers empty, loading, search, grid, and list states and avoids stale overlapping reloads.
+- **Browser listing freshness:** Browser folders read live filesystem children where needed so Gallery image cache entries no longer hide folders in places such as Pictures.
+- **Folder stats and cache stability:** Folder rows keep cached size/count visible while background refreshes run, and Room cache schema handling is documented and constrained to the intended migration path.
+- **Video and thumbnail reliability:** Browser video thumbnails now fall back to direct metadata extraction when MediaStore thumbnail URIs are unavailable, with broader video extension recognition.
+
+### Gallery & Image Viewer
+- **Gallery copy/paste:** Real gallery albums support direct copy/cut paste, album-card paste actions, conflict resolution, and foreground copy/move feedback.
+- **Gallery refresh and performance:** Album contents update after copy/move operations, gallery snapshots avoid stale persisted data, and album shaping/cover work moved off the main thread.
+- **Image viewer details:** Viewer overlays now show position, filename, date/time, and resolution; the metadata sheet includes richer file and EXIF fields.
+- **Viewer state restoration:** The image viewer preserves chrome, metadata sheet, current image, rotation, and erase-dialog state across activity recreation.
+- **External image opens:** Arcile can handle external `image/*` opens with the standalone viewer, while reusing full image metadata in single-image Properties cards.
+- **Deep gallery thumbnail performance:** Opening an image far down a large gallery now centers the selected bottom-strip thumbnail immediately, uses stable path keys and fixed item dimensions, and animates only nearby page changes.
+
+### Navigation, Motion & Input
+- **System predictive back:** Added Android 14+ predictive back support and expressive motion across main cards, buttons, lists, split actions, toolbar navigation, Browser, Gallery, Recents, Trash, and Archive Viewer.
+- **Route-order Browser handoffs:** Browser opens from Cleaner, Recent Files, Quick Access, Storage Dashboard, Archive Viewer, and similar detail screens preserve the originating screen so back gestures unwind in the same order the user navigated.
+- **Storage Cleaner local back:** Back dismisses ignored-items, delete confirmation, and details UI before leaving Cleaner.
+- **Storage Dashboard handoff fix:** Dashboard and usage-map Browser handoffs return to Home instead of landing on an unintended Browser route.
+- **Keyboard reliability:** Search fields, dialog name inputs, filters, and other text inputs now open the keyboard on focus/tap and stay visible above the IME.
+
+### Onboarding & Quick Access Polish
+- **Onboarding overhaul:** Refined onboarding with larger touch targets, clearer permission copy, pill-shaped status chips, reduced-motion-aware animation, and a redesigned expressive setup flow.
+- **Home recent thumbnails:** Home recent-file carousel thumbnails now keep stable cache keys when scrolled offscreen and back.
+- **Quick Access management:** Manage Quick Access now groups shortcuts into clearer sections, supports fullscreen drag reordering for enabled shortcuts, adds haptic switch feedback, and uses check/close symbols in home-toggle switches.
+- **Home Arcile shortcut:** The Home Quick Access "All" shortcut is now labeled "Arcile" and loads the actual launcher icon for the active build.
+- **Storage Cleaner layout polish:** Cleaner candidate rows keep Ignore actions readable while long risk reasons truncate cleanly.
+
+### Security & Handoffs
+- **External handoff hardening:** File open/share handoffs use carried content URI identity where available, avoid raw MediaStore path lookups, and preserve shared filenames through app-owned staged providers.
+- **Backup privacy:** Local cache metadata is excluded from backup and transfer paths.
+- **Secure delete reporting:** Secure delete failures are surfaced instead of being reported as successful.
+
+### Archive Reliability
+- **Extraction conflict isolation:** Archive extraction conflict decisions reset per extraction so skip and keep-both directory choices cannot leak into later archive operations.
+- **Archive browser restoration:** Saved archive path and entry-prefix browsing state restore after process recreation without persisting archive passwords.
 ---
 
 # v1.1.0

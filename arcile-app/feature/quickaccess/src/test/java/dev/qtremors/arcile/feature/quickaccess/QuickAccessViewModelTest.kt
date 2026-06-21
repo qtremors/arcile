@@ -143,4 +143,24 @@ class QuickAccessViewModelTest {
         assertEquals(QuickAccessType.FILES_APP, added.type)
         assertTrue(added.isPinned)
     }
+
+    @Test
+    fun `updateItemsOrder reorders items and preserves unpinned items`() = runTest(dispatcher) {
+        val item1 = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item2 = QuickAccessItem(id = "2", label = "DCIM", path = "/dcim", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item3 = QuickAccessItem(id = "3", label = "Pictures", path = "/pictures", type = QuickAccessType.STANDARD, isPinned = false, isEnabled = true)
+        fakeStore.itemsFlow.value = listOf(item1, item2, item3)
+
+        val viewModel = QuickAccessViewModel(fakeStore)
+        advanceUntilIdle()
+
+        viewModel.updateItemsOrder(listOf(item2, item1))
+        advanceUntilIdle()
+
+        val updated = fakeStore.updatedItems
+        assertEquals(3, updated?.size)
+        assertEquals("2", updated!![0].id)
+        assertEquals("1", updated[1].id)
+        assertEquals("3", updated[2].id)
+    }
 }

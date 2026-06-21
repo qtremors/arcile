@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 
 
 class DefaultFileSystemDataSource(
@@ -50,6 +51,19 @@ class DefaultFileSystemDataSource(
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }, mutationJournal = mutationJournal)
 ) : FileSystemDataSource {
+    internal sealed class SecureOverwriteResult {
+        data object Success : SecureOverwriteResult()
+        data class Failure(val message: String, val causeType: String = "SecureOverwriteFailed") : SecureOverwriteResult()
+    }
+
+    companion object {
+        internal var secureOverwriteOverrideForTest: ((File) -> SecureOverwriteResult)? = null
+
+        internal fun resetSecureOverwriteOverrideForTest() {
+            secureOverwriteOverrideForTest = null
+        }
+    }
+
     private val listingComparator = compareBy<FileModel> { !it.isDirectory }
         .thenBy { it.name.lowercase() }
 
@@ -188,17 +202,6 @@ class DefaultFileSystemDataSource(
                 emit(ListingPage.failed(path, IllegalArgumentException("Path is not a valid directory")))
                 return@flow
             }
-
-            storageNodeDao?.listChildren(directory.absolutePath)
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { cachedChildren ->
-                    emitPages(
-                        path = path,
-                        files = cachedChildren.map { it.toFileModel() },
-                        pageSize = pageSize
-                    ) { page -> emit(page) }
-                    return@flow
-                }
 
             val children = directory.listFiles()
                 ?: run {
@@ -419,9 +422,11 @@ class DefaultFileSystemDataSource(
                     continue
                 }
 
-                val shredError = runCatching { shredRecursively(file) }.exceptionOrNull()
-                if (shredError != null) {
-                    failedItems += shredError.toBatchFailure(file, cleanupRequired = true)
+                val shredFailures = runCatching { shredRecursively(file) }.getOrElse { error ->
+                    listOf(error.toBatchFailure(file, cleanupRequired = true))
+                }
+                if (shredFailures.isNotEmpty()) {
+                    failedItems += shredFailures
                     cleanupRequiredPaths += path
                     continue
                 }
@@ -471,23 +476,48 @@ class DefaultFileSystemDataSource(
     private val fileListingComparator = compareBy<File> { !it.isDirectory }
         .thenBy { it.name.lowercase() }
 
-    private fun shredRecursively(file: File) {
+    private fun shredRecursively(file: File): List<BatchMutationFailure> {
         if (file.isDirectory) {
-            file.listFiles()?.forEach { shredRecursively(it) }
+            val children = file.listFiles() ?: return listOf(
+                BatchMutationFailure(
+                    path = file.absolutePath,
+                    displayName = file.name.ifBlank { file.absolutePath },
+                    message = "Unable to inspect directory before secure shred: ${file.name}",
+                    causeType = "SecureOverwriteFailed",
+                    cleanupRequired = true
+                )
+            )
+            return children.flatMap { shredRecursively(it) }
         } else if (file.isFile) {
-            overwriteSecurely(file)
+            return when (val result = overwriteSecurely(file)) {
+                SecureOverwriteResult.Success -> emptyList()
+                is SecureOverwriteResult.Failure -> listOf(
+                    BatchMutationFailure(
+                        path = file.absolutePath,
+                        displayName = file.name.ifBlank { file.absolutePath },
+                        message = result.message,
+                        causeType = result.causeType,
+                        cleanupRequired = true
+                    )
+                )
+            }
         }
+        return emptyList()
     }
 
-    private fun overwriteSecurely(file: File) {
-        if (!file.canWrite()) return
+    private fun overwriteSecurely(file: File): SecureOverwriteResult {
+        secureOverwriteOverrideForTest?.let { return it(file) }
+
+        if (!file.canWrite()) {
+            return SecureOverwriteResult.Failure("Unable to securely overwrite ${file.name}: file is not writable")
+        }
         val length = file.length()
-        if (length <= 0) return
+        if (length <= 0) return SecureOverwriteResult.Success
 
         val bufferSize = 64 * 1024
         val buffer = ByteArray(bufferSize)
-        try {
-            file.outputStream().use { output ->
+        return try {
+            FileOutputStream(file, false).use { output ->
                 var remaining = length
                 while (remaining > 0) {
                     val toWrite = remaining.coerceAtMost(bufferSize.toLong()).toInt()
@@ -495,9 +525,14 @@ class DefaultFileSystemDataSource(
                     remaining -= toWrite
                 }
                 output.flush()
+                output.fd.sync()
             }
+            SecureOverwriteResult.Success
         } catch (e: Exception) {
-            // Ignore error
+            SecureOverwriteResult.Failure(
+                message = "Unable to securely overwrite ${file.name}: ${e.message ?: e.javaClass.simpleName}",
+                causeType = "SecureOverwriteFailed"
+            )
         }
     }
 

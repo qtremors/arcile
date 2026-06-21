@@ -26,6 +26,15 @@
     <string name="image_gallery_tab_albums">Albums</string>
     <string name="image_gallery_album_count">%1$d items</string>
     <string name="image_gallery_metadata_title">Details</string>
+    <string name="image_gallery_metadata_label_title">Title</string>
+    <string name="image_gallery_metadata_label_date">Date</string>
+    <string name="image_gallery_metadata_label_date_taken">Date taken</string>
+    <string name="image_gallery_metadata_label_resolution">Resolution</string>
+    <string name="image_gallery_metadata_label_size">Size</string>
+    <string name="image_gallery_metadata_label_uri">URI</string>
+    <string name="image_gallery_metadata_label_path">Path</string>
+    <string name="image_gallery_metadata_label_mime_type">MIME type</string>
+    <string name="image_gallery_metadata_label_extension">Extension</string>
     <string name="image_gallery_metadata_erase">Erase EXIF metadata</string>
     <string name="image_gallery_metadata_erase_dialog_title">Erase EXIF Metadata</string>
     <string name="image_gallery_metadata_erase_dialog_message">Are you sure you want to permanently strip EXIF, camera details, and GPS tags from this file? This cannot be undone.</string>
@@ -34,4 +43,10 @@
     <string name="image_gallery_cover_set_success">Album cover updated</string>
     <string name="image_gallery_favorites_folder">Favorites</string>
     <string name="image_gallery_open_with">Open with…</string>
+    <string name="image_gallery_section_favourites">Favourites</string>
+    <string name="image_gallery_section_pinned">Pinned Albums</string>
+    <string name="image_gallery_section_groups">Groups</string>
+    <string name="image_gallery_section_albums">Albums</string>
+    <string name="image_gallery_action_pin_album">Pin Album</string>
+    <string name="image_gallery_action_unpin_album">Unpin Album</string>
 </resources>

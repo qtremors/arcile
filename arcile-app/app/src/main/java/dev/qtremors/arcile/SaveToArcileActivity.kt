@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,15 +56,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dagger.hilt.android.AndroidEntryPoint
-import dev.qtremors.arcile.core.storage.data.MutationFinalizer
+import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.ui.theme.ArcileTheme
 import dev.qtremors.arcile.ui.theme.ThemeState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -78,13 +80,10 @@ class SaveToArcileActivity : ComponentActivity() {
     lateinit var volumeRepository: VolumeRepository
 
     @Inject
-    lateinit var storageWorkCoordinator: StorageWorkCoordinator
+    lateinit var bulkFileOperationCoordinator: BulkFileOperationCoordinator
 
     @Inject
-    lateinit var mutationFinalizer: MutationFinalizer
-
-    @Inject
-    lateinit var dispatchers: ArcileDispatchers
+    lateinit var browserPreferencesStore: BrowserPreferencesStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -105,11 +104,20 @@ class SaveToArcileActivity : ComponentActivity() {
                     SaveToArcileScreen(
                         incoming = preflight.accepted,
                         loadVolumes = { volumeRepository.getStorageVolumes().getOrElse { emptyList() } },
-                        copyTo = { destination -> saveIncoming(destination, preflight.accepted) },
+                        loadDefaultPath = { browserPreferencesStore.preferencesFlow.first().defaultSaveToArcilePath },
+                        saveDefaultPath = { browserPreferencesStore.updateDefaultSaveToArcilePath(it) },
+                        copyTo = { destination -> enqueueIncomingImport(destination, preflight.accepted) },
                         onCancel = { finish() },
+                        onDefaultSaved = {
+                            Toast.makeText(
+                                this,
+                                getString(R.string.save_to_arcile_default_saved),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        },
                         onFinished = { result ->
                             Toast.makeText(this, result.userMessage(this), Toast.LENGTH_LONG).show()
-                            if (result.savedCount > 0 || result.failures.isEmpty()) finish()
+                            if (result.queued || result.savedCount > 0 || result.failures.isEmpty()) finish()
                         },
                         onFailed = { error ->
                             Toast.makeText(
@@ -124,26 +132,43 @@ class SaveToArcileActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun saveIncoming(destination: File, incoming: List<IncomingSharedFile>): Result<SaveIncomingResult> =
-        withContext(dispatchers.io) {
-            storageWorkCoordinator.beginMutation()
-            try {
-                saveIncomingFiles(
-                    destination = destination,
-                    incoming = incoming,
-                    openInputStream = { uri -> contentResolver.openInputStream(uri) },
-                    finalizeDestination = { path -> mutationFinalizer.finalize(path) },
-                    invalidDestinationMessage = getString(R.string.save_to_arcile_invalid_destination),
-                    insufficientSpaceMessage = getString(R.string.save_to_arcile_insufficient_space),
-                    failedOpenStreamMessage = getString(R.string.save_to_arcile_failed_open_stream)
+    private fun enqueueIncomingImport(destination: File, incoming: List<IncomingSharedFile>): Result<SaveIncomingResult> {
+        persistReadableUriPermissions(incoming)
+        val started = bulkFileOperationCoordinator.startImportOperation(
+            destinationPath = destination.absolutePath,
+            importItems = incoming.map {
+                SaveToArcileImportItem(
+                    uri = it.uri.toString(),
+                    displayName = it.displayName,
+                    sizeBytes = it.sizeBytes,
+                    requiresCountedStream = it.requiresCountedStream
                 )
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Result.failure(e)
-            } finally {
-                storageWorkCoordinator.endMutation()
+            }
+        )
+        return if (started) {
+            Result.success(SaveIncomingResult(savedCount = 0, failures = emptyList(), queued = true))
+        } else {
+            Result.failure(IllegalStateException(getString(R.string.file_operation_already_running)))
+        }
+    }
+
+    private fun persistReadableUriPermissions(incoming: List<IncomingSharedFile>) {
+        val persistableRead = intent.flags and
+            (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        if (persistableRead !=
+            (Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        ) {
+            return
+        }
+        incoming.forEach { item ->
+            runCatching {
+                contentResolver.takePersistableUriPermission(
+                    item.uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
             }
         }
+    }
 
 }
 
@@ -182,10 +207,12 @@ enum class IncomingShareFailureReason {
 
 data class SaveIncomingResult(
     val savedCount: Int,
-    val failures: List<IncomingShareFailure>
+    val failures: List<IncomingShareFailure>,
+    val queued: Boolean = false
 ) {
     fun userMessage(context: Context): String =
         when {
+            queued -> context.getString(R.string.save_to_arcile_import_started)
             savedCount > 0 && failures.isEmpty() -> context.resources.getQuantityString(
                 R.plurals.save_to_arcile_saved_files,
                 savedCount,
@@ -518,13 +545,42 @@ const val MAX_IMPORT_ITEMS = 200
 const val MAX_IMPORT_BYTES = 10L * 1024L * 1024L * 1024L
 const val FREE_SPACE_SAFETY_BUFFER_BYTES = 50L * 1024L * 1024L
 
+internal fun resolveInitialSaveToArcileDirectory(
+    defaultPath: String?,
+    volumes: List<StorageVolume>
+): File? {
+    val defaultDirectory = defaultPath
+        ?.takeIf { it.isNotBlank() }
+        ?.let(::File)
+        ?: return null
+    return defaultDirectory.takeIf { isValidSaveToArcileDirectory(it, volumes) }
+}
+
+internal fun isValidSaveToArcileDirectory(
+    directory: File,
+    volumes: List<StorageVolume>
+): Boolean {
+    if (!directory.exists() || !directory.isDirectory || !directory.canRead() || !directory.canWrite()) {
+        return false
+    }
+    val canonicalDirectory = runCatching { directory.canonicalFile }.getOrNull() ?: return false
+    return volumes.any { volume ->
+        val canonicalVolume = runCatching { File(volume.path).canonicalFile }.getOrNull() ?: return@any false
+        canonicalDirectory == canonicalVolume ||
+            canonicalDirectory.absolutePath.startsWith(canonicalVolume.absolutePath + File.separator)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SaveToArcileScreen(
     incoming: List<IncomingSharedFile>,
     loadVolumes: suspend () -> List<StorageVolume>,
+    loadDefaultPath: suspend () -> String?,
+    saveDefaultPath: suspend (String) -> Unit,
     copyTo: suspend (File) -> Result<SaveIncomingResult>,
     onCancel: () -> Unit,
+    onDefaultSaved: () -> Unit,
     onFinished: (SaveIncomingResult) -> Unit,
     onFailed: (Throwable) -> Unit
 ) {
@@ -537,7 +593,9 @@ private fun SaveToArcileScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     LaunchedEffect(Unit) {
-        volumes = loadVolumes()
+        val loadedVolumes = loadVolumes()
+        volumes = loadedVolumes
+        currentDir = resolveInitialSaveToArcileDirectory(loadDefaultPath(), loadedVolumes)
         isLoading = false
     }
 
@@ -569,34 +627,57 @@ private fun SaveToArcileScreen(
         },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = resourcesPluralString(R.plurals.save_to_arcile_selected_files, incoming.size, incoming.size),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
+                        style = MaterialTheme.typography.bodyMedium
                     )
-                    Button(
-                        enabled = currentDir != null && !isSaving,
-                        onClick = {
-                            val destination = currentDir ?: return@Button
-                            isSaving = true
-                            scope.launch {
-                                copyTo(destination)
-                                    .onSuccess(onFinished)
-                                    .onFailure(onFailed)
-                                isSaving = false
-                            }
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Outlined.SaveAlt, contentDescription = null)
-                        Spacer(Modifier.size(8.dp))
-                        Text(stringResource(R.string.save_to_arcile_save_here))
+                        val selectedDirectory = currentDir
+                        val canUseSelectedDirectory = selectedDirectory != null &&
+                            isValidSaveToArcileDirectory(selectedDirectory, volumes)
+                        if (selectedDirectory != null) {
+                            TextButton(
+                                enabled = !isSaving && canUseSelectedDirectory,
+                                onClick = {
+                                    scope.launch {
+                                        saveDefaultPath(selectedDirectory.absolutePath)
+                                        onDefaultSaved()
+                                    }
+                                }
+                            ) {
+                                Text(stringResource(R.string.save_to_arcile_set_default))
+                            }
+                            Spacer(Modifier.size(8.dp))
+                        }
+                        Button(
+                            enabled = !isSaving && canUseSelectedDirectory,
+                            onClick = {
+                                val destination = selectedDirectory?.takeIf {
+                                    isValidSaveToArcileDirectory(it, volumes)
+                                } ?: return@Button
+                                isSaving = true
+                                scope.launch {
+                                    copyTo(destination)
+                                        .onSuccess(onFinished)
+                                        .onFailure(onFailed)
+                                    isSaving = false
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Outlined.SaveAlt, contentDescription = null)
+                            Spacer(Modifier.size(8.dp))
+                            Text(stringResource(R.string.save_to_arcile_save_here))
+                        }
                     }
                 }
             }

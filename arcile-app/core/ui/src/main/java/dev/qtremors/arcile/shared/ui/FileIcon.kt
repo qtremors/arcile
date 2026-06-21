@@ -36,7 +36,8 @@ fun getFileIconVector(file: FileModel): ImageVector {
         "mp3", "opus", "flac", "wav", "ogg", "m4a", "aac", "wma", "amr", "mid", "midi" -> Icons.Outlined.AudioFile
         
         // Video
-        "mp4", "mkv", "avi", "webm", "mov", "wmv", "flv", "m4v", "3gp", "ts" -> Icons.Outlined.VideoFile
+        "mp4", "mkv", "avi", "webm", "mov", "wmv", "flv", "m4v", "3gp", "3g2",
+        "ts", "mts", "m2ts", "mpeg", "mpg", "vob", "ogv" -> Icons.Outlined.VideoFile
         
         // Image
         "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic", "heif", "ico", "tiff", "tif", "raw" -> Icons.Outlined.Image

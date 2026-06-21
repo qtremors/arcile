@@ -87,6 +87,7 @@ import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ConflictCard
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.utils.formatFileSize
 import java.io.File
 import java.text.DateFormat
@@ -162,7 +163,7 @@ fun ArchiveContextHeader(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().keyboardInputField(),
             singleLine = true,
             label = { Text(stringResource(R.string.archive_search_entries)) }
         )

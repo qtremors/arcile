@@ -44,6 +44,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -246,62 +248,81 @@ fun RecentFilesScreen(
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
-            when {
-                showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        LoadingIndicator()
-                    }
-                }
-                state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar -> {
-                    EmptyState(
-                        variant = EmptyStateVariant.Recent,
-                        title = stringResource(R.string.no_recent_files),
-                        description = stringResource(R.string.no_recent_files_description),
-                        modifier = Modifier.fillMaxSize()
+        val pullRefreshState = rememberPullToRefreshState()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            PullToRefreshBox(
+                isRefreshing = state.isPullToRefreshing,
+                onRefresh = onRefresh,
+                state = pullRefreshState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    ArcilePullRefreshIndicator(
+                        isRefreshing = state.isPullToRefreshing,
+                        state = pullRefreshState
                     )
                 }
-                showSearchBar && state.isSearching -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        LoadingIndicator()
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    when {
+                        showLoading && state.recentFiles.isEmpty() && !state.isPullToRefreshing -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                LoadingIndicator()
+                            }
+                        }
+                        state.recentFiles.isEmpty() && !state.isLoading && !showSearchBar -> {
+                            EmptyState(
+                                variant = EmptyStateVariant.Recent,
+                                title = stringResource(R.string.no_recent_files),
+                                description = stringResource(R.string.no_recent_files_description),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        showSearchBar && state.isSearching -> {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                LoadingIndicator()
+                            }
+                        }
+                        showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty() -> {
+                            EmptyState(
+                                variant = EmptyStateVariant.Search,
+                                title = stringResource(R.string.no_results_found),
+                                description = stringResource(R.string.no_results_description, state.searchQuery),
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        else -> {
+                            RecentFilesContent(
+                                state = state,
+                                filesToDisplay = filesToDisplay,
+                                showSearchBar = showSearchBar,
+                                formatter = formatter,
+                                todayLabel = todayLabel,
+                                yesterdayLabel = yesterdayLabel,
+                                contentPadding = PaddingValues(),
+                                onOpenFile = onOpenFile,
+                                onToggleSelection = onToggleSelection,
+                                onSelectMultiple = onSelectMultiple,
+                                onLoadMore = onLoadMore
+                            )
+                        }
                     }
-                }
-                showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty() -> {
-                    EmptyState(
-                        variant = EmptyStateVariant.Search,
-                        title = stringResource(R.string.no_results_found),
-                        description = stringResource(R.string.no_results_description, state.searchQuery),
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                else -> {
-                    RecentFilesContent(
-                        state = state,
-                        filesToDisplay = filesToDisplay,
-                        showSearchBar = showSearchBar,
-                        formatter = formatter,
-                        todayLabel = todayLabel,
-                        yesterdayLabel = yesterdayLabel,
-                        contentPadding = padding,
-                        onOpenFile = onOpenFile,
-                        onToggleSelection = onToggleSelection,
-                        onSelectMultiple = onSelectMultiple,
-                        onRefresh = onRefresh,
-                        onLoadMore = onLoadMore
+
+                    RecentSelectionToolbar(
+                        isVisible = isSelectionMode,
+                        selectedFiles = state.selectedFiles,
+                        contentPadding = PaddingValues(),
+                        onSelectAll = onSelectAll,
+                        onShareSelected = onShareSelected,
+                        onRequestDeleteSelected = onRequestDeleteSelected,
+                        onOpenProperties = onOpenProperties,
+                        onOpenContainingFolder = onOpenContainingFolder
                     )
                 }
             }
-
-            RecentSelectionToolbar(
-                isVisible = isSelectionMode,
-                selectedFiles = state.selectedFiles,
-                contentPadding = padding,
-                onSelectAll = onSelectAll,
-                onShareSelected = onShareSelected,
-                onRequestDeleteSelected = onRequestDeleteSelected,
-                onOpenProperties = onOpenProperties,
-                onOpenContainingFolder = onOpenContainingFolder
-            )
         }
     }
 

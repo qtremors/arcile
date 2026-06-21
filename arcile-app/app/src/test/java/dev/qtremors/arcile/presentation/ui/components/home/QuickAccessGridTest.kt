@@ -53,4 +53,16 @@ class QuickAccessGridTest {
 
         assertNull(packageNameForQuickAccessItem(item))
     }
+
+    @Test
+    fun `all files quick access resolves to arcile app package`() {
+        val item = QuickAccessItem(
+            id = "internal_all_files",
+            label = "All Files",
+            path = "",
+            type = QuickAccessType.STANDARD
+        )
+
+        assertEquals("dev.qtremors.arcile", packageNameForQuickAccessItem(item))
+    }
 }

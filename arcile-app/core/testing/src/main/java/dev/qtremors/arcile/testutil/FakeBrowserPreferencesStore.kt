@@ -25,6 +25,7 @@ class FakeBrowserPreferencesStore(
     var lastUpdatedAlbumAspectRatio: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
+    var lastUpdatedDefaultSaveToArcilePath: String? = null
 
     override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
         lastUpdatedGlobalPresentation = presentation
@@ -107,6 +108,12 @@ class FakeBrowserPreferencesStore(
 
     override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
         lastUpdatedPath = path
+        preferences.value = preferences.value.copy(lastOpenedPath = path, lastOpenedVolumeId = volumeId)
+    }
+
+    override suspend fun updateDefaultSaveToArcilePath(path: String?) {
+        lastUpdatedDefaultSaveToArcilePath = path
+        preferences.value = preferences.value.copy(defaultSaveToArcilePath = path)
     }
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
@@ -117,6 +124,16 @@ class FakeBrowserPreferencesStore(
             currentFavorites - path
         }
         preferences.value = preferences.value.copy(favoriteFiles = newFavorites)
+    }
+
+    override suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
+        val currentPinned = preferences.value.pinnedAlbums
+        val newPinned = if (isPinned) {
+            currentPinned + albumPath
+        } else {
+            currentPinned - albumPath
+        }
+        preferences.value = preferences.value.copy(pinnedAlbums = newPinned)
     }
 
     override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {

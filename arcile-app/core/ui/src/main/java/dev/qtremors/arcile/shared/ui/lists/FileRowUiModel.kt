@@ -91,7 +91,7 @@ fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any 
 fun FileRowUiModel.displaySubtitle(isFolderStatsLoading: Boolean = false): String {
     if (!isDirectory) return subtitle
     val stats = folderStats
-    if (isFolderStatsLoading || stats == null || stats.status == FolderStatsStatus.Unavailable) {
+    if (stats == null || stats.status == FolderStatsStatus.Unavailable) {
         return stringResource(R.string.folder_label)
     }
     val filesLabel = pluralStringResource(

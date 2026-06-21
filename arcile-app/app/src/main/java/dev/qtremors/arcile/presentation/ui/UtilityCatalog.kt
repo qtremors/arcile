@@ -6,6 +6,7 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Dns
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.WifiTethering
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -14,7 +15,8 @@ import dev.qtremors.arcile.core.ui.R
 enum class UtilityAction {
     None,
     Trash,
-    Cleaner
+    Cleaner,
+    Activity
 }
 
 data class UtilityDefinition(
@@ -29,6 +31,7 @@ data class UtilityDefinition(
 val ArcileUtilityCatalog: List<UtilityDefinition> = listOf(
     UtilityDefinition("trash", R.string.trash_bin, Icons.Outlined.Delete, isImplemented = true, showOnHome = true, action = UtilityAction.Trash),
     UtilityDefinition("cleaner", R.string.tool_clean, Icons.Outlined.CleaningServices, isImplemented = true, showOnHome = true, action = UtilityAction.Cleaner),
+    UtilityDefinition("activity", R.string.activity_log_title, Icons.Outlined.History, isImplemented = true, showOnHome = true, action = UtilityAction.Activity),
     UtilityDefinition("ftp", R.string.tool_ftp, Icons.Outlined.WifiTethering),
     UtilityDefinition("manager", R.string.tool_manager, Icons.Outlined.Apps),
     UtilityDefinition("onlyfiles", R.string.tool_onlyfiles, Icons.Outlined.Lock),

@@ -13,6 +13,7 @@ class AppRoutesTest {
     fun `serializes and deserializes object routes`() {
         assertEquals(AppRoutes.Home, json.decodeFromString<AppRoutes.Home>(json.encodeToString(AppRoutes.Home)))
         assertEquals(AppRoutes.Tools, json.decodeFromString<AppRoutes.Tools>(json.encodeToString(AppRoutes.Tools)))
+        assertEquals(AppRoutes.ActivityLog, json.decodeFromString<AppRoutes.ActivityLog>(json.encodeToString(AppRoutes.ActivityLog)))
         assertEquals(AppRoutes.Settings, json.decodeFromString<AppRoutes.Settings>(json.encodeToString(AppRoutes.Settings)))
         assertEquals(AppRoutes.Trash, json.decodeFromString<AppRoutes.Trash>(json.encodeToString(AppRoutes.Trash)))
         assertEquals(

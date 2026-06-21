@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
@@ -363,7 +364,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
     )
 
     private companion object {
-        val videoExtensions = setOf("mp4", "mkv", "webm", "avi", "mov", "3gp", "m4v")
+        val videoExtensions = FileCategories.Videos.extensions
         val junkExtensions = setOf("tmp", "temp", "log", "bak", "old", "dmp")
         val markerFileNames = setOf(".nomedia", "desktop.ini", "thumbs.db", ".ds_store")
         val tempOrCacheFolderNames = setOf("temp", "tmp", "cache", "caches")

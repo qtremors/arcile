@@ -55,13 +55,17 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.image.ThumbnailPolicy
 import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import java.io.File
+
+internal const val HomeRecentFilesCarouselThumbnailSizePx = 512
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,6 +118,7 @@ fun RecentFileCarouselItem(
     val previewAccent = previewAccentFor(file)
     val previewIcon = dev.qtremors.arcile.shared.ui.getFileIconVector(file)
     val context = LocalContext.current
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {
         ThumbnailKey.from(file)
     }
@@ -127,14 +132,15 @@ fun RecentFileCarouselItem(
             else -> File(file.absolutePath)
         }
     }
-    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size, thumbnailSizePx) {
-        homeThumbnailCacheKey(file, thumbnailSizePx)
+    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size) {
+        homeThumbnailCacheKey(file)
     }
     val thumbnailRequest = remember(thumbnailData, thumbnailSizePx, thumbnailCacheKey) {
         ImageRequest.Builder(context)
             .data(thumbnailData)
             .size(thumbnailSizePx)
             .memoryCacheKey(thumbnailCacheKey)
+            .placeholderMemoryCacheKey(thumbnailCacheKey)
             .diskCacheKey(thumbnailCacheKey)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
@@ -145,7 +151,7 @@ fun RecentFileCarouselItem(
     Card(
         modifier = modifier
             .height(itemHeight)
-            .clickable { onClick() },
+            .bounceClickable { onClick() },
         shape = RoundedCornerShape(0.dp), // Let maskClip handle the shape
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -158,7 +164,10 @@ fun RecentFileCarouselItem(
                     model = thumbnailRequest,
                     contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    onSuccess = {
+                        thumbnailPolicy.recordLoaded(thumbnailKey, HomeRecentFilesCarouselThumbnailSizePx)
+                    }
                 )
             } else {
                 Box(
@@ -378,17 +387,8 @@ private fun FileTypeBadge(
     }
 }
 
-private fun homeThumbnailCacheKey(file: FileModel, thumbnailSizePx: Int): String =
-    buildString {
-        append("home-recent:")
-        append(file.absolutePath)
-        append(':')
-        append(file.lastModified)
-        append(':')
-        append(file.size)
-        append(':')
-        append(thumbnailSizePx)
-    }
+internal fun homeThumbnailCacheKey(file: FileModel): String =
+    ThumbnailKey.from(file).variantKey(HomeRecentFilesCarouselThumbnailSizePx).cacheKey
 
 @Composable
 private fun previewAccentFor(file: FileModel): Color {

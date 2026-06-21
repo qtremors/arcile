@@ -91,14 +91,15 @@ fun AppNavigationGraph(
                 .toList()
         )
     }
+    val navigateToBrowserRoute: (AppRoutes.Main) -> Unit = { route ->
+        navController.navigate(route)
+    }
     val openPathWithContext: (String, List<FileModel>, Boolean) -> Unit = { path, surroundingFiles, returnToBrowserPage ->
         val archiveFormat = ArchiveFormat.fromPath(path)
         val extension = path.substringAfterLast('.', "").lowercase()
         when {
             archiveFormat?.canBrowse == true -> {
-                navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
-                    popUpTo<AppRoutes.Main> { inclusive = true }
-                }
+                navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false))
             }
             archiveFormat != null -> {
                 onFeedback(
@@ -126,6 +127,22 @@ fun AppNavigationGraph(
     val openPath: (String) -> Unit = { path -> openPathWithContext(path, emptyList(), false) }
     val openPathWithSurroundingImages: (String, List<FileModel>) -> Unit = { path, files ->
         openPathWithContext(path, files, false)
+    }
+    val fileReferenceFor: (FileModel) -> ExternalFileAccessHelper.ExternalFileReference = { file ->
+        ExternalFileAccessHelper.ExternalFileReference(
+            path = file.absolutePath,
+            displayName = file.name,
+            sizeBytes = file.size,
+            mimeType = file.mimeType,
+            nodeRef = file.nodeRef
+        )
+    }
+    val shareFilesWithKnownModels: suspend (List<String>, List<FileModel>) -> Boolean = { paths, files ->
+        val byPath = files.associateBy { it.absolutePath }
+        val references = paths.map { path ->
+            byPath[path]?.let(fileReferenceFor) ?: ExternalFileAccessHelper.ExternalFileReference(path = path)
+        }
+        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFileReferences(context, references)
     }
 
     val reducedMotion = LocalReducedMotionEnabled.current
@@ -186,11 +203,15 @@ fun AppNavigationGraph(
                     var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
                     var revealedFocusPath by remember(mainArgs.focusPath) { mutableStateOf<String?>(null) }
                     val navigateBackFromBrowser: () -> Unit = {
-                        if (!browserViewModel.navigateBack()) {
-                            when (browserBackFallback(navController.previousBackStackEntry != null)) {
+                        val hasPreviousRoute = navController.previousBackStackEntry != null
+                        if (!browserViewModel.navigateBack(allowVolumeRootFallback = !hasPreviousRoute)) {
+                            when (browserBackFallback(hasPreviousRoute)) {
                                 BrowserBackFallback.PopAppBackStack -> navController.popBackStack()
                                 BrowserBackFallback.ShowHomePager -> coroutineScope.launch {
-                                    pagerState.animateScrollToPage(0)
+                                    pagerState.animateScrollToPage(
+                                        page = 0,
+                                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                    )
                                 }
                             }
                         }
@@ -271,7 +292,12 @@ fun AppNavigationGraph(
                                     onOpenFileBrowser = {
                                         pendingExplicitBrowserEntry = true
                                         browserViewModel.openFileBrowser(restorePersistentLocation = false)
-                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(
+                                                page = 1,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                            )
+                                        }
                                     },
                                     onSwipeToBrowser = {
                                         // Handled by Pager
@@ -279,7 +305,12 @@ fun AppNavigationGraph(
                                     onNavigateToPath = { path ->
                                         pendingExplicitBrowserEntry = true
                                         browserViewModel.navigateToSpecificFolder(path)
-                                        coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(
+                                                page = 1,
+                                                animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                            )
+                                        }
                                     },
                                     onOpenFile = openPath,
                                     onOpenFileWithContext = openPathWithSurroundingImages,
@@ -292,7 +323,12 @@ fun AppNavigationGraph(
                                         } else {
                                             pendingExplicitBrowserEntry = true
                                             browserViewModel.navigateToCategory(categoryName)
-                                            coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(
+                                                    page = 1,
+                                                    animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
+                                                )
+                                            }
                                         }
                                     },
                                     onSettingsClick = {
@@ -315,6 +351,12 @@ fun AppNavigationGraph(
                                     },
                                     onNavigateToCleaner = {
                                         navController.navigate(AppRoutes.StorageCleaner) {
+                                            popUpTo<AppRoutes.Main> { saveState = true }
+                                            launchSingleTop = true
+                                        }
+                                    },
+                                    onNavigateToActivity = {
+                                        navController.navigate(AppRoutes.ActivityLog) {
                                             popUpTo<AppRoutes.Main> { saveState = true }
                                             launchSingleTop = true
                                         }
@@ -350,7 +392,7 @@ fun AppNavigationGraph(
                                     onResumeRefresh = { homeViewModel.loadHomeData(HomeRefreshMode.SILENT) },
                                     onShareRecentFile = { path ->
                                         coroutineScope.launch {
-                                            dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                                            shareFilesWithKnownModels(listOf(path), state.displayState.todayRecentFiles)
                                         }
                                     },
                                     homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
@@ -399,7 +441,12 @@ fun AppNavigationGraph(
                                     onCancelClipboard = { browserViewModel.cancelClipboard() },
                                     onShareSelected = {
                                         coroutineScope.launch {
-                                            if (dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, browserState.selectedFiles.toList())) {
+                                            val browserShareFiles = if (browserState.browserSearchQuery.isNotBlank()) {
+                                                browserState.searchResults
+                                            } else {
+                                                browserState.displayState.visibleFiles
+                                            }
+                                            if (shareFilesWithKnownModels(browserState.selectedFiles.toList(), browserShareFiles)) {
                                                 browserViewModel.clearSelection()
                                             }
                                         }
@@ -473,6 +520,9 @@ fun AppNavigationGraph(
                     androidx.compose.runtime.LaunchedEffect(volumeId) {
                         viewModel.ensureDashboardCategoryBreakdown(volumeId)
                     }
+                    val navigateToBrowserFromDashboard: (AppRoutes.Main) -> Unit = { route ->
+                        navigateToBrowserRoute(route)
+                    }
                     StorageDashboardScreen(
                         state = state,
                         selectedVolumeId = volumeId,
@@ -481,11 +531,11 @@ fun AppNavigationGraph(
                             if (categoryName == FileCategories.Images.name) {
                                 navController.navigate(AppRoutes.ImageGallery(scopedVolumeId))
                             } else {
-                                navController.navigate(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
+                                navigateToBrowserFromDashboard(AppRoutes.Main(initialPage = 1, category = categoryName, volumeId = scopedVolumeId))
                             }
                         },
                         onOpenPath = { path ->
-                            navController.navigate(AppRoutes.Main(initialPage = 1, path = path))
+                            navigateToBrowserFromDashboard(AppRoutes.Main(initialPage = 1, path = path))
                         },
                         onOpenFile = openPath
                     )
@@ -517,11 +567,11 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenFile = openPathWithSurroundingImages,
-                    onShareSelected = { paths ->
-                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    onShareSelected = { files ->
+                        shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
                     onOpenContainingFolder = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
+                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onFeedback = onFeedback
                 )
@@ -532,8 +582,8 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenFile = openPath,
-                    onShareSelected = { paths ->
-                        dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, paths)
+                    onShareSelected = { files ->
+                        shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
                     onFeedback = onFeedback
                 )
@@ -568,9 +618,18 @@ fun AppNavigationGraph(
                                 launchSingleTop = true
                             }
                         },
+                        onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
                         homeUtilityIds = homeUtilityIds,
                         onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
                     )
+                }
+                composable<AppRoutes.ActivityLog>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
+                    ActivityLogRoute(onNavigateBack = { navController.popBackStack() })
                 }
                 storageCleanerScreen(
                     enterTransition = utilityEnterTransition,
@@ -582,7 +641,7 @@ fun AppNavigationGraph(
                     onOpenContainingFolder = { path ->
                         val parentPath = path.substringBeforeLast('/', missingDelimiterValue = "")
                         if (parentPath.isNotBlank()) {
-                            navController.navigate(
+                            navigateToBrowserRoute(
                                 AppRoutes.Main(
                                     initialPage = 1,
                                     path = parentPath,
@@ -602,6 +661,7 @@ fun AppNavigationGraph(
                 ) {
                     val viewModel = hiltViewModel<SettingsViewModel>()
                     val browserPrefs by viewModel.browserPreferences.collectAsStateWithLifecycle()
+                    val backupState by viewModel.backupState.collectAsStateWithLifecycle()
                     SettingsScreen(
                         currentThemeState = currentThemeState,
                         showThumbnails = browserPrefs.globalPresentation.showThumbnails,
@@ -614,8 +674,12 @@ fun AppNavigationGraph(
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
                         onNavigateToAbout = { navController.navigate(AppRoutes.About) },
-                        onRunOnboardingAgain = { viewModel.resetOnboarding() },
-                        onRestartApp = onRestartApp
+                        onRestartApp = onRestartApp,
+                        backupState = backupState,
+                        onExportSettingsBackup = { viewModel.exportPreferences(it) },
+                        onRestoreSettingsBackup = { viewModel.previewRestore(it) },
+                        onApplySettingsRestore = { viewModel.restorePreferences(it) },
+                        onClearBackupState = { viewModel.clearBackupState() }
                     )
                 }
                 composable<AppRoutes.StorageManagement>(
@@ -664,7 +728,7 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToPath = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
+                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onNavigateToSaf = { uriString ->
                         ExternalFileAccessHelper.openInFilesApp(context, uriString)
@@ -677,7 +741,7 @@ fun AppNavigationGraph(
                     popExitTransition = detailPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenArchiveInBrowser = { archivePath ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
+                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
                     }
                 )
             }

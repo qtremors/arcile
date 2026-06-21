@@ -23,6 +23,8 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
+import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -47,6 +49,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -70,7 +73,8 @@ class BrowserViewModel @Inject constructor(
     private val browserPreferencesRepository: BrowserPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
-    private val bulkFileCoordinator: BulkFileOperationCoordinator
+    private val bulkFileCoordinator: BulkFileOperationCoordinator,
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
@@ -256,6 +260,13 @@ class BrowserViewModel @Inject constructor(
                             }
                             navigationDelegate.refresh()
                         }
+                        is StorageBrowserLocation.Archive -> {
+                            navigationDelegate.openArchive(
+                                archivePath = location.archivePath,
+                                entryPrefix = location.entryPrefix,
+                                seedHistory = false
+                            )
+                        }
                         null -> navigationDelegate.initializeFromArgs()
                     }
                 } else {
@@ -315,6 +326,16 @@ class BrowserViewModel @Inject constructor(
                 _state.update { it.copy(clipboardState = clipboard) }
             }
         }
+        viewModelScope.launch {
+            @OptIn(kotlinx.coroutines.FlowPreview::class)
+            storageMutationNotifier.events
+                .debounce(300L)
+                .collectLatest { event ->
+                    if (isInitialized && shouldRefreshForStorageMutation(event.paths)) {
+                        navigationDelegate.refresh()
+                    }
+                }
+        }
         operationDelegate.observeOperationEvents()
     }
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
@@ -325,7 +346,8 @@ class BrowserViewModel @Inject constructor(
     fun navigateToFolder(path: String) = navigationDelegate.navigateToFolder(path)
     fun openArchive(path: String) = navigationDelegate.openArchive(path)
     fun submitArchivePassword(password: String) = navigationDelegate.submitArchivePassword(password)
-    fun navigateBack(): Boolean = navigationDelegate.navigateBack()
+    fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean =
+        navigationDelegate.navigateBack(allowVolumeRootFallback)
     fun refresh(pullToRefresh: Boolean = false) = navigationDelegate.refresh(pullToRefresh)
     fun toggleSelection(path: String) {
         if (_state.value.isVolumeRootScreen) return
@@ -592,5 +614,27 @@ class BrowserViewModel @Inject constructor(
         }
     }
     fun submitArchiveExtractionPassword(password: String) = archiveActionDelegate.retryPendingExtractionWithPassword(password)
-}
 
+    private fun shouldRefreshForStorageMutation(paths: List<String>): Boolean {
+        if (paths.isEmpty()) return true
+        val stateValue = _state.value
+        if (stateValue.isCategoryScreen || stateValue.isVolumeRootScreen) return true
+        val archivePath = stateValue.archiveContext?.archivePath
+        if (!archivePath.isNullOrBlank()) {
+            return paths.any { archivePath.isSameOrAncestorOf(it) }
+        }
+        val currentPath = stateValue.currentPath.takeIf { it.isNotBlank() } ?: return true
+        return paths.any { changed ->
+            currentPath.isSameOrAncestorOf(changed)
+        }
+    }
+
+    private fun String.isSameOrAncestorOf(other: String): Boolean {
+        val current = normalizeStoragePath()
+        val target = other.normalizeStoragePath()
+        return current == target || target.startsWith("$current/")
+    }
+
+    private fun String.normalizeStoragePath(): String =
+        replace('\\', '/').trimEnd('/')
+}

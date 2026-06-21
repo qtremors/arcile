@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.feature.browser.BrowserState
 import io.mockk.coEvery
@@ -228,6 +229,32 @@ class NavigationDelegateTest {
     }
 
     @Test
+    fun `navigateBack can skip volume roots so app route stack handles external origins`() = testScope.runTest {
+        val sdCard = dev.qtremors.arcile.core.storage.domain.StorageVolume(
+            id = "sdcard",
+            storageKey = "sdcard",
+            name = "SD Card",
+            path = "/storage/1234-5678",
+            totalBytes = 1000L,
+            freeBytes = 500L,
+            isPrimary = false,
+            isRemovable = true,
+            kind = dev.qtremors.arcile.core.storage.domain.StorageKind.SD_CARD
+        )
+        state.value = state.value.copy(
+            storageVolumes = (state.value.storageVolumes + sdCard).toPersistentList(),
+            currentPath = "/storage/emulated/0/Download",
+            isVolumeRootScreen = false
+        )
+
+        assertFalse(delegate.navigateBack(allowVolumeRootFallback = false))
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", state.value.currentPath)
+        assertFalse(state.value.isVolumeRootScreen)
+    }
+
+    @Test
     fun `navigateToCategory updates state and loads category files`() = testScope.runTest {
         state.value = state.value.copy(currentPath = "/storage/emulated/0/Music")
         val files = listOf(FileModel(
@@ -250,6 +277,28 @@ class NavigationDelegateTest {
         assertEquals("vol1", state.value.currentVolumeId)
         assertFalse(state.value.isLoading)
         assertEquals(files, state.value.files)
+    }
+
+    @Test
+    fun `restoreLocationFromState restores archive path and entry prefix`() {
+        every { savedStateHandle.get<Boolean>("isVolumeRootScreen") } returns null
+        every { savedStateHandle.get<String>("currentPath") } returns null
+        every { savedStateHandle.get<String>("currentVolumeId") } returns null
+        every { savedStateHandle.get<Boolean>("isCategoryScreen") } returns null
+        every { savedStateHandle.get<String>("activeCategoryName") } returns null
+        every { savedStateHandle.get<String>("archivePath") } returns "/storage/emulated/0/Download/archive.zip"
+        every { savedStateHandle.get<String>("archiveEntryPrefix") } returns "folder/subfolder"
+        every { savedStateHandle.get<Array<String>>("pathHistory") } returns arrayOf("dir:/storage/emulated/0/Download")
+
+        val location = delegate.restoreLocationFromState()
+
+        assertEquals(
+            StorageBrowserLocation.Archive(
+                archivePath = "/storage/emulated/0/Download/archive.zip",
+                entryPrefix = "folder/subfolder"
+            ),
+            location
+        )
     }
 
     @Test

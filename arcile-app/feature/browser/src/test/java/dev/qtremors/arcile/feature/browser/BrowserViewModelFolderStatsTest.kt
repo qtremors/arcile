@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.browser
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
+import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
@@ -49,6 +50,39 @@ class BrowserViewModelFolderStatsTest {
         assertEquals(cachedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
         assertTrue(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Music"))
         assertEquals(listOf("/storage/emulated/0/Download/Music"), repo.lastQueuedFolderStats)
+    }
+
+    @Test
+    fun `directory load keeps stale cached folder stats visible while refresh is queued`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val staleStats = FolderStats(
+            fileCount = 4,
+            totalBytes = 4096L,
+            cachedAt = System.currentTimeMillis() - FolderStatsCachePolicy.FRESH_TTL_MS - 1L
+        )
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Docs", "/storage/emulated/0/Download/Docs", isDirectory = true)
+                )
+            ),
+            cachedFolderStats = mapOf("/storage/emulated/0/Download/Docs" to staleStats)
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        assertEquals(staleStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertEquals(staleStats, viewModel.state.value.displayState.visibleListRows.single().folderStats)
+        assertTrue(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
+        assertEquals(listOf("/storage/emulated/0/Download/Docs"), repo.lastQueuedFolderStats)
     }
 
     @Test

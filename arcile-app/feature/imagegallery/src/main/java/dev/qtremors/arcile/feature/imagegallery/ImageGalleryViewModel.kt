@@ -7,12 +7,18 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
+import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
+import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -56,6 +62,20 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import java.io.File
 
+@androidx.compose.runtime.Immutable
+data class ImageGalleryOperationUiState(
+    val type: BulkFileOperationType,
+    val totalItems: Int,
+    val completedItems: Int = 0,
+    val currentPath: String? = null,
+    val bytesCopied: Long? = null,
+    val totalBytes: Long? = null,
+    val sourcePaths: List<String> = emptyList(),
+    val isCancelling: Boolean = false,
+    val terminalStatus: OperationCompletionStatus? = null,
+    val startTimeMillis: Long = System.currentTimeMillis()
+)
+
 data class ImageGalleryState(
     val volumeId: String? = null,
     val files: PersistentList<FileModel> = persistentListOf(),
@@ -97,8 +117,19 @@ data class ImageGalleryState(
     ),
     val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
     val clipboardState: ClipboardState? = null,
+    val activeFileOperation: ImageGalleryOperationUiState? = null,
+    val pasteConflicts: PersistentList<FileConflict> = persistentListOf(),
+    val showConflictDialog: Boolean = false,
+    val pasteDestinationAlbumPath: String? = null,
     val favoriteFiles: PersistentSet<String> = persistentSetOf(),
-    val albumCovers: PersistentMap<String, String> = persistentMapOf()
+    val pinnedAlbums: PersistentSet<String> = persistentSetOf(),
+    val albumCovers: PersistentMap<String, String> = persistentMapOf(),
+    val viewerSessionInitialPath: String? = null,
+    val viewerCurrentPath: String? = null,
+    val viewerMetadataPath: String? = null,
+    val viewerUiVisible: Boolean = true,
+    val viewerRotationDegrees: PersistentMap<String, Float> = persistentMapOf(),
+    val viewerEraseDialogPath: String? = null
 )
 
 internal fun ImageGalleryState.withoutGalleryPaths(paths: Collection<String>): ImageGalleryState {
@@ -135,10 +166,18 @@ class ImageGalleryViewModel @Inject constructor(
     private val browserPreferencesStore: BrowserPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: android.content.Context,
-    savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val _state = MutableStateFlow(
-        ImageGalleryState(volumeId = savedStateHandle.get<String>("volumeId")?.takeIf { it.isNotBlank() })
+        ImageGalleryState(
+            volumeId = savedStateHandle.get<String>("volumeId")?.takeIf { it.isNotBlank() },
+            viewerSessionInitialPath = savedStateHandle[KEY_VIEWER_SESSION_INITIAL_PATH],
+            viewerCurrentPath = savedStateHandle[KEY_VIEWER_CURRENT_PATH],
+            viewerMetadataPath = savedStateHandle[KEY_VIEWER_METADATA_PATH],
+            viewerUiVisible = savedStateHandle[KEY_VIEWER_UI_VISIBLE] ?: true,
+            viewerRotationDegrees = restoreViewerRotations(savedStateHandle[KEY_VIEWER_ROTATIONS]),
+            viewerEraseDialogPath = savedStateHandle[KEY_VIEWER_ERASE_DIALOG_PATH]
+        )
     )
     val state: StateFlow<ImageGalleryState> = _state.asStateFlow()
 
@@ -243,16 +282,119 @@ class ImageGalleryViewModel @Inject constructor(
         viewModelScope.launch {
             repository.mutationEvents.collect { event ->
                 repository.invalidate(event.paths)
+                _state.update { it.withoutGalleryPaths(event.paths) }
                 loadImages(forceRefresh = true, silent = true)
             }
         }
         viewModelScope.launch {
             bulkFileOperationCoordinator.events.collect { event ->
+                handleOperationEvent(event)
                 if (event is BulkFileOperationEvent.Completed && event.request.type in refreshTypes) {
-                    repository.invalidate(event.request.sourcePaths)
+                    val invalidationPaths = (event.request.sourcePaths + listOfNotNull(event.request.destinationPath)).distinct()
+                    repository.invalidate(invalidationPaths)
+                    if (event.request.type != BulkFileOperationType.COPY) {
+                        _state.update { it.withoutGalleryPaths(event.request.sourcePaths) }
+                    }
                     loadImages(forceRefresh = true, silent = true)
                 }
             }
+        }
+    }
+
+    private fun handleOperationEvent(event: BulkFileOperationEvent) {
+        when (event) {
+            is BulkFileOperationEvent.Started -> {
+                if (event.request.type in trackedOperationTypes) {
+                    _state.update {
+                        it.copy(
+                            isRefreshing = true,
+                            error = null,
+                            activeFileOperation = event.request.toGalleryOperationUiState()
+                        )
+                    }
+                }
+            }
+            is BulkFileOperationEvent.Progress -> {
+                if (event.request.type in trackedOperationTypes) {
+                    _state.update { state ->
+                        state.copy(
+                            isRefreshing = true,
+                            activeFileOperation = event.request.toGalleryOperationUiState(
+                                progress = event.progress,
+                                startTimeMillis = state.activeFileOperation?.startTimeMillis
+                            )
+                        )
+                    }
+                }
+            }
+            is BulkFileOperationEvent.Cancelling -> {
+                if (event.request.type in trackedOperationTypes) {
+                    _state.update { state ->
+                        state.copy(
+                            activeFileOperation = state.activeFileOperation?.copy(isCancelling = true)
+                                ?: event.request.toGalleryOperationUiState(isCancelling = true)
+                        )
+                    }
+                }
+            }
+            is BulkFileOperationEvent.Completed -> {
+                if (event.request.type in trackedOperationTypes) {
+                    val clearsClipboard = event.request.type in clipboardOperationTypes
+                    if (event.request.type in clipboardOperationTypes) {
+                        clipboardRepository.clearClipboardState()
+                    }
+                    _state.update { state ->
+                        state.copy(
+                            isRefreshing = false,
+                            clipboardState = if (clearsClipboard) null else state.clipboardState,
+                            activeFileOperation = state.activeFileOperation
+                                ?.copy(terminalStatus = OperationCompletionStatus.SUCCESS)
+                                ?: event.request.toGalleryOperationUiState(
+                                    completedItems = event.request.operationItemCount(),
+                                    terminalStatus = OperationCompletionStatus.SUCCESS
+                                )
+                        )
+                    }
+                }
+            }
+            is BulkFileOperationEvent.Failed -> {
+                if (event.request.type in trackedOperationTypes) {
+                    val clearsClipboard = event.request.type in clipboardOperationTypes
+                    if (event.request.type in clipboardOperationTypes) {
+                        clipboardRepository.clearClipboardState()
+                    }
+                    _state.update { state ->
+                        state.copy(
+                            isRefreshing = false,
+                            clipboardState = if (clearsClipboard) null else state.clipboardState,
+                            activeFileOperation = state.activeFileOperation
+                                ?.copy(terminalStatus = OperationCompletionStatus.FAILED)
+                                ?: event.request.toGalleryOperationUiState(terminalStatus = OperationCompletionStatus.FAILED)
+                        )
+                    }
+                }
+            }
+            is BulkFileOperationEvent.Cancelled -> {
+                val request = event.request
+                if (request == null || request.type in trackedOperationTypes) {
+                    val clearsClipboard = request == null || request.type in clipboardOperationTypes
+                    if (clearsClipboard) {
+                        clipboardRepository.clearClipboardState()
+                    }
+                    _state.update { state ->
+                        state.copy(
+                            isRefreshing = false,
+                            clipboardState = if (clearsClipboard) null else state.clipboardState,
+                            activeFileOperation = state.activeFileOperation
+                                ?.copy(terminalStatus = OperationCompletionStatus.CANCELLED)
+                                ?: request?.toGalleryOperationUiState(terminalStatus = OperationCompletionStatus.CANCELLED)
+                        )
+                    }
+                }
+            }
+            is BulkFileOperationEvent.RecoveryAvailable,
+            is BulkFileOperationEvent.RecoveryCleanupCompleted,
+            is BulkFileOperationEvent.RecoveryDismissed -> Unit
         }
     }
 
@@ -270,6 +412,7 @@ class ImageGalleryViewModel @Inject constructor(
                 preferencesLoaded = true,
                 albumPresentation = preferences.albumPresentation,
                 favoriteFiles = preferences.favoriteFiles.toPersistentSet(),
+                pinnedAlbums = preferences.pinnedAlbums.toPersistentSet(),
                 albumCovers = preferences.albumCovers.toPersistentMap()
             ).withDisplayedFiles()
         }
@@ -436,6 +579,7 @@ class ImageGalleryViewModel @Inject constructor(
     }
 
     fun eraseMetadata(filePath: String) {
+        setViewerEraseDialogPath(null)
         viewModelScope.launch {
             _state.update { it.copy(isRefreshing = true) }
             val success = withContext(Dispatchers.IO) {
@@ -465,6 +609,130 @@ class ImageGalleryViewModel @Inject constructor(
         if (selectedFiles.isNotEmpty()) {
             clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.CUT, selectedFiles))
             clearSelection()
+        }
+    }
+
+    fun pasteFromClipboard(destinationAlbumPath: String?) {
+        if (!isPasteDestinationAlbumPath(destinationAlbumPath)) return
+        val clipboard = _state.value.clipboardState ?: return
+        val sourcePaths = clipboard.files.map { it.absolutePath }
+        if (sourcePaths.isEmpty()) return
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    isRefreshing = true,
+                    error = null,
+                    pasteDestinationAlbumPath = destinationAlbumPath
+                )
+            }
+            clipboardRepository.detectCopyConflicts(sourcePaths, destinationAlbumPath!!).onSuccess { conflicts ->
+                if (conflicts.isNotEmpty()) {
+                    _state.update {
+                        it.copy(
+                            isRefreshing = false,
+                            pasteConflicts = conflicts.toPersistentList(),
+                            showConflictDialog = true,
+                            pasteDestinationAlbumPath = destinationAlbumPath
+                        )
+                    }
+                } else {
+                    executePaste(clipboard, destinationAlbumPath, emptyMap())
+                }
+            }.onFailure { error ->
+                _state.update {
+                    it.copy(
+                        isRefreshing = false,
+                        pasteDestinationAlbumPath = null,
+                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_check_conflicts_failed)
+                    )
+                }
+            }
+        }
+    }
+
+    fun resolvePasteConflicts(resolutions: Map<String, ConflictResolution>) {
+        val clipboard = _state.value.clipboardState ?: return
+        val destination = _state.value.pasteDestinationAlbumPath ?: return
+        if (!isPasteDestinationAlbumPath(destination)) return
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    showConflictDialog = false,
+                    pasteConflicts = persistentListOf(),
+                    isRefreshing = true
+                )
+            }
+            executePaste(clipboard, destination, resolutions)
+        }
+    }
+
+    fun dismissPasteConflictDialog() {
+        _state.update {
+            it.copy(
+                showConflictDialog = false,
+                pasteConflicts = persistentListOf(),
+                pasteDestinationAlbumPath = null,
+                isRefreshing = false
+            )
+        }
+    }
+
+    fun cancelClipboard() {
+        bulkFileOperationCoordinator.cancelActiveOperation()
+        clipboardRepository.clearClipboardState()
+        dismissPasteConflictDialog()
+    }
+
+    fun removeFromClipboard(path: String) {
+        val clipboard = clipboardRepository.clipboardState.value ?: return
+        val updatedFiles = clipboard.files.filter { it.absolutePath != path }
+        if (updatedFiles.isEmpty()) {
+            clipboardRepository.clearClipboardState()
+        } else {
+            clipboardRepository.setClipboardState(clipboard.copy(files = updatedFiles))
+        }
+    }
+
+    fun clearActiveFileOperation() {
+        _state.update { it.copy(activeFileOperation = null) }
+    }
+
+    private fun executePaste(
+        clipboard: ClipboardState,
+        destinationPath: String,
+        resolutions: Map<String, ConflictResolution>
+    ) {
+        val operationType = if (clipboard.operation == ClipboardOperation.CUT) {
+            BulkFileOperationType.MOVE
+        } else {
+            BulkFileOperationType.COPY
+        }
+        val started = bulkFileOperationCoordinator.startOperation(
+            type = operationType,
+            sourcePaths = clipboard.files.map { it.absolutePath },
+            destinationPath = destinationPath,
+            resolutions = resolutions
+        )
+
+        if (started) {
+            _state.update {
+                it.copy(
+                    isRefreshing = false,
+                    pasteDestinationAlbumPath = null,
+                    showConflictDialog = false,
+                    pasteConflicts = persistentListOf()
+                )
+            }
+        } else {
+            _state.update {
+                it.copy(
+                    isRefreshing = false,
+                    pasteDestinationAlbumPath = null,
+                    error = UiText.StringResource(RuntimeR.string.error_operation_already_running)
+                )
+            }
         }
     }
 
@@ -532,6 +800,63 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
+    fun togglePinnedAlbum(path: String) {
+        val isPinned = path in _state.value.pinnedAlbums
+        viewModelScope.launch {
+            browserPreferencesStore.updatePinnedAlbum(path, !isPinned)
+        }
+    }
+
+    fun startViewerSession(initialPath: String) {
+        if (_state.value.viewerSessionInitialPath == initialPath) return
+        savedStateHandle[KEY_VIEWER_SESSION_INITIAL_PATH] = initialPath
+        savedStateHandle[KEY_VIEWER_CURRENT_PATH] = initialPath
+        savedStateHandle[KEY_VIEWER_UI_VISIBLE] = true
+        savedStateHandle.remove<String>(KEY_VIEWER_METADATA_PATH)
+        savedStateHandle.remove<String>(KEY_VIEWER_ERASE_DIALOG_PATH)
+        _state.update {
+            it.copy(
+                viewerSessionInitialPath = initialPath,
+                viewerCurrentPath = initialPath,
+                viewerMetadataPath = null,
+                viewerUiVisible = true,
+                viewerEraseDialogPath = null
+            )
+        }
+    }
+
+    fun setViewerCurrentPath(path: String?) {
+        savedStateHandle[KEY_VIEWER_CURRENT_PATH] = path
+        _state.update { it.copy(viewerCurrentPath = path) }
+    }
+
+    fun setViewerMetadataVisible(path: String?, visible: Boolean) {
+        val metadataPath = if (visible) path else null
+        savedStateHandle[KEY_VIEWER_METADATA_PATH] = metadataPath
+        _state.update { it.copy(viewerMetadataPath = metadataPath) }
+    }
+
+    fun setViewerUiVisible(visible: Boolean) {
+        savedStateHandle[KEY_VIEWER_UI_VISIBLE] = visible
+        _state.update { it.copy(viewerUiVisible = visible) }
+    }
+
+    fun toggleViewerUi() {
+        setViewerUiVisible(!_state.value.viewerUiVisible)
+    }
+
+    fun rotateViewerImage(path: String) {
+        val currentRotation = _state.value.viewerRotationDegrees[path] ?: 0f
+        val nextRotations = (_state.value.viewerRotationDegrees + (path to ((currentRotation + 90f) % 360f))).toPersistentMap()
+        savedStateHandle[KEY_VIEWER_ROTATIONS] = encodeViewerRotations(nextRotations)
+        _state.update { it.copy(viewerRotationDegrees = nextRotations) }
+    }
+
+    fun setViewerEraseDialogPath(path: String?) {
+        savedStateHandle[KEY_VIEWER_ERASE_DIALOG_PATH] = path
+        _state.update { it.copy(viewerEraseDialogPath = path) }
+    }
+
     fun setAlbumCover(albumPath: String, coverPath: String) {
         viewModelScope.launch {
             browserPreferencesStore.updateAlbumCover(albumPath, coverPath)
@@ -542,11 +867,70 @@ class ImageGalleryViewModel @Inject constructor(
 
     companion object {
         private const val IMAGE_GALLERY_PREF_KEY = "image_gallery"
+        private const val KEY_VIEWER_SESSION_INITIAL_PATH = "image_viewer.session_initial_path"
+        private const val KEY_VIEWER_CURRENT_PATH = "image_viewer.current_path"
+        private const val KEY_VIEWER_METADATA_PATH = "image_viewer.metadata_path"
+        private const val KEY_VIEWER_UI_VISIBLE = "image_viewer.ui_visible"
+        private const val KEY_VIEWER_ROTATIONS = "image_viewer.rotations"
+        private const val KEY_VIEWER_ERASE_DIALOG_PATH = "image_viewer.erase_dialog_path"
         private val refreshTypes = setOf(
             BulkFileOperationType.MOVE,
+            BulkFileOperationType.COPY,
             BulkFileOperationType.TRASH,
             BulkFileOperationType.DELETE,
             BulkFileOperationType.SHRED
         )
+        private val trackedOperationTypes = setOf(
+            BulkFileOperationType.MOVE,
+            BulkFileOperationType.COPY,
+            BulkFileOperationType.CREATE_ARCHIVE
+        )
+        private val clipboardOperationTypes = setOf(
+            BulkFileOperationType.MOVE,
+            BulkFileOperationType.COPY
+        )
+
+        private fun restoreViewerRotations(encoded: ArrayList<String>?): PersistentMap<String, Float> =
+            encoded.orEmpty()
+                .mapNotNull { value ->
+                    val separator = value.indexOf('\t')
+                    if (separator <= 0) return@mapNotNull null
+                    val rotation = value.substring(0, separator).toFloatOrNull() ?: return@mapNotNull null
+                    value.substring(separator + 1) to rotation
+                }
+                .toMap()
+                .toPersistentMap()
+
+        private fun encodeViewerRotations(rotations: Map<String, Float>): ArrayList<String> =
+            ArrayList(rotations.map { (path, rotation) -> "$rotation\t$path" })
     }
 }
+
+private fun BulkFileOperationRequest.toGalleryOperationUiState(
+    progress: BulkFileOperationProgress? = null,
+    completedItems: Int = progress?.completedItems ?: 0,
+    terminalStatus: OperationCompletionStatus? = null,
+    isCancelling: Boolean = false,
+    startTimeMillis: Long? = null
+): ImageGalleryOperationUiState = ImageGalleryOperationUiState(
+    type = type,
+    totalItems = progress?.totalItems ?: operationItemCount(),
+    completedItems = completedItems,
+    currentPath = progress?.currentPath ?: operationCurrentPath(),
+    bytesCopied = progress?.bytesCopied,
+    totalBytes = progress?.totalBytes,
+    sourcePaths = sourcePaths,
+    isCancelling = isCancelling,
+    terminalStatus = terminalStatus,
+    startTimeMillis = startTimeMillis ?: System.currentTimeMillis()
+)
+
+private fun BulkFileOperationRequest.operationItemCount(): Int =
+    when {
+        importItems.isNotEmpty() -> importItems.size
+        sourcePaths.isNotEmpty() -> sourcePaths.size
+        else -> 1
+    }
+
+private fun BulkFileOperationRequest.operationCurrentPath(): String? =
+    sourcePaths.firstOrNull() ?: importItems.firstOrNull()?.displayName

@@ -17,4 +17,13 @@ class FileCategoriesTest {
         assertEquals(FileCategories.Images, FileCategories.getCategoryForFile("png", null))
         assertEquals(FileCategories.Images, FileCategories.getCategoryForFile("", "image/png"))
     }
+
+    @Test
+    fun `videos category includes common video extensions`() {
+        val expected = setOf("mp4", "mkv", "mov", "webm", "3gp", "3g2", "mts", "m2ts", "mpeg", "mpg", "ogv")
+
+        assertTrue(FileCategories.Videos.extensions.containsAll(expected))
+        assertEquals(FileCategories.Videos, FileCategories.getCategoryForFile("m2ts", null))
+        assertEquals(FileCategories.Videos, FileCategories.getCategoryForFile("", "video/mp4"))
+    }
 }

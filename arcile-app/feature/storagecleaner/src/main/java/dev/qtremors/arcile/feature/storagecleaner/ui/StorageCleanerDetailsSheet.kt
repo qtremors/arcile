@@ -65,6 +65,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.shared.ui.loadApplicationIconBitmap
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
@@ -343,7 +344,7 @@ private fun CleanerSectionSettingsDialog(
                         label = { Text(stringResource(R.string.cleaner_large_threshold_mb)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
                 if (type == CleanerGroupType.OldDownloads) {
@@ -353,7 +354,7 @@ private fun CleanerSectionSettingsDialog(
                         label = { Text(stringResource(R.string.cleaner_old_download_age_days)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
                 PatternEditor(
@@ -437,7 +438,7 @@ private fun PatternEditor(
                 onValueChange = onInputChange,
                 label = { Text(stringResource(R.string.cleaner_patterns_hint)) },
                 singleLine = true,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).keyboardInputField()
             )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = onAdd) {
@@ -536,10 +537,16 @@ internal fun CleanerCandidateRow(
         Spacer(modifier = Modifier.height(4.dp))
         
         Row(
-            modifier = Modifier.padding(start = 104.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 104.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RiskSummary(file = file, appContext = appContext)
+            RiskSummary(
+                file = file,
+                appContext = appContext,
+                modifier = Modifier.weight(1f)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
                 Text(stringResource(R.string.cleaner_ignore))
@@ -695,10 +702,16 @@ internal fun DuplicateFileRow(
         Spacer(modifier = Modifier.height(4.dp))
         
         Row(
-            modifier = Modifier.padding(start = 104.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 104.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RiskSummary(file = file, appContext = appContext)
+            RiskSummary(
+                file = file,
+                appContext = appContext,
+                modifier = Modifier.weight(1f)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(onClick = { onIgnoreFile(file.absolutePath) }) {
                 Text(stringResource(R.string.cleaner_ignore))
@@ -733,7 +746,8 @@ private fun CleanerFileActions(
 @Composable
 private fun RiskSummary(
     file: CleanerCandidate,
-    appContext: CleanerAppContext? = null
+    appContext: CleanerAppContext? = null,
+    modifier: Modifier = Modifier
 ) {
     val reasonLabels = mutableListOf<String>()
     for (reason in file.riskReasons.take(2)) {
@@ -744,6 +758,7 @@ private fun RiskSummary(
     val reasons = reasonLabels.joinToString(", ")
 
     Row(
+        modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -775,7 +790,8 @@ private fun RiskSummary(
                 style = MaterialTheme.typography.labelSmall,
                 color = cleanerRiskColor(file.riskLevel),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
             )
         }
     }

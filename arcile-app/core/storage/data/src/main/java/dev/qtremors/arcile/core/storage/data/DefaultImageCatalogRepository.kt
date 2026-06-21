@@ -44,13 +44,13 @@ class DefaultImageCatalogRepository @Inject constructor(
                 val normalizedVolumeId = volumeId?.takeIf { it.isNotBlank() }
                 if (!forceRefresh) {
                     val cached = cachedImages(normalizedVolumeId)
-                    if (cached.isNotEmpty() && cached.all { it.hasReadableSource() }) {
-                        return@runCatching ImageCatalogSnapshot(cached, isStale = false)
+                    if (cached.isNotEmpty()) {
+                        return@runCatching ImageCatalogSnapshot(cached, isStale = true)
                     }
                 }
 
                 refreshImages(normalizedVolumeId)
-                ImageCatalogSnapshot(cachedImages(normalizedVolumeId), isStale = false)
+                ImageCatalogSnapshot(readableCachedImages(normalizedVolumeId), isStale = false)
             }
         }
 
@@ -63,6 +63,9 @@ class DefaultImageCatalogRepository @Inject constructor(
         storageNodeDao
             .listImages(volumeId, FileCategories.Images.extensions.toList())
             .map { it.toImageCatalogItem() }
+
+    private suspend fun readableCachedImages(volumeId: String?): List<ImageCatalogItem> =
+        cachedImages(volumeId).filter { it.hasReadableSource() }
 
     private suspend fun refreshImages(volumeId: String?) {
         val scope: StorageScope = StorageScope.Category(volumeId, FileCategories.Images.name)
@@ -106,7 +109,12 @@ class DefaultImageCatalogRepository @Inject constructor(
 
         storageNodeDao.deleteImages(volumeId, FileCategories.Images.extensions.toList())
         if (rows.isNotEmpty()) {
-            storageNodeDao.upsert(rows.distinctBy { it.path })
+            val readableRows = rows
+                .distinctBy { it.path }
+                .filter { it.toImageCatalogItem().hasReadableSource() }
+            if (readableRows.isNotEmpty()) {
+                storageNodeDao.upsert(readableRows)
+            }
         }
     }
 
@@ -163,6 +171,7 @@ class DefaultImageCatalogRepository @Inject constructor(
             height = height
         )
 
-    private fun ImageCatalogItem.hasReadableSource(): Boolean =
-        !file.nodeRef.contentUri.isNullOrBlank() || File(file.absolutePath).exists()
+    private fun ImageCatalogItem.hasReadableSource(): Boolean {
+        return File(file.absolutePath).let { it.exists() && it.isFile && it.length() >= 0L }
+    }
 }

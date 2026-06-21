@@ -27,8 +27,6 @@ internal class ZipArchiveHandler(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    private val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
-
     fun listEntries(archive: File, password: String?, nameEncoding: ArchiveNameEncoding): List<ArchiveEntryModel> {
         val zip4j = Zip4jFile(archive, password?.toCharArray())
         zip4j.setCharset(nameEncoding.charset())
@@ -78,10 +76,11 @@ internal class ZipArchiveHandler(
         replacementBackups: MutableMap<File, File>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
+        val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
         val zip4j = Zip4jFile(archive, password?.toCharArray())
         zip4j.setCharset(nameEncoding.charset())
         if (zip4j.isEncrypted || !password.isNullOrEmpty()) {
-            extractZip4j(zip4j, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, onProgress)
+            extractZip4j(zip4j, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, extractionContext, onProgress)
             return
         }
         val prefix = entryPrefix?.normalizeEntryName()?.trimEnd('/')?.takeIf { it.isNotBlank() }
@@ -187,6 +186,7 @@ internal class ZipArchiveHandler(
         resolutions: Map<String, ConflictResolution>,
         createdOutputs: MutableSet<File>,
         replacementBackups: MutableMap<File, File>,
+        extractionContext: ArchiveExtractionContext,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val entries = zip.fileHeaders.filter { it.fileName.matchesPrefix(entryPrefix) }

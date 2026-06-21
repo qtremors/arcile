@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import android.content.Context
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
@@ -11,12 +13,14 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import dev.qtremors.arcile.testutil.testVolume
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
@@ -59,7 +63,8 @@ class TrashManagerTest {
             override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
             override fun observeUpdates() = emptyFlow<FolderStatUpdate>()
             override fun queue(paths: List<String>) = Unit
-            override fun invalidate(paths: Collection<String>) = Unit
+            override suspend fun invalidate(paths: Collection<String>) = Unit
+            override suspend fun clear() = Unit
         }
 
         trashManager = DefaultTrashManager(
@@ -305,6 +310,61 @@ class TrashManagerTest {
     }
 
     @Test
+    fun `moveToTrashTargets deletes media store row by supplied content uri`() = runTest {
+        val file = File(root, "indexed-video.mp4").apply {
+            createNewFile()
+            writeText("video")
+        }
+        val resolver = mockk<ContentResolver>(relaxed = true)
+        val uri = Uri.parse("content://media/external_primary/video/media/42")
+        every { resolver.delete(uri, null, null) } returns 1
+        val resolverContext = ResolverContext(context, resolver)
+        val manager = DefaultTrashManager(
+            resolverContext,
+            volumeProvider,
+            MutationFinalizer(resolverContext, mediaStoreClient, volumeProvider, folderStatsStore)
+        )
+
+        val result = manager.moveToTrashTargets(
+            listOf(
+                TrashTarget(
+                    path = file.absolutePath,
+                    nodeRef = StorageNodeRef.mediaStore(
+                        id = 42L,
+                        volumeName = "external_primary",
+                        contentUri = uri.toString(),
+                        displayPath = file.absolutePath,
+                        localPath = file.absolutePath
+                    )
+                )
+            )
+        )
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 1) { resolver.delete(uri, null, null) }
+    }
+
+    @Test
+    fun `path only moveToTrash succeeds without media store DATA query`() = runTest {
+        val file = File(root, "path-only.txt").apply {
+            createNewFile()
+            writeText("local")
+        }
+        val resolver = mockk<ContentResolver>(relaxed = true)
+        val resolverContext = ResolverContext(context, resolver)
+        val manager = DefaultTrashManager(
+            resolverContext,
+            volumeProvider,
+            MutationFinalizer(resolverContext, mediaStoreClient, volumeProvider, folderStatsStore)
+        )
+
+        val result = manager.moveToTrash(listOf(file.absolutePath))
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 0) { resolver.query(any(), any(), any<String>(), any<Array<String>>(), any()) }
+    }
+
+    @Test
     fun `getTrashStorageUsage sums files and nested folder payloads`() = runTest {
         val file = File(root, "one.txt").apply { writeText("1234") }
         val directory = File(root, "folder").apply { mkdirs() }
@@ -348,5 +408,13 @@ class TrashManagerTest {
         }
 
         override suspend fun cleanupAbandonedMutations() = Unit
+    }
+
+    private class ResolverContext(
+        base: Context,
+        private val resolver: ContentResolver
+    ) : android.content.ContextWrapper(base) {
+        override fun getApplicationContext(): Context = this
+        override fun getContentResolver(): ContentResolver = resolver
     }
 }

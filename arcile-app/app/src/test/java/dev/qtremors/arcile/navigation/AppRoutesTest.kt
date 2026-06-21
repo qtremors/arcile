@@ -19,6 +19,7 @@ class AppRoutesTest {
 
         assertEquals(route, json.decodeFromString<AppRoutes.Main>(json.encodeToString(route)))
         assertEquals(AppRoutes.Trash, json.decodeFromString<AppRoutes.Trash>(json.encodeToString(AppRoutes.Trash)))
+        assertEquals(AppRoutes.ActivityLog, json.decodeFromString<AppRoutes.ActivityLog>(json.encodeToString(AppRoutes.ActivityLog)))
         assertEquals(AppRoutes.ArchiveViewer("archive.zip"), json.decodeFromString<AppRoutes.ArchiveViewer>(json.encodeToString(AppRoutes.ArchiveViewer("archive.zip"))))
     }
 }

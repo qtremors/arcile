@@ -9,6 +9,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.shared.ui.keyboardInputField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,14 +34,14 @@ fun CreateFakeFileDialog(
                     onValueChange = { fileName = it },
                     label = { Text(stringResource(R.string.label_fake_file_name)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 OutlinedTextField(
                     value = extension,
                     onValueChange = { extension = it },
                     label = { Text(stringResource(R.string.label_fake_file_extension)) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -56,7 +57,7 @@ fun CreateFakeFileDialog(
                         label = { Text(stringResource(R.string.label_fake_file_size)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).keyboardInputField()
                     )
                     
                     ExposedDropdownMenuBox(

@@ -35,6 +35,7 @@ import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -124,24 +125,44 @@ fun ArcileTopBar(
         },
         navigationIcon = {
             if (selectionCount > 0) {
-                IconButton(onClick = onClearSelection) {
+                Box(
+                    modifier = androidx.compose.ui.Modifier
+                        .size(48.dp)
+                        .bounceClickable { onClearSelection() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
                 }
             } else if (showBackArrow) {
-                IconButton(onClick = onBackClick) {
+                Box(
+                    modifier = androidx.compose.ui.Modifier
+                        .size(48.dp)
+                        .bounceClickable { onBackClick() },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             }
         },
         actions = {
             if (selectionCount > 0) {
-                IconButton(onClick = { onActionSelected(TopBarAction.SelectAll) }) {
+                Box(
+                    modifier = androidx.compose.ui.Modifier
+                        .size(48.dp)
+                        .bounceClickable { onActionSelected(TopBarAction.SelectAll) },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.Default.GridView,
                         contentDescription = stringResource(R.string.select_all)
                     )
                 }
-                IconButton(onClick = { onActionSelected(TopBarAction.InvertSelection) }) {
+                Box(
+                    modifier = androidx.compose.ui.Modifier
+                        .size(48.dp)
+                        .bounceClickable { onActionSelected(TopBarAction.InvertSelection) },
+                    contentAlignment = Alignment.Center
+                ) {
                     Icon(
                         imageVector = Icons.Default.SelectAll,
                         contentDescription = stringResource(R.string.invert_selection)
@@ -175,10 +196,11 @@ fun ArcileTopBar(
 
                     if (showSettingsIcon) {
                         Surface(
-                            onClick = onSettingsClick,
                             shape = CircleShape,
                             color = Color.Transparent,
-                            modifier = androidx.compose.ui.Modifier.size(48.dp)
+                            modifier = androidx.compose.ui.Modifier
+                                .size(48.dp)
+                                .bounceClickable { onSettingsClick() }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title))
@@ -194,10 +216,11 @@ fun ArcileTopBar(
 
                     Box {
                         Surface(
-                            onClick = { showMenu = true },
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = androidx.compose.ui.Modifier.size(48.dp)
+                            modifier = androidx.compose.ui.Modifier
+                                .size(48.dp)
+                                .bounceClickable { showMenu = true }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(

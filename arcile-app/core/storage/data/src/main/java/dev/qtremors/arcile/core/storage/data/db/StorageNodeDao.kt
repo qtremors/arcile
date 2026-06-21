@@ -16,6 +16,7 @@ interface StorageNodeDao {
         """
         SELECT * FROM storage_nodes
         WHERE is_directory = 0
+            AND (media_store_id IS NOT NULL OR content_uri IS NOT NULL)
             AND (:volumeId IS NULL OR volume_id = :volumeId)
             AND (mime_type LIKE 'image/%' OR extension IN (:extensions))
         ORDER BY last_modified DESC

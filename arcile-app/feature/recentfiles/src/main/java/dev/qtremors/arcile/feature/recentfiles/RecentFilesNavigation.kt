@@ -23,7 +23,7 @@ fun NavGraphBuilder.recentFilesScreen(
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
     onOpenFile: (String, List<FileModel>) -> Unit,
-    onShareSelected: suspend (List<String>) -> Boolean,
+    onShareSelected: suspend (List<FileModel>) -> Boolean,
     onOpenContainingFolder: (String) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
@@ -50,13 +50,14 @@ fun NavGraphBuilder.recentFilesScreen(
             onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
             onShareSelected = {
                 coroutineScope.launch {
-                    if (onShareSelected(state.selectedFiles.toList())) {
+                    val shareFiles = openFiles.filter { it.absolutePath in state.selectedFiles }
+                    if (onShareSelected(shareFiles)) {
                         viewModel.clearSelection()
                     }
                 }
             },
             onSelectAll = { viewModel.selectAll() },
-            onRefresh = { viewModel.loadRecentFiles() },
+            onRefresh = { viewModel.loadRecentFiles(pullToRefresh = true) },
             onSearchQueryChange = { viewModel.updateSearchQuery(it) },
             onClearSearch = { viewModel.updateSearchQuery("") },
             onSearchFiltersChange = { viewModel.updateSearchFilters(it) },

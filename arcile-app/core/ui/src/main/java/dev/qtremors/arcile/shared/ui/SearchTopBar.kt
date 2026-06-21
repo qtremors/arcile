@@ -3,6 +3,11 @@ import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Alignment
+import dev.qtremors.arcile.ui.theme.bounceClickable
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -25,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 
 /**
@@ -43,17 +49,24 @@ fun SearchTopBar(
 
 ) {
     val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
     val placeholderText = placeholder ?: stringResource(R.string.search_files_placeholder)
     val clearLabel = stringResource(R.string.action_clear)
     val filtersLabel = stringResource(R.string.action_filters)
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
+        keyboardController?.show()
     }
 
     TopAppBar(
         navigationIcon = {
-            IconButton(onClick = onClose) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .bounceClickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = stringResource(R.string.action_close_search)
@@ -83,6 +96,7 @@ fun SearchTopBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
+                    .keyboardInputField()
             )
         },
         actions = {

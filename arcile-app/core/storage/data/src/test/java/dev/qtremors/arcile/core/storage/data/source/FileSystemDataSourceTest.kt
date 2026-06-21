@@ -5,6 +5,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
+import dev.qtremors.arcile.core.storage.data.db.StorageNodeEntity
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
@@ -65,7 +66,8 @@ class FileSystemDataSourceTest {
             override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
             override fun observeUpdates() = emptyFlow<FolderStatUpdate>()
             override fun queue(paths: List<String>) = Unit
-            override fun invalidate(paths: Collection<String>) = Unit
+            override suspend fun invalidate(paths: Collection<String>) = Unit
+            override suspend fun clear() = Unit
         }
 
         dataSource = DefaultFileSystemDataSource(
@@ -84,6 +86,7 @@ class FileSystemDataSourceTest {
 
     @After
     fun teardown() {
+        DefaultFileSystemDataSource.resetSecureOverwriteOverrideForTest()
         database.close()
         root.deleteRecursively()
     }
@@ -140,15 +143,38 @@ class FileSystemDataSourceTest {
     }
 
     @Test
-    fun `list reuses cached directory rows without rescanning unchanged folder`() = runTest {
-        File(root, "cached.txt").createNewFile()
+    fun `list ignores partial cached media rows and returns live directory children`() = runTest {
+        val cachedOnlyImage = File(root, "cached-image.jpg")
+        storageNodeDao.upsert(
+            listOf(
+                StorageNodeEntity(
+                    path = cachedOnlyImage.absolutePath,
+                    parentPath = root.absolutePath,
+                    name = cachedOnlyImage.name,
+                    extension = "jpg",
+                    mimeType = "image/jpeg",
+                    sizeBytes = 1024L,
+                    lastModified = 100L,
+                    isDirectory = false,
+                    isHidden = false,
+                    contentUri = "content://media/external/images/media/1",
+                    mediaStoreId = 1L,
+                    mediaStoreVolume = "external",
+                    volumeId = "test-vol",
+                    width = 100,
+                    height = 100,
+                    dateAdded = 100L,
+                    scannedAt = 100L
+                )
+            )
+        )
+        File(root, "album").mkdirs()
+        File(root, "live.txt").createNewFile()
 
-        dataSource.list(StorageNodePath.of(root.absolutePath)).toList()
-        File(root, "cached.txt").delete()
+        val live = dataSource.list(StorageNodePath.of(root.absolutePath)).toList().flatMap { it.files }
 
-        val cached = dataSource.list(StorageNodePath.of(root.absolutePath)).toList().flatMap { it.files }
-
-        assertEquals(listOf("cached.txt"), cached.map { it.name })
+        assertEquals(listOf("album", "live.txt"), live.map { it.name })
+        assertTrue(live.first().isDirectory)
     }
 
     @Test
@@ -249,6 +275,55 @@ class FileSystemDataSourceTest {
         assertEquals(emptyList<String>(), result.succeededPaths)
         assertEquals(listOf(missing), result.skippedPaths)
         assertTrue(result.failedItems.isEmpty())
+    }
+
+    @Test
+    fun `shredDetailed reports overwrite failure without deleting file`() = runTest {
+        val file = File(root, "protected.txt").apply {
+            writeText("private")
+        }
+        DefaultFileSystemDataSource.secureOverwriteOverrideForTest = {
+            DefaultFileSystemDataSource.SecureOverwriteResult.Failure("Injected overwrite failure")
+        }
+
+        val result = dataSource.shredDetailed(listOf(file.absolutePath)).getOrThrow()
+
+        assertEquals(emptyList<String>(), result.succeededPaths)
+        assertEquals(file.absolutePath, result.failedItems.single().path)
+        assertEquals("Injected overwrite failure", result.failedItems.single().message)
+        assertEquals("SecureOverwriteFailed", result.failedItems.single().causeType)
+        assertEquals(listOf(file.absolutePath), result.cleanupRequiredPaths)
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun `shred compatibility returns partial failure when overwrite fails`() = runTest {
+        val file = File(root, "partial.txt").apply {
+            writeText("private")
+        }
+        DefaultFileSystemDataSource.secureOverwriteOverrideForTest = {
+            DefaultFileSystemDataSource.SecureOverwriteResult.Failure("Injected overwrite failure")
+        }
+
+        val result = dataSource.shred(listOf(file.absolutePath))
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull() is BatchMutationPartialFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("1 failed"))
+        assertTrue(file.exists())
+    }
+
+    @Test
+    fun `shredDetailed deletes file after successful overwrite`() = runTest {
+        val file = File(root, "secure.txt").apply {
+            writeText("private")
+        }
+
+        val result = dataSource.shredDetailed(listOf(file.absolutePath)).getOrThrow()
+
+        assertEquals(listOf(file.absolutePath), result.succeededPaths)
+        assertTrue(result.failedItems.isEmpty())
+        assertFalse(file.exists())
     }
 
     @Test

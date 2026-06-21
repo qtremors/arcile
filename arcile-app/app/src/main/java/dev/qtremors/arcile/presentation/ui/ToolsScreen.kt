@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.ui.theme.bounceClickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,7 @@ fun ToolsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToCleaner: () -> Unit,
     onNavigateToTrash: () -> Unit,
+    onNavigateToActivity: () -> Unit,
     homeUtilityIds: Set<String>,
     onUtilityHomeVisibilityChange: (String, Boolean) -> Unit
 ) {
@@ -45,7 +47,12 @@ fun ToolsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.tools_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .bounceClickable { onNavigateBack() },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
@@ -78,39 +85,37 @@ fun ToolsScreen(
                             when (definition.action) {
                                 UtilityAction.Cleaner -> onNavigateToCleaner()
                                 UtilityAction.Trash -> onNavigateToTrash()
+                                UtilityAction.Activity -> onNavigateToActivity()
                                 UtilityAction.None -> Unit
                             }
                         }
                     )
                     if (definition.showOnHome) {
                         val isShownOnHome = definition.id in homeUtilityIds
-                        IconButton(
-                            onClick = { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) },
+                        Surface(
+                            shape = androidx.compose.foundation.shape.CircleShape,
+                            color = if (isShownOnHome) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surfaceContainerHighest
+                            },
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
                                 .size(36.dp)
+                                .bounceClickable { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) }
                         ) {
-                            Surface(
-                                shape = androidx.compose.foundation.shape.CircleShape,
-                                color = if (isShownOnHome) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceContainerHighest
-                                }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (isShownOnHome) Icons.Default.Home else Icons.Outlined.Home,
-                                        contentDescription = stringResource(R.string.quick_access_show_on_home),
-                                        tint = if (isShownOnHome) {
-                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isShownOnHome) Icons.Default.Home else Icons.Outlined.Home,
+                                    contentDescription = stringResource(R.string.quick_access_show_on_home),
+                                    tint = if (isShownOnHome) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
                     }

@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import android.content.Context
-import android.provider.MediaStore
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
@@ -12,6 +11,7 @@ import dev.qtremors.arcile.core.storage.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.core.storage.data.util.trashEnabledVolumes
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
@@ -39,11 +39,20 @@ data class TrashMetadataEntity(
 
 interface TrashManager {
     suspend fun moveToTrash(paths: List<String>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
+    suspend fun moveToTrashTargets(targets: List<TrashTarget>, onProgress: ((BulkFileOperationProgress) -> Unit)? = null): Result<Unit>
     suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit>
     suspend fun emptyTrash(): Result<Unit>
     suspend fun getTrashFiles(): Result<List<TrashMetadata>>
     suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>
     suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit>
+}
+
+data class TrashTarget(
+    val path: String,
+    val nodeRef: StorageNodeRef? = null
+) {
+    val contentUri: String?
+        get() = nodeRef?.contentUri?.takeIf { it.isNotBlank() }
 }
 
 class DefaultTrashManager(
@@ -156,16 +165,23 @@ class DefaultTrashManager(
     override suspend fun moveToTrash(
         paths: List<String>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> =
+        moveToTrashTargets(paths.map { TrashTarget(path = it) }, onProgress)
+
+    override suspend fun moveToTrashTargets(
+        targets: List<TrashTarget>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val scannedPaths = mutableListOf<String>()
 
-            for (path in paths) {
+            for (target in targets) {
+                val path = target.path
                 val file = File(path)
                 validateDestructivePath(file).onFailure {
                     if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
-                    val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: Access denied" else "Access denied"
+                    val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${targets.size} items to trash. Failed on ${file.name}: Access denied" else "Access denied"
                     return@withContext Result.failure(Exception(msg, it))
                 }
 
@@ -173,12 +189,12 @@ class DefaultTrashManager(
                 val sourceVolume = resolveVolumeForPath(file.absolutePath, volumes)
                     ?: run {
                         if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
-                        val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: Unable to resolve storage volume" else "Unable to resolve storage volume"
+                        val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${targets.size} items to trash. Failed on ${file.name}: Unable to resolve storage volume" else "Unable to resolve storage volume"
                         return@withContext Result.failure(Exception(msg))
                     }
                 if (!sourceVolume.kind.supportsTrash) {
                     if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
-                    val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: Trash not supported on this storage." else "Trash is not supported on this storage. Use permanent delete instead."
+                    val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${targets.size} items to trash. Failed on ${file.name}: Trash not supported on this storage." else "Trash is not supported on this storage. Use permanent delete instead."
                     return@withContext Result.failure(Exception(msg))
                 }
 
@@ -234,29 +250,14 @@ class DefaultTrashManager(
                         if (scannedPaths.isNotEmpty()) {
                             finalizeMutation(*scannedPaths.toTypedArray())
                         }
-                        val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${paths.size} items to trash. Failed on ${file.name}: ${e.message}" else "Failed to move ${file.name} to trash: ${e.message}"
+                        val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${targets.size} items to trash. Failed on ${file.name}: ${e.message}" else "Failed to move ${file.name} to trash: ${e.message}"
                         return@withContext Result.failure(Exception(msg, e))
                     }
                 }
 
                 if (success || fallbackSuccess) {
                     scannedPaths.add(file.absolutePath)
-                    try {
-                        val uri = MediaStore.Files.getContentUri("external")
-                        val projection = arrayOf(MediaStore.Files.FileColumns._ID)
-                        val selection = "${MediaStore.Files.FileColumns.DATA} = ?"
-                        val selectionArgs = arrayOf(file.absolutePath)
-                        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
-                            if (cursor.moveToFirst()) {
-                                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID))
-                                val itemUri = android.content.ContentUris.withAppendedId(uri, id)
-                                context.contentResolver.delete(itemUri, null, null)
-                            }
-                        }
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        AppLogger.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
-                    }
+                    deleteMediaStoreContentUri(target.contentUri)
                 }
             }
             finalizeMutation(*scannedPaths.toTypedArray())
@@ -478,6 +479,16 @@ class DefaultTrashManager(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
+        }
+    }
+
+    private fun deleteMediaStoreContentUri(contentUri: String?) {
+        if (contentUri.isNullOrBlank()) return
+        try {
+            context.contentResolver.delete(android.net.Uri.parse(contentUri), null, null)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
         }
     }
 

@@ -19,7 +19,9 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
+import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerBackAction
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
+import dev.qtremors.arcile.feature.storagecleaner.ui.resolveStorageCleanerBackAction
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -34,6 +36,26 @@ class StorageCleanerScreenTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun `cleaner back priority dismisses local state before navigation`() {
+        assertEquals(
+            StorageCleanerBackAction.DismissIgnoredItems,
+            resolveStorageCleanerBackAction(showIgnoredItems = true, showDeleteConfirm = true, hasActiveDetails = true)
+        )
+        assertEquals(
+            StorageCleanerBackAction.DismissDeleteConfirmation,
+            resolveStorageCleanerBackAction(showIgnoredItems = false, showDeleteConfirm = true, hasActiveDetails = true)
+        )
+        assertEquals(
+            StorageCleanerBackAction.DismissDetails,
+            resolveStorageCleanerBackAction(showIgnoredItems = false, showDeleteConfirm = false, hasActiveDetails = true)
+        )
+        assertEquals(
+            StorageCleanerBackAction.NavigateBack,
+            resolveStorageCleanerBackAction(showIgnoredItems = false, showDeleteConfirm = false, hasActiveDetails = false)
+        )
+    }
 
     @Test
     fun `high risk candidates show warning and require acknowledgement before delete`() {

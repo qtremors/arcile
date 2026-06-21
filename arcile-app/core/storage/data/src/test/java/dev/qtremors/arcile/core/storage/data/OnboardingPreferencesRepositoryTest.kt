@@ -61,7 +61,6 @@ class OnboardingPreferencesRepositoryTest {
         assertFalse(preferences.isCompleted)
         assertEquals(0, preferences.completedVersion)
         assertFalse(preferences.notificationPermissionHandled)
-        assertFalse(preferences.wasManuallyReset)
     }
 
     @Test
@@ -74,7 +73,6 @@ class OnboardingPreferencesRepositoryTest {
         assertTrue(preferences.isCompleted)
         assertEquals(52, preferences.completedVersion)
         assertTrue(preferences.notificationPermissionHandled)
-        assertFalse(preferences.wasManuallyReset)
     }
 
     @Test
@@ -86,20 +84,5 @@ class OnboardingPreferencesRepositoryTest {
         val preferences = repository.preferencesFlow.first()
         assertFalse(preferences.isCompleted)
         assertTrue(preferences.notificationPermissionHandled)
-        assertFalse(preferences.wasManuallyReset)
-    }
-
-    @Test
-    fun `resetOnboarding clears completion state`() = runBlocking {
-        val repository = OnboardingPreferencesRepository(context, dataStore)
-
-        repository.markCompleted(completedVersion = 52, notificationPermissionHandled = true)
-        repository.resetOnboarding()
-
-        val preferences = repository.preferencesFlow.first()
-        assertFalse(preferences.isCompleted)
-        assertEquals(0, preferences.completedVersion)
-        assertFalse(preferences.notificationPermissionHandled)
-        assertTrue(preferences.wasManuallyReset)
     }
 }

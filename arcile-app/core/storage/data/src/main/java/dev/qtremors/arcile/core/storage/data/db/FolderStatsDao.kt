@@ -15,6 +15,9 @@ interface FolderStatsDao {
     @Query("DELETE FROM folder_stats WHERE path IN (:paths)")
     suspend fun delete(paths: List<String>)
 
+    @Query("DELETE FROM folder_stats")
+    suspend fun clear()
+
     @Query("SELECT COUNT(*) FROM folder_stats")
     suspend fun count(): Int
 

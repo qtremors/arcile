@@ -6,20 +6,29 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.net.Uri
 
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
+import dev.qtremors.arcile.FREE_SPACE_SAFETY_BUFFER_BYTES
+import dev.qtremors.arcile.MAX_IMPORT_BYTES
+import dev.qtremors.arcile.STREAM_BUFFER_SIZE
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.storage.data.MutationFinalizer
+import dev.qtremors.arcile.core.storage.data.MutationJournal
+import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
 import dev.qtremors.arcile.core.storage.domain.BatchMutationPartialFailure
+import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
@@ -27,6 +36,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.core.ui.asString
+import dev.qtremors.arcile.sanitizeIncomingFileName
 import dev.qtremors.arcile.utils.formatFileSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -34,9 +44,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
+import java.io.BufferedInputStream
+import java.io.BufferedOutputStream
+import java.io.File
+import java.io.IOException
+import java.util.UUID
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -64,6 +81,12 @@ class BulkFileOperationService : Service() {
     lateinit var operationJournal: OperationJournal
 
     @Inject
+    lateinit var mutationJournal: MutationJournal
+
+    @Inject
+    lateinit var mutationFinalizer: MutationFinalizer
+
+    @Inject
     lateinit var dispatchers: ArcileDispatchers
 
     private val serviceScope: CoroutineScope by lazy {
@@ -87,6 +110,8 @@ class BulkFileOperationService : Service() {
     private var notificationMetrics = NotificationMetrics()
     private val serviceOperationJournal: OperationJournal
         get() = if (::operationJournal.isInitialized) operationJournal else NoOpOperationJournal()
+    private val serviceMutationJournal: MutationJournal
+        get() = if (::mutationJournal.isInitialized) mutationJournal else NoOpMutationJournal()
 
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -174,6 +199,10 @@ class BulkFileOperationService : Service() {
                                 nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
                                 compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
                             ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
+                            }
+                            BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> importSharedFiles(request) { progress ->
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
@@ -273,7 +302,156 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.CREATE_FAKE -> getString(R.string.file_operation_creating_fake_file)
             BulkFileOperationType.EXTRACT_ARCHIVE -> getString(R.string.file_operation_extracting_archive)
             BulkFileOperationType.CREATE_ARCHIVE -> getString(R.string.file_operation_creating_archive)
+            BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> getString(R.string.save_to_arcile_title)
         }
+
+    private suspend fun importSharedFiles(
+        request: BulkFileOperationRequest,
+        onProgress: (BulkFileOperationProgress) -> Unit
+    ): Result<Unit> {
+        val destination = File(requireNotNull(request.destinationPath) { "Destination path is required for import" })
+        require(destination.exists() && destination.isDirectory && destination.canWrite()) {
+            getString(R.string.save_to_arcile_invalid_destination)
+        }
+        val items = request.importItems
+        require(items.isNotEmpty()) { getString(R.string.save_to_arcile_no_files) }
+        val knownBytes = items.sumOf { it.sizeBytes ?: 0L }
+        require(knownBytes <= MAX_IMPORT_BYTES) { getString(R.string.save_to_arcile_too_large) }
+        require(destination.usableSpace <= 0L || destination.usableSpace >= knownBytes + FREE_SPACE_SAFETY_BUFFER_BYTES) {
+            getString(R.string.save_to_arcile_insufficient_space)
+        }
+        val totalBytes = knownBytes.takeIf { it > 0L }
+        var copiedBytes = 0L
+        var completedItems = 0
+        val finalized = mutableListOf<String>()
+        val failures = mutableListOf<BatchMutationFailure>()
+
+        for (item in items) {
+            currentCoroutineContext().ensureActive()
+            val target = keepBothImportTarget(destination, item.displayName)
+            val staged = createImportStagingTarget(target)
+            serviceMutationJournal.recordTemporaryPath(staged.absolutePath)
+            coordinator.onOperationCheckpoint(request, stagedPaths = listOf(staged.absolutePath))
+            try {
+                val uri = Uri.parse(item.uri)
+                val input = contentResolver.openInputStream(uri)
+                    ?: throw IOException(getString(R.string.save_to_arcile_failed_open_stream))
+                input.use { rawInput ->
+                    BufferedInputStream(rawInput).use { bufferedInput ->
+                        BufferedOutputStream(staged.outputStream()).use { output ->
+                            val buffer = ByteArray(STREAM_BUFFER_SIZE)
+                            while (true) {
+                                currentCoroutineContext().ensureActive()
+                                val read = bufferedInput.read(buffer)
+                                if (read < 0) break
+                                copiedBytes += read
+                                if (copiedBytes > MAX_IMPORT_BYTES) {
+                                    throw ImportLimitExceededException(getString(R.string.save_to_arcile_too_large))
+                                }
+                                output.write(buffer, 0, read)
+                                onProgress(
+                                    BulkFileOperationProgress(
+                                        completedItems = completedItems,
+                                        totalItems = items.size,
+                                        currentPath = item.displayName,
+                                        bytesCopied = copiedBytes,
+                                        totalBytes = totalBytes
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+                if (!staged.renameTo(target)) {
+                    throw IOException("Failed to save ${item.displayName}")
+                }
+                serviceMutationJournal.forgetTemporaryPath(staged.absolutePath)
+                finalized += target.absolutePath
+                coordinator.onOperationCheckpoint(
+                    request = request,
+                    finalizedPaths = listOf(target.absolutePath),
+                    rollbackHints = listOf("created:${target.absolutePath}")
+                )
+                completedItems += 1
+                onProgress(
+                    BulkFileOperationProgress(
+                        completedItems = completedItems,
+                        totalItems = items.size,
+                        currentPath = item.displayName,
+                        bytesCopied = totalBytes?.let { copiedBytes.coerceAtMost(it) } ?: copiedBytes,
+                        totalBytes = totalBytes
+                    )
+                )
+            } catch (e: Exception) {
+                runCatching { if (staged.exists()) staged.delete() }
+                serviceMutationJournal.forgetTemporaryPath(staged.absolutePath)
+                if (e is CancellationException) throw e
+                if (e is ImportLimitExceededException) return Result.failure(e)
+                failures += BatchMutationFailure(
+                    path = item.uri,
+                    displayName = item.displayName,
+                    message = e.message ?: getString(R.string.save_to_arcile_failed_open_stream),
+                    causeType = e::class.java.simpleName
+                )
+                completedItems += 1
+                onProgress(
+                    BulkFileOperationProgress(
+                        completedItems = completedItems,
+                        totalItems = items.size,
+                        currentPath = item.displayName,
+                        bytesCopied = totalBytes?.let { copiedBytes.coerceAtMost(it) } ?: copiedBytes,
+                        totalBytes = totalBytes
+                    )
+                )
+            }
+        }
+
+        if (finalized.isNotEmpty()) {
+            if (::mutationFinalizer.isInitialized) {
+                mutationFinalizer.finalize(destination.absolutePath)
+            }
+        }
+        return if (failures.isEmpty()) {
+            Result.success(Unit)
+        } else if (finalized.isEmpty()) {
+            Result.failure(IOException(failures.first().message))
+        } else {
+            Result.failure(
+                BatchMutationPartialFailure(
+                    batchResult = BatchMutationResult(
+                        succeededPaths = finalized,
+                        failedItems = failures
+                    ),
+                    message = "Save to Arcile partially completed: ${finalized.size} succeeded, 0 skipped, ${failures.size} failed. First failure: ${failures.first().displayName}: ${failures.first().message}"
+                )
+            )
+        }
+    }
+
+    private fun keepBothImportTarget(destination: File, requestedName: String): File {
+        val safeName = sanitizeIncomingFileName(requestedName)
+        val requested = File(destination, safeName)
+        if (!requested.exists()) return requested
+        val baseName = requested.nameWithoutExtension
+        val extension = requested.extension.takeIf { it.isNotBlank() }?.let { ".$it" }.orEmpty()
+        var index = 1
+        while (true) {
+            val candidate = File(destination, "$baseName ($index)$extension")
+            if (!candidate.exists()) return candidate
+            index += 1
+        }
+    }
+
+    private fun createImportStagingTarget(target: File): File {
+        val parent = requireNotNull(target.parentFile) { "Import target has no parent directory" }
+        var candidate: File
+        do {
+            candidate = File(parent, ".${target.name}.arcile-import-${UUID.randomUUID()}.tmp")
+        } while (candidate.exists())
+        return candidate
+    }
+
+    private class ImportLimitExceededException(message: String) : IOException(message)
 
     private fun progressContent(progress: BulkFileOperationProgress): String {
         val currentName = progress.currentPath

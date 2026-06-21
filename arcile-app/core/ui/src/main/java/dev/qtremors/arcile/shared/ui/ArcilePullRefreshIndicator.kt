@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -39,6 +40,7 @@ fun BoxScope.ArcilePullRefreshIndicator(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
+                .zIndex(1f)
                 .graphicsLayer {
                     translationY = animatedYOffset.value.toPx()
                     alpha = if (isRefreshing) 1f else pullDistance.coerceIn(0f, 1f)

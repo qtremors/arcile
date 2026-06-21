@@ -94,8 +94,8 @@ class BrowserOperationDelegate(
                         error = null,
                         activeFileOperation = BrowserFileOperationUiState(
                             type = event.request.type,
-                            totalItems = event.request.sourcePaths.size,
-                            currentPath = event.request.sourcePaths.firstOrNull(),
+                            totalItems = event.request.operationItemCount(),
+                            currentPath = event.request.operationCurrentPath(),
                             sourcePaths = event.request.sourcePaths
                         ),
                         fileOperationStatusMessage = null
@@ -128,7 +128,7 @@ class BrowserOperationDelegate(
                         activeFileOperation = currentState.activeFileOperation?.copy(isCancelling = true)
                             ?: BrowserFileOperationUiState(
                                 type = event.request.type,
-                                totalItems = event.request.sourcePaths.size,
+                                totalItems = event.request.operationItemCount(),
                                 isCancelling = true,
                                 sourcePaths = event.request.sourcePaths
                             )
@@ -164,7 +164,7 @@ class BrowserOperationDelegate(
                         clipboardState = null,
                         fileOperationStatusMessage = formatOperationCompletedMessage(
                             type = event.request.type,
-                            itemCount = event.request.sourcePaths.size
+                            itemCount = event.request.operationItemCount()
                         ),
                         pendingTrashUndoIds = undoIds.toPersistentList(),
                         pendingUndoAction = undoAction
@@ -239,6 +239,7 @@ class BrowserOperationDelegate(
             BulkFileOperationType.CREATE_FAKE -> R.plurals.file_operation_created_items
             BulkFileOperationType.EXTRACT_ARCHIVE -> R.plurals.file_operation_extracted_items
             BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items
+            BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> R.plurals.file_operation_copied_items
         }
         return UiText.PluralResource(pluralRes, itemCount, listOf(itemCount))
     }
@@ -279,3 +280,13 @@ class BrowserOperationDelegate(
     private fun joinStoragePath(parent: String, name: String): String =
         parent.trimEnd('/', '\\') + "/" + name
 }
+
+private fun dev.qtremors.arcile.core.operation.BulkFileOperationRequest.operationItemCount(): Int =
+    if (type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT) importItems.size else sourcePaths.size
+
+private fun dev.qtremors.arcile.core.operation.BulkFileOperationRequest.operationCurrentPath(): String? =
+    if (type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT) {
+        importItems.firstOrNull()?.displayName
+    } else {
+        sourcePaths.firstOrNull()
+    }

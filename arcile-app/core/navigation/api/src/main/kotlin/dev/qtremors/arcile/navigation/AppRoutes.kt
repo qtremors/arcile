@@ -23,6 +23,7 @@ object AppRoutes {
         val restorePersistentLocation: Boolean = true
     )
     @Serializable object Tools
+    @Serializable object ActivityLog
     @Serializable object Settings
     @Serializable object Trash
     @Serializable data class RecentFiles(val volumeId: String? = null)

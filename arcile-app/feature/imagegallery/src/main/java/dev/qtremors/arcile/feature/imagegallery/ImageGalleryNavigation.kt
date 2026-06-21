@@ -13,6 +13,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
@@ -24,7 +25,7 @@ fun NavGraphBuilder.imageGalleryScreen(
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
     onOpenFile: (String) -> Unit,
-    onShareSelected: suspend (List<String>) -> Boolean,
+    onShareSelected: suspend (List<FileModel>) -> Boolean,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.ImageGallery>(
@@ -48,7 +49,8 @@ fun NavGraphBuilder.imageGalleryScreen(
             onSelectMultiple = viewModel::selectMultiple,
             onShareSelected = {
                 coroutineScope.launch {
-                    if (onShareSelected(state.selectedFiles.toList())) {
+                    val shareFiles = state.files.filter { it.absolutePath in state.selectedFiles }
+                    if (onShareSelected(shareFiles)) {
                         viewModel.clearSelection()
                     }
                 }
@@ -69,6 +71,12 @@ fun NavGraphBuilder.imageGalleryScreen(
             onClearError = viewModel::clearError,
             onCopySelected = viewModel::copySelectedToClipboard,
             onCutSelected = viewModel::cutSelectedToClipboard,
+            onPasteToAlbum = viewModel::pasteFromClipboard,
+            onCancelClipboard = viewModel::cancelClipboard,
+            onRemoveFromClipboard = viewModel::removeFromClipboard,
+            onClearActiveFileOperation = viewModel::clearActiveFileOperation,
+            onResolvePasteConflicts = viewModel::resolvePasteConflicts,
+            onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
             onRenameFile = viewModel::renameFile,
             onCreateZipFromSelection = viewModel::createZipFromSelection,
             onSetAlbumCover = viewModel::setAlbumCover,
@@ -77,6 +85,7 @@ fun NavGraphBuilder.imageGalleryScreen(
             onGroupingChange = viewModel::updateGrouping,
             onDefaultTabChange = viewModel::updateDefaultTab,
             onAlbumPresentationChange = viewModel::updateAlbumPresentation,
+            onTogglePinnedAlbum = viewModel::togglePinnedAlbum,
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )

@@ -1,10 +1,89 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.0
-> **Last Updated:** 2026-06-14
+> **Version:** 1.2.0
+> **Last Updated:** 2026-06-21
 
 ---
+
+## [1.2.0] - 2026-06-21
+
+- **Image Viewer Thumbnail Performance**: Made the bottom thumbnail strip jump directly to far-opened gallery items, animate only nearby page changes, use stable path keys, keep thumbnail layout dimensions stable, and disable strip crossfade so deep gallery opens no longer visibly rearrange before settling.
+- **Navigation Back Stack Fixes**: Preserved route origins for Browser handoffs from dashboards, recent files, cleaner, quick access, and archive viewer so Back returns to the screen the user came from after Browser consumes its own folder/archive back stack.
+- **Storage Cleaner Back Handling**: Added local back priority so Cleaner dismisses ignored-items, delete confirmation, and details UI before leaving the Cleaner route.
+
+## [1.1.9] - 2026-06-21
+
+- **Segmented Quick Access Groups & Toggle Symbols**: Reorganized the Manage Quick Access screen to display folders in sequentially ordered, visually segmented stacked cards (System Folders, App Folders, Files App Section, and Custom Folders) with thin dividers between items, and added checkmark and close symbols inside the Show on Home toggle switches.
+- **Image Viewer Selected Thumbnail Polish**: Enhanced the bottom thumbnail strip in the image viewer to animate the selected thumbnail's width (28dp to 36dp), height (42dp to 54dp), and shadow elevation (0dp to 6dp) with spring physics and z-indexing to draw it on top of neighboring thumbnails.
+- **Home "Arcile" Shortcut**: Updated the Home screen Quick Access "All" shortcut's label text from "All" to "Arcile", and made it load and display the actual launcher icon of the Arcile app dynamically, ensuring compatibility with all build variants (including debug builds).
+- **Quick Access Reordering & Switch Haptics**: Added a fullscreen drag-to-reorder dialog for enabled quick access shortcuts (including the "Arcile" shortcut) with viewport auto-scrolling, root-coordinate gesture tracking to prevent touch sticking, mechanical tactile haptic ticks, and a prominent filled Apply button in the TopAppBar. Enabled keyboard-tap haptics on the show-on-home switch toggles.
+- **Storage Cleaner Layout Polish**: Fixed a UI issue where the "Ignore" text button next to risk reasons in the storage cleaner candidate rows and duplicate rows would wrap vertically when risk reasons labels were long. Weighted the RiskSummary component and reasons text so that long reasons truncate with an ellipsis, allowing the Ignore button to retain its full preferred width.
+
+## [1.1.8] - 2026-06-21
+
+- **Standalone Image Viewer & Metadata Reuse**: Added an exported image viewer activity running in a separate process for external `image/*` opens, moved viewer Delete into the bottom split actions, moved Info into the overflow menu, and reused full image metadata in single-image Properties cards.
+- **Image Viewer Layout Polish**: Expanded the viewer top metadata pill to use the space beside Back and compacted image Properties into one combined information layout with tighter dialog padding and no duplicate file metadata rows.
+- **Gallery Viewer Selection Fix**: Scoped restored viewer position to the active opened image so tapping a gallery item no longer reuses a stale/random previous page, reset viewer chrome for new image opens, and ordered viewer metadata as resolution, size, then date/time.
+- **Image Viewer Space & Strip Polish**: Removed the top viewer back arrow to give metadata the full overlay width, centered the active thumbnail in the viewer strip instead of pinning it to the start, and applied the marquee filename setting to viewer metadata pills.
+
+## [1.1.7] - 2026-06-20
+
+- **System Predictive Back & Expressive Motion**: Enabled Android 14+ system predictive back gestures, custom spring horizontal page scroll animations, and bouncy touch scaling animations with haptic feedback across all main clickable cards, buttons, lists, split button groups, and toolbar navigation actions.
+- **Refresh Coverage Fixes**: Extended pull-to-refresh across Browser search/loading/empty states, Gallery albums, and Trash lists and empty states, kept the shared refresh indicator above page content, and added regression coverage so completed paste operations refresh initially empty Browser folders immediately.
+
+## [1.1.6] - 2026-06-19
+
+- **Image Viewer Info Details**: Added dynamic viewer position, filename, date/time, and resolution details to the image viewer overlay, and expanded the metadata sheet with title, date, resolution, size, URI, path, MIME type, and extension rows.
+- **Image Viewer Metadata Freshness**: Kept viewer metadata fresh after metadata erase/refresh events and restored EXIF date-taken display in the details sheet.
+- **Browser Folder Listing Freshness**: Made Browser directory listings read live filesystem children instead of trusting partial media cache rows, preventing Gallery image cache entries from hiding folders in locations such as Pictures.
+- **Browser Folder Stats Cache Display**: Kept cached folder stats visible while a background refresh is queued so folder rows can show the previous size/count immediately and then update when fresh stats arrive.
+- **Browser Video Thumbnails**: Restored video thumbnails for raw browser file paths by falling back to `MediaMetadataRetriever` when a MediaStore thumbnail URI is unavailable, and expanded common video extension recognition across browser icons, categories, cleaner scans, and thumbnail eligibility.
+- **Image Viewer State Restoration**: Made the image viewer collect gallery state with lifecycle awareness and persist viewer chrome, metadata sheet, current image, rotation, and erase-dialog state through activity recreation.
+- **Gallery Clipboard UX**: Added Browser-aligned clipboard management in Gallery with a persistent clipboard/progress pill, queued item inspection and removal, paste/cancel controls for real albums, and foreground operation status feedback.
+- **Gallery Cache Completeness**: Prevented Browser directory-listing cache rows from seeding partial Gallery image snapshots, so Gallery waits for the MediaStore-backed catalog instead of briefly showing only direct Pictures-folder images.
+- **Release Regression Gates**: Added focused coverage for viewer saved-state restoration, Save-to-Arcile import checkpoints, and repeated archive extraction state isolation.
+- **Storage Documentation Sync**: Reconciled release docs with Room cache schema version 2, cache-backed external handoff providers, and v1.1.6 release metadata.
+
+## [1.1.5] - 2026-06-18
+
+- **Live Media Refresh**: Wired MediaStore multi-URI change callbacks into shared storage invalidation, refresh storage caches on app startup, and made Recent Files and Browser subscribe to storage mutation events so downloads and external file changes refresh recents, Home carousel data, Gallery, albums, categories, and open folders without per-page manual pulls.
+- **Recent Files Pull Refresh**: Moved pull-to-refresh to cover the whole Recent Files screen body and positioned it below the top app bar so the indicator and pull motion are visible from empty, loading, search, grid, and list states.
+- **Refresh Consistency**: Extended startup and external MediaStore invalidation to storage-usage, cleaner, and folder stats caches, made Storage Cleaner listen for storage mutations, prevented unrelated Browser mutations from clearing the current folder state, and guarded Recent Files against stale overlapping reloads.
+- **Gallery Album Paste**: Added direct copy/cut paste support for real gallery albums, including paste actions inside an open album and on album cards, with shared conflict resolution and foreground COPY/MOVE operations.
+- **Gallery Refresh Reliability**: Refreshed gallery snapshots after copy and move operations using both source and destination invalidation so album contents update without detouring through Browser.
+- **Gallery Performance**: Moved image snapshot shaping off the main thread and precomputed album cover lookups to reduce gallery loading and album-grid recomposition churn.
+
+## [1.1.4] - 2026-06-17
+
+- **Save to Arcile Defaults and Recents Refresh**: Added a persistent default destination for Save to Arcile imports, opened valid defaults first while keeping folder navigation available, aligned the destination picker closer to Arcile list styling, and fixed Recent Files pull-to-refresh to use the manual refresh path.
+- **Durable Save-to-Arcile Imports**: Routed shared-file imports through the foreground operation pipeline with staged temp files, progress notifications, cancellation cleanup, operation journal recovery, and mutation finalization.
+- **Operation Recovery Checkpoints**: Persisted operation checkpoints for staged files, finalized outputs, rollback hints, and Trash IDs so interrupted foreground work can recover and clean up more precisely.
+- **Archive Extraction Reliability**: Reset archive extraction conflict state for every extraction so skip and keep-both directory decisions cannot leak into later archive operations.
+- **Archive Browser Restoration**: Restored saved archive path and entry-prefix browsing state after process recreation without persisting archive passwords.
+- **Storage Dashboard Back Navigation**: Fixed dashboard and usage-map Browser handoffs so Back returns to Home instead of landing on an unintended Browser route.
+- **Storage Identity and Handoffs**: Routed open/share and media thumbnail fallbacks through carried content URI identity where available, removed raw MediaStore `DATA = ?` lookups from those paths, and made Trash cleanup use supplied MediaStore content URIs.
+- **Shared Filename Preservation**: Staged shared files with collision-safe original display names and served staged handoffs through an app-owned provider that reports `OpenableColumns.DISPLAY_NAME` and size metadata.
+- **Room Cache Schema Discipline**: Enabled Room schema export, committed the version 2 schema, limited destructive cache reset to the explicit version 1 upgrade path, and documented schema bump review requirements.
+
+## [1.1.3] - 2026-06-16
+
+- **Onboarding UI/UX Polish**: Refined all onboarding chips and status elements to be pill-shaped (`CircleShape`), increased page bottom scroll padding to prevent content from cutting off, made permission row touch targets larger and more tactile, animated soft background warning highlights on pending permissions, simplified permissions copy, and added a back arrow icon to header navigation.
+- **Onboarding Accessibility Polish**: Made the expressive onboarding icon respect reduced-motion settings, moved new onboarding labels into string resources, and changed granted permission indicators from inert buttons to static status chips.
+- **Onboarding M3 Expressive Overhaul**: Overhauled onboarding pages with a custom counter-rotating morphing shape background behind the app icon, compact features showcase utilizing a FlowRow of interactive chips with dynamic detail crossfading, and direct inline personalization and permission configuration.
+- **Keyboard Input Reliability**: Made search fields, dialog name inputs, filter fields, and other typed text inputs explicitly open the keyboard on focus/tap and bring themselves into view above the IME.
+- **Home Recent Thumbnail Stability**: Unified Home recent-file carousel preload and display thumbnail cache keys on a shared bucketed variant so carousel thumbnails stay cached when scrolled offscreen and back.
+- **Fresh Recent Files and Gallery**: Stopped serving stale persisted recent-file snapshots to UI refreshes, tightened gallery cached-image validation, and ensured external MediaStore changes clear gallery snapshots so new screenshots and deleted images are reflected without manual refresh.
+
+## [1.1.2] - 2026-06-15
+
+- **Security and Privacy Hardening**: Tightened external file handoffs, excluded local cache metadata from backup and transfer, and made secure delete failures visible instead of silently reporting success.
+- **Manual Settings Backup and Restore**: Added file-based export and restore for Arcile preferences from Settings and onboarding, with clear previews, restore results, theme support, and safe error handling.
+
+## [1.1.1] - 2026-06-15
+
+- **Activity Log**: Added a local Activity tool for opened folders and foreground file-operation history, including clear controls, backup exclusions, and Home/Tools navigation.
+- **Activity Log Reliability**: Serialized foreground operation activity writes so completed, failed, or cancelled operations cannot be overwritten by a delayed running-status entry.
 
 ## [1.1.0] - 2026-06-14
 

@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
@@ -128,6 +129,32 @@ class BrowserPreferencesRepositoryTest {
     }
 
     @Test
+    fun `updateLastOpenedLocation records opened folder activity when activity log is attached`() = runBlocking {
+        val activityDataStoreFile = File(
+            context.filesDir,
+            "datastore/activity-log-browser-prefs-test-${UUID.randomUUID()}.preferences_pb"
+        )
+        val activityDataStore = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { activityDataStoreFile }
+        )
+        val activityLog = ActivityLogRepository(context, activityDataStore)
+        val repository = BrowserPreferencesRepository(
+            context = context,
+            dataStore = dataStore,
+            activityLogRepository = activityLog
+        )
+
+        repository.updateLastOpenedLocation("/storage/emulated/0/Download", "primary")
+
+        val entry = activityLog.entries.first().single() as ActivityLogEntry.FolderOpened
+        assertEquals("/storage/emulated/0/Download", entry.path)
+        assertEquals("primary", entry.volumeId)
+        activityDataStoreFile.delete()
+        Unit
+    }
+
+    @Test
     fun `invalid stored sort and view options fall back to defaults`() = runBlocking {
         dataStore.edit { prefs ->
             prefs[stringPreferencesKey("global_sort_option")] = "NOT_REAL"
@@ -174,6 +201,19 @@ class BrowserPreferencesRepositoryTest {
         repository.updateShowHiddenFiles(true)
 
         assertEquals(true, repository.preferencesFlow.first().showHiddenFiles)
+    }
+
+    @Test
+    fun `default save to arcile path is persisted and cleared`() = runBlocking {
+        val repository = BrowserPreferencesRepository(context, dataStore)
+
+        repository.updateDefaultSaveToArcilePath("/storage/emulated/0/Download")
+
+        assertEquals("/storage/emulated/0/Download", repository.preferencesFlow.first().defaultSaveToArcilePath)
+
+        repository.updateDefaultSaveToArcilePath(null)
+
+        assertEquals(null, repository.preferencesFlow.first().defaultSaveToArcilePath)
     }
 
     @Test
