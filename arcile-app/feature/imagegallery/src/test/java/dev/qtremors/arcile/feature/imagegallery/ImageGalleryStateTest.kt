@@ -390,6 +390,34 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `viewer thumbnail strip jumps for first and far positioning`() {
+        assertEquals(
+            ViewerThumbnailScrollAction.Jump,
+            viewerThumbnailScrollAction(previousIndex = null, targetIndex = 400)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.Jump,
+            viewerThumbnailScrollAction(previousIndex = 10, targetIndex = 200)
+        )
+    }
+
+    @Test
+    fun `viewer thumbnail strip animates only nearby positioning`() {
+        assertEquals(
+            ViewerThumbnailScrollAction.Animate,
+            viewerThumbnailScrollAction(previousIndex = 20, targetIndex = 24)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.None,
+            viewerThumbnailScrollAction(previousIndex = 20, targetIndex = 20)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.None,
+            viewerThumbnailScrollAction(previousIndex = 20, targetIndex = -1)
+        )
+    }
+
+    @Test
     fun `viewer date time uses compact display format`() {
         val timestamp = 1_781_086_440_000L
 

@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.1.7 | **Last Updated:** 2026-06-20  
+**Version:** 1.2.0 | **Last Updated:** 2026-06-21
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -141,6 +141,7 @@ arcile/
 3. **App Shell Assembly:** Once permissions are granted, `ArcileAppShell` sets up the typed navigation graph and the bottom navigation bar.
 4. **Horizontal Pager Navigation:** The main screen (`MainScreen`) uses a two-page `HorizontalPager` hosting **Home** (Page 0) and **Browser** (Page 1).
    - If seeded by category shortcuts, deep links, or quick access paths, the pager opens on the Browser and populates the history. Swiping or standard back presses returns the user to Home or the previous browser directory.
+5. **Route-Order Back Stack:** Browser handoffs from Cleaner, Recent Files, Quick Access, Storage Dashboard, Archive Viewer, and similar detail routes keep the originating app route on the Navigation Compose back stack. Browser consumes local modal/search/selection and folder/archive history first, then lets the app route pop back in the same order the user navigated.
 
 ---
 
@@ -196,6 +197,7 @@ To maintain premium design aesthetics, Arcile implements customized bouncy sprin
 - **Detail Screens** (Dashboard, Settings, Archive Viewer): Slide horizontally with volumetric scale modifiers (`scaleIn` starting at 0.94f and `scaleOut` expanding to 1.04f).
 - **Utility / Modals** (Trash, Recents, Gallery, Cleaner): Slide vertically from the bottom edge (`initialOffsetY = { it / 8 }`).
 - **Reduced Motion Support:** All transitions check `LocalReducedMotionEnabled.current` and fall back to zero-duration crossfades if enabled in system or app settings.
+- **Browser Handoff Back Rules:** Back from a Browser handoff first closes local Browser UI, then moves up folder/archive history, and only then returns to the previous app route. Volume-root fallback is reserved for Browser sessions without a previous app route so route sequences such as `a > b > c > d > e` unwind as `e > d > c > b > a`.
 
 ---
 
@@ -380,6 +382,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
   - *Double-Tap Zoom:* Double-tapping on an image zoom-targets the tapped coordinate.
   - *Boundary-Resisting Pan:* Dragging an zoomed image past its bounds shows elastic drag resistance.
   - *Vertical Swipe-to-Dismiss:* Swiping down or up on an unzoomed image triggers an elastic dismiss animation, scaling and sliding the image while fading the black backdrop.
+- **Viewer Thumbnail Strip:** The bottom thumbnail filmstrip uses stable absolute-path keys, fixed item layout dimensions, no thumbnail crossfade, immediate centered jumps for far-opened gallery items, and animated scrolling only for nearby page changes.
 - **EXIF Slide-up Page Pager (`ImageViewerMetadata`):** The details panel wraps camera parameters and EXIF details inside a `VerticalPager` with scroll snapping. Swiping up on the viewer page slides the metadata panel upward, pushing the image above it. Swiping down slides the panel away.
 
 ### 4. UI/UX Rules & Guidelines for Developers
@@ -497,8 +500,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 117 |
-| **Version Name** | `1.1.7` |
+| **Version Code** | 120 |
+| **Version Name** | `1.2.0` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -628,8 +631,8 @@ To package the application:
 ```
 
 ### APK Naming Standards
-- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.1.7-debug.apk`
-- **Release Package:** `app/build/outputs/apk/release/Arcile-1.1.7.apk`
+- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.2.0-debug.apk`
+- **Release Package:** `app/build/outputs/apk/release/Arcile-1.2.0.apk`
 
 ---
 

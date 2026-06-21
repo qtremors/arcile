@@ -251,7 +251,7 @@ class NavigationDelegate(
         loadDirectory(path, state.value.currentVolumeId, clearHistory = false)
     }
 
-    fun navigateBack(): Boolean {
+    fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean {
         if (state.value.browserSearchQuery.isNotEmpty()) {
             onClearSearch()
             return true
@@ -313,7 +313,7 @@ class NavigationDelegate(
             }
         }
 
-        if (!state.value.isVolumeRootScreen && state.value.storageVolumes.size > 1) {
+        if (allowVolumeRootFallback && !state.value.isVolumeRootScreen && state.value.storageVolumes.size > 1) {
             openVolumeRoots()
             return true
         }

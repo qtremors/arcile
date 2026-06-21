@@ -91,14 +91,15 @@ fun AppNavigationGraph(
                 .toList()
         )
     }
+    val navigateToBrowserRoute: (AppRoutes.Main) -> Unit = { route ->
+        navController.navigate(route)
+    }
     val openPathWithContext: (String, List<FileModel>, Boolean) -> Unit = { path, surroundingFiles, returnToBrowserPage ->
         val archiveFormat = ArchiveFormat.fromPath(path)
         val extension = path.substringAfterLast('.', "").lowercase()
         when {
             archiveFormat?.canBrowse == true -> {
-                navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false)) {
-                    popUpTo<AppRoutes.Main> { inclusive = true }
-                }
+                navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false))
             }
             archiveFormat != null -> {
                 onFeedback(
@@ -202,8 +203,9 @@ fun AppNavigationGraph(
                     var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
                     var revealedFocusPath by remember(mainArgs.focusPath) { mutableStateOf<String?>(null) }
                     val navigateBackFromBrowser: () -> Unit = {
-                        if (!browserViewModel.navigateBack()) {
-                            when (browserBackFallback(navController.previousBackStackEntry != null)) {
+                        val hasPreviousRoute = navController.previousBackStackEntry != null
+                        if (!browserViewModel.navigateBack(allowVolumeRootFallback = !hasPreviousRoute)) {
+                            when (browserBackFallback(hasPreviousRoute)) {
                                 BrowserBackFallback.PopAppBackStack -> navController.popBackStack()
                                 BrowserBackFallback.ShowHomePager -> coroutineScope.launch {
                                     pagerState.animateScrollToPage(
@@ -519,9 +521,7 @@ fun AppNavigationGraph(
                         viewModel.ensureDashboardCategoryBreakdown(volumeId)
                     }
                     val navigateToBrowserFromDashboard: (AppRoutes.Main) -> Unit = { route ->
-                        navController.navigate(route) {
-                            popUpTo<AppRoutes.StorageDashboard> { inclusive = true }
-                        }
+                        navigateToBrowserRoute(route)
                     }
                     StorageDashboardScreen(
                         state = state,
@@ -571,7 +571,7 @@ fun AppNavigationGraph(
                         shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
                     onOpenContainingFolder = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
+                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onFeedback = onFeedback
                 )
@@ -641,7 +641,7 @@ fun AppNavigationGraph(
                     onOpenContainingFolder = { path ->
                         val parentPath = path.substringBeforeLast('/', missingDelimiterValue = "")
                         if (parentPath.isNotBlank()) {
-                            navController.navigate(
+                            navigateToBrowserRoute(
                                 AppRoutes.Main(
                                     initialPage = 1,
                                     path = parentPath,
@@ -728,7 +728,7 @@ fun AppNavigationGraph(
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToPath = { path ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
+                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
                     },
                     onNavigateToSaf = { uriString ->
                         ExternalFileAccessHelper.openInFilesApp(context, uriString)
@@ -741,7 +741,7 @@ fun AppNavigationGraph(
                     popExitTransition = detailPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
                     onOpenArchiveInBrowser = { archivePath ->
-                        navController.navigate(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
+                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
                     }
                 )
             }

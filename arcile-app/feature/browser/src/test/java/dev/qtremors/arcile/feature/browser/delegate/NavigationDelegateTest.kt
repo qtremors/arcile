@@ -229,6 +229,32 @@ class NavigationDelegateTest {
     }
 
     @Test
+    fun `navigateBack can skip volume roots so app route stack handles external origins`() = testScope.runTest {
+        val sdCard = dev.qtremors.arcile.core.storage.domain.StorageVolume(
+            id = "sdcard",
+            storageKey = "sdcard",
+            name = "SD Card",
+            path = "/storage/1234-5678",
+            totalBytes = 1000L,
+            freeBytes = 500L,
+            isPrimary = false,
+            isRemovable = true,
+            kind = dev.qtremors.arcile.core.storage.domain.StorageKind.SD_CARD
+        )
+        state.value = state.value.copy(
+            storageVolumes = (state.value.storageVolumes + sdCard).toPersistentList(),
+            currentPath = "/storage/emulated/0/Download",
+            isVolumeRootScreen = false
+        )
+
+        assertFalse(delegate.navigateBack(allowVolumeRootFallback = false))
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0/Download", state.value.currentPath)
+        assertFalse(state.value.isVolumeRootScreen)
+    }
+
+    @Test
     fun `navigateToCategory updates state and loads category files`() = testScope.runTest {
         state.value = state.value.copy(currentPath = "/storage/emulated/0/Music")
         val files = listOf(FileModel(

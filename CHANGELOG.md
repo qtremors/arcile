@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.9
+> **Version:** 1.2.0
 > **Last Updated:** 2026-06-21
 
 ---
+
+## [1.2.0] - 2026-06-21
+
+- **Image Viewer Thumbnail Performance**: Made the bottom thumbnail strip jump directly to far-opened gallery items, animate only nearby page changes, use stable path keys, keep thumbnail layout dimensions stable, and disable strip crossfade so deep gallery opens no longer visibly rearrange before settling.
+- **Navigation Back Stack Fixes**: Preserved route origins for Browser handoffs from dashboards, recent files, cleaner, quick access, and archive viewer so Back returns to the screen the user came from after Browser consumes its own folder/archive back stack.
+- **Storage Cleaner Back Handling**: Added local back priority so Cleaner dismisses ignored-items, delete confirmation, and details UI before leaving the Cleaner route.
 
 ## [1.1.9] - 2026-06-21
 

@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,11 +41,13 @@ class VisualQaMatrixTest {
                     LocalLayoutDirection provides case.layoutDirection
                 ) {
                     ArcileTestTheme {
-                        EmptyState(
-                            variant = EmptyStateVariant.Folder,
-                            title = "Visual QA $index",
-                            description = "Matrix case ${case.fontScale} ${case.layoutDirection}"
-                        )
+                        CompositionLocalProvider(LocalReducedMotionEnabled provides true) {
+                            EmptyState(
+                                variant = EmptyStateVariant.Folder,
+                                title = "Visual QA $index",
+                                description = "Matrix case ${case.fontScale} ${case.layoutDirection}"
+                            )
+                        }
                     }
                 }
             }

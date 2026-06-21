@@ -108,6 +108,13 @@
     <string name="settings_backup_restore_complete_title">Backup restored</string>
     <string name="settings_backup_restore_complete_description">Restored %1$d preference store(s). Restart Arcile to apply all restored settings.</string>
     <string name="settings_backup_failed_title">Backup failed</string>
+    <string name="settings_backup_export_failed">Failed to export settings backup</string>
+    <string name="settings_backup_read_failed">Failed to read settings backup</string>
+    <string name="settings_backup_restore_failed">Failed to restore settings backup</string>
+    <string name="settings_backup_store_read_failed">Unable to read preference store</string>
+    <string name="settings_backup_store_reset_failed">Unable to reset preference store</string>
+    <string name="settings_backup_store_restore_failed">Unable to restore preference store</string>
+    <string name="settings_backup_theme_restore_failed">Unable to restore theme preferences</string>
     <string name="settings_backup_loading">Reading backup...</string>
     <string name="settings_backup_restore_preview_title">Restore this backup?</string>
     <string name="settings_backup_restore_preview_description">Review what will be restored. Preference groups missing from the backup will be reset to defaults.</string>

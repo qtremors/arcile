@@ -346,7 +346,8 @@ class BrowserViewModel @Inject constructor(
     fun navigateToFolder(path: String) = navigationDelegate.navigateToFolder(path)
     fun openArchive(path: String) = navigationDelegate.openArchive(path)
     fun submitArchivePassword(password: String) = navigationDelegate.submitArchivePassword(password)
-    fun navigateBack(): Boolean = navigationDelegate.navigateBack()
+    fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean =
+        navigationDelegate.navigateBack(allowVolumeRootFallback)
     fun refresh(pullToRefresh: Boolean = false) = navigationDelegate.refresh(pullToRefresh)
     fun toggleSelection(path: String) {
         if (_state.value.isVolumeRootScreen) return

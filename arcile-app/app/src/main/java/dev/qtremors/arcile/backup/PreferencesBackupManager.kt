@@ -16,6 +16,7 @@ import dev.qtremors.arcile.ui.theme.ThemeMode
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemePreset
 import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.R
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -49,7 +50,10 @@ class PreferencesBackupManager @Inject constructor(
                             encodedBytes = Base64.encodeToString(file.readBytes(), Base64.NO_WRAP)
                         )
                     }.getOrElse { error ->
-                        failures += PreferencesBackupFailure(storeName.displayName(), error.message ?: "Unable to read preference store")
+                        failures += PreferencesBackupFailure(
+                            storeName.displayName(),
+                            error.message ?: context.getString(R.string.settings_backup_store_read_failed)
+                        )
                         null
                     }
                 }
@@ -106,7 +110,10 @@ class PreferencesBackupManager @Inject constructor(
                             items += PreferencesBackupItem(storeName, storeName.displayName(), PreferencesBackupItemStatus.Reset)
                         }
                         .onFailure { error ->
-                            failures += PreferencesBackupFailure(storeName.displayName(), error.message ?: "Unable to reset preference store")
+                            failures += PreferencesBackupFailure(
+                                storeName.displayName(),
+                                error.message ?: context.getString(R.string.settings_backup_store_reset_failed)
+                            )
                         }
                 }
             decodedStores.forEach { (storeName, bytes) ->
@@ -127,7 +134,10 @@ class PreferencesBackupManager @Inject constructor(
                 }.onSuccess {
                     items += store.toItem(PreferencesBackupItemStatus.Restored)
                 }.onFailure { error ->
-                    failures += PreferencesBackupFailure(store.name.displayName(), error.message ?: "Unable to restore preference store")
+                    failures += PreferencesBackupFailure(
+                        store.name.displayName(),
+                        error.message ?: context.getString(R.string.settings_backup_store_restore_failed)
+                    )
                 }
             }
             payload.themeState?.let { themeBackup ->
@@ -138,7 +148,10 @@ class PreferencesBackupManager @Inject constructor(
                         items += PreferencesBackupItem(THEME_STORE_NAME, THEME_STORE_NAME.displayName(), PreferencesBackupItemStatus.Restored)
                     }
                 }.onFailure { error ->
-                    failures += PreferencesBackupFailure(THEME_STORE_NAME.displayName(), error.message ?: "Unable to restore theme preferences")
+                    failures += PreferencesBackupFailure(
+                        THEME_STORE_NAME.displayName(),
+                        error.message ?: context.getString(R.string.settings_backup_theme_restore_failed)
+                    )
                 }
             }
             PreferencesBackupOperationResult(items = items, failures = failures)

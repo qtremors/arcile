@@ -107,6 +107,12 @@ data class ViewerFileContext(
     val initialPage: Int
 )
 
+enum class ViewerThumbnailScrollAction {
+    None,
+    Jump,
+    Animate
+}
+
 fun viewerFileContextForInitialPath(
     initialPath: String,
     displayedFiles: List<FileModel>,
@@ -136,6 +142,21 @@ internal fun viewerInitialPageForSession(
         ?.let { path -> viewerContext.files.indexOfFirst { it.absolutePath == path } }
         ?.takeIf { it >= 0 }
         ?: viewerContext.initialPage
+}
+
+internal fun viewerThumbnailScrollAction(
+    previousIndex: Int?,
+    targetIndex: Int,
+    maxAnimatedDistance: Int = 12
+): ViewerThumbnailScrollAction {
+    if (targetIndex < 0) return ViewerThumbnailScrollAction.None
+    val previous = previousIndex ?: return ViewerThumbnailScrollAction.Jump
+    if (previous == targetIndex) return ViewerThumbnailScrollAction.None
+    return if (kotlin.math.abs(targetIndex - previous) <= maxAnimatedDistance) {
+        ViewerThumbnailScrollAction.Animate
+    } else {
+        ViewerThumbnailScrollAction.Jump
+    }
 }
 
 fun fileModelFromPath(path: String): FileModel {

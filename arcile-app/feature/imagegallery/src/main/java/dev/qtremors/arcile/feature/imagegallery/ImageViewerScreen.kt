@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -413,9 +414,15 @@ fun ImageViewerScreen(
                 ) {
                     // 1. Thumbnail Strip
                     val lazyListState = rememberLazyListState()
+                    var previousThumbnailPage by remember(displayedFiles) { mutableStateOf<Int?>(null) }
                     LaunchedEffect(pagerState.currentPage) {
                         if (displayedFiles.isNotEmpty() && pagerState.currentPage in displayedFiles.indices) {
-                            lazyListState.animateScrollToItem(pagerState.currentPage)
+                            when (viewerThumbnailScrollAction(previousThumbnailPage, pagerState.currentPage)) {
+                                ViewerThumbnailScrollAction.Jump -> lazyListState.scrollToItem(pagerState.currentPage)
+                                ViewerThumbnailScrollAction.Animate -> lazyListState.animateScrollToItem(pagerState.currentPage)
+                                ViewerThumbnailScrollAction.None -> Unit
+                            }
+                            previousThumbnailPage = pagerState.currentPage
                         }
                     }
 
@@ -433,31 +440,32 @@ fun ImageViewerScreen(
                             horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                             contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
                         ) {
-                            items(displayedFiles.size) { index ->
-                                val file = displayedFiles[index]
+                            itemsIndexed(
+                                items = displayedFiles,
+                                key = { _, file -> file.absolutePath }
+                            ) { index, file ->
                                 val isSelected = pagerState.currentPage == index
                                 
-                                val animWidth by animateDpAsState(
-                                    targetValue = if (isSelected) 36.dp else 28.dp,
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                                    label = "thumbnailWidth"
-                                )
-                                val animHeight by animateDpAsState(
-                                    targetValue = if (isSelected) 54.dp else 42.dp,
-                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-                                    label = "thumbnailHeight"
-                                )
                                 val animElevation by animateDpAsState(
                                     targetValue = if (isSelected) 6.dp else 0.dp,
                                     animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
                                     label = "thumbnailElevation"
                                 )
+                                val animScale by animateFloatAsState(
+                                    targetValue = if (isSelected) 1f else 0.82f,
+                                    animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+                                    label = "thumbnailScale"
+                                )
 
                                 Box(
                                     modifier = Modifier
-                                        .width(animWidth)
-                                        .height(animHeight)
+                                        .width(36.dp)
+                                        .height(54.dp)
                                         .zIndex(if (isSelected) 1f else 0f)
+                                        .graphicsLayer {
+                                            scaleX = animScale
+                                            scaleY = animScale
+                                        }
                                         .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
                                         .clip(RoundedCornerShape(4.dp))
                                         .border(
@@ -474,7 +482,7 @@ fun ImageViewerScreen(
                                     AsyncImage(
                                         model = ImageRequest.Builder(LocalContext.current)
                                             .data(file.absolutePath)
-                                            .crossfade(true)
+                                            .crossfade(false)
                                             .build(),
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,

@@ -2,13 +2,16 @@ package dev.qtremors.arcile.presentation.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import android.net.Uri
 import dev.qtremors.arcile.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.backup.PreferencesBackupManager
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,7 +23,8 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val browserPreferencesStore: BrowserPreferencesStore,
-    private val preferencesBackupManager: PreferencesBackupManager
+    private val preferencesBackupManager: PreferencesBackupManager,
+    @param:ApplicationContext private val context: Context
 ) : ViewModel() {
     val browserPreferences = browserPreferencesStore.preferencesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserPreferences())
@@ -52,7 +56,7 @@ class SettingsViewModel @Inject constructor(
             _backupState.value = PreferencesBackupUiState.Busy
             preferencesBackupManager.exportTo(uri).fold(
                 onSuccess = { result -> _backupState.value = PreferencesBackupUiState.Exported(result) },
-                onFailure = { error -> _backupState.value = PreferencesBackupUiState.Failed(error.message ?: "Failed to export settings backup") }
+                onFailure = { error -> _backupState.value = PreferencesBackupUiState.Failed(error.message ?: context.getString(R.string.settings_backup_export_failed)) }
             )
         }
     }
@@ -62,7 +66,7 @@ class SettingsViewModel @Inject constructor(
             _backupState.value = PreferencesBackupUiState.Busy
             preferencesBackupManager.preview(uri).fold(
                 onSuccess = { preview -> _backupState.value = PreferencesBackupUiState.RestorePreview(uri, preview) },
-                onFailure = { error -> _backupState.value = PreferencesBackupUiState.Failed(error.message ?: "Failed to read settings backup") }
+                onFailure = { error -> _backupState.value = PreferencesBackupUiState.Failed(error.message ?: context.getString(R.string.settings_backup_read_failed)) }
             )
         }
     }
@@ -72,7 +76,7 @@ class SettingsViewModel @Inject constructor(
             _backupState.value = PreferencesBackupUiState.Busy
             preferencesBackupManager.restoreFrom(uri).fold(
                 onSuccess = { result -> _backupState.value = PreferencesBackupUiState.Restored(result) },
-                onFailure = { error -> _backupState.value = PreferencesBackupUiState.Failed(error.message ?: "Failed to restore settings backup") }
+                onFailure = { error -> _backupState.value = PreferencesBackupUiState.Failed(error.message ?: context.getString(R.string.settings_backup_restore_failed)) }
             )
         }
     }
