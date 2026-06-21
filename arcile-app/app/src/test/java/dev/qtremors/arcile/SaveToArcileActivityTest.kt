@@ -259,6 +259,46 @@ class SaveToArcileActivityTest {
         assertTrue(single.any { it.activityInfo.name == SaveToArcileActivity::class.java.name })
         assertTrue(multiple.any { it.activityInfo.name == SaveToArcileActivity::class.java.name })
     }
+
+    @Test
+    fun `standalone image viewer resolves valid image view intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/photo")
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "image/png")
+        }
+
+        val target = resolveStandaloneImageTarget(context, intent)
+
+        assertEquals(uri.toString(), target?.reference)
+        assertEquals("image/png", target?.mimeType)
+    }
+
+    @Test
+    fun `standalone image viewer rejects missing uri and unsupported mime`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        assertEquals(null, resolveStandaloneImageTarget(context, Intent(Intent.ACTION_VIEW).setType("image/png")))
+        assertEquals(
+            null,
+            resolveStandaloneImageTarget(
+                context,
+                Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://example/file.txt"), "text/plain")
+            )
+        )
+    }
+
+    @Test
+    fun `manifest exposes standalone image viewer in separate process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://example/photo"), "image/jpeg"),
+            0
+        )
+
+        val activity = matches.first { it.activityInfo.name == ImageViewerActivity::class.java.name }.activityInfo
+        assertEquals("${context.packageName}:imageviewer", activity.processName)
+    }
 }
 
 private fun testSaveVolume(root: File) = StorageVolume(

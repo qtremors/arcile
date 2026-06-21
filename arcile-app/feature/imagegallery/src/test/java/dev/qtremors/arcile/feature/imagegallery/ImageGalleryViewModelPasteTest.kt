@@ -263,8 +263,10 @@ class ImageGalleryViewModelPasteTest {
     fun `viewer state restores from saved state handle after recreation`() = runTest(mainDispatcherRule.dispatcher) {
         val savedStateHandle = SavedStateHandle()
         val fixture = createFixture(savedStateHandle)
+        val initialPath = "/storage/emulated/0/DCIM/opened.jpg"
         val path = "/storage/emulated/0/DCIM/photo.jpg"
 
+        fixture.viewModel.startViewerSession(initialPath)
         fixture.viewModel.setViewerCurrentPath(path)
         fixture.viewModel.setViewerMetadataVisible(path, visible = true)
         fixture.viewModel.setViewerUiVisible(false)
@@ -273,11 +275,33 @@ class ImageGalleryViewModelPasteTest {
 
         val recreated = createFixture(savedStateHandle).viewModel.state.value
 
+        assertEquals(initialPath, recreated.viewerSessionInitialPath)
         assertEquals(path, recreated.viewerCurrentPath)
         assertEquals(path, recreated.viewerMetadataPath)
         assertFalse(recreated.viewerUiVisible)
         assertEquals(90f, recreated.viewerRotationDegrees[path])
         assertEquals(path, recreated.viewerEraseDialogPath)
+    }
+
+    @Test
+    fun `starting new viewer session resets stale current image state`() = runTest(mainDispatcherRule.dispatcher) {
+        val fixture = createFixture()
+        val firstPath = "/storage/emulated/0/DCIM/first.jpg"
+        val secondPath = "/storage/emulated/0/DCIM/second.jpg"
+
+        fixture.viewModel.startViewerSession(firstPath)
+        fixture.viewModel.setViewerCurrentPath("/storage/emulated/0/DCIM/swiped.jpg")
+        fixture.viewModel.setViewerMetadataVisible("/storage/emulated/0/DCIM/swiped.jpg", visible = true)
+        fixture.viewModel.setViewerUiVisible(false)
+        fixture.viewModel.setViewerEraseDialogPath("/storage/emulated/0/DCIM/swiped.jpg")
+        fixture.viewModel.startViewerSession(secondPath)
+
+        val state = fixture.viewModel.state.value
+        assertEquals(secondPath, state.viewerSessionInitialPath)
+        assertEquals(secondPath, state.viewerCurrentPath)
+        assertNull(state.viewerMetadataPath)
+        assertTrue(state.viewerUiVisible)
+        assertNull(state.viewerEraseDialogPath)
     }
 
     private fun createFixture(savedStateHandle: SavedStateHandle = SavedStateHandle()): Fixture {

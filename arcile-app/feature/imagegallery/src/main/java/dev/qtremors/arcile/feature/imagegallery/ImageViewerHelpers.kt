@@ -125,6 +125,19 @@ fun viewerFileContextForInitialPath(
     return ViewerFileContext(listOf(fileModelFromPath(initialPath)), 0)
 }
 
+internal fun viewerInitialPageForSession(
+    initialPath: String,
+    viewerSessionInitialPath: String?,
+    viewerCurrentPath: String?,
+    viewerContext: ViewerFileContext
+): Int {
+    val restoredPath = viewerCurrentPath.takeIf { viewerSessionInitialPath == initialPath }
+    return restoredPath
+        ?.let { path -> viewerContext.files.indexOfFirst { it.absolutePath == path } }
+        ?.takeIf { it >= 0 }
+        ?: viewerContext.initialPage
+}
+
 fun fileModelFromPath(path: String): FileModel {
     val file = java.io.File(path)
     return FileModel(

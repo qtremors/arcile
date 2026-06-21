@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,7 +38,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
@@ -49,7 +49,6 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Surface
@@ -92,6 +91,7 @@ import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import dev.qtremors.arcile.shared.ui.SplitButtonGroup
 import dev.qtremors.arcile.shared.ui.ToolbarAction
+import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
 import dev.qtremors.arcile.ui.theme.menuGroupMiddle
@@ -113,6 +113,7 @@ fun ImageViewerScreen(
     onOpenWith: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val marqueeEnabled = LocalMarqueeFilenames.current
     val externalFiles = remember(contextPaths) {
         contextPaths.distinct().map(::fileModelFromPath)
     }
@@ -165,14 +166,23 @@ fun ImageViewerScreen(
         return
     }
 
-    val restoredPage = state.viewerCurrentPath
-        ?.let { restoredPath -> displayedFiles.indexOfFirst { it.absolutePath == restoredPath } }
-        ?.takeIf { it >= 0 }
-        ?: viewerContext.initialPage
+    val restoredPage = viewerInitialPageForSession(
+        initialPath = initialPath,
+        viewerSessionInitialPath = state.viewerSessionInitialPath,
+        viewerCurrentPath = state.viewerCurrentPath,
+        viewerContext = viewerContext
+    )
     val pagerState = rememberPagerState(
         initialPage = restoredPage,
         pageCount = { displayedFiles.size }
     )
+
+    LaunchedEffect(initialPath, viewerContext.initialPage, displayedFiles.size) {
+        if (displayedFiles.isNotEmpty() && state.viewerSessionInitialPath != initialPath) {
+            viewModel.startViewerSession(initialPath)
+            pagerState.scrollToPage(viewerContext.initialPage.coerceIn(0, displayedFiles.lastIndex))
+        }
+    }
 
     LaunchedEffect(displayedFiles.size, viewerContext.initialPage) {
         if (displayedFiles.isNotEmpty() && pagerState.currentPage > displayedFiles.lastIndex) {
@@ -220,6 +230,9 @@ fun ImageViewerScreen(
                 ?.let(metadataCache::get)
                 ?.let { formatResolution(it.width, it.height) }
                 .orEmpty()
+            val currentSizeText = remember(currentFile) {
+                currentFile?.size?.takeIf { it > 0L }?.let(::formatFileSize).orEmpty()
+            }
             val positionText = viewerPositionLabel(pagerState.currentPage, displayedFiles.size)
             val titleText = currentFile?.name.orEmpty()
 
@@ -343,28 +356,13 @@ fun ImageViewerScreen(
                         .statusBarsPadding()
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    // Left: Back button in circular translucent background
-                    IconButton(
-                        onClick = onNavigateBack,
-                        modifier = Modifier
-                            .align(Alignment.CenterStart)
-                            .size(56.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
                     if (currentFile != null) {
                         Column(
                             horizontalAlignment = Alignment.Start,
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .padding(horizontal = 72.dp)
+                                .padding(horizontal = 4.dp)
+                                .fillMaxWidth()
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color.Black.copy(alpha = 0.5f))
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -374,44 +372,24 @@ fun ImageViewerScreen(
                                 color = Color.White,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                             )
-                            if (dateText.isNotEmpty() || currentResolution.isNotEmpty()) {
+                            if (dateText.isNotEmpty() || currentResolution.isNotEmpty() || currentSizeText.isNotEmpty()) {
                                 Text(
-                                    text = listOf(dateText, currentResolution)
+                                    text = listOf(currentResolution, currentSizeText, dateText)
                                         .filter { it.isNotBlank() }
                                         .joinToString(" • "),
                                     color = Color.White.copy(alpha = 0.7f),
                                     style = MaterialTheme.typography.bodySmall,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                                    modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                                 )
                             }
                         }
                     }
 
-                    // Right: Delete button in circular translucent background
-                    IconButton(
-                        onClick = {
-                            if (currentFile != null) {
-                                haptics.selectionStart()
-                                viewModel.clearSelection()
-                                viewModel.toggleSelection(currentFile.absolutePath)
-                                viewModel.requestDeleteSelected()
-                            }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .size(56.dp)
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.action_delete_selected),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
                 }
             }
 
@@ -438,42 +416,48 @@ fun ImageViewerScreen(
                         }
                     }
 
-                    LazyRow(
-                        state = lazyListState,
+                    BoxWithConstraints(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-                        contentPadding = PaddingValues(horizontal = 16.dp)
+                            .padding(vertical = 8.dp)
                     ) {
-                        items(displayedFiles.size) { index ->
-                            val file = displayedFiles[index]
-                            val isSelected = pagerState.currentPage == index
-                            Box(
-                                modifier = Modifier
-                                    .width(28.dp)
-                                    .height(42.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .border(
-                                        width = if (isSelected) 2.dp else 0.dp,
-                                        color = if (isSelected) Color.White else Color.Transparent,
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .clickable {
-                                        coroutineScope.launch {
-                                            pagerState.animateScrollToPage(index)
+                        val thumbnailWidth = 28.dp
+                        val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
+                        LazyRow(
+                            state = lazyListState,
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                            contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
+                        ) {
+                            items(displayedFiles.size) { index ->
+                                val file = displayedFiles[index]
+                                val isSelected = pagerState.currentPage == index
+                                Box(
+                                    modifier = Modifier
+                                        .width(thumbnailWidth)
+                                        .height(42.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .border(
+                                            width = if (isSelected) 2.dp else 0.dp,
+                                            color = if (isSelected) Color.White else Color.Transparent,
+                                            shape = RoundedCornerShape(4.dp)
+                                        )
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(index)
+                                            }
                                         }
-                                    }
-                            ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(file.absolutePath)
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                ) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(LocalContext.current)
+                                            .data(file.absolutePath)
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         }
                     }
@@ -486,12 +470,13 @@ fun ImageViewerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Left actions (Favorite, Info, Rotate) in SplitButtonGroup
+                        // Left actions (Favorite, Rotate, Delete) in SplitButtonGroup
                         val isFavorite = currentFile != null && currentFile.absolutePath in state.favoriteFiles
                         val favoriteDescription = stringResource(R.string.action_favorite)
-                        val infoDescription = stringResource(R.string.action_info)
                         val rotateDescription = stringResource(R.string.action_rotate)
-                        val actions = remember(currentFile, isFavorite, favoriteDescription, infoDescription, rotateDescription) {
+                        val deleteDescription = stringResource(R.string.action_delete_selected)
+                        val deleteTint = MaterialTheme.colorScheme.error
+                        val actions = remember(currentFile, isFavorite, favoriteDescription, rotateDescription, deleteDescription, deleteTint) {
                             listOf(
                                 ToolbarAction(
                                     icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -505,14 +490,6 @@ fun ImageViewerScreen(
                                     }
                                 ),
                                 ToolbarAction(
-                                    icon = Icons.Default.Info,
-                                    contentDescription = infoDescription,
-                                    tint = Color.White,
-                                    onClick = {
-                                        currentFile?.let { viewModel.setViewerMetadataVisible(it.absolutePath, visible = true) }
-                                    }
-                                ),
-                                ToolbarAction(
                                     icon = Icons.AutoMirrored.Filled.RotateRight,
                                     contentDescription = rotateDescription,
                                     tint = Color.White,
@@ -520,6 +497,19 @@ fun ImageViewerScreen(
                                         if (currentFile != null) {
                                             haptics.selectionChanged()
                                             viewModel.rotateViewerImage(currentFile.absolutePath)
+                                        }
+                                    }
+                                ),
+                                ToolbarAction(
+                                    icon = Icons.Default.Delete,
+                                    contentDescription = deleteDescription,
+                                    tint = deleteTint,
+                                    onClick = {
+                                        if (currentFile != null) {
+                                            haptics.selectionStart()
+                                            viewModel.clearSelection()
+                                            viewModel.toggleSelection(currentFile.absolutePath)
+                                            viewModel.requestDeleteSelected()
                                         }
                                     }
                                 )
@@ -563,6 +553,24 @@ fun ImageViewerScreen(
                             ) {
                                 val menuActions = remember(currentFile) {
                                     mutableListOf<@Composable () -> Unit>().apply {
+                                        add {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        text = stringResource(R.string.action_info),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                },
+                                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                                onClick = {
+                                                    showOverflowMenu = false
+                                                    currentFile?.let { viewModel.setViewerMetadataVisible(it.absolutePath, visible = true) }
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                            )
+                                        }
                                         add {
                                             DropdownMenuItem(
                                                 text = {

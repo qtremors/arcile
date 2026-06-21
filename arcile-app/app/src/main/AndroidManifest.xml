@@ -64,6 +64,20 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ImageViewerActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:process=":imageviewer"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

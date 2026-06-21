@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.1.7
-> **Last Updated:** 2026-06-20
+> **Version:** 1.1.8
+> **Last Updated:** 2026-06-21
 
 ---
+
+## [1.1.8] - 2026-06-21
+
+- **Standalone Image Viewer & Metadata Reuse**: Added an exported image viewer activity running in a separate process for external `image/*` opens, moved viewer Delete into the bottom split actions, moved Info into the overflow menu, and reused full image metadata in single-image Properties cards.
+- **Image Viewer Layout Polish**: Expanded the viewer top metadata pill to use the space beside Back and compacted image Properties into one combined information layout with tighter dialog padding and no duplicate file metadata rows.
+- **Gallery Viewer Selection Fix**: Scoped restored viewer position to the active opened image so tapping a gallery item no longer reuses a stale/random previous page, reset viewer chrome for new image opens, and ordered viewer metadata as resolution, size, then date/time.
+- **Image Viewer Space & Strip Polish**: Removed the top viewer back arrow to give metadata the full overlay width, centered the active thumbnail in the viewer strip instead of pinning it to the start, and applied the marquee filename setting to viewer metadata pills.
 
 ## [1.1.7] - 2026-06-20
 

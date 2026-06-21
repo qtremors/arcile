@@ -123,6 +123,7 @@ data class ImageGalleryState(
     val pasteDestinationAlbumPath: String? = null,
     val favoriteFiles: PersistentSet<String> = persistentSetOf(),
     val albumCovers: PersistentMap<String, String> = persistentMapOf(),
+    val viewerSessionInitialPath: String? = null,
     val viewerCurrentPath: String? = null,
     val viewerMetadataPath: String? = null,
     val viewerUiVisible: Boolean = true,
@@ -169,6 +170,7 @@ class ImageGalleryViewModel @Inject constructor(
     private val _state = MutableStateFlow(
         ImageGalleryState(
             volumeId = savedStateHandle.get<String>("volumeId")?.takeIf { it.isNotBlank() },
+            viewerSessionInitialPath = savedStateHandle[KEY_VIEWER_SESSION_INITIAL_PATH],
             viewerCurrentPath = savedStateHandle[KEY_VIEWER_CURRENT_PATH],
             viewerMetadataPath = savedStateHandle[KEY_VIEWER_METADATA_PATH],
             viewerUiVisible = savedStateHandle[KEY_VIEWER_UI_VISIBLE] ?: true,
@@ -796,6 +798,24 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
+    fun startViewerSession(initialPath: String) {
+        if (_state.value.viewerSessionInitialPath == initialPath) return
+        savedStateHandle[KEY_VIEWER_SESSION_INITIAL_PATH] = initialPath
+        savedStateHandle[KEY_VIEWER_CURRENT_PATH] = initialPath
+        savedStateHandle[KEY_VIEWER_UI_VISIBLE] = true
+        savedStateHandle.remove<String>(KEY_VIEWER_METADATA_PATH)
+        savedStateHandle.remove<String>(KEY_VIEWER_ERASE_DIALOG_PATH)
+        _state.update {
+            it.copy(
+                viewerSessionInitialPath = initialPath,
+                viewerCurrentPath = initialPath,
+                viewerMetadataPath = null,
+                viewerUiVisible = true,
+                viewerEraseDialogPath = null
+            )
+        }
+    }
+
     fun setViewerCurrentPath(path: String?) {
         savedStateHandle[KEY_VIEWER_CURRENT_PATH] = path
         _state.update { it.copy(viewerCurrentPath = path) }
@@ -838,6 +858,7 @@ class ImageGalleryViewModel @Inject constructor(
 
     companion object {
         private const val IMAGE_GALLERY_PREF_KEY = "image_gallery"
+        private const val KEY_VIEWER_SESSION_INITIAL_PATH = "image_viewer.session_initial_path"
         private const val KEY_VIEWER_CURRENT_PATH = "image_viewer.current_path"
         private const val KEY_VIEWER_METADATA_PATH = "image_viewer.metadata_path"
         private const val KEY_VIEWER_UI_VISIBLE = "image_viewer.ui_visible"

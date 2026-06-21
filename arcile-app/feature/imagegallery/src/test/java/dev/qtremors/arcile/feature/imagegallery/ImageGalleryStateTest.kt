@@ -356,6 +356,33 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `viewer initial page restores only within same viewer session`() {
+        val first = FileModel("one.jpg", "/photos/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val second = FileModel("two.jpg", "/photos/two.jpg", size = 100, lastModified = 200, isDirectory = false)
+        val third = FileModel("three.jpg", "/photos/three.jpg", size = 100, lastModified = 300, isDirectory = false)
+        val context = ViewerFileContext(files = listOf(first, second, third), initialPage = 2)
+
+        assertEquals(
+            1,
+            viewerInitialPageForSession(
+                initialPath = third.absolutePath,
+                viewerSessionInitialPath = third.absolutePath,
+                viewerCurrentPath = second.absolutePath,
+                viewerContext = context
+            )
+        )
+        assertEquals(
+            2,
+            viewerInitialPageForSession(
+                initialPath = third.absolutePath,
+                viewerSessionInitialPath = first.absolutePath,
+                viewerCurrentPath = second.absolutePath,
+                viewerContext = context
+            )
+        )
+    }
+
+    @Test
     fun `viewer position label is based on current page and context size`() {
         assertEquals("3/100", viewerPositionLabel(currentPage = 2, total = 100))
         assertEquals("1/1", viewerPositionLabel(currentPage = 0, total = 1))
