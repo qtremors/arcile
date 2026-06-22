@@ -1,13 +1,23 @@
 package dev.qtremors.arcile.shared.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -52,23 +62,46 @@ fun <T> ExpressiveSegmentedRow(
                 label = "segmentContentColor"
             )
             
+            val animatedCornerRadius by animateDpAsState(
+                targetValue = if (isSelected) 20.dp else 12.dp,
+                label = "segmentCornerRadius"
+            )
+            val shape = RoundedCornerShape(animatedCornerRadius)
+            
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .height(40.dp)
-                    .background(color = backgroundColor, shape = CircleShape)
-                    .clip(CircleShape)
+                    .background(color = backgroundColor, shape = shape)
+                    .clip(shape)
                     .bounceClickable { onOptionSelected(option) },
                 contentAlignment = Alignment.Center
             ) {
                 CompositionLocalProvider(
                     LocalContentColor provides contentColor
                 ) {
-                    labelProvider(option)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        AnimatedVisibility(
+                            visible = isSelected,
+                            enter = fadeIn() + expandHorizontally(),
+                            exit = fadeOut() + shrinkHorizontally()
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        labelProvider(option)
+                    }
                 }
             }
         }
     }
 }
+
 
 

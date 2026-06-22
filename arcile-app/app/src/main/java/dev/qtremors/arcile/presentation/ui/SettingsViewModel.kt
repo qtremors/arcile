@@ -51,6 +51,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateBrowserScrollbarEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateBrowserScrollbarEnabled(enabled)
+        }
+    }
+
+    fun updateGalleryScrollbarEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateGalleryScrollbarEnabled(enabled)
+        }
+    }
+
     fun exportPreferences(uri: Uri) {
         viewModelScope.launch {
             _backupState.value = PreferencesBackupUiState.Busy

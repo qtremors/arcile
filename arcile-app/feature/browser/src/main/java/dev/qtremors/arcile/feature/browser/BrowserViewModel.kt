@@ -316,6 +316,7 @@ class BrowserViewModel @Inject constructor(
                         browserListZoom = pathPresentation.listZoom,
                         browserGridMinCellSize = pathPresentation.gridMinCellSize,
                         browserShowThumbnails = pathPresentation.showThumbnails,
+                        browserScrollbarEnabled = prefs.browserScrollbarEnabled,
                         showHiddenFiles = prefs.showHiddenFiles
                     ).withUpdatedDisplayState()
                 }

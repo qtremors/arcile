@@ -383,6 +383,36 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `gallery lazy index for viewer return includes grouped section headers`() {
+        val first = FileModel("one.jpg", "/photos/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val second = FileModel("two.jpg", "/photos/two.jpg", size = 100, lastModified = 200, isDirectory = false)
+        val third = FileModel("three.jpg", "/photos/three.jpg", size = 100, lastModified = 300, isDirectory = false)
+        val grouped = linkedMapOf(
+            GroupKey("First", 1L) to listOf(first, second),
+            GroupKey("Second", 2L) to listOf(third)
+        )
+
+        assertEquals(
+            2,
+            galleryLazyIndexForPath(
+                path = second.absolutePath,
+                displayedFiles = listOf(first, second, third),
+                imageGalleryGrouping = ImageGalleryGrouping.MONTH,
+                groupedFiles = grouped
+            )
+        )
+        assertEquals(
+            4,
+            galleryLazyIndexForPath(
+                path = third.absolutePath,
+                displayedFiles = listOf(first, second, third),
+                imageGalleryGrouping = ImageGalleryGrouping.MONTH,
+                groupedFiles = grouped
+            )
+        )
+    }
+
+    @Test
     fun `viewer position label is based on current page and context size`() {
         assertEquals("3/100", viewerPositionLabel(currentPage = 2, total = 100))
         assertEquals("1/1", viewerPositionLabel(currentPage = 0, total = 1))

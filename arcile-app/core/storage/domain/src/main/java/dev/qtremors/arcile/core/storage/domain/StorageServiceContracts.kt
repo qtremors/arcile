@@ -11,6 +11,8 @@ interface BrowserPreferencesStore {
     suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences)
     suspend fun updateHomeRecentCarouselLimit(limit: Int)
     suspend fun updateShowHiddenFiles(show: Boolean)
+    suspend fun updateBrowserScrollbarEnabled(enabled: Boolean)
+    suspend fun updateGalleryScrollbarEnabled(enabled: Boolean)
     suspend fun updateImageGalleryShowFileDetails(show: Boolean)
     suspend fun updateImageGalleryAspectRatio(enabled: Boolean)
     suspend fun updateImageGallerySectioned(enabled: Boolean)

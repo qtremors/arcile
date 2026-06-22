@@ -53,6 +53,8 @@ class BrowserPreferencesRepository(
     private val RECENT_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("recent_show_thumbnails")
     private val HOME_RECENT_CAROUSEL_LIMIT_KEY = intPreferencesKey("home_recent_carousel_limit")
     private val SHOW_HIDDEN_FILES_KEY = booleanPreferencesKey("show_hidden_files")
+    private val BROWSER_SCROLLBAR_ENABLED_KEY = booleanPreferencesKey("browser_scrollbar_enabled")
+    private val GALLERY_SCROLLBAR_ENABLED_KEY = booleanPreferencesKey("gallery_scrollbar_enabled")
     private val IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY = booleanPreferencesKey("image_gallery_show_file_details")
     private val IMAGE_GALLERY_ASPECT_RATIO_KEY = booleanPreferencesKey("image_gallery_aspect_ratio")
     private val IMAGE_GALLERY_SECTIONED_KEY = booleanPreferencesKey("image_gallery_sectioned")
@@ -250,7 +252,11 @@ class BrowserPreferencesRepository(
                 albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY],
-                defaultSaveToArcilePath = prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY]
+                defaultSaveToArcilePath = prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY],
+                browserScrollbarEnabled = prefs[BROWSER_SCROLLBAR_ENABLED_KEY]
+                    ?: BrowserPreferences().browserScrollbarEnabled,
+                galleryScrollbarEnabled = prefs[GALLERY_SCROLLBAR_ENABLED_KEY]
+                    ?: BrowserPreferences().galleryScrollbarEnabled
             )
         }
         .flowOn(dispatchers.io)
@@ -286,6 +292,18 @@ class BrowserPreferencesRepository(
     override suspend fun updateShowHiddenFiles(show: Boolean) {
         dataStore.edit { prefs ->
             prefs[SHOW_HIDDEN_FILES_KEY] = show
+        }
+    }
+
+    override suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[BROWSER_SCROLLBAR_ENABLED_KEY] = enabled
+        }
+    }
+
+    override suspend fun updateGalleryScrollbarEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[GALLERY_SCROLLBAR_ENABLED_KEY] = enabled
         }
     }
 

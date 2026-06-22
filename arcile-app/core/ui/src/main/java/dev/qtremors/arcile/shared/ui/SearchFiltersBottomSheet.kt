@@ -449,7 +449,7 @@ fun SearchFiltersBottomSheet(
                         ) {
                             Text(
                                 text = minDateMillis?.let { dateFormatter.format(java.util.Date(it)) }
-                                    ?: "Start Date",
+                                    ?: stringResource(R.string.filter_start_date),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -462,7 +462,11 @@ fun SearchFiltersBottomSheet(
                                     .padding(end = 4.dp)
                                     .clip(CircleShape)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear start date", modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.filter_clear_start_date),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }
@@ -475,7 +479,7 @@ fun SearchFiltersBottomSheet(
                         ) {
                             Text(
                                 text = maxDateMillis?.let { dateFormatter.format(java.util.Date(it)) }
-                                    ?: "End Date",
+                                    ?: stringResource(R.string.filter_end_date),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -488,7 +492,11 @@ fun SearchFiltersBottomSheet(
                                     .padding(end = 4.dp)
                                     .clip(CircleShape)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear end date", modifier = Modifier.size(16.dp))
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.filter_clear_end_date),
+                                    modifier = Modifier.size(16.dp)
+                                )
                             }
                         }
                     }

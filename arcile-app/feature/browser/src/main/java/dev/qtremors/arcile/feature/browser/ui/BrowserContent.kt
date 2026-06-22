@@ -8,12 +8,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.LoadingIndicator
@@ -48,6 +50,9 @@ import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.shared.ui.lists.FileListRows
 import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
 import dev.qtremors.arcile.shared.ui.rememberDateOnlyFormatter
+import dev.qtremors.arcile.shared.ui.scrollbar.ArcileFastScrollbar
+import dev.qtremors.arcile.shared.ui.scrollbar.LazyGridScrollbarState
+import dev.qtremors.arcile.shared.ui.scrollbar.LazyListScrollbarState
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.ui.theme.spacing
@@ -281,36 +286,48 @@ private fun BrowserSearchResults(
         )
     } else {
         val formatter = rememberDateOnlyFormatter()
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                bottom = WindowInsets.navigationBars
-                    .asPaddingValues()
-                    .calculateBottomPadding() + MaterialTheme.spacing.screenGutter
-            )
-        ) {
-            items(
-                items = state.searchResults,
-                key = { it.absolutePath },
-                contentType = { if (it.isDirectory) "directory" else "file" }
-            ) { file ->
-                FileItemRow(
-                    file = file,
-                    formattedDate = formatter.format(Date(file.lastModified)),
-                    isSelected = false,
-                    showThumbnails = currentPresentation.showThumbnails,
-                    onClick = {
-                        onShowSearchBarChange(false)
-                        actions.onClearSearch()
-                        if (file.isDirectory) {
-                            actions.onNavigateTo(file.absolutePath)
-                        } else if (state.archiveContext == null) {
-                            actions.onOpenFile(file.absolutePath)
-                        }
-                    },
-                    onLongClick = {}
+        val searchListState = rememberLazyListState()
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = searchListState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    bottom = WindowInsets.navigationBars
+                        .asPaddingValues()
+                        .calculateBottomPadding() + MaterialTheme.spacing.screenGutter
                 )
+            ) {
+                items(
+                    items = state.searchResults,
+                    key = { it.absolutePath },
+                    contentType = { if (it.isDirectory) "directory" else "file" }
+                ) { file ->
+                    FileItemRow(
+                        file = file,
+                        formattedDate = formatter.format(Date(file.lastModified)),
+                        isSelected = false,
+                        showThumbnails = currentPresentation.showThumbnails,
+                        onClick = {
+                            onShowSearchBarChange(false)
+                            actions.onClearSearch()
+                            if (file.isDirectory) {
+                                actions.onNavigateTo(file.absolutePath)
+                            } else if (state.archiveContext == null) {
+                                actions.onOpenFile(file.absolutePath)
+                            }
+                        },
+                        onLongClick = {}
+                    )
+                }
             }
+            ArcileFastScrollbar(
+                scrollbarState = LazyListScrollbarState(searchListState),
+                labelForIndex = { index -> state.searchResults.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                enabled = state.browserScrollbarEnabled
+            )
         }
     }
 }
@@ -361,44 +378,68 @@ private fun BrowserListingContent(
             modifier = Modifier.fillMaxSize()
         )
     } else if (state.browserViewMode == BrowserViewMode.GRID) {
-        FileGridRows(
-            rows = state.displayState.visibleGridRows,
-            selectedFiles = state.selectedFiles,
-            onNavigateTo = actions.onNavigateTo,
-            onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
-            onToggleSelection = actions.onToggleSelection,
-            onSelectMultiple = actions.onSelectMultiple,
-            showThumbnails = currentPresentation.showThumbnails,
-            thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
-            modifier = Modifier.fillMaxSize(),
-            gridState = gridState,
-            minCellSize = state.browserGridMinCellSize.dp,
-            folderStatsLoadingPaths = state.folderStatsLoadingPaths,
-            contentPadding = PaddingValues(
-                top = 8.dp,
-                bottom = bottomContentPadding,
-                start = 8.dp,
-                end = 8.dp
+        Box(modifier = Modifier.fillMaxSize()) {
+            FileGridRows(
+                rows = state.displayState.visibleGridRows,
+                selectedFiles = state.selectedFiles,
+                onNavigateTo = actions.onNavigateTo,
+                onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
+                onToggleSelection = actions.onToggleSelection,
+                onSelectMultiple = actions.onSelectMultiple,
+                showThumbnails = currentPresentation.showThumbnails,
+                thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
+                modifier = Modifier.fillMaxSize(),
+                gridState = gridState,
+                minCellSize = state.browserGridMinCellSize.dp,
+                folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                contentPadding = PaddingValues(
+                    top = 8.dp,
+                    bottom = bottomContentPadding,
+                    start = 8.dp,
+                    end = 8.dp
+                )
             )
-        )
+            val formatter = rememberDateOnlyFormatter()
+            ArcileFastScrollbar(
+                scrollbarState = LazyGridScrollbarState(gridState),
+                labelForIndex = { index -> state.displayState.visibleFiles.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                contentPadding = PaddingValues(bottom = bottomContentPadding),
+                enabled = state.browserScrollbarEnabled
+            )
+        }
     } else {
-        FileListRows(
-            rows = state.displayState.visibleListRows,
-            selectedFiles = state.selectedFiles,
-            onNavigateTo = actions.onNavigateTo,
-            onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
-            onToggleSelection = actions.onToggleSelection,
-            onSelectMultiple = actions.onSelectMultiple,
-            showThumbnails = currentPresentation.showThumbnails,
-            thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
-            modifier = Modifier.fillMaxSize(),
-            listState = listState,
-            zoom = state.browserListZoom,
-            folderStatsLoadingPaths = state.folderStatsLoadingPaths,
-            contentPadding = PaddingValues(
-                top = 8.dp,
-                bottom = bottomContentPadding
+        Box(modifier = Modifier.fillMaxSize()) {
+            FileListRows(
+                rows = state.displayState.visibleListRows,
+                selectedFiles = state.selectedFiles,
+                onNavigateTo = actions.onNavigateTo,
+                onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
+                onToggleSelection = actions.onToggleSelection,
+                onSelectMultiple = actions.onSelectMultiple,
+                showThumbnails = currentPresentation.showThumbnails,
+                thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
+                modifier = Modifier.fillMaxSize(),
+                listState = listState,
+                zoom = state.browserListZoom,
+                folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                contentPadding = PaddingValues(
+                    top = 8.dp,
+                    bottom = bottomContentPadding
+                )
             )
-        )
+            val formatter = rememberDateOnlyFormatter()
+            ArcileFastScrollbar(
+                scrollbarState = LazyListScrollbarState(listState),
+                labelForIndex = { index -> state.displayState.visibleFiles.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight(),
+                contentPadding = PaddingValues(bottom = bottomContentPadding),
+                enabled = state.browserScrollbarEnabled
+            )
+        }
     }
 }

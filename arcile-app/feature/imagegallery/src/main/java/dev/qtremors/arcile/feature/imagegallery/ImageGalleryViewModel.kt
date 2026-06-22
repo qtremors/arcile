@@ -109,6 +109,7 @@ data class ImageGalleryState(
     val isSectioned: Boolean = false,
     val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
     val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
+    val galleryScrollbarEnabled: Boolean = true,
     val preferencesLoaded: Boolean = false,
     val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
         sortOption = FileSortOption.NAME_ASC,
@@ -409,6 +410,7 @@ class ImageGalleryViewModel @Inject constructor(
                 isSectioned = preferences.imageGallerySectioned,
                 imageGalleryGrouping = preferences.imageGalleryGrouping,
                 imageGalleryDefaultTab = preferences.imageGalleryDefaultTab,
+                galleryScrollbarEnabled = preferences.galleryScrollbarEnabled,
                 preferencesLoaded = true,
                 albumPresentation = preferences.albumPresentation,
                 favoriteFiles = preferences.favoriteFiles.toPersistentSet(),

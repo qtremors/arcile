@@ -139,12 +139,17 @@ private data class CleanerThumbnailCacheStats(
 private fun loadCleanerThumbnailCacheStats(context: android.content.Context): CleanerThumbnailCacheStats {
     val loadStateStats = GlobalThumbnailLoadStateStore.stats()
     return CleanerThumbnailCacheStats(
-        diskBytes = context.cacheDir.resolve("image_cache").directorySize(),
+        diskBytes = cleanerThumbnailDiskCacheDirectory(context).directorySize(),
         loadedCount = loadStateStats.loadedCount,
         failedCount = loadStateStats.failedCount,
         inFlightCount = loadStateStats.inFlightCount
     )
 }
+
+@OptIn(ExperimentalCoilApi::class)
+internal fun cleanerThumbnailDiskCacheDirectory(context: android.content.Context): File =
+    context.imageLoader.diskCache?.directory?.toFile()
+        ?: context.cacheDir.resolve("image_cache")
 
 private fun File.directorySize(): Long {
     if (!exists()) return 0L

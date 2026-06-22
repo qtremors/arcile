@@ -130,6 +130,10 @@
     <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
     <string name="settings_show_hidden_files">Show hidden files</string>
     <string name="settings_show_hidden_files_description">Include dotfiles and hidden folders in browser listings.</string>
+    <string name="settings_browser_scrollbar">Browser scrollbar</string>
+    <string name="settings_browser_scrollbar_description">Show the fast-scroll scrollbar overlay in Browser lists and grids.</string>
+    <string name="settings_gallery_scrollbar">Gallery scrollbar</string>
+    <string name="settings_gallery_scrollbar_description">Show the fast-scroll scrollbar overlay in Gallery lists and grids.</string>
     <string name="settings_home_recent_carousel_limit">Home recent files</string>
     <string name="settings_home_recent_carousel_count">Show %1$d recent files</string>
     <string name="settings_home_recent_carousel_hidden">Hidden on Home</string>
@@ -645,6 +649,10 @@
     <string name="filter_max_size">Max bytes</string>
     <string name="filter_min_date">Min date millis</string>
     <string name="filter_max_date">Max date millis</string>
+    <string name="filter_start_date">Start Date</string>
+    <string name="filter_end_date">End Date</string>
+    <string name="filter_clear_start_date">Clear start date</string>
+    <string name="filter_clear_end_date">Clear end date</string>
     <string name="filter_saved_preset">Saved search name</string>
     <string name="filter_chip_size_range">Size: %1$dMB - %2$dMB</string>
     <string name="filter_chip_size_min">Size: &gt;%1$dMB</string>

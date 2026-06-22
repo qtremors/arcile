@@ -170,6 +170,10 @@ import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.shared.ui.scrollbar.ArcileFastScrollbar
+import dev.qtremors.arcile.shared.ui.scrollbar.LazyGridScrollbarState
+import dev.qtremors.arcile.shared.ui.scrollbar.LazyListScrollbarState
+import dev.qtremors.arcile.shared.ui.scrollbar.LazyStaggeredGridScrollbarState
 import dev.qtremors.arcile.ui.theme.spacing
 import dev.qtremors.arcile.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.ui.theme.menuGroupLast
@@ -359,6 +363,20 @@ fun ImageGalleryContent(
                         LazyListScrollbarState(listState)
                     }
                 }
+                var restoredViewerPath by rememberSaveable(albumScrollKey) { mutableStateOf<String?>(null) }
+                LaunchedEffect(state.viewerCurrentPath, state.displayedFiles, state.imageGalleryGrouping, groupedFiles) {
+                    val viewerPath = state.viewerCurrentPath ?: return@LaunchedEffect
+                    if (viewerPath == restoredViewerPath || state.displayedFiles.isEmpty()) return@LaunchedEffect
+                    val targetIndex = galleryLazyIndexForPath(
+                        path = viewerPath,
+                        displayedFiles = state.displayedFiles,
+                        imageGalleryGrouping = state.imageGalleryGrouping,
+                        groupedFiles = groupedFiles
+                    ) ?: return@LaunchedEffect
+                    scrollbarState.scrollToItem(targetIndex)
+                    restoredViewerPath = viewerPath
+                }
+                val scrollbarLabelFormatter = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()) }
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (state.presentation.viewMode == BrowserViewMode.GRID) {
@@ -516,21 +534,68 @@ fun ImageGalleryContent(
                         }
                     }
 
-                    FastScrollbar(
+                    ArcileFastScrollbar(
                         scrollbarState = scrollbarState,
-                        displayedFiles = state.displayedFiles,
+                        labelForIndex = { index ->
+                            galleryFileForLazyIndex(
+                                index = index,
+                                displayedFiles = state.displayedFiles,
+                                imageGalleryGrouping = state.imageGalleryGrouping,
+                                groupedFiles = groupedFiles
+                            )?.let { scrollbarLabelFormatter.format(java.util.Date(it.lastModified)) }.orEmpty()
+                        },
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
                             .fillMaxHeight(),
                         contentPadding = PaddingValues(
                             top = contentPadding.calculateTopPadding() + 8.dp,
                             bottom = bottomPadding + 16.dp
-                        )
+                        ),
+                        enabled = state.galleryScrollbarEnabled
                     )
                 }
             }
         }
     }
+}
+
+internal fun galleryLazyIndexForPath(
+    path: String,
+    displayedFiles: List<FileModel>,
+    imageGalleryGrouping: ImageGalleryGrouping,
+    groupedFiles: Map<GroupKey, List<FileModel>>
+): Int? {
+    if (imageGalleryGrouping == ImageGalleryGrouping.NONE) {
+        return displayedFiles.indexOfFirst { it.absolutePath == path }.takeIf { it >= 0 }
+    }
+    var lazyIndex = 0
+    groupedFiles.values.forEach { filesInSection ->
+        if (filesInSection.isEmpty()) return@forEach
+        lazyIndex += 1
+        val fileIndex = filesInSection.indexOfFirst { it.absolutePath == path }
+        if (fileIndex >= 0) return lazyIndex + fileIndex
+        lazyIndex += filesInSection.size
+    }
+    return null
+}
+
+private fun galleryFileForLazyIndex(
+    index: Int,
+    displayedFiles: List<FileModel>,
+    imageGalleryGrouping: ImageGalleryGrouping,
+    groupedFiles: Map<GroupKey, List<FileModel>>
+): FileModel? {
+    if (imageGalleryGrouping == ImageGalleryGrouping.NONE) return displayedFiles.getOrNull(index)
+    var lazyIndex = 0
+    groupedFiles.values.forEach { filesInSection ->
+        if (filesInSection.isEmpty()) return@forEach
+        if (index == lazyIndex) return filesInSection.firstOrNull()
+        lazyIndex += 1
+        val fileIndex = index - lazyIndex
+        if (fileIndex in filesInSection.indices) return filesInSection[fileIndex]
+        lazyIndex += filesInSection.size
+    }
+    return null
 }
 
 @Composable

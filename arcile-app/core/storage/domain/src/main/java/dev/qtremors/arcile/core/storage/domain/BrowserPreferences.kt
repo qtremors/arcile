@@ -70,7 +70,9 @@ data class BrowserPreferences(
     val albumCovers: Map<String, String> = emptyMap(),
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null,
-    val defaultSaveToArcilePath: String? = null
+    val defaultSaveToArcilePath: String? = null,
+    val browserScrollbarEnabled: Boolean = true,
+    val galleryScrollbarEnabled: Boolean = true
 ) {
     companion object {
         const val MIN_HOME_RECENT_CAROUSEL_LIMIT = 0

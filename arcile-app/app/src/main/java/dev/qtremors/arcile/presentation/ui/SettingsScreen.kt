@@ -46,6 +46,12 @@ import dev.qtremors.arcile.shared.ui.settings.SettingsSection
 import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
 import dev.qtremors.arcile.shared.ui.ArcileListSurface
+import dev.qtremors.arcile.shared.ui.ExpressiveSwitch
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import dev.qtremors.arcile.shared.ui.keyboardInputField
 
 import androidx.compose.ui.res.stringResource
@@ -74,9 +80,13 @@ fun SettingsScreen(
     showThumbnails: Boolean,
     homeRecentCarouselLimit: Int,
     showHiddenFiles: Boolean,
+    browserScrollbarEnabled: Boolean,
+    galleryScrollbarEnabled: Boolean,
     onShowThumbnailsChange: (Boolean) -> Unit,
     onHomeRecentCarouselLimitChange: (Int) -> Unit,
     onShowHiddenFilesChange: (Boolean) -> Unit,
+    onBrowserScrollbarEnabledChange: (Boolean) -> Unit,
+    onGalleryScrollbarEnabledChange: (Boolean) -> Unit,
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit,
     onOpenStorageManagement: () -> Unit = {},
@@ -292,16 +302,9 @@ fun SettingsScreen(
                                 headlineContent = { Text(stringResource(R.string.settings_show_thumbnails)) },
                                 supportingContent = { Text(stringResource(R.string.settings_show_thumbnails_description)) },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = showThumbnails,
                                         onCheckedChange = onShowThumbnailsChange,
-                                        thumbContent = {
-                                            Icon(
-                                                imageVector = if (showThumbnails) Icons.Default.Check else Icons.Default.Close,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
-                                            )
-                                        },
                                         modifier = Modifier.testTag("thumbnail_switch")
                                     )
                                 },
@@ -354,16 +357,9 @@ fun SettingsScreen(
                                 headlineContent = { Text(stringResource(R.string.settings_show_hidden_files)) },
                                 supportingContent = { Text(stringResource(R.string.settings_show_hidden_files_description)) },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = showHiddenFiles,
                                         onCheckedChange = onShowHiddenFilesChange,
-                                        thumbContent = {
-                                            Icon(
-                                                imageVector = if (showHiddenFiles) Icons.Default.Check else Icons.Default.Close,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
-                                            )
-                                        },
                                         modifier = Modifier.testTag("hidden_files_switch")
                                     )
                                 },
@@ -378,21 +374,54 @@ fun SettingsScreen(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                             )
                             ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_browser_scrollbar)) },
+                                supportingContent = { Text(stringResource(R.string.settings_browser_scrollbar_description)) },
+                                trailingContent = {
+                                    ExpressiveSwitch(
+                                        checked = browserScrollbarEnabled,
+                                        onCheckedChange = onBrowserScrollbarEnabledChange,
+                                        modifier = Modifier.testTag("browser_scrollbar_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .bounceClickable { onBrowserScrollbarEnabledChange(!browserScrollbarEnabled) }
+                                    .testTag("browser_scrollbar_setting_row")
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.settings_gallery_scrollbar)) },
+                                supportingContent = { Text(stringResource(R.string.settings_gallery_scrollbar_description)) },
+                                trailingContent = {
+                                    ExpressiveSwitch(
+                                        checked = galleryScrollbarEnabled,
+                                        onCheckedChange = onGalleryScrollbarEnabledChange,
+                                        modifier = Modifier.testTag("gallery_scrollbar_switch")
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                modifier = Modifier
+                                    .clip(MaterialTheme.shapes.medium)
+                                    .bounceClickable { onGalleryScrollbarEnabledChange(!galleryScrollbarEnabled) }
+                                    .testTag("gallery_scrollbar_setting_row")
+                            )
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                            ListItem(
                                 headlineContent = { Text(stringResource(R.string.settings_harmonize_colors)) },
                                 supportingContent = { Text(stringResource(R.string.settings_harmonize_colors_description)) },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = currentThemeState.harmonizeColors,
                                         onCheckedChange = { isChecked ->
                                             haptics.toggleMenu()
                                             onThemeChange(currentThemeState.copy(harmonizeColors = isChecked))
-                                        },
-                                        thumbContent = {
-                                            Icon(
-                                                imageVector = if (currentThemeState.harmonizeColors) Icons.Default.Check else Icons.Default.Close,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
-                                            )
                                         },
                                         modifier = Modifier.testTag("harmonize_colors_switch")
                                     )
@@ -414,18 +443,11 @@ fun SettingsScreen(
                                 headlineContent = { Text(stringResource(R.string.settings_vibrations)) },
                                 supportingContent = { Text(stringResource(R.string.settings_vibrations_description)) },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = currentThemeState.vibrationsEnabled,
                                         onCheckedChange = { isChecked ->
                                             haptics.toggleMenu()
                                             onThemeChange(currentThemeState.copy(vibrationsEnabled = isChecked))
-                                        },
-                                        thumbContent = {
-                                            Icon(
-                                                imageVector = if (currentThemeState.vibrationsEnabled) Icons.Default.Check else Icons.Default.Close,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
-                                            )
                                         },
                                         modifier = Modifier.testTag("vibrations_switch")
                                     )
@@ -447,7 +469,7 @@ fun SettingsScreen(
                                 headlineContent = { Text(stringResource(R.string.settings_double_line_filenames)) },
                                 supportingContent = { Text(stringResource(R.string.settings_double_line_filenames_description)) },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = currentThemeState.doubleLineFilenames,
                                         onCheckedChange = { isChecked ->
                                             haptics.toggleMenu()
@@ -457,13 +479,6 @@ fun SettingsScreen(
                                                     doubleLineFilenames = isChecked,
                                                     marqueeFilenames = newMarquee
                                                 )
-                                            )
-                                        },
-                                        thumbContent = {
-                                            Icon(
-                                                imageVector = if (currentThemeState.doubleLineFilenames) Icons.Default.Check else Icons.Default.Close,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
                                             )
                                         },
                                         modifier = Modifier.testTag("double_line_filenames_switch")
@@ -493,7 +508,7 @@ fun SettingsScreen(
                                 headlineContent = { Text(stringResource(R.string.settings_marquee_filenames)) },
                                 supportingContent = { Text(stringResource(R.string.settings_marquee_filenames_description)) },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = currentThemeState.marqueeFilenames,
                                         onCheckedChange = { isChecked ->
                                             haptics.toggleMenu()
@@ -503,13 +518,6 @@ fun SettingsScreen(
                                                     marqueeFilenames = isChecked,
                                                     doubleLineFilenames = newDouble
                                                 )
-                                            )
-                                        },
-                                        thumbContent = {
-                                            Icon(
-                                                imageVector = if (currentThemeState.marqueeFilenames) Icons.Default.Check else Icons.Default.Close,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(SwitchDefaults.IconSize)
                                             )
                                         },
                                         modifier = Modifier.testTag("marquee_filenames_switch")
@@ -682,6 +690,27 @@ fun CustomThemeCreatorPanel(
         mutableStateOf(themeState.customBackgroundColorHex)
     }
 
+    var isPrimaryFocused by remember { mutableStateOf(false) }
+    var isBgFocused by remember { mutableStateOf(false) }
+
+    val primaryScale by animateFloatAsState(
+        targetValue = if (isPrimaryFocused) 1.03f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "primaryScale"
+    )
+
+    val bgScale by animateFloatAsState(
+        targetValue = if (isBgFocused) 1.03f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "bgScale"
+    )
+
     val primaryParsed = remember(primaryInput) {
         try { Color(android.graphics.Color.parseColor(primaryInput)) } catch (e: Exception) { null }
     }
@@ -731,6 +760,11 @@ fun CustomThemeCreatorPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
+                .onFocusChanged { isPrimaryFocused = it.isFocused }
+                .graphicsLayer {
+                    scaleX = primaryScale
+                    scaleY = primaryScale
+                }
                 .keyboardInputField()
         )
 
@@ -761,6 +795,11 @@ fun CustomThemeCreatorPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 16.dp)
+                .onFocusChanged { isBgFocused = it.isFocused }
+                .graphicsLayer {
+                    scaleX = bgScale
+                    scaleY = bgScale
+                }
                 .keyboardInputField()
         )
 

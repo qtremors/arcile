@@ -74,6 +74,8 @@ class BrowserPreferencesRepositoryTest {
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
         assertEquals(ImageGalleryDefaultTab.PHOTOS, preferences.imageGalleryDefaultTab)
         assertEquals(true, preferences.showHiddenFiles)
+        assertEquals(true, preferences.browserScrollbarEnabled)
+        assertEquals(true, preferences.galleryScrollbarEnabled)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.pathPresentationOptions)
         assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.exactPathPresentationOptions)
     }
@@ -201,6 +203,25 @@ class BrowserPreferencesRepositoryTest {
         repository.updateShowHiddenFiles(true)
 
         assertEquals(true, repository.preferencesFlow.first().showHiddenFiles)
+    }
+
+    @Test
+    fun `browser and gallery scrollbar preferences are persisted independently`() = runBlocking {
+        val repository = BrowserPreferencesRepository(context, dataStore)
+
+        repository.updateBrowserScrollbarEnabled(false)
+        repository.updateGalleryScrollbarEnabled(true)
+
+        var preferences = repository.preferencesFlow.first()
+        assertEquals(false, preferences.browserScrollbarEnabled)
+        assertEquals(true, preferences.galleryScrollbarEnabled)
+
+        repository.updateBrowserScrollbarEnabled(true)
+        repository.updateGalleryScrollbarEnabled(false)
+
+        preferences = repository.preferencesFlow.first()
+        assertEquals(true, preferences.browserScrollbarEnabled)
+        assertEquals(false, preferences.galleryScrollbarEnabled)
     }
 
     @Test

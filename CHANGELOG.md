@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.1
-> **Last Updated:** 2026-06-21
+> **Version:** 1.2.2
+> **Last Updated:** 2026-06-22
 
 ---
+
+## [1.2.2] - 2026-06-22
+
+- **Quick Access Default Fix**: Kept WhatsApp available in Manage Quick Access while no longer pinning it to Home by default for fresh preference state.
+- **Thumbnail Cache Cleaner Accuracy**: Measured thumbnail disk usage from Coil's active disk cache directory and recalculated stats after clearing so the cleaner reliably reports `0B` when cache data is gone.
+- **Gallery Viewer Return Position**: Returned Gallery to the last image viewed in the image viewer, including grouped gallery layouts with section headers.
+- **Browser and Gallery Scrollbar Controls**: Added separate Settings toggles to disable Browser and Gallery scrollbar overlays entirely.
+- **Fast Scrollbar Expressive Polish**: Shared the scrollbar overlay between Browser and Gallery, showing a normal rounded thumb during regular scrolling and an animated 10-pointed Material Expressive "Lobate" (wavy) shape thumb (rotating dynamically as a function of scroll progress) during direct scrollbar fast-scrolling.
+- **View Switcher Expressive Design**: Updated the view switchers in bottom sheets (such as Search Filters, Gallery Options, and Sort Options) to a custom morphing expressive segmented row design, animating selected segment corners to a capsule shape (20dp radius) while retaining rounded rectangle corners (12dp radius) on unselected segments, and animating a checkmark icon to slide in upon selection.
+- **Settings Expressive Toggles**: Replaced all standard preference switches in the Settings screen with a custom spring-animated `ExpressiveSwitch` containing a morphing 7-sided cookie thumb and scaling state icons.
+- **Settings Elastic Inputs**: Refreshed Custom Theme hex input fields in the Settings screen to utilize focus-driven elastic spring scaling (1.03x pop-out animation upon receiving input focus).
+- **Release String Gate Cleanup**: Localized search filter date labels and clear actions for production string validation.
 
 ## [1.2.1] - 2026-06-21
 
