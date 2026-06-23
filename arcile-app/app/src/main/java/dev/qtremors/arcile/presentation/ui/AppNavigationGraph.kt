@@ -42,6 +42,7 @@ import dev.qtremors.arcile.feature.archive.archiveViewerScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.imagegallery.imageGalleryScreen
 import dev.qtremors.arcile.feature.imagegallery.imageViewerScreen
+import dev.qtremors.arcile.feature.imagegallery.modelViewerScreen
 import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
@@ -118,6 +119,9 @@ fun AppNavigationGraph(
                     savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
                 }
                 navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
+            }
+            extension in FileCategories.Models.extensions -> {
+                navController.navigate(AppRoutes.ModelViewer(initialPath = path))
             }
             else -> {
                 onOpenFile(path)
@@ -597,6 +601,19 @@ fun AppNavigationGraph(
                     onShareFile = { path ->
                         coroutineScope.launch {
                             dev.qtremors.arcile.presentation.utils.ShareHelper.shareFiles(context, listOf(path))
+                        }
+                    },
+                    onOpenFileWith = onOpenFileWith
+                )
+                modelViewerScreen(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() },
+                    onShareFile = { path ->
+                        coroutineScope.launch {
+                            shareFilesWithKnownModels(listOf(path), emptyList())
                         }
                     },
                     onOpenFileWith = onOpenFileWith

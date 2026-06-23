@@ -13,7 +13,7 @@ object FileCategories {
     val Images = CategoryDef(
         name = "Images",
         mimePrefix = "image/",
-        extensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico", "tiff", "tif", "raw")
+        extensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico", "raw")
     )
 
     val Videos = CategoryDef(
@@ -49,7 +49,13 @@ object FileCategories {
         extensions = setOf("apk", "xapk", "apks", "apkm")
     )
 
-    val all = listOf(Images, Videos, Audio, Documents, Archives, APKs)
+    val Models = CategoryDef(
+        name = "Models",
+        mimePrefix = "model/",
+        extensions = setOf("glb")
+    )
+
+    val all = listOf(Images, Videos, Audio, Documents, Archives, APKs, Models)
 
     fun getCategoryForFile(extension: String, mimeType: String?): CategoryDef? {
         var normalizedMime = mimeType?.lowercase()
@@ -57,13 +63,14 @@ object FileCategories {
 
         if (normalizedMime == null && normalizedExt.isNotEmpty()) {
             normalizedMime = when (normalizedExt) {
-                "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico", "tiff", "tif" -> "image/$normalizedExt"
+                "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico" -> "image/$normalizedExt"
                 "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "3g2",
                 "ts", "mts", "m2ts", "mpeg", "mpg", "vob", "ogv" -> "video/$normalizedExt"
                 "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus", "amr" -> "audio/$normalizedExt"
                 "pdf" -> "application/pdf"
                 "zip" -> "application/zip"
                 "apk" -> "application/vnd.android.package-archive"
+                "glb" -> "model/gltf-binary"
                 else -> java.net.URLConnection.guessContentTypeFromName("file.$normalizedExt")?.lowercase()
             }
         }

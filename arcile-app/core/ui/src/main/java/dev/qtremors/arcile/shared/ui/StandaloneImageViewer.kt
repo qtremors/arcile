@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -86,6 +87,7 @@ fun StandaloneImageViewer(
     var metadataVisible by remember { mutableStateOf(false) }
     var rotation by remember(reference) { mutableFloatStateOf(0f) }
     var metadata by remember(reference) { mutableStateOf<ImageFileMetadata?>(null) }
+    var renderFailed by remember(reference) { mutableStateOf(false) }
     val marqueeEnabled = LocalMarqueeFilenames.current
 
     LaunchedEffect(reference) {
@@ -107,6 +109,8 @@ fun StandaloneImageViewer(
                     .build(),
                 contentDescription = title,
                 contentScale = ContentScale.Fit,
+                onSuccess = { renderFailed = false },
+                onError = { renderFailed = true },
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(reference) {
@@ -114,6 +118,31 @@ fun StandaloneImageViewer(
                     }
                     .graphicsLayer { rotationZ = rotation }
             )
+
+            if (renderFailed && !metadataVisible) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.Black.copy(alpha = 0.7f))
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = stringResource(R.string.cannot_render_image),
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = onOpenWith) {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.image_gallery_open_with))
+                    }
+                }
+            }
 
             AnimatedVisibility(
                 visible = uiVisible && !metadataVisible,

@@ -161,14 +161,21 @@ object ExternalFileAccessHelper {
     }
 
     private fun mimeTypeFor(file: File): String =
-        MimeTypeMap.getSingleton()
-            .getMimeTypeFromExtension(file.extension.lowercase())
-            ?: "*/*"
+        when (file.extension.lowercase()) {
+            "glb" -> "model/gltf-binary"
+            else -> MimeTypeMap.getSingleton()
+                .getMimeTypeFromExtension(file.extension.lowercase())
+                ?: "*/*"
+        }
 
     private fun mimeTypeForPath(path: String, fallback: String? = null): String =
         fallback
-            ?: MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(path.substringAfterLast('.', "").lowercase())
+            ?: path.substringAfterLast('.', "").lowercase().let { extension ->
+                when (extension) {
+                    "glb" -> "model/gltf-binary"
+                    else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+                }
+            }
             ?: "*/*"
 
     private fun isContentReference(reference: String): Boolean =

@@ -37,6 +37,7 @@ enum class FileIconType {
     Image,
     Video,
     Audio,
+    Model,
     Apk,
     Generic
 }
@@ -52,6 +53,7 @@ fun FileModel.toFileRowUiModel(
         normalizedExtension in FileCategories.Images.extensions -> FileIconType.Image
         normalizedExtension in FileCategories.Videos.extensions -> FileIconType.Video
         normalizedExtension in FileCategories.Audio.extensions -> FileIconType.Audio
+        normalizedExtension in FileCategories.Models.extensions -> FileIconType.Model
         normalizedExtension in FileCategories.APKs.extensions -> FileIconType.Apk
         else -> FileIconType.Generic
     }

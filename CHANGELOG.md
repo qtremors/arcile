@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.2
-> **Last Updated:** 2026-06-22
+> **Version:** 1.2.3
+> **Last Updated:** 2026-06-23
 
 ---
+
+## [1.2.3] - 2026-06-23
+
+- **Model Viewer Implementation**: Added GLB/model file recognition, in-app and standalone model viewer routing, SceneView/Filament rendering support, viewer metadata and share/open-with actions, image-viewer-aligned chrome, zoom and brightness controls, and Theme/White/Black background choices.
 
 ## [1.2.2] - 2026-06-22
 

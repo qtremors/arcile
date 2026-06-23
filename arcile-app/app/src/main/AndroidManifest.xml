@@ -78,6 +78,42 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ModelViewerActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:process=":modelviewer"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="model/gltf-binary" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".FileOpenActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.glb" />
+                <data android:scheme="content" android:host="*" android:pathSuffix=".glb" />
+                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.glb" />
+                <data android:scheme="file" android:host="*" android:pathSuffix=".glb" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

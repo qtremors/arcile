@@ -35,6 +35,7 @@ object AppRoutes {
         val volumeId: String? = null,
         val returnToBrowserPage: Boolean = false
     )
+    @Serializable data class ModelViewer(val initialPath: String)
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner
     @Serializable object StorageManagement

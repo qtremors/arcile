@@ -299,6 +299,77 @@ class SaveToArcileActivityTest {
         val activity = matches.first { it.activityInfo.name == ImageViewerActivity::class.java.name }.activityInfo
         assertEquals("${context.packageName}:imageviewer", activity.processName)
     }
+
+    @Test
+    fun `standalone model viewer resolves valid glb view intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/model.glb")
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "model/gltf-binary")
+        }
+
+        val target = resolveStandaloneModelTarget(context, intent)
+
+        assertEquals(uri.toString(), target?.reference)
+        assertEquals("model/gltf-binary", target?.mimeType)
+    }
+
+    @Test
+    fun `standalone model viewer resolves glb extension with generic binary mime`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/model.glb")
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/octet-stream")
+
+        val target = resolveStandaloneModelTarget(context, intent)
+
+        assertEquals(uri.toString(), target?.reference)
+        assertEquals("model/gltf-binary", target?.mimeType)
+    }
+
+    @Test
+    fun `standalone model viewer rejects missing uri and unsupported mime`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        assertEquals(null, resolveStandaloneModelTarget(context, Intent(Intent.ACTION_VIEW).setType("model/gltf-binary")))
+        assertEquals(
+            null,
+            resolveStandaloneModelTarget(
+                context,
+                Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://example/file.txt"), "text/plain")
+            )
+        )
+    }
+
+    @Test
+    fun `manifest exposes standalone model viewer in separate process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://example/model.glb"), "model/gltf-binary"),
+            0
+        )
+
+        val activity = matches.first { it.activityInfo.name == ModelViewerActivity::class.java.name }.activityInfo
+        assertEquals("${context.packageName}:modelviewer", activity.processName)
+    }
+
+    @Test
+    fun `generic file opener dispatches glb to model viewer`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://example/model.glb"), "application/octet-stream")
+
+        assertEquals(ModelViewerActivity::class.java, resolveStandaloneViewerActivity(context, intent))
+    }
+
+    @Test
+    fun `manifest exposes generic file opener for binary fallback`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://example/model.glb"), "application/octet-stream"),
+            0
+        )
+
+        assertTrue(matches.any { it.activityInfo.name == FileOpenActivity::class.java.name })
+    }
 }
 
 private fun testSaveVolume(root: File) = StorageVolume(

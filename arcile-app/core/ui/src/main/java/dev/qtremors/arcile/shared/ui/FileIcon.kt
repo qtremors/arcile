@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.FolderZip
 import androidx.compose.material.icons.outlined.Html
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Javascript
+import androidx.compose.material.icons.outlined.ViewInAr
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Slideshow
 import androidx.compose.material.icons.outlined.TableView
@@ -40,7 +41,10 @@ fun getFileIconVector(file: FileModel): ImageVector {
         "ts", "mts", "m2ts", "mpeg", "mpg", "vob", "ogv" -> Icons.Outlined.VideoFile
         
         // Image
-        "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic", "heif", "ico", "tiff", "tif", "raw" -> Icons.Outlined.Image
+        "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "heic", "heif", "ico", "raw" -> Icons.Outlined.Image
+
+        // 3D models
+        "glb" -> Icons.Outlined.ViewInAr
         
         // Code / Web
         "html", "htm" -> Icons.Outlined.Html

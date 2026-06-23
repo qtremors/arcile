@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -97,6 +98,7 @@ fun ZoomableImageViewer(
     onTap: () -> Unit,
     onScaleChanged: (Float) -> Unit,
     onSwipeUp: () -> Unit,
+    onOpenWith: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -136,6 +138,7 @@ fun ZoomableImageViewer(
             .data(requestData)
             .build()
     }
+    var renderFailed by remember(file.absolutePath) { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -338,6 +341,8 @@ fun ZoomableImageViewer(
             model = request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
+            onSuccess = { renderFailed = false },
+            onError = { renderFailed = true },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -348,6 +353,31 @@ fun ZoomableImageViewer(
                     rotationZ = animatedRotation
                 }
         )
+
+        if (renderFailed) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.cannot_render_image),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onOpenWith) {
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.image_gallery_open_with))
+                }
+            }
+        }
     }
 }
 

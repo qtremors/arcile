@@ -128,6 +128,7 @@ class ArchitectureBoundaryTest {
             "browser.ui.BrowserScreen",
             "imagegallery.imageGalleryScreen",
             "imagegallery.imageViewerScreen",
+            "imagegallery.modelViewerScreen",
             "quickaccess.QuickAccessViewModel",
             "quickaccess.quickAccessScreen",
             "recentfiles.recentFilesScreen",

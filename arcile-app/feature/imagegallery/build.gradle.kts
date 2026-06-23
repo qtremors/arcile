@@ -60,6 +60,10 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.filament.android)
+    implementation(libs.filament.gltfio.android)
+    implementation(libs.filament.utils.android)
+    implementation(libs.sceneview)
 
     testImplementation(project(":core:testing"))
     testImplementation(libs.junit)

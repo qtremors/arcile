@@ -312,7 +312,8 @@ fun ImageViewerScreen(
                                 },
                                 onSwipeUp = {
                                     viewModel.setViewerMetadataVisible(file.absolutePath, visible = true)
-                                }
+                                },
+                                onOpenWith = { onOpenWith(file.absolutePath) }
                             )
                         } else {
                             MetadataSheet(
