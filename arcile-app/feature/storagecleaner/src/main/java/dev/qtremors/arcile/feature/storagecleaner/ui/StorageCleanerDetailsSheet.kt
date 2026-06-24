@@ -43,6 +43,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.bounceClickable
 import dev.qtremors.arcile.ui.theme.sheet
@@ -99,7 +100,9 @@ internal fun CleanerDetailsSheet(
     rules: StorageCleanerRules = StorageCleanerRules(),
     onUpdateSectionRule: (CleanerGroupType, CleanerSectionRule) -> Unit = { _, _ -> },
     onResetSectionRule: (CleanerGroupType) -> Unit = {},
-    onIgnorePath: (String) -> Unit = {}
+    onIgnorePath: (String) -> Unit = {},
+    backProgress: Float = 0f,
+    isBackPredicting: Boolean = false
 ) {
     var showRiskInfo by remember { mutableStateOf(false) }
     var showSectionSettings by remember { mutableStateOf(false) }
@@ -114,6 +117,12 @@ internal fun CleanerDetailsSheet(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
+                .graphicsLayer {
+                    if (isBackPredicting) {
+                        translationY = backProgress * size.height.toFloat()
+                        alpha = 1f - backProgress
+                    }
+                }
         ) {
             Row(
                 modifier = Modifier

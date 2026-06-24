@@ -222,42 +222,55 @@ fun BrowserState.reduce(event: BrowserNavigationEvent): BrowserState = when (eve
         isPropertiesLoading = false,
         properties = null
     ).withUpdatedDisplayState()
-    is BrowserNavigationEvent.OpenDirectory -> copy(
-        archiveContext = null,
-        pendingArchiveExtraction = null,
-        currentPath = event.path,
-        currentVolumeId = event.volumeId,
-        isVolumeRootScreen = false,
-        isCategoryScreen = false,
-        activeCategoryName = "",
-        selectedFolderTabPath = null,
-        files = persistentListOf(),
-        folderStatsByPath = persistentMapOf(),
-        folderStatsLoadingPaths = persistentSetOf(),
-        selectedFiles = persistentSetOf(),
-        selectedFilesTotalSize = 0L,
-        isPropertiesVisible = false,
-        isPropertiesLoading = false,
-        properties = null
-    ).withUpdatedDisplayState()
-    is BrowserNavigationEvent.OpenCategory -> copy(
-        archiveContext = null,
-        pendingArchiveExtraction = null,
-        currentPath = "",
-        currentVolumeId = event.volumeId,
-        isVolumeRootScreen = false,
-        isCategoryScreen = true,
-        activeCategoryName = event.categoryName,
-        selectedFolderTabPath = null,
-        files = persistentListOf(),
-        folderStatsByPath = persistentMapOf(),
-        folderStatsLoadingPaths = persistentSetOf(),
-        selectedFiles = persistentSetOf(),
-        selectedFilesTotalSize = 0L,
-        isPropertiesVisible = false,
-        isPropertiesLoading = false,
-        properties = null
-    ).withUpdatedDisplayState()
+    is BrowserNavigationEvent.OpenDirectory -> {
+        val preserveSelection = archiveContext == null &&
+            !isVolumeRootScreen &&
+            !isCategoryScreen &&
+            currentPath == event.path &&
+            currentVolumeId == event.volumeId
+        copy(
+            archiveContext = null,
+            pendingArchiveExtraction = null,
+            currentPath = event.path,
+            currentVolumeId = event.volumeId,
+            isVolumeRootScreen = false,
+            isCategoryScreen = false,
+            activeCategoryName = "",
+            selectedFolderTabPath = null,
+            files = if (preserveSelection) files else persistentListOf(),
+            folderStatsByPath = if (preserveSelection) folderStatsByPath else persistentMapOf(),
+            folderStatsLoadingPaths = if (preserveSelection) folderStatsLoadingPaths else persistentSetOf(),
+            selectedFiles = if (preserveSelection) selectedFiles else persistentSetOf(),
+            selectedFilesTotalSize = if (preserveSelection) selectedFilesTotalSize else 0L,
+            isPropertiesVisible = false,
+            isPropertiesLoading = false,
+            properties = null
+        ).withUpdatedDisplayState()
+    }
+    is BrowserNavigationEvent.OpenCategory -> {
+        val preserveSelection = archiveContext == null &&
+            isCategoryScreen &&
+            activeCategoryName == event.categoryName &&
+            currentVolumeId == event.volumeId
+        copy(
+            archiveContext = null,
+            pendingArchiveExtraction = null,
+            currentPath = "",
+            currentVolumeId = event.volumeId,
+            isVolumeRootScreen = false,
+            isCategoryScreen = true,
+            activeCategoryName = event.categoryName,
+            selectedFolderTabPath = null,
+            files = if (preserveSelection) files else persistentListOf(),
+            folderStatsByPath = if (preserveSelection) folderStatsByPath else persistentMapOf(),
+            folderStatsLoadingPaths = if (preserveSelection) folderStatsLoadingPaths else persistentSetOf(),
+            selectedFiles = if (preserveSelection) selectedFiles else persistentSetOf(),
+            selectedFilesTotalSize = if (preserveSelection) selectedFilesTotalSize else 0L,
+            isPropertiesVisible = false,
+            isPropertiesLoading = false,
+            properties = null
+        ).withUpdatedDisplayState()
+    }
     is BrowserNavigationEvent.SelectFolderTab -> copy(
         selectedFolderTabPath = event.path,
         selectedFiles = persistentSetOf(),

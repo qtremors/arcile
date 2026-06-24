@@ -87,6 +87,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.GridView
@@ -184,10 +185,12 @@ import kotlinx.coroutines.flow.SharedFlow
 fun GalleryImageItem(
     file: FileModel,
     isSelected: Boolean,
+    isSelectionMode: Boolean = false,
     aspectRatio: Float,
     showDetails: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    onOpenDirectly: () -> Unit = onClick,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -254,6 +257,14 @@ fun GalleryImageItem(
                                 )
                             }
                         }
+                    }
+                    if (isSelectionMode) {
+                        GalleryOpenImageAction(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp),
+                            onClick = onOpenDirectly
+                        )
                     }
                 }
 
@@ -329,6 +340,14 @@ fun GalleryImageItem(
                         )
                     }
                 }
+            }
+            if (isSelectionMode) {
+                GalleryOpenImageAction(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(8.dp),
+                    onClick = onOpenDirectly
+                )
             }
         }
     }
@@ -416,9 +435,11 @@ fun GalleryThumbnail(
 fun GalleryImageListItem(
     file: FileModel,
     isSelected: Boolean,
+    isSelectionMode: Boolean = false,
     zoom: Float,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    onOpenDirectly: () -> Unit = onClick,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -513,6 +534,16 @@ fun GalleryImageListItem(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 )
             }
+            if (isSelectionMode) {
+                GalleryOpenImageAction(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp),
+                    onClick = onOpenDirectly,
+                    size = 28.dp,
+                    iconSize = 16.dp
+                )
+            }
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -534,6 +565,32 @@ fun GalleryImageListItem(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GalleryOpenImageAction(
+    modifier: Modifier,
+    onClick: () -> Unit,
+    size: androidx.compose.ui.unit.Dp = 34.dp,
+    iconSize: androidx.compose.ui.unit.Dp = 20.dp
+) {
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shadowElevation = 3.dp,
+        tonalElevation = 3.dp,
+        modifier = modifier.size(size)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                contentDescription = stringResource(R.string.open_image),
+                modifier = Modifier.size(iconSize)
             )
         }
     }

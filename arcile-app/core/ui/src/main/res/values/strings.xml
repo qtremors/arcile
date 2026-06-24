@@ -226,6 +226,7 @@
     <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
     <string name="open_containing_folder">Open containing folder</string>
     <string name="open">Open</string>
+    <string name="open_image">Open image</string>
     <string name="file_type_folder">FOLDER</string>
     <string name="file_type_generic">FILE</string>
     <string name="unknown_folder">Unknown</string>

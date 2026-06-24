@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -46,6 +47,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.basicMarquee
 import dev.qtremors.arcile.ui.theme.LocalDoubleLineFilenames
@@ -56,6 +59,7 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
@@ -85,6 +89,7 @@ fun FileGrid(
     thumbnailLoadingPaused: Boolean = false,
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     folderStatsLoadingPaths: Set<String> = emptySet(),
+    openImageFromThumbnailInSelectionMode: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
     val formatter = rememberDateTimeFormatter()
@@ -112,6 +117,7 @@ fun FileGrid(
         showDetails = showDetails,
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         folderStatsLoadingPaths = folderStatsLoadingPaths,
+        openImageFromThumbnailInSelectionMode = openImageFromThumbnailInSelectionMode,
         contentPadding = contentPadding
     )
 }
@@ -132,6 +138,7 @@ fun FileGridRows(
     showDetails: Boolean = true,
     thumbnailLoadingPaused: Boolean = false,
     folderStatsLoadingPaths: Set<String> = emptySet(),
+    openImageFromThumbnailInSelectionMode: Boolean = false,
     contentPadding: PaddingValues = PaddingValues(16.dp)
 ) {
     val haptics = rememberArcileHaptics()
@@ -181,6 +188,7 @@ fun FileGridRows(
                 itemIndex = index,
                 visibleRange = visibleRange,
                 thumbnailPolicy = thumbnailPolicy,
+                openImageFromThumbnailInSelectionMode = openImageFromThumbnailInSelectionMode,
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
@@ -234,7 +242,8 @@ fun FileGridItem(
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false,
     onOpenDirectly: () -> Unit = {},
-    onToggleSelectionDirectly: () -> Unit = {}
+    onToggleSelectionDirectly: () -> Unit = {},
+    openImageFromThumbnailInSelectionMode: Boolean = false
 ) {
     val formatter = rememberDateTimeFormatter()
     val row = remember(file, formattedDate, folderStats) {
@@ -256,7 +265,8 @@ fun FileGridItem(
         thumbnailLoadingPaused = thumbnailLoadingPaused,
         isFolderStatsLoading = isFolderStatsLoading,
         onOpenDirectly = onOpenDirectly,
-        onToggleSelectionDirectly = onToggleSelectionDirectly
+        onToggleSelectionDirectly = onToggleSelectionDirectly,
+        openImageFromThumbnailInSelectionMode = openImageFromThumbnailInSelectionMode
     )
 }
 
@@ -277,7 +287,8 @@ fun FileGridItem(
     thumbnailPolicy: ThumbnailPolicy = remember { ThumbnailPolicy() },
     isFolderStatsLoading: Boolean = false,
     onOpenDirectly: () -> Unit = {},
-    onToggleSelectionDirectly: () -> Unit = {}
+    onToggleSelectionDirectly: () -> Unit = {},
+    openImageFromThumbnailInSelectionMode: Boolean = false
 ) {
     val file = row.file
     val context = LocalContext.current
@@ -293,6 +304,10 @@ fun FileGridItem(
     )
     val subtitleText = row.displaySubtitle(isFolderStatsLoading)
     val itemShape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
+    val shouldOpenThumbnailInSelection = openImageFromThumbnailInSelectionMode &&
+        isInSelectionMode &&
+        !file.isDirectory &&
+        FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Images
 
     Card(
         modifier = modifier
@@ -326,7 +341,17 @@ fun FileGridItem(
         )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            Box {
+            Box(
+                modifier = Modifier.then(
+                    if (shouldOpenThumbnailInSelection) {
+                        Modifier
+                            .semantics { contentDescription = context.getString(R.string.open_image) }
+                            .clickable(onClick = onOpenDirectly)
+                    } else {
+                        Modifier
+                    }
+                )
+            ) {
                 val shouldLoadThumbnail = row.canShowThumbnail && thumbnailPolicy.shouldLoad(
                     ThumbnailPolicyInput(
                         userEnabled = showThumbnails,

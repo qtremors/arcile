@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.shared.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -96,8 +97,20 @@ fun StandaloneImageViewer(
         }
     }
 
-    BackHandler(enabled = metadataVisible) {
-        metadataVisible = false
+    var metadataBackProgress by remember { mutableStateOf(0f) }
+    var isMetadataBackPredicting by remember { mutableStateOf(false) }
+
+    PredictiveBackHandler(enabled = metadataVisible) { progressFlow ->
+        isMetadataBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                metadataBackProgress = backEvent.progress
+            }
+            metadataVisible = false
+        } finally {
+            isMetadataBackPredicting = false
+            metadataBackProgress = 0f
+        }
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
@@ -152,17 +165,30 @@ fun StandaloneImageViewer(
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
             ) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.5f))
+                            .size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                            tint = Color.White
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column(
                         modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(horizontal = 4.dp)
-                            .fillMaxWidth()
+                            .weight(1f)
                             .clip(RoundedCornerShape(20.dp))
                             .background(Color.Black.copy(alpha = 0.5f))
                             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -274,7 +300,12 @@ fun StandaloneImageViewer(
                     sizeBytes = sizeBytes,
                     mimeType = mimeType,
                     metadata = metadata,
-                    onDismiss = { metadataVisible = false }
+                    onDismiss = { metadataVisible = false },
+                    modifier = Modifier.graphicsLayer {
+                        if (isMetadataBackPredicting) {
+                            translationY = metadataBackProgress * size.height.toFloat()
+                        }
+                    }
                 )
             }
         }
@@ -288,10 +319,11 @@ private fun StandaloneImageMetadata(
     sizeBytes: Long,
     mimeType: String?,
     metadata: ImageFileMetadata?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(

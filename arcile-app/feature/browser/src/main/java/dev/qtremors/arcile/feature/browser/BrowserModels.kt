@@ -156,8 +156,21 @@ data class BrowserState(
     val selectedFilesTotalSize: Long = 0L,
     val archiveContext: BrowserArchiveContext? = null,
     val pendingArchiveExtraction: PendingArchiveExtraction? = null,
+    val pendingRevealFilePath: String? = null,
+    val pendingRevealReady: Boolean = false,
     val displayState: BrowserDisplayState = BrowserDisplayState()
 )
+
+@androidx.compose.runtime.Immutable
+data class BrowserScrollPosition(
+    val listIndex: Int,
+    val listOffset: Int,
+    val gridIndex: Int,
+    val gridOffset: Int
+)
+
+fun BrowserState.scrollPositionKey(): String =
+    "${browserSortOption}|$currentPath|${activeCategoryName.orEmpty()}|${selectedFolderTabPath.orEmpty()}|${archiveContext?.archivePath.orEmpty()}|${archiveContext?.entryPrefix.orEmpty()}"
 
 private const val ALL_FILES_LABEL = "All files"
 

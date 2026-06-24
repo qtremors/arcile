@@ -87,6 +87,7 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet
 import dev.qtremors.arcile.shared.ui.settings.accentLabelRes
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
+import androidx.activity.compose.PredictiveBackHandler
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.ui.theme.spacing
 import kotlin.math.absoluteValue
@@ -139,6 +140,21 @@ fun OnboardingScreen(
                 page = targetPage,
                 animationSpec = tween(durationMillis = 420)
             )
+        }
+    }
+
+    PredictiveBackHandler(enabled = pagerState.currentPage > 0) { progressFlow ->
+        var completed = false
+        try {
+            progressFlow.collect { backEvent ->
+                pagerState.scrollToPage(page = 0, pageOffsetFraction = 1f - backEvent.progress)
+            }
+            completed = true
+            onBack()
+        } finally {
+            if (!completed) {
+                pagerState.animateScrollToPage(1)
+            }
         }
     }
 

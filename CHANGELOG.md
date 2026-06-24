@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.3
+> **Version:** 1.2.4
 > **Last Updated:** 2026-06-23
 
 ---
+
+## [1.2.4] - 2026-06-23
+
+- **Image Viewer Navigation and Selection Fixes**: Preserved Browser breadcrumbs, active selection, and far-scroll position when returning from Browser-opened images by routing viewer back gestures through the Browser-return path, suppressing Browser auto-restore reloads after viewer pops, and avoiding same-folder list clearing during refreshes; removed user-visible image viewer zoom-in and zoom-out caps with improved double-tap targeting; allowed Browser image thumbnails to open the viewer during selection mode while the rest of the row or card keeps toggling selection; and added visible Gallery photo open icons during selection mode.
+- **Browser Viewer Back Stack Hardening**: Prevented Browser page restores after returning from the image viewer from clearing active folder history, and skipped redundant persistent-location restores when the Browser is already showing a real folder/category/archive/root location so Back from a viewed image returns to the containing folder before Home.
+- **Browser Folder Scroll Restoration**: Preserved Browser list and grid scroll positions by folder/category/archive location after opening images or other files, kept the Main pager from recreating on Home during viewer returns, and explicitly reveals the opened file when returning.
+- **Settings Toggle Shape Simplification**: Replaced the custom lobed Settings toggle thumb with a simple circular thumb while keeping the existing animated check and close indicators.
 
 ## [1.2.3] - 2026-06-23
 

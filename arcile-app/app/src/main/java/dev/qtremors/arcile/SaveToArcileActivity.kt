@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -595,6 +597,27 @@ private fun SaveToArcileScreen(
     var isSaving by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+
+    PredictiveBackHandler(enabled = currentDir != null) { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            val parent = currentDir?.parentFile
+            if (parent != null) {
+                currentDir = parent
+            } else {
+                currentDir = null
+            }
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
+        }
+    }
+
     LaunchedEffect(Unit) {
         val loadedVolumes = loadVolumes()
         volumes = loadedVolumes
@@ -701,7 +724,14 @@ private fun SaveToArcileScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(vertical = 8.dp),
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            if (isBackPredicting) {
+                                translationX = backProgress * 100.dp.toPx()
+                                alpha = 1f - backProgress * 0.5f
+                            }
+                        }
                 ) {
                     item {
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {

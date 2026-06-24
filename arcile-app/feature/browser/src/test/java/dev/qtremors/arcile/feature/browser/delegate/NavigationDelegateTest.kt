@@ -134,9 +134,39 @@ class NavigationDelegateTest {
     }
 
     @Test
+    fun `openFileBrowser same-folder restore preserves folder history after viewer return`() = testScope.runTest {
+        every { browserPreferencesRepository.preferencesFlow } returns kotlinx.coroutines.flow.flowOf(
+            dev.qtremors.arcile.core.storage.domain.BrowserPreferences(
+                lastOpenedPath = "/storage/emulated/0/Pictures/Trip",
+                lastOpenedVolumeId = "vol1"
+            )
+        )
+        repository.filesByPath = mapOf(
+            "/storage/emulated/0/Pictures" to listOf(
+                FileModel("Trip", "/storage/emulated/0/Pictures/Trip", 0L, 0L, true, "", false)
+            ),
+            "/storage/emulated/0/Pictures/Trip" to listOf(
+                FileModel("photo.jpg", "/storage/emulated/0/Pictures/Trip/photo.jpg", 0L, 0L, false, "jpg", false)
+            )
+        )
+
+        delegate.navigateToSpecificFolder("/storage/emulated/0/Pictures", seedInitialPathHistory = false)
+        advanceUntilIdle()
+        delegate.navigateToFolder("/storage/emulated/0/Pictures/Trip")
+        advanceUntilIdle()
+
+        delegate.openFileBrowser(restorePersistentLocation = true)
+        advanceUntilIdle()
+
+        assertTrue(delegate.navigateBack(allowVolumeRootFallback = false))
+        advanceUntilIdle()
+        assertEquals("/storage/emulated/0/Pictures", state.value.currentPath)
+    }
+
+    @Test
     fun `navigateBack returns false when history is empty`() = testScope.runTest {
         state.value = state.value.copy(
-            currentPath = "/storage/emulated/0/some/path"
+            currentPath = "/storage/emulated/0"
         )
         // history is empty by default because we just instantiated the delegate
 
@@ -144,6 +174,21 @@ class NavigationDelegateTest {
         advanceUntilIdle()
 
         assertFalse(result)
+    }
+
+    @Test
+    fun `navigateBack falls back to parent folder when history is empty in main browser`() = testScope.runTest {
+        repository.filesByPath = mapOf("/storage/emulated/0/Pictures" to emptyList())
+        state.value = state.value.copy(
+            currentPath = "/storage/emulated/0/Pictures/Images",
+            currentVolumeId = "vol1"
+        )
+
+        val result = delegate.navigateBack()
+        advanceUntilIdle()
+
+        assertTrue(result)
+        assertEquals("/storage/emulated/0/Pictures", state.value.currentPath)
     }
 
     @Test
@@ -225,7 +270,7 @@ class NavigationDelegateTest {
         advanceUntilIdle()
 
         assertEquals("/storage/emulated/0/Download", state.value.currentPath)
-        assertFalse(delegate.navigateBack())
+        assertFalse(delegate.navigateBack(allowVolumeRootFallback = false))
     }
 
     @Test

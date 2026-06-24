@@ -176,69 +176,71 @@ fun RecentFilesScreen(
 
     val filesToDisplay = if (showSearchBar) state.searchResults else state.displayedRecentFiles
     Scaffold(
-        modifier = Modifier.graphicsLayer {
-            if (isBackPredicting) {
-                val scale = 1f - (backProgress * 0.08f)
-                scaleX = scale
-                scaleY = scale
-                translationX = backProgress * 100.dp.toPx()
-                alpha = 1f - (backProgress * 0.4f)
-            }
-        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
-            when {
-                isSelectionMode -> RecentSelectionTopBar(
-                    selectedCount = state.selectedFiles.size,
-                    selectedSize = dev.qtremors.arcile.utils.formatFileSize(state.selectedFilesTotalSize),
-                    onClearSelection = onClearSelection
-                )
-                showSearchBar -> Column {
-                    SearchTopBar(
-                        query = state.searchQuery,
-                        onQueryChange = onSearchQueryChange,
-                        onClose = {
-                            showSearchBar = false
-                            onClearSearch()
-                        },
-                        onFilterClick = { showFilterSheet = true },
-                        placeholder = stringResource(R.string.search_recent_files_placeholder)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        if (isBackPredicting) {
+                            translationY = -backProgress * size.height.toFloat()
+                            alpha = 1f - backProgress
+                        }
+                    }
+            ) {
+                when {
+                    isSelectionMode -> RecentSelectionTopBar(
+                        selectedCount = state.selectedFiles.size,
+                        selectedSize = dev.qtremors.arcile.utils.formatFileSize(state.selectedFilesTotalSize),
+                        onClearSelection = onClearSelection
                     )
-                    ActiveFiltersRow(
-                        filters = state.activeSearchFilters,
-                        onClearFilter = onSearchFiltersChange
-                    )
-                }
-                else -> Column {
-                    TopAppBar(
-                        title = { Text(stringResource(R.string.recent_files_title)) },
-                        navigationIcon = {
-                            IconButton(
-                                onClick = onNavigateBack,
-                                modifier = Modifier.clip(CircleShape)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                            }
-                        },
-                        actions = {
-                            SplitButtonGroup(
-                                actions = listOf(
-                                    ToolbarAction(
-                                        icon = Icons.Default.Search,
-                                        contentDescription = stringResource(R.string.action_search),
-                                        onClick = { showSearchBar = true }
-                                    ),
-                                    ToolbarAction(
-                                        icon = Icons.AutoMirrored.Filled.Sort,
-                                        contentDescription = stringResource(R.string.action_sort),
-                                        onClick = { showPresentationSheet = true }
+                    showSearchBar -> Column {
+                        SearchTopBar(
+                            query = state.searchQuery,
+                            onQueryChange = onSearchQueryChange,
+                            onClose = {
+                                showSearchBar = false
+                                onClearSearch()
+                            },
+                            onFilterClick = { showFilterSheet = true },
+                            placeholder = stringResource(R.string.search_recent_files_placeholder)
+                        )
+                        ActiveFiltersRow(
+                            filters = state.activeSearchFilters,
+                            onClearFilter = onSearchFiltersChange
+                        )
+                    }
+                    else -> Column {
+                        TopAppBar(
+                            title = { Text(stringResource(R.string.recent_files_title)) },
+                            navigationIcon = {
+                                IconButton(
+                                    onClick = onNavigateBack,
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                                }
+                            },
+                            actions = {
+                                SplitButtonGroup(
+                                    actions = listOf(
+                                        ToolbarAction(
+                                            icon = Icons.Default.Search,
+                                            contentDescription = stringResource(R.string.action_search),
+                                            onClick = { showSearchBar = true }
+                                        ),
+                                        ToolbarAction(
+                                            icon = Icons.AutoMirrored.Filled.Sort,
+                                            contentDescription = stringResource(R.string.action_sort),
+                                            onClick = { showPresentationSheet = true }
+                                        )
                                     )
                                 )
-                            )
-                        },
-                        scrollBehavior = scrollBehavior
-                    )
+                            },
+                            scrollBehavior = scrollBehavior
+                        )
+                    }
                 }
             }
         }
@@ -316,16 +318,27 @@ fun RecentFilesScreen(
                         }
                     }
 
-                    RecentSelectionToolbar(
-                        isVisible = isSelectionMode,
-                        selectedFiles = state.selectedFiles,
-                        contentPadding = PaddingValues(),
-                        onSelectAll = onSelectAll,
-                        onShareSelected = onShareSelected,
-                        onRequestDeleteSelected = onRequestDeleteSelected,
-                        onOpenProperties = onOpenProperties,
-                        onOpenContainingFolder = onOpenContainingFolder
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                if (isBackPredicting && isSelectionMode) {
+                                    translationY = backProgress * 150.dp.toPx()
+                                    alpha = 1f - backProgress
+                                }
+                            }
+                    ) {
+                        RecentSelectionToolbar(
+                            isVisible = isSelectionMode,
+                            selectedFiles = state.selectedFiles,
+                            contentPadding = PaddingValues(),
+                            onSelectAll = onSelectAll,
+                            onShareSelected = onShareSelected,
+                            onRequestDeleteSelected = onRequestDeleteSelected,
+                            onOpenProperties = onOpenProperties,
+                            onOpenContainingFolder = onOpenContainingFolder
+                        )
+                    }
                 }
             }
         }

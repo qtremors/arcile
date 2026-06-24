@@ -218,79 +218,81 @@ fun TrashScreen(
 
     Scaffold(
         modifier = Modifier
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
-            .graphicsLayer {
-                if (isBackPredicting) {
-                    val scale = 1f - (backProgress * 0.08f)
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = backProgress * 100.dp.toPx()
-                    alpha = 1f - (backProgress * 0.4f)
-                }
-            },
+            .nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
-            if (showSearchBar) {
-                SearchTopBar(
-                    query = state.searchQuery,
-                    onQueryChange = onSearchQueryChange,
-                    onClose = {
-                        showSearchBar = false
-                        onClearSearch()
-                    },
-                    placeholder = stringResource(R.string.search_trash_placeholder)
-                )
-            } else {
-                LargeTopAppBar(
-                    title = {
-                        Text(
-                            text = if (isSelectionMode) stringResource(R.string.selected_count, state.selectedFiles.size) else stringResource(R.string.trash_bin),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    },
-                    scrollBehavior = scrollBehavior,
-                    navigationIcon = {
-                        if (isSelectionMode) {
-                            IconButton(
-                                onClick = onClearSelection,
-                                modifier = Modifier.clip(CircleShape)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
-                            }
-                        } else {
-                            IconButton(
-                                onClick = onNavigateBack,
-                                modifier = Modifier.clip(CircleShape)
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        if (isBackPredicting) {
+                            translationY = -backProgress * size.height.toFloat()
+                            alpha = 1f - backProgress
                         }
-                    },
-                    actions = {
-                        if (!isSelectionMode) {
-                            val topActions = listOf(
-                                dev.qtremors.arcile.shared.ui.ToolbarAction(
-                                    icon = Icons.Default.Search,
-                                    contentDescription = stringResource(R.string.action_search),
-                                    onClick = { showSearchBar = true }
-                                ),
-                                dev.qtremors.arcile.shared.ui.ToolbarAction(
-                                    icon = Icons.AutoMirrored.Filled.Sort,
-                                    contentDescription = stringResource(R.string.action_sort),
-                                    onClick = { showSortDialog = true }
-                                )
-                            )
-                            dev.qtremors.arcile.shared.ui.SplitButtonGroup(actions = topActions)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = if (isSelectionMode) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
+                    }
+            ) {
+                if (showSearchBar) {
+                    SearchTopBar(
+                        query = state.searchQuery,
+                        onQueryChange = onSearchQueryChange,
+                        onClose = {
+                            showSearchBar = false
+                            onClearSearch()
+                        },
+                        placeholder = stringResource(R.string.search_trash_placeholder)
                     )
-                )
+                } else {
+                    LargeTopAppBar(
+                        title = {
+                            Text(
+                                text = if (isSelectionMode) stringResource(R.string.selected_count, state.selectedFiles.size) else stringResource(R.string.trash_bin),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        scrollBehavior = scrollBehavior,
+                        navigationIcon = {
+                            if (isSelectionMode) {
+                                IconButton(
+                                    onClick = onClearSelection,
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_selection))
+                                }
+                            } else {
+                                IconButton(
+                                    onClick = onNavigateBack,
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                                }
+                            }
+                        },
+                        actions = {
+                            if (!isSelectionMode) {
+                                val topActions = listOf(
+                                    dev.qtremors.arcile.shared.ui.ToolbarAction(
+                                        icon = Icons.Default.Search,
+                                        contentDescription = stringResource(R.string.action_search),
+                                        onClick = { showSearchBar = true }
+                                    ),
+                                    dev.qtremors.arcile.shared.ui.ToolbarAction(
+                                        icon = Icons.AutoMirrored.Filled.Sort,
+                                        contentDescription = stringResource(R.string.action_sort),
+                                        onClick = { showSortDialog = true }
+                                    )
+                                )
+                                dev.qtremors.arcile.shared.ui.SplitButtonGroup(actions = topActions)
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = if (isSelectionMode) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
             }
         },
         bottomBar = {},
@@ -364,7 +366,13 @@ fun TrashScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding),
+                    .padding(padding)
+                    .graphicsLayer {
+                        if (isBackPredicting && isSelectionMode) {
+                            translationY = backProgress * 150.dp.toPx()
+                            alpha = 1f - backProgress
+                        }
+                    },
                 contentAlignment = Alignment.BottomCenter
             ) {
                 val mainActions = mutableListOf<dev.qtremors.arcile.shared.ui.ToolbarAction>()

@@ -157,7 +157,18 @@ class NavigationDelegate(
                 if (!lastPath.isNullOrEmpty() && !lastVolumeId.isNullOrEmpty()) {
                     val volume = state.value.storageVolumes.firstOrNull { it.id == lastVolumeId }
                     if (volume != null) {
-                        loadDirectory(lastPath, lastVolumeId, clearHistory = true, errorMessage = errorMessage)
+                        val alreadyAtRestoredLocation =
+                            state.value.archiveContext == null &&
+                                !state.value.isVolumeRootScreen &&
+                                !state.value.isCategoryScreen &&
+                                state.value.currentPath == lastPath &&
+                                state.value.currentVolumeId == lastVolumeId
+                        loadDirectory(
+                            lastPath,
+                            lastVolumeId,
+                            clearHistory = !alreadyAtRestoredLocation,
+                            errorMessage = errorMessage
+                        )
                         return@launch
                     }
                 }
@@ -313,6 +324,18 @@ class NavigationDelegate(
             }
         }
 
+        if (allowVolumeRootFallback) {
+            val currentPath = state.value.currentPath.takeIf { it.isNotBlank() }
+            val volume = currentPath?.let(::findVolumeForPath)
+            val parentPath = currentPath
+                ?.let { File(it).parent?.normalizeStorageSeparators() }
+                ?.takeIf { it.isNotBlank() && volume != null && currentPath != volume.path && it.startsWith(volume.path) }
+            if (parentPath != null && volume != null) {
+                loadDirectory(parentPath, volume.id, clearHistory = false)
+                return true
+            }
+        }
+
         if (allowVolumeRootFallback && !state.value.isVolumeRootScreen && state.value.storageVolumes.size > 1) {
             openVolumeRoots()
             return true
@@ -400,6 +423,11 @@ class NavigationDelegate(
             openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
             return
         }
+        val preserveCurrentListing = state.value.archiveContext == null &&
+            !state.value.isVolumeRootScreen &&
+            !state.value.isCategoryScreen &&
+            state.value.currentPath == path &&
+            state.value.currentVolumeId == resolvedVolumeId
         if (clearHistory) {
             pathHistory.clear()
         }
@@ -419,6 +447,7 @@ class NavigationDelegate(
             if (!isActiveLoad(generation)) return@launch
             applyPresentation(prefs.getPresentationForPath(path), generation)
 
+            val loadedFiles = mutableListOf<FileModel>()
             fileBrowserRepository.listFilePages(path).collect { page ->
                 if (!isActiveLoad(generation)) return@collect
                 page.error?.let { error ->
@@ -432,10 +461,14 @@ class NavigationDelegate(
                     return@collect
                 }
 
-                val updatedFiles = if (page.pageIndex == 0) {
-                    page.files
+                if (page.pageIndex == 0) {
+                    loadedFiles.clear()
+                }
+                loadedFiles += page.files
+                val updatedFiles = if (preserveCurrentListing && !page.isComplete) {
+                    state.value.files
                 } else {
-                    state.value.files + page.files
+                    loadedFiles
                 }
                 val folderPaths = page.files.filter { it.isDirectory }.map { it.absolutePath }
                 val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)

@@ -174,13 +174,7 @@ fun ZoomableImageViewer(
                             
                             coroutineScope.launch {
                                 val rawScale = scale.value * zoomChange
-                                val constrainedScale = if (rawScale < 0.8f) {
-                                    0.8f
-                                } else if (rawScale > 5f) {
-                                    5f
-                                } else {
-                                    rawScale
-                                }
+                                val constrainedScale = rawScale.coerceIn(VIEWER_MIN_STABLE_SCALE, VIEWER_MAX_STABLE_SCALE)
                                 scale.snapTo(constrainedScale)
                                 onScaleChanged(constrainedScale)
                                 
@@ -211,8 +205,8 @@ fun ZoomableImageViewer(
                                     if (scale.value > 1.05f) {
                                         change.consume()
                                         coroutineScope.launch {
-                                            val maxX = (scale.value - 1f) * size.width / 2f
-                                            val maxY = (scale.value - 1f) * size.height / 2f
+                                            val maxX = viewerPanLimit(scale.value, size.width)
+                                            val maxY = viewerPanLimit(scale.value, size.height)
                                             
                                             val targetX = offsetX.value + delta.x
                                             val targetY = offsetY.value + delta.y
@@ -255,14 +249,14 @@ fun ZoomableImageViewer(
                     
                     if (isMultiTouch || scale.value > 1.05f) {
                         coroutineScope.launch {
-                            val targetScale = scale.value.coerceIn(1f, 4f)
+                            val targetScale = viewerReleaseScale(scale.value)
                             if (scale.value != targetScale) {
                                 launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
                                 onScaleChanged(targetScale)
                             }
                             
-                            val maxX = (targetScale - 1f) * size.width / 2f
-                            val maxY = (targetScale - 1f) * size.height / 2f
+                            val maxX = viewerPanLimit(targetScale, size.width)
+                            val maxY = viewerPanLimit(targetScale, size.height)
                             val targetX = offsetX.value.coerceIn(-maxX, maxX)
                             val targetY = offsetY.value.coerceIn(-maxY, maxY)
                             
@@ -306,8 +300,8 @@ fun ZoomableImageViewer(
                                     launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
                                     onScaleChanged(targetScale)
                                     
-                                    val maxX = (targetScale - 1f) * size.width / 2f
-                                    val maxY = (targetScale - 1f) * size.height / 2f
+                                    val maxX = viewerPanLimit(targetScale, size.width)
+                                    val maxY = viewerPanLimit(targetScale, size.height)
                                     val targetX = ((size.width / 2f - downPos.x) * (targetScale - 1f)).coerceIn(-maxX, maxX)
                                     val targetY = ((size.height / 2f - downPos.y) * (targetScale - 1f)).coerceIn(-maxY, maxY)
                                     launch { offsetX.animateTo(targetX, spring(stiffness = Spring.StiffnessMedium)) }
@@ -328,7 +322,7 @@ fun ZoomableImageViewer(
     ) {
         val dragFraction = (abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
         val backdropAlpha = (1f - dragFraction * 0.8f).coerceIn(0.1f, 1f)
-        val viewScale = (scale.value * (1f - dragFraction * 0.15f)).coerceIn(0.5f, 4f)
+        val viewScale = viewerRenderScale(scale.value, dragFraction)
 
         // Backdrop fade overlay on vertical drag
         Box(

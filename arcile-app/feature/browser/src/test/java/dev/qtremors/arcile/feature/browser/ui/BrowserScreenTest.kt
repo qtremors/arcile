@@ -548,6 +548,107 @@ class BrowserScreenTest {
 
         assertEquals(1, cancelCalls)
     }
+
+    @Test
+    fun `selection mode image row opens from thumbnail and selects elsewhere`() {
+        var openedPath: String? = null
+        var toggledPath: String? = null
+        val imagePath = "/storage/emulated/0/Pictures/photo.jpg"
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Pictures",
+                        files = listOf(
+                            browserFile("photo.jpg", imagePath),
+                            browserFile("notes.txt", "/storage/emulated/0/Pictures/notes.txt")
+                        ).toPersistentList(),
+                        selectedFiles = setOf("/storage/emulated/0/Pictures/notes.txt").toPersistentSet()
+                    ).withUpdatedDisplayState(),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = { openedPath = it },
+                    onToggleSelection = { toggledPath = it },
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("photo.jpg").performClick()
+        assertEquals(imagePath, toggledPath)
+        assertEquals(null, openedPath)
+
+        toggledPath = null
+        composeRule.onNodeWithContentDescription("Open image", useUnmergedTree = true).performClick()
+        assertEquals(imagePath, openedPath)
+        assertEquals(null, toggledPath)
+    }
+
+    @Test
+    fun `selection mode non image thumbnail still toggles selection`() {
+        var toggledPath: String? = null
+        val filePath = "/storage/emulated/0/Documents/notes.txt"
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = BrowserState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Documents",
+                        files = listOf(browserFile("notes.txt", filePath)).toPersistentList(),
+                        selectedFiles = setOf(filePath).toPersistentSet()
+                    ).withUpdatedDisplayState(),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = { toggledPath = it },
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithContentDescription("Open image", useUnmergedTree = true).assertCountEquals(0)
+        composeRule.onNodeWithText("notes.txt").performClick()
+        assertEquals(filePath, toggledPath)
+    }
 }
 
 private fun browserFile(name: String, path: String) = FileModel(

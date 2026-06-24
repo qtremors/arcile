@@ -70,6 +70,44 @@ class BrowserStateReducerTest {
     }
 
     @Test
+    fun `same directory reload preserves listing and selection`() {
+        val selected = persistentSetOf("/root/a.jpg")
+        val existingFiles = persistentListOf(file("a.jpg", "/root/a.jpg", size = 10))
+        val base = BrowserState(
+            currentPath = "/root",
+            currentVolumeId = "primary",
+            files = existingFiles,
+            folderStatsByPath = persistentMapOf("/root/folder" to FolderStats(1, 10, 0)),
+            folderStatsLoadingPaths = persistentSetOf("/root/loading"),
+            selectedFiles = selected,
+            selectedFilesTotalSize = 10L
+        ).withUpdatedDisplayState()
+
+        val reloaded = base.reduce(BrowserNavigationEvent.OpenDirectory("/root", "primary"))
+
+        assertEquals(existingFiles, reloaded.files)
+        assertEquals(base.folderStatsByPath, reloaded.folderStatsByPath)
+        assertEquals(base.folderStatsLoadingPaths, reloaded.folderStatsLoadingPaths)
+        assertEquals(selected, reloaded.selectedFiles)
+        assertEquals(10L, reloaded.selectedFilesTotalSize)
+    }
+
+    @Test
+    fun `different directory navigation clears selection`() {
+        val base = BrowserState(
+            currentPath = "/root",
+            currentVolumeId = "primary",
+            selectedFiles = persistentSetOf("/root/a.jpg"),
+            selectedFilesTotalSize = 10L
+        ).withUpdatedDisplayState()
+
+        val navigated = base.reduce(BrowserNavigationEvent.OpenDirectory("/root/child", "primary"))
+
+        assertTrue(navigated.selectedFiles.isEmpty())
+        assertEquals(0L, navigated.selectedFilesTotalSize)
+    }
+
+    @Test
     fun `search reducer updates only search fields and preserves navigation and selection`() {
         val selected = persistentSetOf("/root/a.txt")
         val base = BrowserState(

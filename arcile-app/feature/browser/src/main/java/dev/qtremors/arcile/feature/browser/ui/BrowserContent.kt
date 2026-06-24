@@ -392,6 +392,7 @@ private fun BrowserListingContent(
                 gridState = gridState,
                 minCellSize = state.browserGridMinCellSize.dp,
                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                openImageFromThumbnailInSelectionMode = state.archiveContext == null,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding,
@@ -425,6 +426,7 @@ private fun BrowserListingContent(
                 listState = listState,
                 zoom = state.browserListZoom,
                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
+                openImageFromThumbnailInSelectionMode = state.archiveContext == null,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding

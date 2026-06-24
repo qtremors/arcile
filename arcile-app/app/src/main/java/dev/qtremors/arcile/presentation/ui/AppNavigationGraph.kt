@@ -21,17 +21,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -45,7 +50,9 @@ import dev.qtremors.arcile.feature.imagegallery.imageViewerScreen
 import dev.qtremors.arcile.feature.imagegallery.modelViewerScreen
 import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.feature.browser.BrowserScrollPosition
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
+import dev.qtremors.arcile.feature.browser.scrollPositionKey
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
@@ -59,6 +66,7 @@ import javax.inject.Inject
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
@@ -82,6 +90,7 @@ fun AppNavigationGraph(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val browserViewerReturnPendingKey = "browserViewerReturnPending"
     val imageContextPathsFor: (List<FileModel>) -> ArrayList<String> = { files ->
         ArrayList(
             files.asSequence()
@@ -117,6 +126,9 @@ fun AppNavigationGraph(
                     savedStateHandle?.set(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY, contextPaths)
                 } else {
                     savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+                }
+                if (returnToBrowserPage) {
+                    savedStateHandle?.set(browserViewerReturnPendingKey, true)
                 }
                 navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
             }
@@ -196,16 +208,53 @@ fun AppNavigationGraph(
                     val showBrowserPageRequest by backStackEntry.savedStateHandle
                         .getStateFlow("showBrowserPage", false)
                         .collectAsStateWithLifecycle()
+                    val pendingBrowserPageReturn =
+                        backStackEntry.savedStateHandle.get<Boolean>("showBrowserPage") == true ||
+                            backStackEntry.savedStateHandle.get<Boolean>(browserViewerReturnPendingKey) == true
 
+                    val requestedInitialMainPage = if (pendingBrowserPageReturn || mainArgs.initialPage == 1) {
+                        1
+                    } else {
+                        mainArgs.initialPage
+                    }
+                    var savedMainPagerPage by rememberSaveable { mutableStateOf(requestedInitialMainPage) }
                     val pagerState = rememberPagerState(
-                        initialPage = mainArgs.initialPage,
+                        initialPage = savedMainPagerPage,
                         pageCount = { 2 }
                     )
-                    val browserListState = rememberLazyListState()
-                    val browserGridState = rememberLazyGridState()
+                    androidx.compose.runtime.LaunchedEffect(pagerState) {
+                        snapshotFlow { pagerState.currentPage }.collect { page ->
+                            savedMainPagerPage = page
+                        }
+                    }
+                    val browserListState = rememberSaveable(saver = LazyListState.Saver) {
+                        LazyListState()
+                    }
+                    val browserGridState = rememberSaveable(saver = LazyGridState.Saver) {
+                        LazyGridState()
+                    }
+                    val browserScrollPositionKey = browserState.scrollPositionKey()
+                    val saveBrowserScrollPosition: () -> Unit = {
+                        browserViewModel.saveScrollPosition(
+                            browserScrollPositionKey,
+                            BrowserScrollPosition(
+                                listIndex = browserListState.firstVisibleItemIndex,
+                                listOffset = browserListState.firstVisibleItemScrollOffset,
+                                gridIndex = browserGridState.firstVisibleItemIndex,
+                                gridOffset = browserGridState.firstVisibleItemScrollOffset
+                            )
+                        )
+                    }
+                    val hasActiveBrowserLocation =
+                        browserState.currentPath.isNotBlank() ||
+                            browserState.isVolumeRootScreen ||
+                            browserState.isCategoryScreen ||
+                            browserState.archiveContext != null
                     val coroutineScope = rememberCoroutineScope()
-                    var pendingExplicitBrowserEntry by remember { mutableStateOf(mainArgs.initialPage == 1) }
-                    var revealedFocusPath by remember(mainArgs.focusPath) { mutableStateOf<String?>(null) }
+                    var pendingExplicitBrowserEntry by remember {
+                        mutableStateOf(mainArgs.initialPage == 1 || pendingBrowserPageReturn)
+                    }
+                    var revealedFocusPath by rememberSaveable(mainArgs.focusPath) { mutableStateOf<String?>(null) }
                     val navigateBackFromBrowser: () -> Unit = {
                         val hasPreviousRoute = navController.previousBackStackEntry != null
                         if (!browserViewModel.navigateBack(allowVolumeRootFallback = !hasPreviousRoute)) {
@@ -270,23 +319,45 @@ fun AppNavigationGraph(
 
                     androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
                         if (pagerState.currentPage == 1) {
-                            if (pendingExplicitBrowserEntry) {
+                            if (
+                                pendingExplicitBrowserEntry ||
+                                backStackEntry.savedStateHandle.get<Boolean>("showBrowserPage") == true ||
+                                backStackEntry.savedStateHandle.get<Boolean>(browserViewerReturnPendingKey) == true
+                            ) {
                                 pendingExplicitBrowserEntry = false
-                            } else {
+                                backStackEntry.savedStateHandle[browserViewerReturnPendingKey] = false
+                            } else if (!hasActiveBrowserLocation) {
                                 browserViewModel.openFileBrowser(restorePersistentLocation = true)
                             }
                         }
                     }
 
-                    BackHandler(enabled = pagerState.currentPage == 1) {
+                    val isBrowserAtRoot = !hasActiveBrowserLocation
+                    var backProgress by remember { mutableStateOf(0f) }
+                    var isBackPredicting by remember { mutableStateOf(false) }
+
+                    BackHandler(enabled = pagerState.currentPage == 1 && !isBrowserAtRoot) {
                         navigateBackFromBrowser()
+                    }
+
+                    PredictiveBackHandler(enabled = pagerState.currentPage == 1 && isBrowserAtRoot) { progressFlow ->
+                        isBackPredicting = true
+                        try {
+                            progressFlow.collect { backEvent ->
+                                backProgress = backEvent.progress
+                            }
+                            navigateBackFromBrowser()
+                        } finally {
+                            isBackPredicting = false
+                            backProgress = 0f
+                        }
                     }
 
                     HorizontalPager(
                         state = pagerState,
                         modifier = Modifier.fillMaxSize(),
                         userScrollEnabled = !(pagerState.currentPage == 1 && browserState.isCategoryScreen),
-                        beyondViewportPageCount = 0
+                        beyondViewportPageCount = 1
                     ) { page ->
                         when (page) {
                             0 -> {
@@ -405,14 +476,29 @@ fun AppNavigationGraph(
                                 )
                             }
                             1 -> {
-                                BrowserScreen(
-                                    state = browserState,
-                                    onNavigateBack = navigateBackFromBrowser,
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .graphicsLayer {
+                                            if (isBackPredicting && pagerState.currentPage == 1) {
+                                                val scale = 1f - (backProgress * 0.08f)
+                                                scaleX = scale
+                                                scaleY = scale
+                                                translationX = backProgress * size.width.toFloat()
+                                                alpha = 1f - (backProgress * 0.4f)
+                                            }
+                                        }
+                                ) {
+                                    BrowserScreen(
+                                        state = browserState,
+                                        onNavigateBack = navigateBackFromBrowser,
                                     onNavigateTo = { browserViewModel.navigateToFolder(it) },
                                     onOpenFile = { path ->
+                                        saveBrowserScrollPosition()
                                         if (ArchiveFormat.isSupported(path)) {
                                             browserViewModel.openArchive(path)
                                         } else {
+                                            browserViewModel.requestOpenedFileReveal(path)
                                             val browserImageContext = if (browserState.browserSearchQuery.isNotBlank()) {
                                                 browserState.searchResults
                                             } else {
@@ -502,10 +588,20 @@ fun AppNavigationGraph(
                                     onFeedback = onFeedback,
                                     nativeRequestFlow = browserViewModel.nativeRequestFlow,
                                     listState = browserListState,
-                                    gridState = browserGridState
+                                    gridState = browserGridState,
+                                    scrollPositionKey = browserScrollPositionKey,
+                                    savedScrollPosition = browserViewModel.savedScrollPosition(browserScrollPositionKey),
+                                    savedScrollPositionProvider = browserViewModel::savedScrollPosition,
+                                    onSaveScrollPosition = browserViewModel::saveScrollPosition,
+                                    onClearScrollPosition = browserViewModel::clearScrollPosition,
+                                    pendingRevealFilePath = browserState.pendingRevealFilePath,
+                                    pendingRevealReady = browserState.pendingRevealReady,
+                                    onArmPendingReveal = browserViewModel::armOpenedFileReveal,
+                                    onConsumePendingReveal = browserViewModel::consumeOpenedFileReveal
                                 )
                             }
                         }
+                    }
                     }
                 }
                 composable<AppRoutes.StorageDashboard>(

@@ -448,6 +448,22 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `viewer zoom release keeps high zoom instead of old clamp`() {
+        assertEquals(0.8f, viewerReleaseScale(0.8f), 0f)
+        assertEquals(0.05f, viewerReleaseScale(0.05f), 0f)
+        assertEquals(250f, viewerReleaseScale(250f), 0f)
+        assertEquals(10_000f, viewerRenderScale(10_000f, dragFraction = 0f), 0f)
+    }
+
+    @Test
+    fun `viewer zoom out is not clamped back to fit`() {
+        assertEquals(0.25f, viewerReleaseScale(0.25f), 0f)
+        assertEquals(0.25f, viewerRenderScale(0.25f, dragFraction = 0f), 0f)
+        assertEquals(0f, viewerPanLimit(0.25f, viewportSize = 1080), 0f)
+        assertEquals(540f, viewerPanLimit(2f, viewportSize = 1080), 0f)
+    }
+
+    @Test
     fun `viewer date time uses compact display format`() {
         val timestamp = 1_781_086_440_000L
 

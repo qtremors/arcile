@@ -109,8 +109,14 @@ import kotlinx.coroutines.launch
 private const val GALLERY_PROGRESS_PILL_TERMINAL_HOLD_MS = 800L
 private const val GALLERY_PROGRESS_PILL_WIDTH_DP = 192
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+enum class GalleryBackAction {
+    ClearSelection,
+    CloseSearch,
+    CloseAlbum,
+    NavigateBack
+}
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ImageGalleryScreen(
     state: ImageGalleryState,
@@ -233,33 +239,40 @@ fun ImageGalleryScreen(
         }
     }
 
+
+
     var backProgress by remember { mutableStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
+    var backActionAtStart by remember { mutableStateOf<GalleryBackAction?>(null) }
 
     PredictiveBackHandler(enabled = true) { progressFlow ->
+        backActionAtStart = when {
+            isSelectionMode -> GalleryBackAction.ClearSelection
+            showSearchBar -> GalleryBackAction.CloseSearch
+            currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null -> GalleryBackAction.CloseAlbum
+            else -> GalleryBackAction.NavigateBack
+        }
         isBackPredicting = true
         try {
             progressFlow.collect { backEvent ->
                 backProgress = backEvent.progress
             }
-            when {
-                isSelectionMode -> onClearSelection()
-                showSearchBar -> {
+            when (backActionAtStart) {
+                GalleryBackAction.ClearSelection -> onClearSelection()
+                GalleryBackAction.CloseSearch -> {
                     showSearchBar = false
                     onClearSearch()
                 }
-                currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null -> {
-                    onSelectAlbum(null)
-                }
-                else -> {
-                    onNavigateBack()
-                }
+                GalleryBackAction.CloseAlbum -> onSelectAlbum(null)
+                GalleryBackAction.NavigateBack -> onNavigateBack()
+                null -> Unit
             }
         } catch (e: Exception) {
             // Cancelled
         } finally {
             isBackPredicting = false
             backProgress = 0f
+            backActionAtStart = null
         }
     }
 
@@ -274,7 +287,7 @@ fun ImageGalleryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    if (isBackPredicting) {
+                    if (isBackPredicting && backActionAtStart == GalleryBackAction.NavigateBack) {
                         val scale = 1f - (backProgress * 0.08f)
                         scaleX = scale
                         scaleY = scale
@@ -325,23 +338,34 @@ fun ImageGalleryScreen(
                         onTogglePinnedAlbum = onTogglePinnedAlbum
                     )
                 } else {
-                    ImageGalleryContent(
-                        state = state,
-                        gridMinCellSize = activePhotosGridCellSize,
-                        onPhotosGridCellSizeChange = { activePhotosGridCellSize = it },
-                        onPhotosGridCellSizeFinalized = { size ->
-                            onPresentationChange(state.presentation.copy(gridMinCellSize = size))
-                        },
-                        contentPadding = PaddingValues(
-                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
-                            bottom = bottomPadding
-                        ),
-                        onOpenFile = onOpenFile,
-                        onToggleSelection = onToggleSelection,
-                        onSelectMultiple = onSelectMultiple,
-                        onSelectAlbum = onSelectAlbum,
-                        onRefresh = onRefresh
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                if (isBackPredicting && backActionAtStart == GalleryBackAction.CloseAlbum) {
+                                    translationX = backProgress * 120.dp.toPx()
+                                    alpha = 1f - backProgress * 0.5f
+                                }
+                            }
+                    ) {
+                        ImageGalleryContent(
+                            state = state,
+                            gridMinCellSize = activePhotosGridCellSize,
+                            onPhotosGridCellSizeChange = { activePhotosGridCellSize = it },
+                            onPhotosGridCellSizeFinalized = { size ->
+                                onPresentationChange(state.presentation.copy(gridMinCellSize = size))
+                            },
+                            contentPadding = PaddingValues(
+                                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
+                                bottom = bottomPadding
+                            ),
+                            onOpenFile = onOpenFile,
+                            onToggleSelection = onToggleSelection,
+                            onSelectMultiple = onSelectMultiple,
+                            onSelectAlbum = onSelectAlbum,
+                            onRefresh = onRefresh
+                        )
+                    }
                 }
             }
         }

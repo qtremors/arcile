@@ -113,6 +113,18 @@ enum class ViewerThumbnailScrollAction {
     Animate
 }
 
+internal const val VIEWER_MIN_STABLE_SCALE = 0.000001f
+internal const val VIEWER_MAX_STABLE_SCALE = 1_000_000f
+
+internal fun viewerReleaseScale(scale: Float): Float =
+    scale.coerceIn(VIEWER_MIN_STABLE_SCALE, VIEWER_MAX_STABLE_SCALE)
+
+internal fun viewerRenderScale(scale: Float, dragFraction: Float): Float =
+    (scale * (1f - dragFraction * 0.15f)).coerceIn(VIEWER_MIN_STABLE_SCALE, VIEWER_MAX_STABLE_SCALE)
+
+internal fun viewerPanLimit(scale: Float, viewportSize: Int): Float =
+    ((scale - 1f).coerceAtLeast(0f) * viewportSize / 2f)
+
 fun viewerFileContextForInitialPath(
     initialPath: String,
     displayedFiles: List<FileModel>,

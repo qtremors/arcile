@@ -78,6 +78,9 @@ class BrowserViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(BrowserState())
     val state: StateFlow<BrowserState> = _state.asStateFlow()
+    private val scrollPositions = decodeScrollPositions(
+        savedStateHandle.get<Array<String>>(SavedScrollPositionsKey)?.toList().orEmpty()
+    ).toMutableMap()
     val navigationState: StateFlow<BrowserNavigationState> = _state
         .map { it.navigationState() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.navigationState())
@@ -341,6 +344,51 @@ class BrowserViewModel @Inject constructor(
     }
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
         navigationDelegate.openFileBrowser(restorePersistentLocation, errorMessage?.let(UiText::Dynamic))
+
+    fun savedScrollPosition(key: String): BrowserScrollPosition? = scrollPositions[key]
+
+    fun saveScrollPosition(key: String, position: BrowserScrollPosition) {
+        scrollPositions[key] = position
+        persistScrollPositions()
+    }
+
+    fun clearScrollPosition(key: String) {
+        if (scrollPositions.remove(key) != null) {
+            persistScrollPositions()
+        }
+    }
+
+    fun requestOpenedFileReveal(path: String) {
+        _state.update {
+            it.copy(
+                pendingRevealFilePath = path,
+                pendingRevealReady = false
+            )
+        }
+    }
+
+    fun armOpenedFileReveal() {
+        _state.update {
+            if (it.pendingRevealFilePath == null) {
+                it
+            } else {
+                it.copy(pendingRevealReady = true)
+            }
+        }
+    }
+
+    fun consumeOpenedFileReveal(path: String) {
+        _state.update {
+            if (it.pendingRevealFilePath == path) {
+                it.copy(
+                    pendingRevealFilePath = null,
+                    pendingRevealReady = false
+                )
+            } else {
+                it
+            }
+        }
+    }
     fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
         navigationDelegate.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationDelegate.navigateToCategory(categoryName, volumeId)
@@ -638,4 +686,63 @@ class BrowserViewModel @Inject constructor(
 
     private fun String.normalizeStoragePath(): String =
         replace('\\', '/').trimEnd('/')
+
+    private fun persistScrollPositions() {
+        savedStateHandle[SavedScrollPositionsKey] = scrollPositions.entries
+            .toList()
+            .takeLast(MaxSavedBrowserScrollEntries)
+            .map { entry -> encodeScrollEntry(entry.key, entry.value) }
+            .toTypedArray()
+    }
+}
+
+private const val SavedScrollPositionsKey = "browserScrollPositions"
+private const val MaxSavedBrowserScrollEntries = 32
+
+private fun decodeScrollPositions(entries: List<String>): Map<String, BrowserScrollPosition> =
+    entries.mapNotNull { entry ->
+        val key = entry.scrollEntryKey() ?: return@mapNotNull null
+        val position = entry.decodeScrollEntryPosition() ?: return@mapNotNull null
+        key to position
+    }.toMap()
+
+private fun encodeScrollEntry(
+    key: String,
+    position: BrowserScrollPosition
+): String = buildString {
+    append(key.length)
+    append(':')
+    append(key)
+    append(':')
+    append(position.listIndex)
+    append(':')
+    append(position.listOffset)
+    append(':')
+    append(position.gridIndex)
+    append(':')
+    append(position.gridOffset)
+}
+
+private fun String.scrollEntryKey(): String? {
+    val separatorIndex = indexOf(':')
+    if (separatorIndex <= 0) return null
+    val keyLength = substring(0, separatorIndex).toIntOrNull() ?: return null
+    val keyStart = separatorIndex + 1
+    val keyEnd = keyStart + keyLength
+    if (keyEnd > length) return null
+    return substring(keyStart, keyEnd)
+}
+
+private fun String.decodeScrollEntryPosition(): BrowserScrollPosition? {
+    val key = scrollEntryKey() ?: return null
+    val valuesStart = indexOf(':') + 1 + key.length
+    if (valuesStart >= length || this[valuesStart] != ':') return null
+    val values = substring(valuesStart + 1).split(':')
+    if (values.size != 4) return null
+    return BrowserScrollPosition(
+        listIndex = values[0].toIntOrNull() ?: return null,
+        listOffset = values[1].toIntOrNull() ?: return null,
+        gridIndex = values[2].toIntOrNull() ?: return null,
+        gridOffset = values[3].toIntOrNull() ?: return null
+    )
 }

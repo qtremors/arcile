@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -108,8 +109,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
-@OptIn(ExperimentalMaterial3Api::class)
+enum class ViewerBackAction {
+    DismissDelete,
+    DismissMetadata,
+    ExitViewer
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageViewerScreen(
     initialPath: String,
@@ -137,12 +143,35 @@ fun ImageViewerScreen(
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
     val showMetadataSheet = state.viewerMetadataPath != null
 
-    val isMetadataOpen = showMetadataSheet
-    BackHandler(enabled = isDeleteDialogVisible || isMetadataOpen) {
-        if (isDeleteDialogVisible) {
-            viewModel.dismissDeleteConfirmation()
-        } else if (isMetadataOpen) {
-            viewModel.setViewerMetadataVisible(null, visible = false)
+
+
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
+    var backActionAtStart by remember { mutableStateOf<ViewerBackAction?>(null) }
+
+    PredictiveBackHandler(enabled = true) { progressFlow ->
+        backActionAtStart = when {
+            isDeleteDialogVisible -> ViewerBackAction.DismissDelete
+            state.viewerMetadataPath != null -> ViewerBackAction.DismissMetadata
+            else -> ViewerBackAction.ExitViewer
+        }
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            when (backActionAtStart) {
+                ViewerBackAction.DismissDelete -> viewModel.dismissDeleteConfirmation()
+                ViewerBackAction.DismissMetadata -> viewModel.setViewerMetadataVisible(null, visible = false)
+                ViewerBackAction.ExitViewer -> onNavigateBack()
+                null -> Unit
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
+            backActionAtStart = null
         }
     }
 
@@ -198,7 +227,17 @@ fun ImageViewerScreen(
     }
 
     Surface(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                if (isBackPredicting && backActionAtStart == ViewerBackAction.ExitViewer) {
+                    val scale = 1f - (backProgress * 0.08f)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = backProgress * 100.dp.toPx()
+                    alpha = 1f - (backProgress * 0.4f)
+                }
+            },
         color = Color.Black
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -316,12 +355,22 @@ fun ImageViewerScreen(
                                 onOpenWith = { onOpenWith(file.absolutePath) }
                             )
                         } else {
-                            MetadataSheet(
-                                file = file,
-                                metadata = metadata,
-                                onEraseMetadata = { viewModel.setViewerEraseDialogPath(file.absolutePath) },
-                                onDismiss = { viewModel.setViewerMetadataVisible(null, visible = false) }
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        if (isBackPredicting && backActionAtStart == ViewerBackAction.DismissMetadata) {
+                                            translationY = backProgress * size.height.toFloat()
+                                        }
+                                    }
+                            ) {
+                                MetadataSheet(
+                                    file = file,
+                                    metadata = metadata,
+                                    onEraseMetadata = { viewModel.setViewerEraseDialogPath(file.absolutePath) },
+                                    onDismiss = { viewModel.setViewerMetadataVisible(null, visible = false) }
+                                )
+                            }
                         }
                     }
 

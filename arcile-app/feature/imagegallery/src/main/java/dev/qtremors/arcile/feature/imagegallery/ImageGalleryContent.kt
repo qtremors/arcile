@@ -411,10 +411,12 @@ fun ImageGalleryContent(
                                                 GalleryImageItem(
                                                     file = file,
                                                     isSelected = file.absolutePath in state.selectedFiles,
+                                                    isSelectionMode = state.selectedFiles.isNotEmpty(),
                                                     aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
                                                     showDetails = state.showFileDetails,
                                                     onClick = { onClickItem(file) },
                                                     onLongClick = { onLongClickItem(file) },
+                                                    onOpenDirectly = { onOpenFile(file.absolutePath) },
                                                     modifier = Modifier.animateItem()
                                                 )
                                             }
@@ -425,10 +427,12 @@ fun ImageGalleryContent(
                                         GalleryImageItem(
                                             file = file,
                                             isSelected = file.absolutePath in state.selectedFiles,
+                                            isSelectionMode = state.selectedFiles.isNotEmpty(),
                                             aspectRatio = state.aspectRatios[file.absolutePath] ?: 1f,
                                             showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
                                             onLongClick = { onLongClickItem(file) },
+                                            onOpenDirectly = { onOpenFile(file.absolutePath) },
                                             modifier = Modifier.animateItem()
                                         )
                                     }
@@ -465,10 +469,12 @@ fun ImageGalleryContent(
                                                 GalleryImageItem(
                                                     file = file,
                                                     isSelected = file.absolutePath in state.selectedFiles,
+                                                    isSelectionMode = state.selectedFiles.isNotEmpty(),
                                                     aspectRatio = 1f,
                                                     showDetails = state.showFileDetails,
                                                     onClick = { onClickItem(file) },
                                                     onLongClick = { onLongClickItem(file) },
+                                                    onOpenDirectly = { onOpenFile(file.absolutePath) },
                                                     modifier = Modifier.animateItem()
                                                 )
                                             }
@@ -479,10 +485,12 @@ fun ImageGalleryContent(
                                         GalleryImageItem(
                                             file = file,
                                             isSelected = file.absolutePath in state.selectedFiles,
+                                            isSelectionMode = state.selectedFiles.isNotEmpty(),
                                             aspectRatio = 1f,
                                             showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
                                             onLongClick = { onLongClickItem(file) },
+                                            onOpenDirectly = { onOpenFile(file.absolutePath) },
                                             modifier = Modifier.animateItem()
                                         )
                                     }
@@ -511,9 +519,11 @@ fun ImageGalleryContent(
                                             GalleryImageListItem(
                                                 file = file,
                                                 isSelected = file.absolutePath in state.selectedFiles,
+                                                isSelectionMode = state.selectedFiles.isNotEmpty(),
                                                 zoom = state.presentation.listZoom,
                                                 onClick = { onClickItem(file) },
                                                 onLongClick = { onLongClickItem(file) },
+                                                onOpenDirectly = { onOpenFile(file.absolutePath) },
                                                 modifier = Modifier.animateItem()
                                             )
                                         }
@@ -524,9 +534,11 @@ fun ImageGalleryContent(
                                     GalleryImageListItem(
                                         file = file,
                                         isSelected = file.absolutePath in state.selectedFiles,
+                                        isSelectionMode = state.selectedFiles.isNotEmpty(),
                                         zoom = state.presentation.listZoom,
                                         onClick = { onClickItem(file) },
                                         onLongClick = { onLongClickItem(file) },
+                                        onOpenDirectly = { onOpenFile(file.absolutePath) },
                                         modifier = Modifier.animateItem()
                                     )
                                 }

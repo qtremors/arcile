@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -161,17 +162,28 @@ fun StorageCleanerScreen(
         confirmCleanerPaths = emptySet()
     }
 
-    fun handleBack() {
-        when (resolveStorageCleanerBackAction(showIgnoredItems, showDeleteConfirm, activeCleanerGroup != null)) {
-            StorageCleanerBackAction.DismissIgnoredItems -> showIgnoredItems = false
-            StorageCleanerBackAction.DismissDeleteConfirmation -> dismissDeleteConfirmation()
-            StorageCleanerBackAction.DismissDetails -> dismissActiveDetails()
-            StorageCleanerBackAction.NavigateBack -> onNavigateBack()
-        }
-    }
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
 
-    BackHandler {
-        handleBack()
+    val isBackHandlerEnabled = showIgnoredItems || showDeleteConfirm || activeCleanerGroup != null
+    PredictiveBackHandler(enabled = isBackHandlerEnabled) { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            when (resolveStorageCleanerBackAction(showIgnoredItems, showDeleteConfirm, activeCleanerGroup != null)) {
+                StorageCleanerBackAction.DismissIgnoredItems -> showIgnoredItems = false
+                StorageCleanerBackAction.DismissDeleteConfirmation -> dismissDeleteConfirmation()
+                StorageCleanerBackAction.DismissDetails -> dismissActiveDetails()
+                StorageCleanerBackAction.NavigateBack -> onNavigateBack()
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
+        }
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "refreshRotation")
@@ -332,7 +344,9 @@ fun StorageCleanerScreen(
             rules = state.rules,
             onUpdateSectionRule = onUpdateSectionRule,
             onResetSectionRule = onResetSectionRule,
-            onIgnorePath = onIgnorePath
+            onIgnorePath = onIgnorePath,
+            backProgress = backProgress,
+            isBackPredicting = isBackPredicting && activeCleanerGroup != null
         )
     }
 
