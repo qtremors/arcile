@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -32,10 +33,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RangeSlider
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -61,6 +67,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material.icons.filled.CalendarViewWeek
 import androidx.compose.material.icons.filled.History
@@ -104,23 +111,16 @@ fun SearchFiltersBottomSheet(
     var mimeText by rememberSaveable(currentFilters.mimeType) { mutableStateOf(currentFilters.mimeType.orEmpty()) }
     var folderScopeText by rememberSaveable(currentFilters.folderScopePath) { mutableStateOf(currentFilters.folderScopePath.orEmpty()) }
     var volumeText by rememberSaveable(currentFilters.storageVolumeId) { mutableStateOf(currentFilters.storageVolumeId.orEmpty()) }
-    var minSize by rememberSaveable(currentFilters.minSize) { mutableStateOf(currentFilters.minSize) }
-    var maxSize by rememberSaveable(currentFilters.maxSize) { mutableStateOf(currentFilters.maxSize) }
+    var minSizeText by rememberSaveable(currentFilters.minSize) {
+        mutableStateOf(currentFilters.minSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+    }
+    var maxSizeText by rememberSaveable(currentFilters.maxSize) {
+        mutableStateOf(currentFilters.maxSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+    }
     var minDateMillis by rememberSaveable(currentFilters.minDateMillis) { mutableStateOf(currentFilters.minDateMillis) }
     var maxDateMillis by rememberSaveable(currentFilters.maxDateMillis) { mutableStateOf(currentFilters.maxDateMillis) }
 
-    var activeDatePicker by remember { mutableStateOf<DatePickerTarget?>(null) }
-
-    val initialMinIndex = minSize?.let { size ->
-        sizeSteps.indexOfFirst { it >= size }.takeIf { it >= 0 } ?: 0
-    } ?: 0
-    val initialMaxIndex = maxSize?.let { size ->
-        sizeSteps.indexOfLast { it <= size }.takeIf { it >= 0 } ?: 10
-    } ?: 10
-
-    var sizeRange by remember(minSize, maxSize) {
-        mutableStateOf(initialMinIndex.toFloat()..initialMaxIndex.toFloat())
-    }
+    var showDateRangePicker by remember { mutableStateOf(false) }
     var presetName by rememberSaveable(currentFilters.savedPresetName) { mutableStateOf(currentFilters.savedPresetName.orEmpty()) }
 
     fun advancedFilters(): SearchFilters = currentFilters.copy(
@@ -131,8 +131,8 @@ fun SearchFiltersBottomSheet(
         mimeType = mimeText.trim().ifBlank { null },
         folderScopePath = folderScopeText.trim().ifBlank { null },
         storageVolumeId = volumeText.trim().ifBlank { null },
-        minSize = minSize,
-        maxSize = maxSize,
+        minSize = minSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() },
+        maxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() },
         minDateMillis = minDateMillis,
         maxDateMillis = maxDateMillis,
         savedPresetName = presetName.trim().ifBlank { null }
@@ -198,117 +198,134 @@ fun SearchFiltersBottomSheet(
             }
 
             Text(stringResource(R.string.file_size), style = MaterialTheme.typography.titleMedium)
-            val sizeOptions = listOf(
-                anyLabel to (null to null),
-                stringResource(R.string.size_under_10_mb) to (null to 10L * 1024 * 1024),
-                stringResource(R.string.size_10_to_100_mb) to (10L * 1024 * 1024 to 100L * 1024 * 1024),
-                stringResource(R.string.size_over_100_mb) to (100L * 1024 * 1024 to null)
-            )
-            val selectedSizeOption = sizeOptions.find { (_, sizeRange) ->
-                currentFilters.minSize == sizeRange.first && currentFilters.maxSize == sizeRange.second
-            } ?: sizeOptions.first()
 
-            val sizeIcons = listOf(
-                Icons.Default.AllInclusive,
-                Icons.Default.Description,
-                Icons.Default.FolderOpen,
-                Icons.Default.Storage
-            )
+            val sizePresets = remember(allLabel) { getPresetSizes(allLabel) }
+            val parsedMinSize = minSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+            val parsedMaxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
 
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveSelectorCard(
-                        selected = selectedSizeOption == sizeOptions[0],
-                        onClick = { onApplyFilters(currentFilters.copy(minSize = sizeOptions[0].second.first, maxSize = sizeOptions[0].second.second)) },
-                        icon = sizeIcons[0],
-                        title = sizeOptions[0].first,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveSelectorCard(
-                        selected = selectedSizeOption == sizeOptions[1],
-                        onClick = { onApplyFilters(currentFilters.copy(minSize = sizeOptions[1].second.first, maxSize = sizeOptions[1].second.second)) },
-                        icon = sizeIcons[1],
-                        title = sizeOptions[1].first,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveSelectorCard(
-                        selected = selectedSizeOption == sizeOptions[2],
-                        onClick = { onApplyFilters(currentFilters.copy(minSize = sizeOptions[2].second.first, maxSize = sizeOptions[2].second.second)) },
-                        icon = sizeIcons[2],
-                        title = sizeOptions[2].first,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveSelectorCard(
-                        selected = selectedSizeOption == sizeOptions[3],
-                        onClick = { onApplyFilters(currentFilters.copy(minSize = sizeOptions[3].second.first, maxSize = sizeOptions[3].second.second)) },
-                        icon = sizeIcons[3],
-                        title = sizeOptions[3].first,
-                        modifier = Modifier.weight(1f)
+            val selectedSizePreset = sizePresets.find { (_, sizeRange) ->
+                parsedMinSize == sizeRange.first && parsedMaxSize == sizeRange.second
+            } ?: sizePresets.first()
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(sizePresets) { preset ->
+                    ExpressiveFilterChip(
+                        selected = selectedSizePreset.first == preset.first,
+                        onClick = {
+                            minSizeText = preset.second.first?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
+                            maxSizeText = preset.second.second?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
+                            onApplyFilters(
+                                currentFilters.copy(
+                                    minSize = preset.second.first,
+                                    maxSize = preset.second.second
+                                )
+                            )
+                        },
+                        label = { Text(preset.first) }
                     )
                 }
             }
 
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = minSizeText,
+                    onValueChange = { minSizeText = it },
+                    label = { Text(stringResource(R.string.filter_min_size)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.weight(1f).keyboardInputField()
+                )
+                OutlinedTextField(
+                    value = maxSizeText,
+                    onValueChange = { maxSizeText = it },
+                    label = { Text(stringResource(R.string.filter_max_size)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.weight(1f).keyboardInputField()
+                )
+            }
+
             Text(stringResource(R.string.date_modified), style = MaterialTheme.typography.titleMedium)
-            val dayMillis = 24L * 60 * 60 * 1000
-            val now = System.currentTimeMillis()
-            val cal = java.util.Calendar.getInstance()
-            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-            cal.set(java.util.Calendar.MINUTE, 0)
-            cal.set(java.util.Calendar.SECOND, 0)
-            cal.set(java.util.Calendar.MILLISECOND, 0)
-            val todayMidnight = cal.timeInMillis
-
-            val dateOptions = listOf(
-                anyLabel to (null to null),
-                stringResource(R.string.today) to (todayMidnight to null),
-                stringResource(R.string.last_7_days) to (now - 7 * dayMillis to null),
-                stringResource(R.string.last_30_days) to (now - 30 * dayMillis to null)
-            )
-            val selectedDateOption = dateOptions.find { (_, dateRange) ->
+            val presets = remember(anyLabel) { getPresetRanges(anyLabel) }
+            val selectedPreset = presets.find { (_, dateRange) ->
                 currentFilters.minDateMillis == dateRange.first && currentFilters.maxDateMillis == dateRange.second
-            } ?: dateOptions.first()
+            } ?: presets.first()
 
-            val dateIcons = listOf(
-                Icons.Default.CalendarMonth,
-                Icons.Default.Today,
-                Icons.Default.CalendarViewWeek,
-                Icons.Default.History
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveSelectorCard(
-                        selected = selectedDateOption == dateOptions[0],
-                        onClick = { onApplyFilters(currentFilters.copy(minDateMillis = dateOptions[0].second.first, maxDateMillis = dateOptions[0].second.second)) },
-                        icon = dateIcons[0],
-                        title = dateOptions[0].first,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveSelectorCard(
-                        selected = selectedDateOption == dateOptions[1],
-                        onClick = { onApplyFilters(currentFilters.copy(minDateMillis = dateOptions[1].second.first, maxDateMillis = dateOptions[1].second.second)) },
-                        icon = dateIcons[1],
-                        title = dateOptions[1].first,
-                        modifier = Modifier.weight(1f)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(presets) { preset ->
+                    ExpressiveFilterChip(
+                        selected = selectedPreset.first == preset.first,
+                        onClick = {
+                            onApplyFilters(
+                                currentFilters.copy(
+                                    minDateMillis = preset.second.first,
+                                    maxDateMillis = preset.second.second
+                                )
+                            )
+                        },
+                        label = { Text(preset.first) }
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveSelectorCard(
-                        selected = selectedDateOption == dateOptions[2],
-                        onClick = { onApplyFilters(currentFilters.copy(minDateMillis = dateOptions[2].second.first, maxDateMillis = dateOptions[2].second.second)) },
-                        icon = dateIcons[2],
-                        title = dateOptions[2].first,
-                        modifier = Modifier.weight(1f)
+            }
+
+            val dateFormatter = rememberDateOnlyFormatter()
+            val customRangeActive = currentFilters.minDateMillis != null || currentFilters.maxDateMillis != null
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = { showDateRangePicker = true },
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.DateRange,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
                     )
-                    ExpressiveSelectorCard(
-                        selected = selectedDateOption == dateOptions[3],
-                        onClick = { onApplyFilters(currentFilters.copy(minDateMillis = dateOptions[3].second.first, maxDateMillis = dateOptions[3].second.second)) },
-                        icon = dateIcons[3],
-                        title = dateOptions[3].first,
-                        modifier = Modifier.weight(1f)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (customRangeActive) {
+                            val startStr = currentFilters.minDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
+                            val endStr = currentFilters.maxDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
+                            "$startStr - $endStr"
+                        } else {
+                            "Select custom range"
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                }
+                if (customRangeActive) {
+                    IconButton(
+                        onClick = {
+                            onApplyFilters(
+                                currentFilters.copy(
+                                    minDateMillis = null,
+                                    maxDateMillis = null
+                                )
+                            )
+                        },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear date filter",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
 
@@ -411,96 +428,6 @@ fun SearchFiltersBottomSheet(
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
 
-                Text(stringResource(R.string.file_size), style = MaterialTheme.typography.titleMedium)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val minLabel = minSize?.let { formatFileSize(it) } ?: stringResource(R.string.item_type_any)
-                    val maxLabel = maxSize?.let { formatFileSize(it) } ?: stringResource(R.string.item_type_any)
-                    Text(
-                        text = "$minLabel - $maxLabel",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    RangeSlider(
-                        value = sizeRange,
-                        onValueChange = { range ->
-                            sizeRange = range
-                            minSize = if (range.start == 0f) null else sizeSteps[range.start.roundToInt()]
-                            maxSize = if (range.endInclusive == 10f) null else sizeSteps[range.endInclusive.roundToInt()]
-                        },
-                        valueRange = 0f..10f,
-                        steps = 9,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                Text(stringResource(R.string.date_modified), style = MaterialTheme.typography.titleMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val dateFormatter = rememberDateOnlyFormatter()
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedButton(
-                            onClick = { activeDatePicker = DatePickerTarget.MIN_DATE },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveShapes.medium
-                        ) {
-                            Text(
-                                text = minDateMillis?.let { dateFormatter.format(java.util.Date(it)) }
-                                    ?: stringResource(R.string.filter_start_date),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (minDateMillis != null) {
-                            IconButton(
-                                onClick = { minDateMillis = null },
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(end = 4.dp)
-                                    .clip(CircleShape)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.filter_clear_start_date),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        OutlinedButton(
-                            onClick = { activeDatePicker = DatePickerTarget.MAX_DATE },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = ExpressiveShapes.medium
-                        ) {
-                            Text(
-                                text = maxDateMillis?.let { dateFormatter.format(java.util.Date(it)) }
-                                    ?: stringResource(R.string.filter_end_date),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (maxDateMillis != null) {
-                            IconButton(
-                                onClick = { maxDateMillis = null },
-                                modifier = Modifier
-                                    .align(Alignment.CenterEnd)
-                                    .padding(end = 4.dp)
-                                    .clip(CircleShape)
-                            ) {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = stringResource(R.string.filter_clear_end_date),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                }
                 OutlinedTextField(
                     value = presetName,
                     onValueChange = { presetName = it },
@@ -516,81 +443,85 @@ fun SearchFiltersBottomSheet(
                     shape = ExpressiveShapes.medium,
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
-                FilledTonalButton(
-                    onClick = { onApplyFilters(advancedFilters()) },
-                    modifier = Modifier.align(Alignment.End),
-                    shape = ExpressiveShapes.medium
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.apply))
-                }
-
             }
 
-            if (activeDatePicker != null) {
-                val initialDate = when (activeDatePicker) {
-                    DatePickerTarget.MIN_DATE -> minDateMillis
-                    DatePickerTarget.MAX_DATE -> maxDateMillis
-                    else -> null
-                }
-                val datePickerState = rememberDatePickerState(
-                    initialSelectedDateMillis = initialDate
+            FilledTonalButton(
+                onClick = { onApplyFilters(advancedFilters()) },
+                modifier = Modifier.align(Alignment.End),
+                shape = ExpressiveShapes.medium
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
                 )
-                DatePickerDialog(
-                    onDismissRequest = { activeDatePicker = null },
-                    confirmButton = {
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.apply))
+            }
+
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+
+    if (showDateRangePicker) {
+        val dateRangePickerState = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = minDateMillis,
+            initialSelectedEndDateMillis = maxDateMillis
+        )
+        Dialog(
+            onDismissRequest = { showDateRangePicker = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            androidx.compose.material3.Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.9f)
+                    .height(580.dp),
+                shape = ExpressiveShapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        DateRangePicker(
+                            state = dateRangePickerState,
+                            modifier = Modifier.fillMaxSize(),
+                            showModeToggle = false
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { showDateRangePicker = false },
+                            shape = ExpressiveShapes.medium
+                        ) {
+                            Text(stringResource(android.R.string.cancel))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         TextButton(
                             onClick = {
-                                if (activeDatePicker == DatePickerTarget.MIN_DATE) {
-                                    minDateMillis = datePickerState.selectedDateMillis
-                                } else {
-                                    maxDateMillis = datePickerState.selectedDateMillis
-                                }
-                                activeDatePicker = null
+                                minDateMillis = dateRangePickerState.selectedStartDateMillis
+                                maxDateMillis = dateRangePickerState.selectedEndDateMillis
+                                showDateRangePicker = false
                             },
                             shape = ExpressiveShapes.medium
                         ) {
                             Text(stringResource(android.R.string.ok))
                         }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = { activeDatePicker = null },
-                            shape = ExpressiveShapes.medium
-                        ) {
-                            Text(stringResource(android.R.string.cancel))
-                        }
                     }
-                ) {
-                    DatePicker(state = datePickerState)
                 }
             }
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
-private enum class DatePickerTarget {
-    MIN_DATE,
-    MAX_DATE
-}
-private val sizeSteps = listOf(
-    0L,                      // Any / 0
-    100L * 1024,             // 100 KB
-    500L * 1024,             // 500 KB
-    1L * 1024 * 1024,        // 1 MB
-    5L * 1024 * 1024,        // 5 MB
-    10L * 1024 * 1024,       // 10 MB
-    50L * 1024 * 1024,       // 50 MB
-    100L * 1024 * 1024,      // 100 MB
-    500L * 1024 * 1024,      // 500 MB
-    1024L * 1024 * 1024,     // 1 GB
-    10L * 1024 * 1024 * 1024 // 10 GB / Any Max / 10
-)
+
+
 
 private fun SearchFilters.hasActiveAdvancedFilters(): Boolean =
     extensions.isNotEmpty() ||

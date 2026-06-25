@@ -67,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -124,6 +125,48 @@ internal fun viewerRenderScale(scale: Float, dragFraction: Float): Float =
 
 internal fun viewerPanLimit(scale: Float, viewportSize: Int): Float =
     ((scale - 1f).coerceAtLeast(0f) * viewportSize / 2f)
+
+internal fun viewerFittedContentSize(
+    viewportWidth: Float,
+    viewportHeight: Float,
+    imageWidth: Float,
+    imageHeight: Float,
+    rotationDegrees: Float
+): Size {
+    if (
+        viewportWidth <= 0f ||
+        viewportHeight <= 0f ||
+        imageWidth <= 0f ||
+        imageHeight <= 0f
+    ) {
+        return Size(viewportWidth.coerceAtLeast(0f), viewportHeight.coerceAtLeast(0f))
+    }
+    val quarterTurns = ((rotationDegrees / 90f).toInt() % 4 + 4) % 4
+    val rotatedWidth = if (quarterTurns % 2 == 0) imageWidth else imageHeight
+    val rotatedHeight = if (quarterTurns % 2 == 0) imageHeight else imageWidth
+    val fitScale = minOf(viewportWidth / rotatedWidth, viewportHeight / rotatedHeight)
+    return Size(rotatedWidth * fitScale, rotatedHeight * fitScale)
+}
+
+internal fun viewerPanLimit(
+    scale: Float,
+    contentSize: Float,
+    viewportSize: Float
+): Float = ((contentSize * scale - viewportSize) / 2f).coerceAtLeast(0f)
+
+internal fun viewerOffsetForScale(
+    currentOffset: Offset,
+    oldScale: Float,
+    newScale: Float,
+    centroid: Offset,
+    viewportCenter: Offset,
+    pan: Offset = Offset.Zero
+): Offset {
+    if (oldScale <= 0f || !oldScale.isFinite() || !newScale.isFinite()) return currentOffset + pan
+    val ratio = newScale / oldScale
+    val focalFromCenter = centroid - viewportCenter
+    return currentOffset + (focalFromCenter - currentOffset) * (1f - ratio) + pan
+}
 
 fun viewerFileContextForInitialPath(
     initialPath: String,

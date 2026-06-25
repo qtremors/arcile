@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -256,13 +257,13 @@ fun ImageViewerScreen(
             val currentFileForSheet = displayedFiles.getOrNull(pagerState.currentPage)
             val currentFile = currentFileForSheet
             val metadataCache = remember { mutableStateMapOf<String, GalleryFileMetadata>() }
-            LaunchedEffect(state.isRefreshing) {
-                if (state.isRefreshing) {
+            LaunchedEffect(state.isRefreshing, state.viewerMetadataRevision) {
+                if (state.isRefreshing || state.viewerMetadataRevision > 0L) {
                     metadataCache.clear()
                 }
             }
             val currentPath = currentFile?.absolutePath
-            LaunchedEffect(currentPath, state.isRefreshing) {
+            LaunchedEffect(currentPath, state.isRefreshing, state.viewerMetadataRevision) {
                 val file = currentFile ?: return@LaunchedEffect
                 if (!state.isRefreshing && metadataCache[file.absolutePath] == null) {
                     metadataCache[file.absolutePath] = withContext(Dispatchers.IO) {
@@ -300,11 +301,22 @@ fun ImageViewerScreen(
                     )
 
                     val isCurrentPage = pagerState.currentPage == page
-                    var metadata by remember(file.absolutePath, state.isRefreshing) {
+                    var metadata by remember(file.absolutePath) {
                         mutableStateOf<GalleryFileMetadata?>(metadataCache[file.absolutePath])
                     }
-                    LaunchedEffect(file.absolutePath, state.isRefreshing, showMetadataSheet, isCurrentPage) {
-                        if (!state.isRefreshing && showMetadataSheet && isCurrentPage && metadata == null) {
+                    LaunchedEffect(
+                        file.absolutePath,
+                        state.isRefreshing,
+                        state.viewerMetadataRevision,
+                        showMetadataSheet,
+                        isCurrentPage
+                    ) {
+                        if (
+                            !state.isRefreshing &&
+                            state.viewerMetadataSavingPath != file.absolutePath &&
+                            showMetadataSheet &&
+                            isCurrentPage
+                        ) {
                             val data = withContext(Dispatchers.IO) {
                                 ExifMetadataReader.readMetadata(file.absolutePath, file.mimeType)
                             }
@@ -317,9 +329,9 @@ fun ImageViewerScreen(
                         if (isCurrentPage) {
                             val shouldShowMetadata = state.viewerMetadataPath == file.absolutePath
                             if (shouldShowMetadata && verticalPagerState.currentPage == 0) {
-                                verticalPagerState.animateScrollToPage(1)
+                                verticalPagerState.animateScrollToPage(1, animationSpec = spring(stiffness = Spring.StiffnessLow))
                             } else if (!shouldShowMetadata && verticalPagerState.currentPage == 1) {
-                                verticalPagerState.animateScrollToPage(0)
+                                verticalPagerState.animateScrollToPage(0, animationSpec = spring(stiffness = Spring.StiffnessLow))
                             }
                         }
                     }
@@ -336,7 +348,12 @@ fun ImageViewerScreen(
                     VerticalPager(
                         state = verticalPagerState,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = (verticalPagerState.currentPage == 1) || (currentScale <= 1.05f)
+                        userScrollEnabled = (verticalPagerState.currentPage == 1) || (currentScale <= 1.05f),
+                        beyondViewportPageCount = 1,
+                        flingBehavior = PagerDefaults.flingBehavior(
+                            state = verticalPagerState,
+                            snapPositionalThreshold = 0.15f
+                        )
                     ) { vertPage ->
                         if (vertPage == 0) {
                             ZoomableImageViewer(
@@ -367,6 +384,11 @@ fun ImageViewerScreen(
                                 MetadataSheet(
                                     file = file,
                                     metadata = metadata,
+                                    isSaving = state.viewerMetadataSavingPath == file.absolutePath,
+                                    metadataRevision = state.viewerMetadataRevision,
+                                    onSaveMetadata = { update ->
+                                        viewModel.updateMetadata(file.absolutePath, update)
+                                    },
                                     onEraseMetadata = { viewModel.setViewerEraseDialogPath(file.absolutePath) },
                                     onDismiss = { viewModel.setViewerMetadataVisible(null, visible = false) }
                                 )
@@ -391,7 +413,6 @@ fun ImageViewerScreen(
                                 Button(
                                     onClick = confirmClick,
                                     shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.bounceClickable(onClick = confirmClick),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.error,
                                         contentColor = MaterialTheme.colorScheme.onError
@@ -409,8 +430,7 @@ fun ImageViewerScreen(
                             dismissButton = {
                                 androidx.compose.material3.TextButton(
                                     onClick = cancelClick,
-                                    shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.bounceClickable(onClick = cancelClick)
+                                    shape = ExpressiveShapes.medium
                                 ) {
                                     Text(stringResource(R.string.cancel))
                                 }

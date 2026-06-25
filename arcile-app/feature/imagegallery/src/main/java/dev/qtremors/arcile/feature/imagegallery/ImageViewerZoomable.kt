@@ -86,7 +86,10 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 
@@ -139,20 +142,32 @@ fun ZoomableImageViewer(
             .build()
     }
     var renderFailed by remember(file.absolutePath) { mutableStateOf(false) }
+    var imageSize by remember(file.absolutePath) { mutableStateOf(IntSize.Zero) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(file) {
+            .pointerInput(file, imageSize, rotation) {
                 val touchSlop = viewConfiguration.touchSlop
                 val doubleTapTimeout = 300L
                 var lastTapTime = 0L
                 var lastTapPosition = Offset.Zero
+                var transformJob: Job? = null
+
+                fun fittedContentSize() = viewerFittedContentSize(
+                    viewportWidth = size.width.toFloat(),
+                    viewportHeight = size.height.toFloat(),
+                    imageWidth = imageSize.width.toFloat(),
+                    imageHeight = imageSize.height.toFloat(),
+                    rotationDegrees = rotation
+                )
                 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downTime = System.currentTimeMillis()
                     val downPos = down.position
+                    var gestureScale = scale.value
+                    var gestureOffset = Offset(offsetX.value, offsetY.value)
                     
                     var isMultiTouch = false
                     var dragStarted = false
@@ -171,18 +186,27 @@ fun ZoomableImageViewer(
                             
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
-                            
-                            coroutineScope.launch {
-                                val rawScale = scale.value * zoomChange
-                                val constrainedScale = rawScale.coerceIn(VIEWER_MIN_STABLE_SCALE, VIEWER_MAX_STABLE_SCALE)
+                            val centroid = event.calculateCentroid()
+                            val oldScale = gestureScale
+                            val rawScale = oldScale * zoomChange
+                            val constrainedScale = rawScale.coerceIn(VIEWER_MIN_STABLE_SCALE, VIEWER_MAX_STABLE_SCALE)
+                            val nextOffset = viewerOffsetForScale(
+                                currentOffset = gestureOffset,
+                                oldScale = oldScale,
+                                newScale = constrainedScale,
+                                centroid = centroid,
+                                viewportCenter = Offset(size.width / 2f, size.height / 2f),
+                                pan = panChange
+                            )
+                            gestureScale = constrainedScale
+                            gestureOffset = nextOffset
+                            transformJob?.cancel()
+                            transformJob = coroutineScope.launch {
                                 scale.snapTo(constrainedScale)
-                                onScaleChanged(constrainedScale)
-                                
-                                val newX = offsetX.value + panChange.x
-                                val newY = offsetY.value + panChange.y
-                                offsetX.snapTo(newX)
-                                offsetY.snapTo(newY)
+                                offsetX.snapTo(nextOffset.x)
+                                offsetY.snapTo(nextOffset.y)
                             }
+                            onScaleChanged(constrainedScale)
                         } else if (pointers.size == 1 && !isMultiTouch) {
                             val change = pointers[0]
                             if (change.pressed) {
@@ -204,9 +228,10 @@ fun ZoomableImageViewer(
                                 if (dragStarted) {
                                     if (scale.value > 1.05f) {
                                         change.consume()
+                                        val contentSize = fittedContentSize()
                                         coroutineScope.launch {
-                                            val maxX = viewerPanLimit(scale.value, size.width)
-                                            val maxY = viewerPanLimit(scale.value, size.height)
+                                            val maxX = viewerPanLimit(scale.value, contentSize.width, size.width.toFloat())
+                                            val maxY = viewerPanLimit(scale.value, contentSize.height, size.height.toFloat())
                                             
                                             val targetX = offsetX.value + delta.x
                                             val targetY = offsetY.value + delta.y
@@ -247,7 +272,59 @@ fun ZoomableImageViewer(
                     val releaseTime = System.currentTimeMillis()
                     val dragY = offsetY.value
                     
-                    if (isMultiTouch || scale.value > 1.05f) {
+                    if (!isMultiTouch && !dragStarted && (releaseTime - downTime) < 300L) {
+                        val timeDiff = releaseTime - lastTapTime
+                        val distDiff = (downPos - lastTapPosition).getDistance()
+                        if (timeDiff < doubleTapTimeout && distDiff < touchSlop * 2) {
+                            coroutineScope.launch {
+                                if (abs(scale.value - 1f) > 0.05f) {
+                                    launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    onScaleChanged(1f)
+                                } else {
+                                    val targetScale = 2.5f
+                                    val targetOffset = viewerOffsetForScale(
+                                        currentOffset = Offset(offsetX.value, offsetY.value),
+                                        oldScale = scale.value,
+                                        newScale = targetScale,
+                                        centroid = downPos,
+                                        viewportCenter = Offset(size.width / 2f, size.height / 2f)
+                                    )
+                                    val contentSize = fittedContentSize()
+                                    val maxX = viewerPanLimit(targetScale, contentSize.width, size.width.toFloat())
+                                    val maxY = viewerPanLimit(targetScale, contentSize.height, size.height.toFloat())
+                                    launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch {
+                                        offsetX.animateTo(
+                                            targetOffset.x.coerceIn(-maxX, maxX),
+                                            spring(stiffness = Spring.StiffnessMedium)
+                                        )
+                                    }
+                                    launch {
+                                        offsetY.animateTo(
+                                            targetOffset.y.coerceIn(-maxY, maxY),
+                                            spring(stiffness = Spring.StiffnessMedium)
+                                        )
+                                    }
+                                    onScaleChanged(targetScale)
+                                }
+                            }
+                            lastTapTime = 0L
+                            lastTapPosition = Offset.Zero
+                        } else {
+                            lastTapTime = releaseTime
+                            lastTapPosition = downPos
+                            coroutineScope.launch {
+                                delay(doubleTapTimeout)
+                                if (lastTapTime == releaseTime) {
+                                    lastTapTime = 0L
+                                    lastTapPosition = Offset.Zero
+                                    onTap()
+                                }
+                            }
+                        }
+                    } else if (isMultiTouch || scale.value > 1.05f) {
                         coroutineScope.launch {
                             val targetScale = viewerReleaseScale(scale.value)
                             if (scale.value != targetScale) {
@@ -255,8 +332,9 @@ fun ZoomableImageViewer(
                                 onScaleChanged(targetScale)
                             }
                             
-                            val maxX = viewerPanLimit(targetScale, size.width)
-                            val maxY = viewerPanLimit(targetScale, size.height)
+                            val contentSize = fittedContentSize()
+                            val maxX = viewerPanLimit(targetScale, contentSize.width, size.width.toFloat())
+                            val maxY = viewerPanLimit(targetScale, contentSize.height, size.height.toFloat())
                             val targetX = offsetX.value.coerceIn(-maxX, maxX)
                             val targetY = offsetY.value.coerceIn(-maxY, maxY)
                             
@@ -285,36 +363,6 @@ fun ZoomableImageViewer(
                                 launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
                             }
                         }
-                    } else if (!dragStarted && (releaseTime - downTime) < 300L) {
-                        val timeDiff = releaseTime - lastTapTime
-                        val distDiff = (downPos - lastTapPosition).getDistance()
-                        if (timeDiff < doubleTapTimeout && distDiff < touchSlop * 2) {
-                            coroutineScope.launch {
-                                if (scale.value > 1.05f) {
-                                    launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
-                                    onScaleChanged(1f)
-                                } else {
-                                    val targetScale = 2.5f
-                                    launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
-                                    onScaleChanged(targetScale)
-                                    
-                                    val maxX = viewerPanLimit(targetScale, size.width)
-                                    val maxY = viewerPanLimit(targetScale, size.height)
-                                    val targetX = ((size.width / 2f - downPos.x) * (targetScale - 1f)).coerceIn(-maxX, maxX)
-                                    val targetY = ((size.height / 2f - downPos.y) * (targetScale - 1f)).coerceIn(-maxY, maxY)
-                                    launch { offsetX.animateTo(targetX, spring(stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetY.animateTo(targetY, spring(stiffness = Spring.StiffnessMedium)) }
-                                }
-                            }
-                            lastTapTime = 0L
-                            lastTapPosition = Offset.Zero
-                        } else {
-                            onTap()
-                            lastTapTime = releaseTime
-                            lastTapPosition = downPos
-                        }
                     }
                 }
             },
@@ -335,7 +383,18 @@ fun ZoomableImageViewer(
             model = request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            onSuccess = { renderFailed = false },
+            onSuccess = { success ->
+                renderFailed = false
+                val intrinsic = success.painter.intrinsicSize
+                if (
+                    intrinsic.width.isFinite() &&
+                    intrinsic.height.isFinite() &&
+                    intrinsic.width > 0f &&
+                    intrinsic.height > 0f
+                ) {
+                    imageSize = IntSize(intrinsic.width.roundToInt(), intrinsic.height.roundToInt())
+                }
+            },
             onError = { renderFailed = true },
             modifier = Modifier
                 .fillMaxSize()

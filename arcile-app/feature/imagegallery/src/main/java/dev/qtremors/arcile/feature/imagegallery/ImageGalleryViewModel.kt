@@ -37,6 +37,8 @@ import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
 import dev.qtremors.arcile.shared.presentation.toUiModel
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataUpdate
+import dev.qtremors.arcile.shared.ui.metadata.ImageMetadataWriteResult
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.PersistentMap
@@ -128,6 +130,8 @@ data class ImageGalleryState(
     val viewerSessionInitialPath: String? = null,
     val viewerCurrentPath: String? = null,
     val viewerMetadataPath: String? = null,
+    val viewerMetadataSavingPath: String? = null,
+    val viewerMetadataRevision: Long = 0L,
     val viewerUiVisible: Boolean = true,
     val viewerRotationDegrees: PersistentMap<String, Float> = persistentMapOf(),
     val viewerEraseDialogPath: String? = null
@@ -583,15 +587,52 @@ class ImageGalleryViewModel @Inject constructor(
     fun eraseMetadata(filePath: String) {
         setViewerEraseDialogPath(null)
         viewModelScope.launch {
-            _state.update { it.copy(isRefreshing = true) }
-            val success = withContext(Dispatchers.IO) {
-                ExifMetadataReader.eraseMetadata(filePath, context)
+            _state.update { it.copy(viewerMetadataSavingPath = filePath) }
+            val result = withContext(Dispatchers.IO) {
+                ExifMetadataReader.eraseMetadataResult(filePath, context)
             }
-            if (success) {
+            if (result == ImageMetadataWriteResult.Success) {
                 repository.invalidate(listOf(filePath))
+                _state.update {
+                    it.copy(
+                        viewerMetadataSavingPath = null,
+                        viewerMetadataRevision = it.viewerMetadataRevision + 1
+                    )
+                }
                 loadImages(forceRefresh = true, silent = true)
             } else {
-                _state.update { it.copy(isRefreshing = false, error = UiText.Dynamic("Failed to erase metadata")) }
+                _state.update {
+                    it.copy(
+                        viewerMetadataSavingPath = null,
+                        error = metadataWriteError(result)
+                    )
+                }
+            }
+        }
+    }
+
+    fun updateMetadata(filePath: String, update: ImageMetadataUpdate) {
+        viewModelScope.launch {
+            _state.update { it.copy(viewerMetadataSavingPath = filePath) }
+            val result = withContext(Dispatchers.IO) {
+                ExifMetadataReader.updateMetadata(filePath, update, context)
+            }
+            if (result == ImageMetadataWriteResult.Success) {
+                repository.invalidate(listOf(filePath))
+                _state.update {
+                    it.copy(
+                        viewerMetadataSavingPath = null,
+                        viewerMetadataRevision = it.viewerMetadataRevision + 1
+                    )
+                }
+                loadImages(forceRefresh = true, silent = true)
+            } else {
+                _state.update {
+                    it.copy(
+                        viewerMetadataSavingPath = null,
+                        error = metadataWriteError(result)
+                    )
+                }
             }
         }
     }
@@ -905,6 +946,17 @@ class ImageGalleryViewModel @Inject constructor(
 
         private fun encodeViewerRotations(rotations: Map<String, Float>): ArrayList<String> =
             ArrayList(rotations.map { (path, rotation) -> "$rotation\t$path" })
+    }
+
+    private fun metadataWriteError(result: ImageMetadataWriteResult): UiText = when (result) {
+        ImageMetadataWriteResult.NotWritable ->
+            UiText.StringResource(R.string.image_gallery_metadata_not_writable)
+        ImageMetadataWriteResult.UnsupportedFormat ->
+            UiText.StringResource(R.string.image_gallery_metadata_unsupported_format)
+        is ImageMetadataWriteResult.Failure ->
+            UiText.StringResource(R.string.image_gallery_metadata_save_failed)
+        ImageMetadataWriteResult.Success ->
+            UiText.StringResource(R.string.image_gallery_metadata_save_failed)
     }
 }
 

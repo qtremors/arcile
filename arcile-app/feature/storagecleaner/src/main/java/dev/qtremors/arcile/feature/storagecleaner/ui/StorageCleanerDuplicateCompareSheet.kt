@@ -125,10 +125,6 @@ internal fun DuplicateCompareSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                        .bounceClickable(
-                            enabled = selectedComparePaths.isNotEmpty(),
-                            onClick = { onRequestClean(selectedComparePaths) }
-                        )
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
@@ -318,7 +314,6 @@ private fun DuplicateComparePane(
                     modifier = Modifier
                         .padding(end = 8.dp)
                         .clip(CircleShape)
-                        .bounceClickable(onClick = onDelete)
                         .semantics { contentDescription = deleteDescription }
                 ) {
                     Icon(
@@ -330,9 +325,7 @@ private fun DuplicateComparePane(
                 TextButton(
                     onClick = { onIgnoreFile(file.absolutePath) },
                     shape = ExpressiveShapes.medium,
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .bounceClickable { onIgnoreFile(file.absolutePath) }
+                    modifier = Modifier.padding(end = 8.dp)
                 ) {
                     Text(stringResource(R.string.cleaner_ignore))
                 }

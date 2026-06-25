@@ -292,6 +292,7 @@ fun FileGridItem(
 ) {
     val file = row.file
     val context = LocalContext.current
+    val openImageDescription = stringResource(R.string.open_image)
     val doubleLineEnabled = LocalDoubleLineFilenames.current
     val marqueeEnabled = LocalMarqueeFilenames.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -345,7 +346,7 @@ fun FileGridItem(
                 modifier = Modifier.then(
                     if (shouldOpenThumbnailInSelection) {
                         Modifier
-                            .semantics { contentDescription = context.getString(R.string.open_image) }
+                            .semantics { contentDescription = openImageDescription }
                             .clickable(onClick = onOpenDirectly)
                     } else {
                         Modifier

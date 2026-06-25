@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.GridView
@@ -25,6 +28,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -47,6 +53,21 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.DateRangePicker
+import androidx.compose.material3.rememberDateRangePickerState
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.ui.text.style.TextOverflow
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SortOptionDialog(
@@ -54,7 +75,13 @@ fun SortOptionDialog(
     selectedPreferences: BrowserPresentationPreferences,
     showApplyToSubfolders: Boolean,
     onDismiss: () -> Unit,
-    onApply: (BrowserPresentationPreferences, Boolean) -> Unit
+    onApply: (BrowserPresentationPreferences, Boolean) -> Unit,
+    minDateMillis: Long? = null,
+    maxDateMillis: Long? = null,
+    onDateRangeChange: ((Long?, Long?) -> Unit)? = null,
+    minSize: Long? = null,
+    maxSize: Long? = null,
+    onSizeRangeChange: ((Long?, Long?) -> Unit)? = null
 ) {
     var applyToSubfolders by remember { mutableStateOf(false) }
     var draftPreferences by remember(selectedPreferences) {
@@ -82,6 +109,7 @@ fun SortOptionDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
@@ -217,6 +245,224 @@ fun SortOptionDialog(
                             SortOptionChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
                                 draftPreferences = draftPreferences.copy(sortOption = it)
                             }
+                        }
+                    }
+                }
+
+                if (onDateRangeChange != null) {
+                    var minDateState by remember(minDateMillis) { mutableStateOf(minDateMillis) }
+                    var maxDateState by remember(maxDateMillis) { mutableStateOf(maxDateMillis) }
+                    var showDateRangePickerInSort by remember { mutableStateOf(false) }
+
+                    val anyLabel = stringResource(R.string.all)
+                    val presets = remember(anyLabel) { getPresetRanges(anyLabel) }
+                    val selectedPreset = presets.find { (_, dateRange) ->
+                        minDateState == dateRange.first && maxDateState == dateRange.second
+                    } ?: presets.first()
+
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.date_modified),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(presets) { preset ->
+                                ExpressiveFilterChip(
+                                    selected = selectedPreset.first == preset.first,
+                                    onClick = {
+                                        minDateState = preset.second.first
+                                        maxDateState = preset.second.second
+                                        onDateRangeChange(preset.second.first, preset.second.second)
+                                    },
+                                    label = { Text(preset.first) }
+                                )
+                            }
+                        }
+
+                        val dateFormatter = rememberDateOnlyFormatter()
+                        val customRangeActive = minDateState != null || maxDateState != null
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { showDateRangePickerInSort = true },
+                                shape = ExpressiveShapes.medium,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (customRangeActive) {
+                                        val startStr = minDateState?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
+                                        val endStr = maxDateState?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
+                                        "$startStr - $endStr"
+                                    } else {
+                                        "Select custom range"
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            if (customRangeActive) {
+                                IconButton(
+                                    onClick = {
+                                        minDateState = null
+                                        maxDateState = null
+                                        onDateRangeChange(null, null)
+                                    },
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear date filter",
+                                        modifier = Modifier.size(20.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (showDateRangePickerInSort) {
+                        val dateRangePickerState = rememberDateRangePickerState(
+                            initialSelectedStartDateMillis = minDateState,
+                            initialSelectedEndDateMillis = maxDateState
+                        )
+                        Dialog(
+                            onDismissRequest = { showDateRangePickerInSort = false },
+                            properties = DialogProperties(usePlatformDefaultWidth = false)
+                        ) {
+                            androidx.compose.material3.Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(580.dp),
+                                shape = ExpressiveShapes.large,
+                                color = MaterialTheme.colorScheme.surface,
+                                tonalElevation = 6.dp
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        DateRangePicker(
+                                            state = dateRangePickerState,
+                                            modifier = Modifier.fillMaxSize(),
+                                            showModeToggle = false
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.End,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        TextButton(
+                                            onClick = { showDateRangePickerInSort = false },
+                                            shape = ExpressiveShapes.medium
+                                        ) {
+                                            Text(stringResource(android.R.string.cancel))
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        TextButton(
+                                            onClick = {
+                                                minDateState = dateRangePickerState.selectedStartDateMillis
+                                                maxDateState = dateRangePickerState.selectedEndDateMillis
+                                                onDateRangeChange(
+                                                    dateRangePickerState.selectedStartDateMillis,
+                                                    dateRangePickerState.selectedEndDateMillis
+                                                )
+                                                showDateRangePickerInSort = false
+                                            },
+                                            shape = ExpressiveShapes.medium
+                                        ) {
+                                            Text(stringResource(android.R.string.ok))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (onSizeRangeChange != null) {
+                    var minSizeTextState by remember(minSize) {
+                        mutableStateOf(minSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+                    }
+                    var maxSizeTextState by remember(maxSize) {
+                        mutableStateOf(maxSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+                    }
+
+                    val anyLabel = stringResource(R.string.all)
+                    val sizePresets = remember(anyLabel) { getPresetSizes(anyLabel) }
+
+                    val parsedMinSize = minSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+                    val parsedMaxSize = maxSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+
+                    val selectedSizePreset = sizePresets.find { (_, sizeRange) ->
+                        parsedMinSize == sizeRange.first && parsedMaxSize == sizeRange.second
+                    } ?: sizePresets.first()
+
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.file_size),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(sizePresets) { preset ->
+                                ExpressiveFilterChip(
+                                    selected = selectedSizePreset.first == preset.first,
+                                    onClick = {
+                                        minSizeTextState = preset.second.first?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
+                                        maxSizeTextState = preset.second.second?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
+                                        onSizeRangeChange(preset.second.first, preset.second.second)
+                                    },
+                                    label = { Text(preset.first) }
+                                )
+                            }
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = minSizeTextState,
+                                onValueChange = {
+                                    minSizeTextState = it
+                                    val parsedMin = it.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+                                    onSizeRangeChange(parsedMin, maxSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() })
+                                },
+                                label = { Text(stringResource(R.string.filter_min_size)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                shape = ExpressiveShapes.medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            OutlinedTextField(
+                                value = maxSizeTextState,
+                                onValueChange = {
+                                    maxSizeTextState = it
+                                    val parsedMax = it.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+                                    onSizeRangeChange(minSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }, parsedMax)
+                                },
+                                label = { Text(stringResource(R.string.filter_max_size)) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true,
+                                shape = ExpressiveShapes.medium,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                 }

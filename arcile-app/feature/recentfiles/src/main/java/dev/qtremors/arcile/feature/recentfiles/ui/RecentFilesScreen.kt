@@ -396,7 +396,17 @@ fun RecentFilesScreen(
             selectedPreferences = state.presentation,
             showApplyToSubfolders = false,
             onDismiss = { showPresentationSheet = false },
-            onApply = { preferences, _ -> onPresentationChange(preferences) }
+            onApply = { preferences, _ -> onPresentationChange(preferences) },
+            minDateMillis = state.activeSearchFilters.minDateMillis,
+            maxDateMillis = state.activeSearchFilters.maxDateMillis,
+            onDateRangeChange = { minDate, maxDate ->
+                onSearchFiltersChange(state.activeSearchFilters.copy(minDateMillis = minDate, maxDateMillis = maxDate))
+            },
+            minSize = state.activeSearchFilters.minSize,
+            maxSize = state.activeSearchFilters.maxSize,
+            onSizeRangeChange = { minSizeVal, maxSizeVal ->
+                onSearchFiltersChange(state.activeSearchFilters.copy(minSize = minSizeVal, maxSize = maxSizeVal))
+            }
         )
     }
 

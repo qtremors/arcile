@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.2.0 | **Last Updated:** 2026-06-21
+**Version:** 1.2.5 | **Last Updated:** 2026-06-28
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -500,8 +500,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 120 |
-| **Version Name** | `1.2.0` |
+| **Version Code** | 125 |
+| **Version Name** | `1.2.5` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -558,7 +558,7 @@ Arcile features a comprehensive test suite of **unit, Robolectric, and instrumen
 
 ### Test Distribution
 
-- **JVM Unit & Robolectric Tests:** ~102 Kotlin test files (~536 `@Test` annotations) covering ViewModels, delegates, managers, and Room database migrations.
+- **JVM Unit & Robolectric Tests:** 112 Kotlin test files (646 `@Test` annotations) covering ViewModels, delegates, managers, Room database migrations, metadata writing, zoom calculations, calendar grouping, and scrollbar behavior.
 - **Instrumented UI Tests:** ~3 Kotlin test files verifying screen layouts on emulator/device.
 - **Robolectric Configuration:** Compose Unit tests are pinned to SDK 35 (`@Config(sdk = [35])`) because Robolectric support can lag newer compile SDK releases.
 
@@ -631,8 +631,8 @@ To package the application:
 ```
 
 ### APK Naming Standards
-- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.2.0-debug.apk`
-- **Release Package:** `app/build/outputs/apk/release/Arcile-1.2.0.apk`
+- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.2.5-debug.apk`
+- **Release Package:** `app/build/outputs/apk/release/Arcile-1.2.5.apk`
 
 ---
 

@@ -56,6 +56,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -229,6 +231,7 @@ fun GalleryViewOptionsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
@@ -554,16 +557,14 @@ fun GalleryViewOptionsDialog(
                     }
                     TextButton(
                         onClick = cancelClick,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(onClick = cancelClick)
+                        shape = ExpressiveShapes.medium
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     FilledTonalButton(
                         onClick = applyClick,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(onClick = applyClick)
+                        shape = ExpressiveShapes.medium
                     ) {
                         Icon(
                             imageVector = Icons.Default.Check,

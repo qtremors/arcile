@@ -478,7 +478,7 @@ class RecentFilesViewModel @Inject constructor(
                             searchResults = buildRecentFilesDisplay(
                                 files = files,
                                 query = "",
-                                filters = SearchFilters(),
+                                filters = stateValue.activeSearchFilters,
                                 presentation = it.presentation
                             )
                         )
@@ -501,7 +501,7 @@ private fun RecentFilesState.displayRecentFiles(
 ): List<FileModel> = buildRecentFilesDisplay(
     files = source,
     query = "",
-    filters = SearchFilters(),
+    filters = activeSearchFilters,
     presentation = presentation
 )
 
@@ -511,7 +511,7 @@ private fun RecentFilesState.displaySearchResults(
     if (searchQuery.isBlank()) emptyList() else buildRecentFilesDisplay(
         files = searchResults,
         query = "",
-        filters = SearchFilters(),
+        filters = activeSearchFilters,
         presentation = presentation
     )
 } else {

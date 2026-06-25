@@ -143,6 +143,7 @@ fun ModelViewerScreen(
     var loading by remember(reference) { mutableStateOf(true) }
     var errorMessage by remember(reference) { mutableStateOf<String?>(null) }
     val marqueeEnabled = LocalMarqueeFilenames.current
+    val modelViewerError = stringResource(R.string.model_viewer_error)
     val backgroundColor = when (backgroundMode) {
         ModelViewerBackground.Theme -> MaterialTheme.colorScheme.surface
         ModelViewerBackground.White -> Color.White
@@ -167,7 +168,7 @@ fun ModelViewerScreen(
         try {
             modelInstance = loadSceneViewModelInstance(modelLoader, reference)
         } catch (error: Throwable) {
-            errorMessage = error.localizedMessage ?: context.getString(R.string.model_viewer_error)
+            errorMessage = error.localizedMessage ?: modelViewerError
         } finally {
             loading = false
         }

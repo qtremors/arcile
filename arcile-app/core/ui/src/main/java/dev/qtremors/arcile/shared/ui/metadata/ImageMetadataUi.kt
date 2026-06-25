@@ -25,6 +25,10 @@ fun ImageMetadataSections(
     fileRows.forEach { row ->
         ImageMetadataRow(label = row.label, value = row.value)
     }
+    metadata?.description?.let { ImageMetadataRow("Description", it) }
+    metadata?.userComment?.let { ImageMetadataRow("Comment", it) }
+    metadata?.artist?.let { ImageMetadataRow("Artist", it) }
+    metadata?.copyright?.let { ImageMetadataRow("Copyright", it) }
 
     if (metadata != null && (
             metadata.cameraMaker != null ||

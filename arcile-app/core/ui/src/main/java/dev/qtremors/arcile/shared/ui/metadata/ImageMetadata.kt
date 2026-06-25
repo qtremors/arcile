@@ -27,7 +27,11 @@ data class ImageFileMetadata(
     val dateTaken: String?,
     val latitude: Double?,
     val longitude: Double?,
-    val altitude: Double?
+    val altitude: Double?,
+    val description: String? = null,
+    val userComment: String? = null,
+    val artist: String? = null,
+    val copyright: String? = null
 )
 
 data class ImageMetadataDetailLabels(
@@ -39,13 +43,33 @@ data class ImageMetadataDetailLabels(
     val uri: String,
     val path: String,
     val mimeType: String,
-    val extension: String
+    val extension: String,
+    val aspectRatio: String = "Aspect ratio"
 )
 
 data class ImageMetadataDetailRow(
     val label: String,
     val value: String
 )
+
+data class ImageMetadataUpdate(
+    val description: String?,
+    val userComment: String?,
+    val artist: String?,
+    val copyright: String?,
+    val cameraMaker: String?,
+    val cameraModel: String?,
+    val dateTaken: String?,
+    val latitude: Double?,
+    val longitude: Double?
+)
+
+sealed interface ImageMetadataWriteResult {
+    data object Success : ImageMetadataWriteResult
+    data object UnsupportedFormat : ImageMetadataWriteResult
+    data object NotWritable : ImageMetadataWriteResult
+    data class Failure(val cause: Throwable) : ImageMetadataWriteResult
+}
 
 object SharedImageMetadataReader {
     fun readMetadata(context: Context, reference: String, mimeType: String? = null): ImageFileMetadata {
@@ -73,37 +97,58 @@ object SharedImageMetadataReader {
     }
 
     fun eraseFileMetadata(filePath: String, context: Context): Boolean {
+        return when (eraseFileMetadataResult(filePath, context)) {
+            ImageMetadataWriteResult.Success -> true
+            else -> false
+        }
+    }
+
+    fun updateFileMetadata(
+        filePath: String,
+        update: ImageMetadataUpdate,
+        context: Context
+    ): ImageMetadataWriteResult {
+        val writable = validateWritableMetadataFile(filePath)
+        if (writable != null) return writable
+
         return try {
             val exif = ExifInterface(filePath)
-            val tagsToClear = listOf(
-                ExifInterface.TAG_MAKE,
-                ExifInterface.TAG_MODEL,
-                ExifInterface.TAG_LENS_MAKE,
-                ExifInterface.TAG_LENS_MODEL,
-                ExifInterface.TAG_LENS_SPECIFICATION,
-                ExifInterface.TAG_DATETIME,
-                ExifInterface.TAG_DATETIME_ORIGINAL,
-                ExifInterface.TAG_DATETIME_DIGITIZED,
-                ExifInterface.TAG_GPS_LATITUDE,
-                ExifInterface.TAG_GPS_LATITUDE_REF,
-                ExifInterface.TAG_GPS_LONGITUDE,
-                ExifInterface.TAG_GPS_LONGITUDE_REF,
-                ExifInterface.TAG_GPS_ALTITUDE,
-                ExifInterface.TAG_GPS_ALTITUDE_REF,
-                ExifInterface.TAG_GPS_DATESTAMP,
-                ExifInterface.TAG_GPS_TIMESTAMP,
-                ExifInterface.TAG_GPS_PROCESSING_METHOD,
-                ExifInterface.TAG_USER_COMMENT,
-                ExifInterface.TAG_SOFTWARE,
-                ExifInterface.TAG_ARTIST,
-                ExifInterface.TAG_COPYRIGHT
-            )
-            tagsToClear.forEach { tag -> exif.setAttribute(tag, null) }
+            exif.setAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION, update.description.normalizedMetadataValue())
+            exif.setAttribute(ExifInterface.TAG_USER_COMMENT, update.userComment.normalizedMetadataValue())
+            exif.setAttribute(ExifInterface.TAG_ARTIST, update.artist.normalizedMetadataValue())
+            exif.setAttribute(ExifInterface.TAG_COPYRIGHT, update.copyright.normalizedMetadataValue())
+            exif.setAttribute(ExifInterface.TAG_MAKE, update.cameraMaker.normalizedMetadataValue())
+            exif.setAttribute(ExifInterface.TAG_MODEL, update.cameraModel.normalizedMetadataValue())
+            val dateTaken = update.dateTaken.normalizedMetadataValue()
+            exif.setAttribute(ExifInterface.TAG_DATETIME, dateTaken)
+            exif.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, dateTaken)
+            exif.setAttribute(ExifInterface.TAG_DATETIME_DIGITIZED, dateTaken)
+
+            if (update.latitude != null && update.longitude != null) {
+                exif.setLatLong(update.latitude, update.longitude)
+            } else {
+                GPS_TAGS.forEach { tag -> exif.setAttribute(tag, null) }
+            }
             exif.saveAttributes()
             MediaScannerConnection.scanFile(context, arrayOf(filePath), null, null)
-            true
-        } catch (e: Exception) {
-            false
+            ImageMetadataWriteResult.Success
+        } catch (error: Throwable) {
+            ImageMetadataWriteResult.Failure(error)
+        }
+    }
+
+    fun eraseFileMetadataResult(filePath: String, context: Context): ImageMetadataWriteResult {
+        val writable = validateWritableMetadataFile(filePath)
+        if (writable != null) return writable
+
+        return try {
+            val exif = ExifInterface(filePath)
+            REMOVABLE_METADATA_TAGS.forEach { tag -> exif.setAttribute(tag, null) }
+            exif.saveAttributes()
+            MediaScannerConnection.scanFile(context, arrayOf(filePath), null, null)
+            ImageMetadataWriteResult.Success
+        } catch (error: Throwable) {
+            ImageMetadataWriteResult.Failure(error)
         }
     }
 
@@ -184,7 +229,11 @@ object SharedImageMetadataReader {
                 if (altRef == 1) -alt else alt
             } else {
                 null
-            }
+            },
+            description = exif?.getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION),
+            userComment = exif?.getAttribute(ExifInterface.TAG_USER_COMMENT),
+            artist = exif?.getAttribute(ExifInterface.TAG_ARTIST),
+            copyright = exif?.getAttribute(ExifInterface.TAG_COPYRIGHT)
         )
     }
 
@@ -196,7 +245,61 @@ object SharedImageMetadataReader {
                 if (index < 0 || cursor.isNull(index)) null else cursor.getLong(index)
             }
         }.getOrNull()
+
+    private fun validateWritableMetadataFile(filePath: String): ImageMetadataWriteResult? {
+        val file = File(filePath)
+        if (!file.exists() || !file.isFile || !file.canWrite()) {
+            return ImageMetadataWriteResult.NotWritable
+        }
+        if (file.extension.lowercase() !in WRITABLE_METADATA_EXTENSIONS) {
+            return ImageMetadataWriteResult.UnsupportedFormat
+        }
+        return null
+    }
+
+    private val WRITABLE_METADATA_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp")
+
+    private val GPS_TAGS = listOf(
+        ExifInterface.TAG_GPS_LATITUDE,
+        ExifInterface.TAG_GPS_LATITUDE_REF,
+        ExifInterface.TAG_GPS_LONGITUDE,
+        ExifInterface.TAG_GPS_LONGITUDE_REF,
+        ExifInterface.TAG_GPS_ALTITUDE,
+        ExifInterface.TAG_GPS_ALTITUDE_REF,
+        ExifInterface.TAG_GPS_DATESTAMP,
+        ExifInterface.TAG_GPS_TIMESTAMP,
+        ExifInterface.TAG_GPS_PROCESSING_METHOD
+    )
+
+    private val REMOVABLE_METADATA_TAGS = listOf(
+        ExifInterface.TAG_IMAGE_DESCRIPTION,
+        ExifInterface.TAG_USER_COMMENT,
+        ExifInterface.TAG_ARTIST,
+        ExifInterface.TAG_COPYRIGHT,
+        ExifInterface.TAG_SOFTWARE,
+        ExifInterface.TAG_MAKE,
+        ExifInterface.TAG_MODEL,
+        ExifInterface.TAG_LENS_MAKE,
+        ExifInterface.TAG_LENS_MODEL,
+        ExifInterface.TAG_LENS_SPECIFICATION,
+        ExifInterface.TAG_DATETIME,
+        ExifInterface.TAG_DATETIME_ORIGINAL,
+        ExifInterface.TAG_DATETIME_DIGITIZED,
+        ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY,
+        ExifInterface.TAG_EXPOSURE_TIME,
+        ExifInterface.TAG_F_NUMBER,
+        ExifInterface.TAG_FOCAL_LENGTH,
+        ExifInterface.TAG_FOCAL_LENGTH_IN_35MM_FILM,
+        ExifInterface.TAG_WHITE_BALANCE,
+        ExifInterface.TAG_FLASH,
+        ExifInterface.TAG_METERING_MODE,
+        ExifInterface.TAG_EXPOSURE_PROGRAM,
+        ExifInterface.TAG_EXPOSURE_BIAS_VALUE,
+        ExifInterface.TAG_SCENE_CAPTURE_TYPE
+    ) + GPS_TAGS
 }
+
+private fun String?.normalizedMetadataValue(): String? = this?.trim()?.takeIf(String::isNotEmpty)
 
 fun buildImageMetadataDetailRows(
     title: String,
@@ -214,6 +317,9 @@ fun buildImageMetadataDetailRows(
     lastModifiedText?.takeIf { it.isNotBlank() }?.let { rows += ImageMetadataDetailRow(labels.date, it) }
     metadata?.dateTaken?.takeIf { it.isNotBlank() }?.let { rows += ImageMetadataDetailRow(labels.dateTaken, it) }
     metadata?.let { formatImageResolution(it.width, it.height) }?.let { rows += ImageMetadataDetailRow(labels.resolution, it) }
+    metadata?.let { formatImageAspectRatio(it.width, it.height) }?.let {
+        rows += ImageMetadataDetailRow(labels.aspectRatio, it)
+    }
     rows += ImageMetadataDetailRow(labels.size, formatImageFileSize(size.takeIf { it > 0L } ?: metadata?.size ?: 0L))
     reference.takeIf { it.isNotBlank() }?.let {
         rows += ImageMetadataDetailRow(if (isUriReference) labels.uri else labels.path, it)
@@ -240,13 +346,26 @@ fun imageHasExif(metadata: ImageFileMetadata?): Boolean =
             metadata.flash != null ||
             metadata.dateTaken != null ||
             metadata.latitude != null ||
-            metadata.longitude != null
+            metadata.longitude != null ||
+            metadata.description != null ||
+            metadata.userComment != null ||
+            metadata.artist != null ||
+            metadata.copyright != null
         )
 
 fun formatImageResolution(width: Int, height: Int): String? {
     if (width <= 0 || height <= 0) return null
     return "$width x $height"
 }
+
+fun formatImageAspectRatio(width: Int, height: Int): String? {
+    if (width <= 0 || height <= 0) return null
+    val divisor = greatestCommonDivisor(width, height)
+    return "${width / divisor}:${height / divisor}"
+}
+
+private tailrec fun greatestCommonDivisor(a: Int, b: Int): Int =
+    if (b == 0) kotlin.math.abs(a).coerceAtLeast(1) else greatestCommonDivisor(b, a % b)
 
 fun formatImageFileSize(size: Long): String {
     if (size <= 0) return "0 B"

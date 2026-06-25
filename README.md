@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.2.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.2.5-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">
@@ -38,7 +38,7 @@ It supports internal storage, SD cards, USB drives, Trash, recent files, quick a
 | **Storage Dashboard** | Volume/category breakdowns, Trash usage, and a folder usage map with breadcrumb drill-in. |
 | **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
 | **Recent Files** | Browse recent files with grouping, search, filters, thumbnails, selection, properties, and containing-folder jumps. |
-| **Gallery & Media Viewer** | Browse photos and albums, view images with gestures, inspect metadata, favorite items, and open files from their containing folders. |
+| **Gallery, Image & Model Viewers** | Browse photos and albums, view images with focal-point gestures, inspect or edit metadata, favorite items, and open GLB models in the built-in model viewer. |
 | **Storage Cleaner** | Review large files, exact duplicates, APKs, downloads, videos, marker files, empty folders, ignored items, and conservative cache cleanup. |
 | **Archive Workflows** | Create ZIP, 7z, and TAR-family archives; browse and extract supported archive formats; handle password-protected ZIP/7z files; and block unsafe extraction paths. |
 | **Foreground File Operations** | Copy, move, archive, extract, Trash, and delete flows show foreground progress and operation recovery prompts where available. |
@@ -50,6 +50,26 @@ It supports internal storage, SD cards, USB drives, Trash, recent files, quick a
 | **First-Run Onboarding** | Guided setup for theme, accent, all-files access, and notification permission context for long-running operations. |
 | **Open / Share Handoff** | Opens and shares files through a centralized helper with path checks, staging for shared local files, batch guards, MIME grouping, and Android content URI handoff. |
 | **Offline & Ad-Free** | No internet permission, no ads, no telemetry, and no tracker dependency. |
+
+---
+
+## Supported File Types
+
+Arcile can browse and manage files of any type, including files with unknown or missing extensions. Copy, move, rename, share, properties, Trash, search, and Open With are not limited to the formats below.
+
+| Category | Recognized extensions | Arcile behavior |
+|---------|------------------------|-----------------|
+| **Images** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.svg`, `.heic`, `.heif`, `.ico`, `.raw` | Gallery, thumbnails, built-in image viewer, gestures, and metadata inspection. HEIC, HEIF, ICO, and RAW decoding depends on Android/device codec support. Metadata writing is available for writable `.jpg`, `.jpeg`, `.png`, and `.webp` files. |
+| **Videos** | `.mp4`, `.mkv`, `.avi`, `.mov`, `.wmv`, `.flv`, `.webm`, `.m4v`, `.3gp`, `.3g2`, `.ts`, `.mts`, `.m2ts`, `.mpeg`, `.mpg`, `.vob`, `.ogv` | Video thumbnails, categorization, file operations, sharing, and playback through a compatible installed app. |
+| **Audio** | `.mp3`, `.wav`, `.flac`, `.aac`, `.ogg`, `.wma`, `.m4a`, `.opus`, `.amr`, `.mid`, `.midi` | Album-art previews, categorization, file operations, sharing, and playback through a compatible installed app. |
+| **Documents** | `.pdf`, `.doc`, `.docx`, `.xls`, `.xlsx`, `.ppt`, `.pptx`, `.txt`, `.rtf`, `.odt`, `.ods`, `.odp`, `.csv`, `.epub` | Categorization, search, properties, file operations, sharing, and opening through a compatible installed app. |
+| **Archives — browse and extract** | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.txz`, `.gz`, `.bz2`, `.xz` | Built-in archive browsing and extraction. Password-protected archive handling is available for ZIP and 7z. |
+| **Archives — create** | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.txz` | Built-in archive creation with selectable compression options. |
+| **Other recognized archives** | `.rar`, `.zst` | Recognized as archives for categorization and normal file management; use Open With for an installed compatible app. |
+| **Android packages** | `.apk`, `.xapk`, `.apks`, `.apkm` | Package icons, categorization, file operations, sharing, and Android-compatible handoff. Installation support depends on the package type and installed system/app handlers. |
+| **3D models** | `.glb` | Built-in GLB model viewer with controls, metadata, sharing, and background options. |
+
+Actual playback, decoding, preview, and external opening capabilities can vary by Android version, device codecs, and installed apps.
 
 ---
 

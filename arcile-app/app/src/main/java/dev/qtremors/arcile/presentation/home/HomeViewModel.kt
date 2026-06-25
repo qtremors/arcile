@@ -121,6 +121,8 @@ class HomeViewModel @Inject constructor(
     private val recentsPreviewLimit = 50
     private var searchJob: Job? = null
     private var refreshJob: Job? = null
+    private var pendingSilentRefresh = false
+    private var pendingSilentForceAnalytics = false
     private var dashboardBreakdownJob: Job? = null
     private val suppressedVolumeKeys = ConcurrentHashMap.newKeySet<String>()
     private var lastAnalyticsRefreshTime = 0L
@@ -168,10 +170,22 @@ class HomeViewModel @Inject constructor(
                     }
                 }
         }
+
+        loadHomeData(HomeRefreshMode.INITIAL)
     }
 
     fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL, forceAnalytics: Boolean = false) {
-        refreshJob?.cancel()
+        if (refreshMode == HomeRefreshMode.SILENT && refreshJob?.isActive == true) {
+            pendingSilentRefresh = true
+            pendingSilentForceAnalytics = pendingSilentForceAnalytics || forceAnalytics
+            return
+        }
+        val effectiveForceAnalytics = forceAnalytics || pendingSilentForceAnalytics
+        pendingSilentRefresh = false
+        pendingSilentForceAnalytics = false
+        if (refreshMode != HomeRefreshMode.SILENT) {
+            refreshJob?.cancel()
+        }
         val cal = java.util.Calendar.getInstance()
         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
         cal.set(java.util.Calendar.MINUTE, 0)
@@ -192,9 +206,11 @@ class HomeViewModel @Inject constructor(
                 todayStart = newTodayStart
             ).withUpdatedDisplayState()
         }
-        refreshJob = viewModelScope.launch {
+        val launchedRefresh = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
-            val shouldRefreshAnalytics = refreshMode != HomeRefreshMode.SILENT || forceAnalytics || (System.currentTimeMillis() - lastAnalyticsRefreshTime > 5 * 60 * 1000)
+            val shouldRefreshAnalytics = refreshMode != HomeRefreshMode.SILENT ||
+                effectiveForceAnalytics ||
+                (System.currentTimeMillis() - lastAnalyticsRefreshTime > 5 * 60 * 1000)
             val forceFreshAnalytics = refreshMode == HomeRefreshMode.MANUAL
 
             if (shouldRefreshAnalytics) {
@@ -220,12 +236,63 @@ class HomeViewModel @Inject constructor(
                         scope = StorageScope.AllStorage,
                         limit = recentsPreviewLimit,
                         minTimestamp = oneWeekAgo
-                    )
+                    ).also { result ->
+                        result.onSuccess { files ->
+                            _state.update {
+                                it.copy(
+                                    isLoading = false,
+                                    recentFiles = files.toPersistentList()
+                                ).withUpdatedDisplayState()
+                            }
+                        }.onFailure { error ->
+                            _state.update {
+                                it.copy(
+                                    isLoading = false,
+                                    error = error.message?.let(UiText::Dynamic)
+                                )
+                            }
+                        }
+                    }
                 }
-                val allVolumesResultDef = async { volumeRepository.getStorageVolumes() }
-                val storageResultDef = if (shouldRefreshAnalytics) async { storageAnalyticsRepository.getStorageInfo(StorageScope.AllStorage) } else null
-                val categoryResultDef = if (shouldRefreshAnalytics) async { storageAnalyticsRepository.getCategoryStorageSizes(StorageScope.AllStorage) } else null
-                val trashUsageResultDef = if (shouldRefreshAnalytics) async { storageAnalyticsRepository.getTrashStorageUsage() } else null
+                val allVolumesResultDef = async {
+                    volumeRepository.getStorageVolumes().also { result ->
+                        result.onSuccess { volumes ->
+                            _state.update {
+                                it.copy(
+                                    isLoading = false,
+                                    allStorageVolumes = volumes.toPersistentList(),
+                                    storageInfo = it.storageInfo ?: StorageInfo(volumes)
+                                ).withUpdatedDisplayState()
+                            }
+                        }
+                    }
+                }
+                val storageResultDef = if (shouldRefreshAnalytics) async {
+                    storageAnalyticsRepository.getStorageInfo(StorageScope.AllStorage).also { result ->
+                        result.onSuccess { info ->
+                            _state.update {
+                                it.copy(storageInfo = info).withUpdatedDisplayState()
+                            }
+                        }
+                    }
+                } else null
+                val categoryResultDef = if (shouldRefreshAnalytics) async {
+                    storageAnalyticsRepository.getCategoryStorageSizes(StorageScope.AllStorage).also { result ->
+                        result.onSuccess { categories ->
+                            _state.update {
+                                it.copy(categoryStorages = categories.toPersistentList())
+                                    .withUpdatedDisplayState()
+                            }
+                        }
+                    }
+                } else null
+                val trashUsageResultDef = if (shouldRefreshAnalytics) async {
+                    storageAnalyticsRepository.getTrashStorageUsage().also { result ->
+                        result.onSuccess { usage ->
+                            _state.update { it.copy(trashStorageUsage = usage) }
+                        }
+                    }
+                } else null
 
                 var recentResult: Result<List<FileModel>>? = null
                 var allVolumesResult: Result<List<StorageVolume>>? = null
@@ -250,7 +317,8 @@ class HomeViewModel @Inject constructor(
                     trashUsageResultDef?.cancel()
                 }
                 val storageInfo = if (shouldRefreshAnalytics && !timedOut) storageResult?.getOrNull() else _state.value.storageInfo
-                val allStorageVolumes = allVolumesResult?.getOrNull().orEmpty()
+                val allStorageVolumes = allVolumesResult?.getOrNull()
+                    ?: _state.value.allStorageVolumes
                 val unclassified = allStorageVolumes.filter {
                     it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
                 }
@@ -303,6 +371,22 @@ class HomeViewModel @Inject constructor(
 
                 if (!timedOut && allStorageVolumes.size > 1) {
                     loadDashboardCategoryBreakdown()
+                }
+            }
+        }
+        refreshJob = launchedRefresh
+        launchedRefresh.invokeOnCompletion {
+            viewModelScope.launch {
+                if (refreshJob !== launchedRefresh) return@launch
+                refreshJob = null
+                if (pendingSilentRefresh) {
+                    val forcePendingAnalytics = pendingSilentForceAnalytics
+                    pendingSilentRefresh = false
+                    pendingSilentForceAnalytics = false
+                    loadHomeData(
+                        refreshMode = HomeRefreshMode.SILENT,
+                        forceAnalytics = forcePendingAnalytics
+                    )
                 }
             }
         }

@@ -206,8 +206,7 @@ fun QuickAccessScreen(
                 }
                 TextButton(
                     onClick = addClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = addClick)
+                    shape = ExpressiveShapes.medium
                 ) {
                     Text(stringResource(R.string.add))
                 }
@@ -216,8 +215,7 @@ fun QuickAccessScreen(
                 val dismissClick = { showCustomDialog = false }
                 TextButton(
                     onClick = dismissClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                    shape = ExpressiveShapes.medium
                 ) { Text(stringResource(R.string.cancel)) }
             }
         )
@@ -514,8 +512,7 @@ fun QuickAccessListItem(
                 }
                 TextButton(
                     onClick = removeClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = removeClick)
+                    shape = ExpressiveShapes.medium
                 ) {
                     Text(stringResource(R.string.remove))
                 }
@@ -524,8 +521,7 @@ fun QuickAccessListItem(
                 val dismissClick = { showRemoveDialog = false }
                 TextButton(
                     onClick = dismissClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = dismissClick)
+                    shape = ExpressiveShapes.medium
                 ) { Text(stringResource(R.string.cancel)) }
             }
         )

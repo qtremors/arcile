@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.4
-> **Last Updated:** 2026-06-23
+> **Version:** 1.2.5
+> **Last Updated:** 2026-06-28
 
 ---
+
+## [1.2.5] - 2026-06-28
+
+- **Image Metadata Editing and Viewer Gestures**: Added editable descriptive, camera, date, and GPS metadata with individual clearing, safe metadata removal, aspect-ratio details, and reliable refreshes; corrected pinch and double-tap zoom so scaling stays anchored to the touched image point, respects fitted image bounds, and correctly zooms out when already zoomed in; styled the metadata editor with Material 3 Expressive shapes and focus-driven tactile clicks, and tuned the sheet's vertical pager snap positional threshold to 0.15 for quick, responsive swipe dismissals; separated Date and Time into distinct edit buttons utilizing native Material 3 DatePicker and TimePicker dialogs, and eliminated screen/image reloading flicker by retaining both pages in the vertical pager layout; replaced the clear date text button with a clean delete icon button, resolved clock dial squishing via a custom width-independent dialog wrapper, matched read-only and editor date string formats, and slowed down the page transition glide using a gentle stiffness spring to prevent vertical flicker.
+- **Calendar Grouping, Sheets, and Fast Scrolling**: Strengthened Recents date grouping with stable calendar-day sections and year-aware labels, fixed duplicate or inaccessible sheet touch actions, and smoothed shared scrollbar progress while removing the custom fast-scroll shape, positioning the tooltip label adjacent to the scrollbar, correcting staggered grid lane scroll scaling, and preventing touch interception when the scrollbar overlay is invisible; resolved Search Filter date modified chip deselection by anchoring ranges to today's midnight timestamp, fixed the backend query filter application by passing active search filters when building recent/search lists, and replaced the advanced file size RangeSlider with text input fields specifying Min/Max size in MB.
+- **Polished Date and Size Range Filtering**: Added a polished floating Dialog-based `DateRangePicker` that is vertically spacious and lacks a keyboard edit toggle header; integrated a scrollable `LazyRow` of presets (Today, Yesterday, Last Week, etc.) and custom range selector buttons on both Search Filter and Recents Sort/Presentation bottom sheets; and added a matching size presets row (Tiny, Small, Medium, Large, Huge) that coordinates seamlessly with the text inputs on both search filters and recents sort sheets.
+- **Home Loading and Animation Performance**: Published recent files and storage volumes as soon as they are available, queued one follow-up for overlapping background refreshes, and replaced repeated storage-segment layout animations with a single lightweight drawn reveal that stays idle after loading.
+- **Format Documentation**: Added a complete README reference for recognized file types, built-in handling, metadata-writing formats, and capabilities that depend on Android codecs or installed apps.
 
 ## [1.2.4] - 2026-06-23
 

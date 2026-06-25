@@ -17,6 +17,7 @@ import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
 import dev.qtremors.arcile.testutil.testVolume
 import dev.qtremors.arcile.core.ui.UiText
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +36,41 @@ class HomeViewModelTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun `silent refresh requested during loading runs once after active refresh`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val releaseFirstRequest = CompletableDeferred<Unit>()
+            var recentRequestCount = 0
+            val repository = FakeStorageRepositoryBundle().apply {
+                recentFilesResultProvider = { _, _, _, _ ->
+                    recentRequestCount += 1
+                    if (recentRequestCount == 1) releaseFirstRequest.await()
+                    Result.success(listOf(homeFile("request-$recentRequestCount.jpg")))
+                }
+            }
+            val quickAccessRepo =
+                io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+                    io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+                }
+            val viewModel = HomeViewModel(
+                repository.volumeRepository,
+                repository.storageAnalyticsRepository,
+                repository.searchRepository,
+                HomeFakeStorageClassificationStore(),
+                quickAccessRepo
+            )
+
+            runCurrent()
+            assertEquals(1, recentRequestCount)
+
+            viewModel.loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
+            releaseFirstRequest.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(2, recentRequestCount)
+            assertEquals("request-2.jpg", viewModel.state.value.recentFiles.single().name)
+        }
 
     @Test
     fun `loadHomeData exposes repository errors and clears loading flags`() = runTest(mainDispatcherRule.dispatcher) {

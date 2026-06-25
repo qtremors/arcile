@@ -75,15 +75,26 @@ internal fun RecentFilesContent(
         }
         
         if (isGroupingEnabled) {
-            val groupFormat = rememberDateFormatter("EEEE, MMM dd")
-            val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
-                filesToDisplay.groupBy { file ->
-                    when {
-                        file.lastModified >= state.todayStart -> todayLabel
-                        file.lastModified >= state.yesterdayStart -> yesterdayLabel
-                        else -> groupFormat.format(Date(file.lastModified))
-                    }
-                }
+            val currentYearFormat = rememberDateFormatter("EEEE, MMM d")
+            val olderYearFormat = rememberDateFormatter("EEEE, MMM d, yyyy")
+            val groupedFiles = remember(
+                filesToDisplay,
+                state.todayStart,
+                state.yesterdayStart,
+                currentYearFormat,
+                olderYearFormat,
+                todayLabel,
+                yesterdayLabel
+            ) {
+                groupRecentFilesByCalendarDay(
+                    files = filesToDisplay,
+                    todayStart = state.todayStart,
+                    yesterdayStart = state.yesterdayStart,
+                    todayLabel = todayLabel,
+                    yesterdayLabel = yesterdayLabel,
+                    currentYearFormatter = currentYearFormat,
+                    olderYearFormatter = olderYearFormat
+                )
             }
             LazyVerticalGrid(
                 columns = GridCells.Adaptive(minSize = state.presentation.gridMinCellSize.dp),
@@ -95,13 +106,15 @@ internal fun RecentFilesContent(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
             ) {
-                groupedFiles.forEach { (dateHeader, files) ->
+                groupedFiles.forEach { group ->
                     stickyHeader {
-                        RecentDateHeaderPill(dateHeader = dateHeader)
+                        RecentDateHeaderPill(dateHeader = group.label)
                     }
                     gridItemsIndexed(
-                        items = files,
-                        key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
+                        items = group.files,
+                        key = { index, file ->
+                            "${group.dayStartMillis}-$index-${file.absolutePath}"
+                        },
                         contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
                     ) { _, file ->
                         dev.qtremors.arcile.shared.ui.lists.FileGridItem(
@@ -149,15 +162,26 @@ internal fun RecentFilesContent(
         }
     } else if (isGroupingEnabled) {
         val listState = rememberLazyListState()
-        val groupFormat = rememberDateFormatter("EEEE, MMM dd")
-        val groupedFiles = remember(filesToDisplay, state.todayStart, state.yesterdayStart, groupFormat, todayLabel, yesterdayLabel) {
-            filesToDisplay.groupBy { file ->
-                when {
-                    file.lastModified >= state.todayStart -> todayLabel
-                    file.lastModified >= state.yesterdayStart -> yesterdayLabel
-                    else -> groupFormat.format(Date(file.lastModified))
-                }
-            }
+        val currentYearFormat = rememberDateFormatter("EEEE, MMM d")
+        val olderYearFormat = rememberDateFormatter("EEEE, MMM d, yyyy")
+        val groupedFiles = remember(
+            filesToDisplay,
+            state.todayStart,
+            state.yesterdayStart,
+            currentYearFormat,
+            olderYearFormat,
+            todayLabel,
+            yesterdayLabel
+        ) {
+            groupRecentFilesByCalendarDay(
+                files = filesToDisplay,
+                todayStart = state.todayStart,
+                yesterdayStart = state.yesterdayStart,
+                todayLabel = todayLabel,
+                yesterdayLabel = yesterdayLabel,
+                currentYearFormatter = currentYearFormat,
+                olderYearFormatter = olderYearFormat
+            )
         }
         val shouldLoadMore by remember {
             derivedStateOf {
@@ -178,13 +202,15 @@ internal fun RecentFilesContent(
             state = listState,
             contentPadding = PaddingValues(bottom = bottomPadding)
         ) {
-            groupedFiles.forEach { (dateHeader, files) ->
+            groupedFiles.forEach { group ->
                 stickyHeader {
-                    RecentDateHeaderPill(dateHeader = dateHeader)
+                    RecentDateHeaderPill(dateHeader = group.label)
                 }
                 itemsIndexed(
-                    items = files,
-                    key = { index, file -> "$dateHeader-$index-${file.absolutePath}" },
+                    items = group.files,
+                    key = { index, file ->
+                        "${group.dayStartMillis}-$index-${file.absolutePath}"
+                    },
                     contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
                 ) { _, file ->
                     FileItemRow(

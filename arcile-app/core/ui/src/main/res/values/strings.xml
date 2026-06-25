@@ -646,8 +646,8 @@
     <string name="filter_storage_volume">Storage volume ID</string>
     <string name="filter_folder_scope">Folder scope path</string>
     <string name="filter_mime_type">MIME type</string>
-    <string name="filter_min_size">Min bytes</string>
-    <string name="filter_max_size">Max bytes</string>
+    <string name="filter_min_size">Min size (MB)</string>
+    <string name="filter_max_size">Max size (MB)</string>
     <string name="filter_min_date">Min date millis</string>
     <string name="filter_max_date">Max date millis</string>
     <string name="filter_start_date">Start Date</string>

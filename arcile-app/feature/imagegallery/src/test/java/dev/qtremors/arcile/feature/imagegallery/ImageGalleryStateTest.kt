@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import android.net.Uri
+import androidx.compose.ui.geometry.Offset
 import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
@@ -461,6 +462,50 @@ class ImageGalleryStateTest {
         assertEquals(0.25f, viewerRenderScale(0.25f, dragFraction = 0f), 0f)
         assertEquals(0f, viewerPanLimit(0.25f, viewportSize = 1080), 0f)
         assertEquals(540f, viewerPanLimit(2f, viewportSize = 1080), 0f)
+    }
+
+    @Test
+    fun `viewer zoom preserves the touched focal point`() {
+        val next = viewerOffsetForScale(
+            currentOffset = Offset.Zero,
+            oldScale = 1f,
+            newScale = 2f,
+            centroid = Offset(250f, 400f),
+            viewportCenter = Offset(500f, 500f)
+        )
+
+        assertEquals(250f, next.x, 0.001f)
+        assertEquals(100f, next.y, 0.001f)
+    }
+
+    @Test
+    fun `viewer pan limits respect fitted letterboxed image bounds`() {
+        val fitted = viewerFittedContentSize(
+            viewportWidth = 1080f,
+            viewportHeight = 1920f,
+            imageWidth = 4000f,
+            imageHeight = 3000f,
+            rotationDegrees = 0f
+        )
+
+        assertEquals(1080f, fitted.width, 0.001f)
+        assertEquals(810f, fitted.height, 0.001f)
+        assertEquals(540f, viewerPanLimit(2f, fitted.width, 1080f), 0.001f)
+        assertEquals(0f, viewerPanLimit(2f, fitted.height, 1920f), 0.001f)
+    }
+
+    @Test
+    fun `viewer fitted bounds swap dimensions after quarter turn`() {
+        val fitted = viewerFittedContentSize(
+            viewportWidth = 1080f,
+            viewportHeight = 1920f,
+            imageWidth = 4000f,
+            imageHeight = 3000f,
+            rotationDegrees = 90f
+        )
+
+        assertEquals(1080f, fitted.width, 0.001f)
+        assertEquals(1440f, fitted.height, 0.001f)
     }
 
     @Test
