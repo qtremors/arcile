@@ -47,7 +47,6 @@ import dev.qtremors.arcile.feature.archive.archiveViewerScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.imagegallery.imageGalleryScreen
 import dev.qtremors.arcile.feature.imagegallery.imageViewerScreen
-import dev.qtremors.arcile.feature.imagegallery.modelViewerScreen
 import dev.qtremors.arcile.feature.trash.trashScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserScrollPosition
@@ -77,6 +76,15 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.plugins.PluginFileResolution
+import dev.qtremors.arcile.plugins.PluginLaunchResult
+import dev.qtremors.arcile.plugins.PluginManager
+import android.webkit.MimeTypeMap
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 
 @Composable
 fun AppNavigationGraph(
@@ -89,7 +97,10 @@ fun AppNavigationGraph(
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
+    val pluginManager = remember(context) { PluginManager(context) }
+    var pluginPrompt by remember { mutableStateOf<PluginFileResolution?>(null) }
     val browserViewerReturnPendingKey = "browserViewerReturnPending"
     val imageContextPathsFor: (List<FileModel>) -> ArrayList<String> = { files ->
         ArrayList(
@@ -105,38 +116,71 @@ fun AppNavigationGraph(
         navController.navigate(route)
     }
     val openPathWithContext: (String, List<FileModel>, Boolean) -> Unit = { path, surroundingFiles, returnToBrowserPage ->
-        val archiveFormat = ArchiveFormat.fromPath(path)
-        val extension = path.substringAfterLast('.', "").lowercase()
-        when {
-            archiveFormat?.canBrowse == true -> {
-                navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false))
+        coroutineScope.launch {
+            val knownFile = surroundingFiles.firstOrNull { it.absolutePath == path }
+            val extension = knownFile?.extension
+                ?.takeIf { it.isNotBlank() }
+                ?.lowercase()
+                ?: path.substringAfterLast('.', "").lowercase()
+            val mimeType = knownFile?.mimeType?.takeIf { it.isNotBlank() } ?: when (extension) {
+                "glb" -> "model/gltf-binary"
+                else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
             }
-            archiveFormat != null -> {
-                onFeedback(
+            val installedPlugin = pluginManager.findPlugin(mimeType, extension)
+            val pluginResolution = when {
+                installedPlugin != null -> when (val result = pluginManager.launchPlugin(installedPlugin, path)) {
+                    PluginLaunchResult.Launched -> PluginFileResolution.Launched
+                    is PluginLaunchResult.Incompatible -> PluginFileResolution.Incompatible(result.plugin)
+                    is PluginLaunchResult.Failed -> PluginFileResolution.Failed(result.error)
+                }
+                else -> PluginManager.catalog
+                    .firstOrNull { it.available && it.matches(mimeType, extension) }
+                    ?.let(PluginFileResolution::Missing)
+                    ?: PluginFileResolution.NotApplicable
+            }
+
+            when (pluginResolution) {
+                PluginFileResolution.Launched -> Unit
+                is PluginFileResolution.Missing,
+                is PluginFileResolution.Incompatible -> pluginPrompt = pluginResolution
+                is PluginFileResolution.Failed -> onFeedback(
                     ArcileFeedbackEvent(
-                        message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.unsupported_archive_format),
+                        message = dev.qtremors.arcile.core.ui.UiText.Dynamic(
+                            context.getString(R.string.cannot_open_file, pluginResolution.error.localizedMessage.orEmpty())
+                        ),
                         severity = ArcileFeedbackSeverity.Error
                     )
                 )
-            }
-            extension in FileCategories.Images.extensions -> {
-                val contextPaths = imageContextPathsFor(surroundingFiles)
-                val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-                if (contextPaths.size > 1 && contextPaths.contains(path)) {
-                    savedStateHandle?.set(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY, contextPaths)
-                } else {
-                    savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+                PluginFileResolution.NotApplicable -> {
+                    val archiveFormat = ArchiveFormat.fromPath(path)
+                    when {
+                        archiveFormat?.canBrowse == true -> {
+                            navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false))
+                        }
+                        archiveFormat != null -> {
+                            onFeedback(
+                                ArcileFeedbackEvent(
+                                    message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.unsupported_archive_format),
+                                    severity = ArcileFeedbackSeverity.Error
+                                )
+                            )
+                        }
+                        extension in FileCategories.Images.extensions -> {
+                            val contextPaths = imageContextPathsFor(surroundingFiles)
+                            val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+                            if (contextPaths.size > 1 && contextPaths.contains(path)) {
+                                savedStateHandle?.set(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY, contextPaths)
+                            } else {
+                                savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+                            }
+                            if (returnToBrowserPage) {
+                                savedStateHandle?.set(browserViewerReturnPendingKey, true)
+                            }
+                            navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
+                        }
+                        else -> onOpenFile(path)
+                    }
                 }
-                if (returnToBrowserPage) {
-                    savedStateHandle?.set(browserViewerReturnPendingKey, true)
-                }
-                navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
-            }
-            extension in FileCategories.Models.extensions -> {
-                navController.navigate(AppRoutes.ModelViewer(initialPath = path))
-            }
-            else -> {
-                onOpenFile(path)
             }
         }
     }
@@ -162,6 +206,42 @@ fun AppNavigationGraph(
     }
 
     val reducedMotion = LocalReducedMotionEnabled.current
+
+    when (val prompt = pluginPrompt) {
+        is PluginFileResolution.Missing -> {
+            AlertDialog(
+                onDismissRequest = { pluginPrompt = null },
+                title = { Text(stringResource(R.string.plugin_missing_title, prompt.catalogEntry.name)) },
+                text = { Text(stringResource(R.string.plugin_missing_message, prompt.catalogEntry.name)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pluginPrompt = null
+                        uriHandler.openUri(PluginManager.RELEASES_URL)
+                    }) { Text(stringResource(R.string.install)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pluginPrompt = null }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        }
+        is PluginFileResolution.Incompatible -> {
+            AlertDialog(
+                onDismissRequest = { pluginPrompt = null },
+                title = { Text(stringResource(R.string.plugin_incompatible_title)) },
+                text = { Text(stringResource(R.string.plugin_incompatible_message, prompt.plugin.name)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pluginPrompt = null
+                        uriHandler.openUri(PluginManager.RELEASES_URL)
+                    }) { Text(stringResource(R.string.view_releases)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pluginPrompt = null }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        }
+        else -> Unit
+    }
 
     val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
         if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
@@ -701,19 +781,6 @@ fun AppNavigationGraph(
                     },
                     onOpenFileWith = onOpenFileWith
                 )
-                modelViewerScreen(
-                    enterTransition = utilityEnterTransition,
-                    exitTransition = utilityExitTransition,
-                    popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition,
-                    onNavigateBack = { navController.popBackStack() },
-                    onShareFile = { path ->
-                        coroutineScope.launch {
-                            shareFilesWithKnownModels(listOf(path), emptyList())
-                        }
-                    },
-                    onOpenFileWith = onOpenFileWith
-                )
                 composable<AppRoutes.Tools>(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
@@ -750,7 +817,7 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onOpenFile = onOpenFile,
+                    onOpenFile = openPath,
                     onOpenContainingFolder = { path ->
                         val parentPath = path.substringBeforeLast('/', missingDelimiterValue = "")
                         if (parentPath.isNotBlank()) {
@@ -790,6 +857,7 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() },
                         onThemeChange = onThemeChange,
                         onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
+                        onNavigateToPlugins = { navController.navigate(AppRoutes.Plugins) },
                         onNavigateToAbout = { navController.navigate(AppRoutes.About) },
                         onRestartApp = onRestartApp,
                         backupState = backupState,
@@ -798,6 +866,14 @@ fun AppNavigationGraph(
                         onApplySettingsRestore = { viewModel.restorePreferences(it) },
                         onClearBackupState = { viewModel.clearBackupState() }
                     )
+                }
+                composable<AppRoutes.Plugins>(
+                    enterTransition = utilityEnterTransition,
+                    exitTransition = utilityExitTransition,
+                    popEnterTransition = utilityPopEnterTransition,
+                    popExitTransition = utilityPopExitTransition
+                ) {
+                    PluginsScreen(onNavigateBack = { navController.popBackStack() })
                 }
                 composable<AppRoutes.StorageManagement>(
                     enterTransition = utilityEnterTransition,

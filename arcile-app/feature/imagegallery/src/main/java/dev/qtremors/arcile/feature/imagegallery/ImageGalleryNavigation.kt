@@ -91,7 +91,6 @@ fun NavGraphBuilder.imageGalleryScreen(
         )
     }
 }
-
 fun NavGraphBuilder.imageViewerScreen(
     navController: NavHostController,
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -142,34 +141,6 @@ fun NavGraphBuilder.imageViewerScreen(
             onNavigateBack = navigateBack,
             onShareFile = onShareFile,
             onOpenWith = onOpenFileWith
-        )
-    }
-}
-
-fun NavGraphBuilder.modelViewerScreen(
-    enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
-    exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
-    popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    onNavigateBack: () -> Unit,
-    onShareFile: (String) -> Unit,
-    onOpenFileWith: (String) -> Unit
-) {
-    composable<AppRoutes.ModelViewer>(
-        enterTransition = enterTransition,
-        exitTransition = exitTransition,
-        popEnterTransition = popEnterTransition,
-        popExitTransition = popExitTransition
-    ) { backStackEntry ->
-        val route = backStackEntry.toRoute<AppRoutes.ModelViewer>()
-        ModelViewerScreen(
-            reference = route.initialPath,
-            title = route.initialPath.substringAfterLast('/'),
-            sizeBytes = 0L,
-            mimeType = "model/gltf-binary",
-            onNavigateBack = onNavigateBack,
-            onShare = { onShareFile(route.initialPath) },
-            onOpenWith = { onOpenFileWith(route.initialPath) }
         )
     }
 }

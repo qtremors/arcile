@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.feature.imagegallery
+package dev.qtremors.arcile.plugin.glb
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -60,16 +60,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.metadata.formatImageFileSize
-import dev.qtremors.arcile.ui.theme.LocalMarqueeFilenames
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.shared.pluginui.LocalViewerMarqueeFilenames
+import dev.qtremors.arcile.shared.pluginui.ViewerDropdownMenuItem
+import dev.qtremors.arcile.shared.pluginui.ViewerSplitButtonGroup
+import dev.qtremors.arcile.shared.pluginui.ViewerToolbarAction
+import dev.qtremors.arcile.shared.pluginui.formatViewerFileSize
+import dev.qtremors.arcile.shared.pluginui.viewerMenuFirst
+import dev.qtremors.arcile.shared.pluginui.viewerMenuLast
+import dev.qtremors.arcile.shared.pluginui.viewerMenuMiddle
+import dev.qtremors.arcile.shared.pluginui.viewerMenuSingle
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.math.Position
@@ -142,7 +141,7 @@ fun ModelViewerScreen(
     var modelInstance by remember(reference) { mutableStateOf<ModelInstance?>(null) }
     var loading by remember(reference) { mutableStateOf(true) }
     var errorMessage by remember(reference) { mutableStateOf<String?>(null) }
-    val marqueeEnabled = LocalMarqueeFilenames.current
+    val marqueeEnabled = LocalViewerMarqueeFilenames.current
     val modelViewerError = stringResource(R.string.model_viewer_error)
     val backgroundColor = when (backgroundMode) {
         ModelViewerBackground.Theme -> MaterialTheme.colorScheme.surface
@@ -305,21 +304,21 @@ fun ModelViewerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SplitButtonGroup(
+                        ViewerSplitButtonGroup(
                             actions = listOf(
-                                ToolbarAction(
+                                ViewerToolbarAction(
                                     icon = Icons.Default.ZoomIn,
                                     contentDescription = stringResource(R.string.model_viewer_zoom),
                                     tint = Color.White,
                                     onClick = { activeControl = activeControl.toggled(ModelViewerControl.Zoom) }
                                 ),
-                                ToolbarAction(
+                                ViewerToolbarAction(
                                     icon = Icons.Default.WbSunny,
                                     contentDescription = stringResource(R.string.model_viewer_brightness),
                                     tint = Color.White,
                                     onClick = { activeControl = activeControl.toggled(ModelViewerControl.Brightness) }
                                 ),
-                                ToolbarAction(
+                                ViewerToolbarAction(
                                     icon = Icons.Default.Palette,
                                     contentDescription = stringResource(R.string.model_viewer_background),
                                     tint = Color.White,
@@ -360,7 +359,7 @@ fun ModelViewerScreen(
                             ) {
                                 val menuActions = listOf<@Composable () -> Unit>(
                                     {
-                                        ArcileDropdownMenuItem(
+                                        ViewerDropdownMenuItem(
                                             text = { Text(stringResource(R.string.action_info), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                             leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                             onClick = {
@@ -373,7 +372,7 @@ fun ModelViewerScreen(
                                         )
                                     },
                                     {
-                                        ArcileDropdownMenuItem(
+                                        ViewerDropdownMenuItem(
                                             text = { Text(stringResource(R.string.image_gallery_open_with), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                             leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                                             onClick = {
@@ -385,7 +384,7 @@ fun ModelViewerScreen(
                                         )
                                     },
                                     {
-                                        ArcileDropdownMenuItem(
+                                        ViewerDropdownMenuItem(
                                             text = { Text(stringResource(R.string.share), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                             leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                                             onClick = {
@@ -400,10 +399,10 @@ fun ModelViewerScreen(
 
                                 menuActions.forEachIndexed { index, action ->
                                     val shape = when {
-                                        menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                                        index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                                        index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                                        else -> MaterialTheme.shapes.menuGroupMiddle
+                                        menuActions.size == 1 -> MaterialTheme.shapes.viewerMenuSingle
+                                        index == 0 -> MaterialTheme.shapes.viewerMenuFirst
+                                        index == menuActions.size - 1 -> MaterialTheme.shapes.viewerMenuLast
+                                        else -> MaterialTheme.shapes.viewerMenuMiddle
                                     }
                                     Box(
                                         modifier = Modifier
@@ -609,7 +608,7 @@ private fun ModelInfoDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(title.ifBlank { reference.substringAfterLast('/') })
-                if (sizeBytes > 0L) Text(formatImageFileSize(sizeBytes))
+                if (sizeBytes > 0L) Text(formatViewerFileSize(sizeBytes))
                 Text(mimeType ?: "model/gltf-binary")
                 Text(reference, style = MaterialTheme.typography.bodySmall)
             }

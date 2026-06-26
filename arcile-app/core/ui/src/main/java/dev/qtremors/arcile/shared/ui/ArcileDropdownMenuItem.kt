@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
+import dev.qtremors.arcile.shared.pluginui.ViewerDropdownMenuItem
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 
 @Composable
@@ -22,7 +23,7 @@ fun ArcileDropdownMenuItem(
     contentPadding: PaddingValues = MenuDefaults.DropdownMenuItemContentPadding,
     shape: Shape = ExpressiveShapes.medium
 ) {
-    DropdownMenuItem(
+    ViewerDropdownMenuItem(
         text = text,
         onClick = onClick,
         modifier = modifier.clip(shape),
@@ -30,6 +31,7 @@ fun ArcileDropdownMenuItem(
         trailingIcon = trailingIcon,
         enabled = enabled,
         colors = colors ?: MenuDefaults.itemColors(),
-        contentPadding = contentPadding
+        contentPadding = contentPadding,
+        shape = shape
     )
 }

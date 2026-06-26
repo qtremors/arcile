@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.2.5-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.2.6-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">
@@ -38,7 +38,7 @@ It supports internal storage, SD cards, USB drives, Trash, recent files, quick a
 | **Storage Dashboard** | Volume/category breakdowns, Trash usage, and a folder usage map with breadcrumb drill-in. |
 | **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
 | **Recent Files** | Browse recent files with grouping, search, filters, thumbnails, selection, properties, and containing-folder jumps. |
-| **Gallery, Image & Model Viewers** | Browse photos and albums, view images with focal-point gestures, inspect or edit metadata, favorite items, and open GLB models in the built-in model viewer. |
+| **Gallery, Image & Model Viewers** | Browse photos and albums, view images with focal-point gestures, inspect or edit metadata, favorite items, and open GLB models through the optional Arcile GLB Viewer plugin. |
 | **Storage Cleaner** | Review large files, exact duplicates, APKs, downloads, videos, marker files, empty folders, ignored items, and conservative cache cleanup. |
 | **Archive Workflows** | Create ZIP, 7z, and TAR-family archives; browse and extract supported archive formats; handle password-protected ZIP/7z files; and block unsafe extraction paths. |
 | **Foreground File Operations** | Copy, move, archive, extract, Trash, and delete flows show foreground progress and operation recovery prompts where available. |
@@ -67,7 +67,7 @@ Arcile can browse and manage files of any type, including files with unknown or 
 | **Archives — create** | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.txz` | Built-in archive creation with selectable compression options. |
 | **Other recognized archives** | `.rar`, `.zst` | Recognized as archives for categorization and normal file management; use Open With for an installed compatible app. |
 | **Android packages** | `.apk`, `.xapk`, `.apks`, `.apkm` | Package icons, categorization, file operations, sharing, and Android-compatible handoff. Installation support depends on the package type and installed system/app handlers. |
-| **3D models** | `.glb` | Built-in GLB model viewer with controls, metadata, sharing, and background options. |
+| **3D models** | `.glb` | Supported through the optional Arcile GLB Viewer plugin APK, with model controls, metadata, sharing, and background options. |
 
 Actual playback, decoding, preview, and external opening capabilities can vary by Android version, device codecs, and installed apps.
 
@@ -78,6 +78,37 @@ Actual playback, decoding, preview, and external opening capabilities can vary b
 Download the latest APK from [GitHub Releases](https://github.com/qtremors/arcile/releases) and install it on your Android device.
 
 > **Runtime permission:** Arcile requires Android 11 or newer and uses Android's all-files access permission for full file management. Notification permission is requested on newer Android versions so foreground file operations can show progress.
+
+### Build Commands
+
+Run Gradle commands from `arcile-app/` (`gradlew.bat` may be used instead of `./gradlew` on Windows):
+
+```bash
+# Build both debug APKs
+./gradlew :app:assembleDebug :plugin-glb:assembleDebug
+
+# Run the main plugin-related unit tests
+./gradlew :plugin-api:testDebugUnitTest :plugin-glb:testDebugUnitTest :app:testDebugUnitTest
+
+# Build signed, minified release APKs
+./gradlew :app:assembleRelease :plugin-glb:assembleRelease
+```
+
+Release outputs:
+
+```text
+app/build/outputs/apk/release/Arcile-1.2.6.apk
+plugin-glb/build/outputs/apk/release/Arcile-GLB-Viewer-1.0.0.apk
+```
+
+The GLB plugin is optional. Install both APKs to open `.glb` files inside Arcile:
+
+```bash
+adb install -r app/build/outputs/apk/debug/Arcile-1.2.6-debug.apk
+adb install -r plugin-glb/build/outputs/apk/debug/Arcile-GLB-Viewer-1.0.0-debug.apk
+```
+
+Arcile and its plugins must be signed by the same certificate. The GLB plugin has no launcher entry and is opened only when Arcile hands it a supported file.
 
 ### Release Signing
 
@@ -93,7 +124,7 @@ signing.keyPassword=your_key_password
 From the Gradle root (`arcile-app/`), build the release APK:
 
 ```bash
-./gradlew assembleRelease
+./gradlew :app:assembleRelease :plugin-glb:assembleRelease
 ```
 
 Release builds enable R8 minification and resource shrinking.
@@ -143,6 +174,9 @@ arcile/
 │   │   └── storage/                             # File system data orchestrator
 │   │       ├── domain/                          # Domain models, volume references, and repository interfaces
 │   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
+│   ├── plugin-api/                              # Dependency-free intent contract and plugin metadata models
+│   ├── shared/                                  # UI primitives shared by Arcile and plugin APKs
+│   ├── plugin-glb/                              # Independently versioned GLB Viewer application APK
 │   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
 │       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
 │       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
@@ -180,8 +214,8 @@ Run from the Gradle root (`arcile-app/`). These commands cover all included modu
 # Full local + device/emulator verification
 ./gradlew check connectedCheck
 
-# Release APK across the app and included modules
-./gradlew assembleRelease
+# Release Arcile and the optional GLB plugin
+./gradlew :app:assembleRelease :plugin-glb:assembleRelease
 
 # Production string guard across production sources
 ./gradlew checkProductionStrings

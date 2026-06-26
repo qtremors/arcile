@@ -15,6 +15,7 @@ class AppRoutesTest {
         assertEquals(AppRoutes.Tools, json.decodeFromString<AppRoutes.Tools>(json.encodeToString(AppRoutes.Tools)))
         assertEquals(AppRoutes.ActivityLog, json.decodeFromString<AppRoutes.ActivityLog>(json.encodeToString(AppRoutes.ActivityLog)))
         assertEquals(AppRoutes.Settings, json.decodeFromString<AppRoutes.Settings>(json.encodeToString(AppRoutes.Settings)))
+        assertEquals(AppRoutes.Plugins, json.decodeFromString<AppRoutes.Plugins>(json.encodeToString(AppRoutes.Plugins)))
         assertEquals(AppRoutes.Trash, json.decodeFromString<AppRoutes.Trash>(json.encodeToString(AppRoutes.Trash)))
         assertEquals(
             AppRoutes.StorageManagement,
@@ -43,7 +44,6 @@ class AppRoutesTest {
             initialPath = "/storage/emulated/0/DCIM/photo.jpg",
             returnToBrowserPage = true
         )
-        val modelViewer = AppRoutes.ModelViewer(initialPath = "/storage/emulated/0/Download/model.glb")
         val externalBrowserEntry = AppRoutes.Main(
             initialPage = 1,
             path = "/storage/emulated/0/Download",
@@ -54,7 +54,6 @@ class AppRoutesTest {
         assertEquals(recent, json.decodeFromString<AppRoutes.RecentFiles>(json.encodeToString(recent)))
         assertEquals(dashboard, json.decodeFromString<AppRoutes.StorageDashboard>(json.encodeToString(dashboard)))
         assertEquals(browserImageViewer, json.decodeFromString<AppRoutes.ImageViewer>(json.encodeToString(browserImageViewer)))
-        assertEquals(modelViewer, json.decodeFromString<AppRoutes.ModelViewer>(json.encodeToString(modelViewer)))
         assertEquals(externalBrowserEntry, json.decodeFromString<AppRoutes.Main>(json.encodeToString(externalBrowserEntry)))
     }
 }

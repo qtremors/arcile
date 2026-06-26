@@ -14,6 +14,9 @@
         <package android:name="com.whatsapp.w4b" />
 
         <intent>
+            <action android:name="dev.qtremors.arcile.plugin.REGISTER" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <data android:mimeType="vnd.android.document/directory" />
@@ -78,19 +81,6 @@
             </intent-filter>
         </activity>
 
-        <activity
-            android:name=".ModelViewerActivity"
-            android:exported="true"
-            android:label="${appLabel}"
-            android:process=":modelviewer"
-            android:theme="@style/Theme.Arcile">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:mimeType="model/gltf-binary" />
-            </intent-filter>
-        </activity>
 
         <activity
             android:name=".FileOpenActivity"
@@ -102,15 +92,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/octet-stream" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.glb" />
-                <data android:scheme="content" android:host="*" android:pathSuffix=".glb" />
-                <data android:scheme="file" android:host="*" android:pathPattern=".*\\.glb" />
-                <data android:scheme="file" android:host="*" android:pathSuffix=".glb" />
             </intent-filter>
         </activity>
 

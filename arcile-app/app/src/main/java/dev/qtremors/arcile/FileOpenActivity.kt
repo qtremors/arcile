@@ -23,7 +23,6 @@ class FileOpenActivity : Activity() {
 
 internal fun resolveStandaloneViewerActivity(context: Context, intent: Intent): Class<out Activity>? =
     when {
-        resolveStandaloneModelTarget(context, intent) != null -> ModelViewerActivity::class.java
         resolveStandaloneImageTarget(context, intent) != null -> ImageViewerActivity::class.java
         else -> null
     }

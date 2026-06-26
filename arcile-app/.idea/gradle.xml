@@ -46,6 +46,9 @@
             <option value="$PROJECT_DIR$/feature/storagecleaner" />
             <option value="$PROJECT_DIR$/feature/storageusage" />
             <option value="$PROJECT_DIR$/feature/trash" />
+            <option value="$PROJECT_DIR$/plugin-api" />
+            <option value="$PROJECT_DIR$/plugin-glb" />
+            <option value="$PROJECT_DIR$/shared" />
           </set>
         </option>
       </GradleProjectSettings>

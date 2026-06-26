@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application
+        android:allowBackup="false"
+        android:icon="@drawable/ic_plugin_glb"
+        android:label="@string/plugin_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ArcilePlugin">
+        <activity
+            android:name=".ModelViewerActivity"
+            android:exported="true"
+            android:label="@string/plugin_name"
+            android:theme="@style/Theme.ArcilePlugin">
+            <intent-filter>
+                <action android:name="dev.qtremors.arcile.plugin.REGISTER" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="dev.qtremors.arcile.plugin.API_VERSION"
+                android:value="1" />
+            <meta-data
+                android:name="dev.qtremors.arcile.plugin.NAME"
+                android:value="@string/plugin_name" />
+            <meta-data
+                android:name="dev.qtremors.arcile.plugin.SUPPORTED_MIME_TYPES"
+                android:value="model/gltf-binary" />
+            <meta-data
+                android:name="dev.qtremors.arcile.plugin.SUPPORTED_EXTENSIONS"
+                android:value="glb" />
+            <meta-data
+                android:name="dev.qtremors.arcile.plugin.HOMEPAGE"
+                android:value="https://github.com/qtremors/arcile/releases" />
+        </activity>
+    </application>
+</manifest>

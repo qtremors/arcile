@@ -44,4 +44,7 @@ include(":feature:onboarding")
 include(":feature:quickaccess")
 include(":feature:storagecleaner")
 include(":feature:storageusage")
+include(":plugin-api")
+include(":shared")
+include(":plugin-glb")
  

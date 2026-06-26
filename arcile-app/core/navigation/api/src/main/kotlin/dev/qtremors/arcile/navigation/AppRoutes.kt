@@ -25,6 +25,7 @@ object AppRoutes {
     @Serializable object Tools
     @Serializable object ActivityLog
     @Serializable object Settings
+    @Serializable object Plugins
     @Serializable object Trash
     @Serializable data class RecentFiles(val volumeId: String? = null)
     @Serializable data class ImageGallery(val volumeId: String? = null)
@@ -35,7 +36,6 @@ object AppRoutes {
         val volumeId: String? = null,
         val returnToBrowserPage: Boolean = false
     )
-    @Serializable data class ModelViewer(val initialPath: String)
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner
     @Serializable object StorageManagement

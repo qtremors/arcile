@@ -125,10 +125,11 @@ class ArchitectureBoundaryTest {
         val allowedFeatureImports = setOf(
             "archive.archiveViewerScreen",
             "browser.BrowserViewModel",
+            "browser.BrowserScrollPosition",
+            "browser.scrollPositionKey",
             "browser.ui.BrowserScreen",
             "imagegallery.imageGalleryScreen",
             "imagegallery.imageViewerScreen",
-            "imagegallery.modelViewerScreen",
             "quickaccess.QuickAccessViewModel",
             "quickaccess.quickAccessScreen",
             "recentfiles.recentFilesScreen",

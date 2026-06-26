@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.2.5 | **Last Updated:** 2026-06-28
+**Version:** 1.2.6 | **Last Updated:** 2026-06-28
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -18,6 +18,7 @@
 - [Room Cache Database](#room-cache-database)
 - [Archive System](#archive-system)
 - [Trash System](#trash-system)
+- [Plugin System](#plugin-system)
 - [UI & Design System](#ui--design-system)
 - [Feature Modules Deep Dive](#feature-modules-deep-dive)
 - [Naming Conventions](#naming-conventions)
@@ -65,12 +66,13 @@ graph TD
 | **Offline-first Privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
 | **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
 | **Room Database Caching** | Cache metadata, aggregate folder sizes, categories, and thumbnail listings are persisted in a local Room database to prevent repeated, expensive disk scans. |
+| **Intent-based Plugins** | Optional heavyweight viewers run as separately installed, same-signer APKs and communicate through versioned explicit intents and temporary read-only content URI grants. |
 
 ---
 
 ## Project Structure
 
-Arcile's codebase is divided into **20 Gradle modules** split into application entry, core components, and independent feature modules:
+Arcile's codebase is divided into **23 Gradle modules** split into application entry, core components, independent feature modules, and optional plugin infrastructure:
 
 ```text
 arcile/
@@ -111,6 +113,9 @@ arcile/
 │   │           ├── provider/                    # VolumeProvider (mounted storage lookup)
 │   │           ├── source/                      # MediaStoreClient, FileSystemDataSource, FileTransferEngine
 │   │           └── util/                        # PathSafety, VolumeUtils
+│   ├── plugin-api/                              # Dependency-free intent contract, version, and metadata models
+│   ├── shared/                                  # Stateless viewer UI shared across APK boundaries
+│   ├── plugin-glb/                              # Independent GLB Viewer Android application
 │   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
 │       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
 │       ├── browser/                             # File browser layout, selection bar, clipboard, and folder tabs
@@ -336,6 +341,118 @@ Custom Trash is enforced on all permanent volumes:
 
 ---
 
+## Plugin System
+
+Arcile plugins are independent Android application APKs. They are discovered and launched through Android intents; Arcile never loads plugin classes, resources, or native libraries into its own process.
+
+### Modules and Ownership
+
+| Module | Responsibility |
+|--------|----------------|
+| `plugin-api` | Stable contract constants, API version, MIME constants, and immutable plugin metadata/status models. It must not acquire runtime library dependencies. |
+| `shared` | Stateless Compose viewer primitives that can be packaged into both Arcile and plugin APKs. It must not depend on app storage, feature modules, Hilt, or privileged file APIs. |
+| `app` | Plugin discovery, signature/API validation, file routing, temporary URI creation, missing/update prompts, and Settings management UI. |
+| `plugin-glb` | GLB rendering, plugin request validation, viewer UI, and share/open-with handoffs. SceneView and Filament belong only here. |
+
+The current contract version is `PluginContract.PLUGIN_API_VERSION = 1`.
+
+### Intent Contract
+
+Plugins expose an exported activity with the registration action:
+
+```text
+dev.qtremors.arcile.plugin.REGISTER
+```
+
+Arcile launches the discovered activity explicitly with:
+
+```text
+Action: dev.qtremors.arcile.plugin.VIEW_FILE
+Data: content:// URI
+Type: resolved MIME type
+Flag: Intent.FLAG_GRANT_READ_URI_PERMISSION
+ClipData: the same content URI
+```
+
+The following namespaced extras accompany the data URI:
+
+| Extra | Type | Meaning |
+|-------|------|---------|
+| `dev.qtremors.arcile.plugin.extra.FILE_URI` | `Uri` | Read-only file URI; intent data remains the primary source. |
+| `dev.qtremors.arcile.plugin.extra.FILE_NAME` | `String` | User-facing display name. |
+| `dev.qtremors.arcile.plugin.extra.MIME_TYPE` | `String` | Normalized MIME type. |
+
+Registration metadata:
+
+| Key | Format |
+|-----|--------|
+| `dev.qtremors.arcile.plugin.API_VERSION` | Integer plugin API version. |
+| `dev.qtremors.arcile.plugin.NAME` | Display name or string resource. |
+| `dev.qtremors.arcile.plugin.SUPPORTED_MIME_TYPES` | Lowercase comma-separated MIME types; type wildcards such as `image/*` are allowed. |
+| `dev.qtremors.arcile.plugin.SUPPORTED_EXTENSIONS` | Lowercase comma-separated extensions without leading dots. |
+| `dev.qtremors.arcile.plugin.HOMEPAGE` | Optional project or release URL. |
+
+`PackageInfo.versionName` and `longVersionCode` are authoritative for the plugin version. Do not duplicate them in metadata.
+
+### Discovery, Compatibility, and Security
+
+1. Arcile declares the registration action under `<queries>` for Android 11+ package visibility.
+2. `PluginManager` calls `queryIntentActivities()` with metadata enabled.
+3. Disabled/non-exported activities, malformed metadata, and unsigned or differently signed packages are rejected.
+4. A plugin is launchable only when its API version exactly matches the current contract.
+5. Matching prefers exact MIME, then extension, then MIME wildcard; version code and package name provide deterministic tie-breaking.
+6. File access is staged through Arcile's read-only `ExternalFileAccessProvider`. Plugins must accept `content://` URIs and must not request all-files access.
+
+Arcile and every official plugin release must use the same signing certificate. Debug variants naturally use the shared debug certificate. Release signing reads `signing.properties`, then `local.properties`; absolute and app-relative keystore paths are supported.
+
+### Creating a Plugin
+
+1. Add an Android application module under `arcile-app/`, include it in `settings.gradle.kts`, and give it a unique application ID such as `dev.qtremors.arcile.plugin.stl`.
+2. Depend on `:plugin-api`; add `:shared` only when the plugin uses Arcile viewer primitives.
+3. Add one exported registration/viewer activity. A viewer intended only for Arcile must not declare `MAIN`, `LAUNCHER`, or a generic `ACTION_VIEW` filter.
+4. Declare all registration metadata on that activity.
+5. Validate the custom action, `content` URI scheme, MIME/extension, and readability before rendering.
+6. Keep heavyweight rendering/codec dependencies inside the plugin module.
+7. Add contract, request-validation, rendering-failure, and build tests.
+8. Add the plugin to `PluginManager.catalog` only when Arcile should advertise installation while it is absent.
+
+Minimal manifest registration:
+
+```xml
+<activity
+    android:name=".ViewerActivity"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="dev.qtremors.arcile.plugin.REGISTER" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.API_VERSION"
+        android:value="1" />
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.NAME"
+        android:value="@string/plugin_name" />
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.SUPPORTED_MIME_TYPES"
+        android:value="model/stl" />
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.SUPPORTED_EXTENSIONS"
+        android:value="stl" />
+</activity>
+```
+
+Build and test the current GLB plugin:
+
+```bash
+./gradlew :plugin-api:testDebugUnitTest :plugin-glb:testDebugUnitTest
+./gradlew :plugin-glb:assembleDebug
+./gradlew :plugin-glb:assembleRelease
+```
+
+Before publishing, install the Arcile and plugin release APKs together, verify their certificate digests match with `apksigner verify --print-certs`, exercise missing/incompatible flows, render a real file, share/open-with it, and confirm Back returns to Arcile.
+
+---
+
 ## UI & Design System
 
 Arcile implements a high-end, premium design system built on **Material 3 Expressive** design tokens, custom spring physics, responsive gesture mechanics, and wallpaper-reactive accents.
@@ -500,8 +617,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 125 |
-| **Version Name** | `1.2.5` |
+| **Version Code** | 126 |
+| **Version Name** | `1.2.6` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -608,6 +725,8 @@ Use module-scoped tasks when iterating on a focused area:
 ./gradlew :feature:trash:testDebugUnitTest
 ./gradlew :feature:onboarding:testDebugUnitTest
 ./gradlew :feature:quickaccess:testDebugUnitTest
+./gradlew :plugin-api:testDebugUnitTest
+./gradlew :plugin-glb:testDebugUnitTest
 
 # Instrumented tests for modules that define androidTest sources
 ./gradlew :app:connectedDebugAndroidTest
@@ -620,19 +739,21 @@ Pure Kotlin/JVM modules use `test`; Android modules use `testDebugUnitTest` for 
 
 ## Build & Release Engineering
 
-To package the application:
+To package Arcile and its optional GLB plugin:
 
 ```bash
-# Generate Debug APK
-./gradlew assembleDebug
+# Generate Debug APKs
+./gradlew :app:assembleDebug :plugin-glb:assembleDebug
 
-# Generate Release AAB/APK
-./gradlew assembleRelease
+# Generate signed, minified Release APKs
+./gradlew :app:assembleRelease :plugin-glb:assembleRelease
 ```
 
 ### APK Naming Standards
-- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.2.5-debug.apk`
-- **Release Package:** `app/build/outputs/apk/release/Arcile-1.2.5.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.2.6-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.2.6.apk`
+- **GLB Plugin Debug:** `plugin-glb/build/outputs/apk/debug/Arcile-GLB-Viewer-1.0.0-debug.apk`
+- **GLB Plugin Release:** `plugin-glb/build/outputs/apk/release/Arcile-GLB-Viewer-1.0.0.apk`
 
 ---
 

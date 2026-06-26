@@ -32,6 +32,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":shared"))
     implementation(project(":core:runtime"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation"))

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -90,6 +91,7 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onThemeChange: (ThemeState) -> Unit,
     onOpenStorageManagement: () -> Unit = {},
+    onNavigateToPlugins: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onRestartApp: () -> Unit = {},
     backupState: PreferencesBackupUiState = PreferencesBackupUiState.Idle,
@@ -541,6 +543,18 @@ fun SettingsScreen(
                             )
                         }
                     }
+                }
+            }
+
+            item {
+                SettingsSection(title = stringResource(R.string.section_plugins)) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.plugins_title)) },
+                        supportingContent = { Text(stringResource(R.string.plugins_settings_description)) },
+                        leadingContent = { Icon(Icons.Default.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onNavigateToPlugins)
+                    )
                 }
             }
 
