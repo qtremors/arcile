@@ -34,8 +34,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.feature.browser.BrowserState
@@ -71,7 +71,7 @@ private data class BrowserContentKey(
 internal fun BrowserContent(
     state: BrowserState,
     displayedFiles: List<FileModel>,
-    currentPresentation: BrowserPresentationPreferences,
+    currentPresentation: FileListingPreferences,
     showSearchBar: Boolean,
     showLoading: Boolean,
     isRefreshing: Boolean,
@@ -273,7 +273,7 @@ private fun ArchiveBreadcrumbs(
 @Composable
 private fun BrowserSearchResults(
     state: BrowserState,
-    currentPresentation: BrowserPresentationPreferences,
+    currentPresentation: FileListingPreferences,
     actions: BrowserUiActions,
     onShowSearchBarChange: (Boolean) -> Unit
 ) {
@@ -337,7 +337,7 @@ private fun BrowserSearchResults(
 private fun BrowserListingContent(
     state: BrowserState,
     displayedFiles: List<FileModel>,
-    currentPresentation: BrowserPresentationPreferences,
+    currentPresentation: FileListingPreferences,
     showLoading: Boolean,
     isRefreshing: Boolean,
     bottomContentPadding: androidx.compose.ui.unit.Dp,
@@ -377,7 +377,7 @@ private fun BrowserListingContent(
             },
             modifier = Modifier.fillMaxSize()
         )
-    } else if (state.browserViewMode == BrowserViewMode.GRID) {
+    } else if (state.browserViewMode == FileViewMode.GRID) {
         Box(modifier = Modifier.fillMaxSize()) {
             FileGridRows(
                 rows = state.displayState.visibleGridRows,

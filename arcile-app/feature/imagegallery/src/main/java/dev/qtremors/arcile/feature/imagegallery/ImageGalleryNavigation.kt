@@ -18,13 +18,17 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
 
-fun NavGraphBuilder.imageGalleryScreen(
+sealed interface GalleryDestination {
+    data class ViewImage(val path: String) : GalleryDestination
+}
+
+fun NavGraphBuilder.registerImageGalleryRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onOpenFile: (String) -> Unit,
+    onDestination: (GalleryDestination) -> Unit,
     onShareSelected: suspend (List<FileModel>) -> Boolean,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
@@ -41,7 +45,7 @@ fun NavGraphBuilder.imageGalleryScreen(
         ImageGalleryScreen(
             state = state,
             onNavigateBack = onNavigateBack,
-            onOpenFile = onOpenFile,
+            onOpenFile = { path -> onDestination(GalleryDestination.ViewImage(path)) },
             onToggleSelection = viewModel::toggleSelection,
             onClearSelection = viewModel::clearSelection,
             onSelectAll = viewModel::selectAll,
@@ -91,7 +95,7 @@ fun NavGraphBuilder.imageGalleryScreen(
         )
     }
 }
-fun NavGraphBuilder.imageViewerScreen(
+fun NavGraphBuilder.registerImageViewerRoute(
     navController: NavHostController,
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,

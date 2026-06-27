@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 126
-        versionName = "1.2.6"
+        versionCode = 127
+        versionName = "1.2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -112,7 +112,7 @@ dependencies {
     implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation"))
-    implementation(project(":core:presentation:api"))
+    implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:storage:data"))
     implementation(project(":core:ui"))

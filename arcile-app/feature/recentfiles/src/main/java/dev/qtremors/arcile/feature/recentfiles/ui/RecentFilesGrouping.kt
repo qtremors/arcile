@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import java.text.DateFormat
@@ -45,7 +45,7 @@ internal fun RecentDateHeaderPill(dateHeader: String) {
 
 internal fun shouldGroupRecentFiles(
     showSearchBar: Boolean,
-    presentation: BrowserPresentationPreferences
+    presentation: FileListingPreferences
 ): Boolean = !showSearchBar &&
     presentation.sortOption in setOf(FileSortOption.DATE_NEWEST, FileSortOption.DATE_OLDEST)
 

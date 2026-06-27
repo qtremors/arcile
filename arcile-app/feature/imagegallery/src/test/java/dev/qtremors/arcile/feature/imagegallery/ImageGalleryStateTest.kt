@@ -2,8 +2,8 @@ package dev.qtremors.arcile.feature.imagegallery
 
 import android.net.Uri
 import androidx.compose.ui.geometry.Offset
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -30,8 +30,8 @@ class ImageGalleryStateTest {
         val state = ImageGalleryState(volumeId = "primary")
 
         assertEquals("primary", state.volumeId)
-        assertEquals(BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION, state.presentation.sortOption)
-        assertEquals(BrowserViewMode.GRID, state.presentation.viewMode)
+        assertEquals(FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION, state.presentation.sortOption)
+        assertEquals(FileViewMode.GRID, state.presentation.viewMode)
         assertTrue(state.isLoading)
         assertTrue(state.files.isEmpty())
         assertTrue(state.selectedFiles.isEmpty())
@@ -53,7 +53,7 @@ class ImageGalleryStateTest {
     fun `dynamic image gallery grouping options are stored correctly in state`() {
         val state = ImageGalleryState(
             imageGalleryGrouping = ImageGalleryGrouping.DAY,
-            albumPresentation = BrowserPresentationPreferences(gridMinCellSize = 180f),
+            albumPresentation = FileListingPreferences(gridMinCellSize = 180f),
             imageGalleryDefaultTab = ImageGalleryDefaultTab.ALBUMS,
             preferencesLoaded = true
         )

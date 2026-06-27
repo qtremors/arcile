@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.image
 
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import org.junit.Assert.assertFalse
@@ -119,8 +119,8 @@ class ThumbnailPolicyTest {
 
     @Test
     fun `uses wider initial budget for grid before layout is available`() {
-        assertTrue(policy.shouldLoad(input(viewMode = BrowserViewMode.GRID, itemIndex = 24, visibleRange = null)))
-        assertFalse(policy.shouldLoad(input(viewMode = BrowserViewMode.LIST, itemIndex = 24, visibleRange = null)))
+        assertTrue(policy.shouldLoad(input(viewMode = FileViewMode.GRID, itemIndex = 24, visibleRange = null)))
+        assertFalse(policy.shouldLoad(input(viewMode = FileViewMode.LIST, itemIndex = 24, visibleRange = null)))
     }
 
     @Test
@@ -145,7 +145,7 @@ class ThumbnailPolicyTest {
 
     private fun input(
         userEnabled: Boolean = true,
-        viewMode: BrowserViewMode = BrowserViewMode.LIST,
+        viewMode: FileViewMode = FileViewMode.LIST,
         thumbnailSizePx: Int = 192,
         itemIndex: Int = 10,
         visibleRange: IntRange? = 8..12,

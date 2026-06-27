@@ -11,9 +11,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.di.ArcileDispatchers
@@ -80,40 +80,40 @@ class BrowserPreferencesRepository(
             }
         }
         .map { prefs ->
-            val globalPresentation = BrowserPresentationPreferences(
+            val globalPresentation = FileListingPreferences(
                 sortOption = parseSortOption(
                     prefs[GLOBAL_SORT_KEY],
-                    BrowserPresentationPreferences.DEFAULT_SORT_OPTION
+                    FileListingPreferences.DEFAULT_SORT_OPTION
                 ),
                 viewMode = parseViewMode(
                     prefs[GLOBAL_VIEW_MODE_KEY],
-                    BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+                    FileListingPreferences.DEFAULT_VIEW_MODE
                 ),
-                listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+                listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: FileListingPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY]
-                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
-                showThumbnails = prefs[GLOBAL_SHOW_THUMBNAILS_KEY] ?: BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS
+                    ?: FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+                showThumbnails = prefs[GLOBAL_SHOW_THUMBNAILS_KEY] ?: FileListingPreferences.DEFAULT_SHOW_THUMBNAILS
             ).normalized()
 
-            val recentPresentation = BrowserPresentationPreferences(
+            val recentPresentation = FileListingPreferences(
                 sortOption = parseSortOption(
                     prefs[RECENT_SORT_KEY],
-                    BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION
+                    FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION
                 ),
                 viewMode = parseViewMode(
                     prefs[RECENT_VIEW_MODE_KEY],
-                    BrowserPresentationPreferences.DEFAULT_VIEW_MODE
+                    FileListingPreferences.DEFAULT_VIEW_MODE
                 ),
-                listZoom = prefs[RECENT_LIST_ZOOM_KEY] ?: BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+                listZoom = prefs[RECENT_LIST_ZOOM_KEY] ?: FileListingPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[RECENT_GRID_MIN_CELL_SIZE_KEY]
-                    ?: BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+                    ?: FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
                 showThumbnails = prefs[RECENT_SHOW_THUMBNAILS_KEY]
                     ?: prefs[GLOBAL_SHOW_THUMBNAILS_KEY]
-                    ?: BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS
+                    ?: FileListingPreferences.DEFAULT_SHOW_THUMBNAILS
             ).normalized()
 
-            val pathMap = mutableMapOf<String, BrowserPresentationPreferences>()
-            val exactPathMap = mutableMapOf<String, BrowserPresentationPreferences>()
+            val pathMap = mutableMapOf<String, FileListingPreferences>()
+            val exactPathMap = mutableMapOf<String, FileListingPreferences>()
             prefs.asMap().forEach { (key, value) ->
                 when {
                     key.name.startsWith("path_sort_") && value is String -> {
@@ -137,7 +137,7 @@ class BrowserPreferencesRepository(
                         pathMap[path] = currentPresentation(
                             pathMap[path],
                             globalPresentation
-                        ).copy(viewMode = parseViewMode(value, BrowserPresentationPreferences.DEFAULT_VIEW_MODE))
+                        ).copy(viewMode = parseViewMode(value, FileListingPreferences.DEFAULT_VIEW_MODE))
                     }
 
                     key.name.startsWith("exact_path_view_mode_") && value is String -> {
@@ -145,7 +145,7 @@ class BrowserPreferencesRepository(
                         exactPathMap[path] = currentPresentation(
                             exactPathMap[path],
                             globalPresentation
-                        ).copy(viewMode = parseViewMode(value, BrowserPresentationPreferences.DEFAULT_VIEW_MODE))
+                        ).copy(viewMode = parseViewMode(value, FileListingPreferences.DEFAULT_VIEW_MODE))
                     }
 
                     key.name.startsWith("path_list_zoom_") && value is Float -> {
@@ -189,7 +189,7 @@ class BrowserPreferencesRepository(
             val defaultTab = ImageGalleryDefaultTab.entries.find { it.name == defaultTabStr }
                 ?: BrowserPreferences().imageGalleryDefaultTab
 
-            val albumPresentation = BrowserPresentationPreferences(
+            val albumPresentation = FileListingPreferences(
                 sortOption = parseSortOption(
                     prefs[ALBUM_SORT_OPTION_KEY],
                     BrowserPreferences().albumPresentation.sortOption
@@ -198,7 +198,7 @@ class BrowserPreferencesRepository(
                     prefs[ALBUM_VIEW_MODE_KEY],
                     BrowserPreferences().albumPresentation.viewMode
                 ),
-                listZoom = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
+                listZoom = FileListingPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPreferences().albumPresentation.gridMinCellSize,
                 showThumbnails = true
@@ -261,7 +261,7 @@ class BrowserPreferencesRepository(
         }
         .flowOn(dispatchers.io)
 
-    override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
+    override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
             prefs[GLOBAL_SORT_KEY] = normalized.sortOption.name
@@ -272,7 +272,7 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences) {
+    override suspend fun updateRecentPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
             prefs[RECENT_SORT_KEY] = normalized.sortOption.name
@@ -337,7 +337,7 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+    override suspend fun updateAlbumPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
             prefs[ALBUM_SORT_OPTION_KEY] = normalized.sortOption.name
@@ -354,7 +354,7 @@ class BrowserPreferencesRepository(
 
     override suspend fun updatePathPresentation(
         path: String,
-        presentation: BrowserPresentationPreferences?,
+        presentation: FileListingPreferences?,
         applyToSubfolders: Boolean
     ) {
         val normalizedPath = if (path.length > 1) path.trimEnd('/') else path
@@ -450,14 +450,14 @@ class BrowserPreferencesRepository(
         return FileSortOption.entries.find { it.name == value } ?: fallback
     }
 
-    private fun parseViewMode(value: String?, fallback: BrowserViewMode): BrowserViewMode {
-        return BrowserViewMode.entries.find { it.name == value } ?: fallback
+    private fun parseViewMode(value: String?, fallback: FileViewMode): FileViewMode {
+        return FileViewMode.entries.find { it.name == value } ?: fallback
     }
 
     private fun currentPresentation(
-        existing: BrowserPresentationPreferences?,
-        globalPresentation: BrowserPresentationPreferences
-    ): BrowserPresentationPreferences {
+        existing: FileListingPreferences?,
+        globalPresentation: FileListingPreferences
+    ): FileListingPreferences {
         return existing ?: globalPresentation
     }
 

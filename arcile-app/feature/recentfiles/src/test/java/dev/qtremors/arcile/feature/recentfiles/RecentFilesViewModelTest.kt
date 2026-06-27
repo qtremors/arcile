@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.recentfiles
 
 import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -102,7 +102,7 @@ class RecentFilesViewModelTest {
         val viewModel = recentViewModel(repository)
 
         advanceUntilIdle()
-        viewModel.updatePresentation(BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC))
+        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.NAME_ASC))
 
         assertEquals(FileSortOption.NAME_ASC, viewModel.state.value.presentation.sortOption)
         assertEquals(listOf("beta.txt", "alpha.txt", "gamma.txt"), viewModel.state.value.recentFiles.map { it.name })
@@ -151,7 +151,7 @@ class RecentFilesViewModelTest {
 
         advanceUntilIdle()
         viewModel.updateSearchFilters(SearchFilters(fileType = "Images"))
-        viewModel.updatePresentation(BrowserPresentationPreferences(sortOption = FileSortOption.SIZE_LARGEST))
+        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.SIZE_LARGEST))
         viewModel.updateSearchQuery("holiday")
         advanceTimeBy(400)
         advanceUntilIdle()
@@ -356,9 +356,9 @@ class RecentFilesViewModelTest {
     fun `presentation updates are persisted for recent files`() = runTest(mainDispatcherRule.dispatcher) {
         val preferences = FakeBrowserPreferencesStore()
         val viewModel = recentViewModel(FakeStorageRepositoryBundle(), preferences = preferences)
-        val presentation = BrowserPresentationPreferences(
+        val presentation = FileListingPreferences(
             sortOption = FileSortOption.NAME_ASC,
-            viewMode = dev.qtremors.arcile.core.storage.domain.BrowserViewMode.GRID
+            viewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID
         )
 
         advanceUntilIdle()
@@ -383,7 +383,7 @@ class RecentFilesViewModelTest {
 
         advanceUntilIdle()
         viewModel.updateSearchFilters(SearchFilters(fileType = "Images"))
-        viewModel.updatePresentation(BrowserPresentationPreferences(sortOption = FileSortOption.DATE_NEWEST))
+        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST))
         viewModel.loadMore()
         advanceUntilIdle()
 

@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -17,7 +16,6 @@ android {
     }
 
     buildFeatures {
-        compose = true
         buildConfig = true
     }
 }
@@ -30,8 +28,6 @@ kotlin {
 
 dependencies {
     implementation(project(":core:storage:domain"))
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.coroutines.android)
 }

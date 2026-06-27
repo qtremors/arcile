@@ -1,11 +1,15 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import dev.qtremors.arcile.core.storage.domain.FileSortOption
-
-enum class BrowserViewMode {
+enum class FileViewMode {
     LIST,
     GRID
 }
+
+@Deprecated(
+    message = "Use FileViewMode. BrowserViewMode is kept temporarily for migration compatibility.",
+    replaceWith = ReplaceWith("FileViewMode")
+)
+typealias BrowserViewMode = FileViewMode
 
 enum class ImageGalleryGrouping {
     NONE,
@@ -19,9 +23,9 @@ enum class ImageGalleryDefaultTab {
     ALBUMS
 }
 
-data class BrowserPresentationPreferences(
+data class FileListingPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
-    val viewMode: BrowserViewMode = DEFAULT_VIEW_MODE,
+    val viewMode: FileViewMode = DEFAULT_VIEW_MODE,
     val listZoom: Float = DEFAULT_LIST_ZOOM,
     val gridMinCellSize: Float = DEFAULT_GRID_MIN_CELL_SIZE,
     val showThumbnails: Boolean = DEFAULT_SHOW_THUMBNAILS
@@ -29,7 +33,7 @@ data class BrowserPresentationPreferences(
     companion object {
         val DEFAULT_SORT_OPTION: FileSortOption = FileSortOption.NAME_ASC
         val DEFAULT_CATEGORY_SORT_OPTION: FileSortOption = FileSortOption.DATE_NEWEST
-        val DEFAULT_VIEW_MODE: BrowserViewMode = BrowserViewMode.LIST
+        val DEFAULT_VIEW_MODE: FileViewMode = FileViewMode.LIST
         const val DEFAULT_LIST_ZOOM: Float = 1f
         const val DEFAULT_GRID_MIN_CELL_SIZE: Float = 132f
         const val DEFAULT_SHOW_THUMBNAILS: Boolean = true
@@ -39,19 +43,25 @@ data class BrowserPresentationPreferences(
         const val MAX_GRID_MIN_CELL_SIZE: Float = 196f
     }
 
-    fun normalized(): BrowserPresentationPreferences = copy(
+    fun normalized(): FileListingPreferences = copy(
         listZoom = listZoom.coerceIn(MIN_LIST_ZOOM, MAX_LIST_ZOOM),
         gridMinCellSize = gridMinCellSize.coerceIn(MIN_GRID_MIN_CELL_SIZE, MAX_GRID_MIN_CELL_SIZE)
     )
 }
 
+@Deprecated(
+    message = "Use FileListingPreferences. BrowserPresentationPreferences is kept temporarily for migration compatibility.",
+    replaceWith = ReplaceWith("FileListingPreferences")
+)
+typealias BrowserPresentationPreferences = FileListingPreferences
+
 data class BrowserPreferences(
-    val globalPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(),
-    val recentPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
-        sortOption = BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION
+    val globalPresentation: FileListingPreferences = FileListingPreferences(),
+    val recentPresentation: FileListingPreferences = FileListingPreferences(
+        sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION
     ),
-    val pathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
-    val exactPathPresentationOptions: Map<String, BrowserPresentationPreferences> = emptyMap(),
+    val pathPresentationOptions: Map<String, FileListingPreferences> = emptyMap(),
+    val exactPathPresentationOptions: Map<String, FileListingPreferences> = emptyMap(),
     val homeRecentCarouselLimit: Int = DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     val showHiddenFiles: Boolean = true,
     val imageGalleryShowFileDetails: Boolean = true,
@@ -59,9 +69,9 @@ data class BrowserPreferences(
     val imageGallerySectioned: Boolean = false,
     val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
     val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
-    val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+    val albumPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.NAME_ASC,
-        viewMode = BrowserViewMode.GRID,
+        viewMode = FileViewMode.GRID,
         gridMinCellSize = 160f
     ),
     val albumAspectRatio: Boolean = false,
@@ -92,7 +102,7 @@ data class BrowserPreferences(
     val exactPathSortOptions: Map<String, FileSortOption>
         get() = exactPathPresentationOptions.mapValues { it.value.sortOption }
 
-    fun getPresentationForPath(path: String): BrowserPresentationPreferences {
+    fun getPresentationForPath(path: String): FileListingPreferences {
         var currentPath = path.trimEnd('/')
         if (currentPath.isEmpty()) currentPath = "/"
 
@@ -113,11 +123,11 @@ data class BrowserPreferences(
         return globalPresentation
     }
 
-    fun getPresentationForCategory(categoryName: String): BrowserPresentationPreferences {
+    fun getPresentationForCategory(categoryName: String): FileListingPreferences {
         val key = "category_$categoryName"
         return exactPathPresentationOptions[key]
             ?: pathPresentationOptions[key]
-            ?: globalPresentation.copy(sortOption = BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION)
+            ?: globalPresentation.copy(sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION)
     }
 
     fun getSortOptionForPath(path: String): FileSortOption = getPresentationForPath(path).sortOption

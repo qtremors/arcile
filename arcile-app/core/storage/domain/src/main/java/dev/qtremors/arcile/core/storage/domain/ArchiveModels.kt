@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 
 enum class ArchiveNameEncoding(val charsetName: String, val displayName: String) {
     UTF_8("UTF-8", "UTF-8"),
@@ -124,7 +123,7 @@ interface ArchiveManager {
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
         resolutions: Map<String, ConflictResolution> = emptyMap(),
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
     suspend fun detectArchiveConflicts(
         archivePath: String,
@@ -140,6 +139,6 @@ interface ArchiveManager {
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
         compressionLevel: ArchiveCompressionLevel = ArchiveCompressionLevel.STORE,
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
 }

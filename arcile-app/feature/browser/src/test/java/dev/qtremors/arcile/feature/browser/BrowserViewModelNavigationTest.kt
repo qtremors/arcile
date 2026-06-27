@@ -3,9 +3,9 @@ package dev.qtremors.arcile.feature.browser
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
@@ -105,7 +105,7 @@ class BrowserViewModelNavigationTest {
             browserPreferencesRepository = FakeBrowserPreferencesStore(
                 BrowserPreferences(
                     pathPresentationOptions = mapOf(
-                        "category_Images" to BrowserPresentationPreferences(sortOption = FileSortOption.DATE_OLDEST)
+                        "category_Images" to FileListingPreferences(sortOption = FileSortOption.DATE_OLDEST)
                     )
                 )
             ),
@@ -126,7 +126,7 @@ class BrowserViewModelNavigationTest {
         assertEquals("", viewModel.state.value.currentPath)
         assertEquals("primary", viewModel.state.value.currentVolumeId)
         assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
-        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
+        assertEquals(FileViewMode.LIST, viewModel.state.value.browserViewMode)
         assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
     }
 
@@ -175,9 +175,9 @@ class BrowserViewModelNavigationTest {
         viewModel.navigateToCategory("Images", "primary")
         advanceUntilIdle()
         viewModel.updateBrowserPresentation(
-            BrowserPresentationPreferences(
+            FileListingPreferences(
                 sortOption = FileSortOption.DATE_OLDEST,
-                viewMode = BrowserViewMode.GRID,
+                viewMode = FileViewMode.GRID,
                 listZoom = 1.1f,
                 gridMinCellSize = 144f
             ),
@@ -187,7 +187,7 @@ class BrowserViewModelNavigationTest {
 
         assertEquals("category_Images", preferences.lastUpdatedPath)
         assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathPresentation?.sortOption)
-        assertEquals(BrowserViewMode.GRID, preferences.lastUpdatedPathPresentation?.viewMode)
+        assertEquals(FileViewMode.GRID, preferences.lastUpdatedPathPresentation?.viewMode)
         assertNull(preferences.lastUpdatedGlobalPresentation)
     }
 

@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.shared.presentation.toUiModel
 import kotlinx.coroutines.CoroutineScope

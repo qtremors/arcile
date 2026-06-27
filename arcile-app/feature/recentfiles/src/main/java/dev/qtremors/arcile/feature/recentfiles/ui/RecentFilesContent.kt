@@ -30,7 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
 import dev.qtremors.arcile.shared.ui.lists.FileGrid
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
@@ -59,7 +59,7 @@ internal fun RecentFilesContent(
 
     val isGroupingEnabled = shouldGroupRecentFiles(showSearchBar, state.presentation)
 
-    if (state.presentation.viewMode == BrowserViewMode.GRID) {
+    if (state.presentation.viewMode == FileViewMode.GRID) {
         val gridState = rememberLazyGridState()
         val shouldLoadMore by remember {
             derivedStateOf {

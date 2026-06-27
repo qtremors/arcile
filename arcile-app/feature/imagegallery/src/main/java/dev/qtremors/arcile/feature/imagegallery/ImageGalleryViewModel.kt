@@ -14,8 +14,8 @@ import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -32,7 +32,7 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
@@ -86,9 +86,9 @@ data class ImageGalleryState(
     val selectedAlbumPath: String? = null,
     val selectedFiles: PersistentSet<String> = persistentSetOf(),
     val searchQuery: String = "",
-    val presentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
-        sortOption = BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION,
-        viewMode = BrowserViewMode.GRID,
+    val presentation: FileListingPreferences = FileListingPreferences(
+        sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION,
+        viewMode = FileViewMode.GRID,
         gridMinCellSize = 136f,
         showThumbnails = true
     ),
@@ -113,9 +113,9 @@ data class ImageGalleryState(
     val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
     val galleryScrollbarEnabled: Boolean = true,
     val preferencesLoaded: Boolean = false,
-    val albumPresentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+    val albumPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.NAME_ASC,
-        viewMode = BrowserViewMode.GRID,
+        viewMode = FileViewMode.GRID,
         gridMinCellSize = 160f
     ),
     val aspectRatios: PersistentMap<String, Float> = persistentMapOf(),
@@ -471,7 +471,7 @@ class ImageGalleryViewModel @Inject constructor(
         _state.update { it.copy(selectedAlbumPath = path).withDisplayedFiles() }
     }
 
-    fun updatePresentation(preferences: BrowserPresentationPreferences) {
+    fun updatePresentation(preferences: FileListingPreferences) {
         val normalized = preferences.normalized()
         _state.update { it.copy(presentation = normalized).withDisplayedFiles() }
         viewModelScope.launch {
@@ -578,7 +578,7 @@ class ImageGalleryViewModel @Inject constructor(
         }
     }
 
-    fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+    fun updateAlbumPresentation(presentation: FileListingPreferences) {
         viewModelScope.launch {
             browserPreferencesStore.updateAlbumPresentation(presentation)
         }

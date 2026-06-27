@@ -2,7 +2,7 @@ package dev.qtremors.arcile.testutil
 
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -12,8 +12,8 @@ class FakeBrowserPreferencesStore(
     private val preferences = MutableStateFlow(initialPreferences)
     override val preferencesFlow: Flow<BrowserPreferences> = preferences
 
-    var lastUpdatedGlobalPresentation: BrowserPresentationPreferences? = null
-    var lastUpdatedRecentPresentation: BrowserPresentationPreferences? = null
+    var lastUpdatedGlobalPresentation: FileListingPreferences? = null
+    var lastUpdatedRecentPresentation: FileListingPreferences? = null
     var lastUpdatedHomeRecentCarouselLimit: Int? = null
     var lastUpdatedShowHiddenFiles: Boolean? = null
     var lastUpdatedBrowserScrollbarEnabled: Boolean? = null
@@ -23,18 +23,18 @@ class FakeBrowserPreferencesStore(
     var lastUpdatedImageGallerySectioned: Boolean? = null
     var lastUpdatedImageGalleryGrouping: dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping? = null
     var lastUpdatedImageGalleryDefaultTab: dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab? = null
-    var lastUpdatedAlbumPresentation: BrowserPresentationPreferences? = null
+    var lastUpdatedAlbumPresentation: FileListingPreferences? = null
     var lastUpdatedAlbumAspectRatio: Boolean? = null
     var lastUpdatedPath: String? = null
-    var lastUpdatedPathPresentation: BrowserPresentationPreferences? = null
+    var lastUpdatedPathPresentation: FileListingPreferences? = null
     var lastUpdatedDefaultSaveToArcilePath: String? = null
 
-    override suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences) {
+    override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         lastUpdatedGlobalPresentation = presentation
         preferences.value = preferences.value.copy(globalPresentation = presentation)
     }
 
-    override suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences) {
+    override suspend fun updateRecentPresentation(presentation: FileListingPreferences) {
         lastUpdatedRecentPresentation = presentation
         preferences.value = preferences.value.copy(recentPresentation = presentation)
     }
@@ -85,7 +85,7 @@ class FakeBrowserPreferencesStore(
         preferences.value = preferences.value.copy(imageGalleryDefaultTab = tab)
     }
 
-    override suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences) {
+    override suspend fun updateAlbumPresentation(presentation: FileListingPreferences) {
         lastUpdatedAlbumPresentation = presentation
         preferences.value = preferences.value.copy(albumPresentation = presentation)
     }
@@ -97,7 +97,7 @@ class FakeBrowserPreferencesStore(
 
     override suspend fun updatePathPresentation(
         path: String,
-        presentation: BrowserPresentationPreferences?,
+        presentation: FileListingPreferences?,
         applyToSubfolders: Boolean
     ) {
         lastUpdatedPath = path

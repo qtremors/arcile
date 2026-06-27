@@ -70,6 +70,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val appLaunchContext = (application as ArcileApp)
+            .appSessionTracker
+            .onMainActivityCreated(hasSavedInstanceState = savedInstanceState != null)
         installDebugStrictMode()
         val splashScreen = traceStartupSection("Arcile.installSplashScreen") {
             installSplashScreen()
@@ -222,6 +225,7 @@ class MainActivity : ComponentActivity() {
                         )
                     } else if (hasPermission) {
                         ArcileAppShell(
+                            appLaunchContext = appLaunchContext,
                             currentThemeState = themeState,
                             onThemeChange = { newState ->
                                 coroutineScope.launch {

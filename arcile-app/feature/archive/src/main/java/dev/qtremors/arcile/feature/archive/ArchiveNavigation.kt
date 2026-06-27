@@ -12,13 +12,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 
-fun NavGraphBuilder.archiveViewerScreen(
+sealed interface ArchiveDestination {
+    data class OpenInBrowser(val archivePath: String) : ArchiveDestination
+}
+
+fun NavGraphBuilder.registerArchiveViewerRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onOpenArchiveInBrowser: (String) -> Unit = {}
+    onDestination: (ArchiveDestination) -> Unit
 ) {
     composable<AppRoutes.ArchiveViewer>(
         enterTransition = enterTransition,
@@ -28,7 +32,7 @@ fun NavGraphBuilder.archiveViewerScreen(
     ) {
         val route = it.toRoute<AppRoutes.ArchiveViewer>()
         androidx.compose.runtime.LaunchedEffect(route.archivePath) {
-            onOpenArchiveInBrowser(route.archivePath)
+            onDestination(ArchiveDestination.OpenInBrowser(route.archivePath))
         }
         val viewModel = hiltViewModel<ArchiveViewerViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()

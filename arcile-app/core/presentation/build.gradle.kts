@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.qtremors.arcile.core.presentation.api"
+    namespace = "dev.qtremors.arcile.core.presentation"
     compileSdk = 37
 
     defaultConfig {

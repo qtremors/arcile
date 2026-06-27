@@ -1,12 +1,10 @@
 package dev.qtremors.arcile.core.ui
 
 import android.content.Context
-import androidx.annotation.PluralsRes
-import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-
+import dev.qtremors.arcile.core.presentation.UiText
 
 @Composable
 fun UiText.asString(): String =

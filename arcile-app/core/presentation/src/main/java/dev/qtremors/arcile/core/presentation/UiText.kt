@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.core.ui
+package dev.qtremors.arcile.core.presentation
 
 sealed interface UiText {
     data class StringResource(

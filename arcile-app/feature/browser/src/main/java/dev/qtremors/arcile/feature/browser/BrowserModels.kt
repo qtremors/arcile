@@ -6,8 +6,8 @@ import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -16,7 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.shared.presentation.PropertiesUiModel
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
@@ -121,10 +121,10 @@ data class BrowserState(
     val isSearching: Boolean = false,
     val browserSearchQuery: String = "",
     val browserSortOption: FileSortOption = FileSortOption.NAME_ASC,
-    val browserViewMode: BrowserViewMode = BrowserViewMode.LIST,
-    val browserListZoom: Float = BrowserPresentationPreferences.DEFAULT_LIST_ZOOM,
-    val browserGridMinCellSize: Float = BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
-    val browserShowThumbnails: Boolean = BrowserPresentationPreferences.DEFAULT_SHOW_THUMBNAILS,
+    val browserViewMode: FileViewMode = FileViewMode.LIST,
+    val browserListZoom: Float = FileListingPreferences.DEFAULT_LIST_ZOOM,
+    val browserGridMinCellSize: Float = FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
+    val browserShowThumbnails: Boolean = FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
     val browserScrollbarEnabled: Boolean = true,
     val showHiddenFiles: Boolean = true,
     val selectedFiles: PersistentSet<String> = persistentSetOf(),

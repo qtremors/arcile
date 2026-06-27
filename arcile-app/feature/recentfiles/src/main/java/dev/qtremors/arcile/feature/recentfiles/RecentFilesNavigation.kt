@@ -16,7 +16,11 @@ import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
 
-fun NavGraphBuilder.recentFilesScreen(
+sealed interface RecentFilesDestination {
+    data class ContainingFolder(val path: String) : RecentFilesDestination
+}
+
+fun NavGraphBuilder.registerRecentFilesRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -24,7 +28,7 @@ fun NavGraphBuilder.recentFilesScreen(
     onNavigateBack: () -> Unit,
     onOpenFile: (String, List<FileModel>) -> Unit,
     onShareSelected: suspend (List<FileModel>) -> Boolean,
-    onOpenContainingFolder: (String) -> Unit,
+    onDestination: (RecentFilesDestination) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.RecentFiles>(
@@ -67,7 +71,9 @@ fun NavGraphBuilder.recentFilesScreen(
             onClearError = { viewModel.clearError() },
             onOpenProperties = { viewModel.openPropertiesForSelection() },
             onDismissProperties = { viewModel.dismissProperties() },
-            onOpenContainingFolder = onOpenContainingFolder,
+            onOpenContainingFolder = { path ->
+                onDestination(RecentFilesDestination.ContainingFolder(path))
+            },
             onFeedback = onFeedback,
             nativeRequestFlow = viewModel.nativeRequestFlow
         )

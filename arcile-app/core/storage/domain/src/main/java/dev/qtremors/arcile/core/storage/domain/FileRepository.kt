@@ -3,7 +3,6 @@ package dev.qtremors.arcile.core.storage.domain
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -29,7 +28,11 @@ class DestinationRequiredException(val trashIds: List<String>) : Exception("Dest
  * without try/catch at the call site. IO-bound operations must be called from a coroutine
  * and are dispatched to [kotlinx.coroutines.Dispatchers.IO] internally.
  */
-interface FileBrowserRepository {
+interface SelectionPropertiesRepository {
+    suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
+}
+
+interface FileBrowserRepository : SelectionPropertiesRepository {
 
     // ─── Directory listing ───────────────────────────────────────────────────
 
@@ -48,7 +51,6 @@ interface FileBrowserRepository {
     suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats>
     fun queueFolderStats(paths: List<String>)
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
-    suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties>
 }
 
 interface ArchiveRepository {
@@ -77,7 +79,7 @@ interface ArchiveRepository {
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
         resolutions: Map<String, ConflictResolution> = emptyMap(),
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
     suspend fun detectArchiveConflicts(
         archivePath: String,
@@ -93,7 +95,7 @@ interface ArchiveRepository {
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
         compressionLevel: ArchiveCompressionLevel = ArchiveCompressionLevel.STORE,
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit> = Result.failure(NotImplementedError("Archive support is not available"))
 }
 
@@ -127,7 +129,7 @@ interface FileMutationRepository {
         parentPath: String,
         name: String,
         size: Long,
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<FileModel>
 
 
@@ -307,7 +309,7 @@ interface ClipboardRepository {
         sourcePaths: List<String>,
         destinationPath: String,
         resolutions: Map<String, ConflictResolution> = emptyMap(),
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
 
     /**
@@ -325,7 +327,7 @@ interface ClipboardRepository {
         sourcePaths: List<String>,
         destinationPath: String,
         resolutions: Map<String, ConflictResolution> = emptyMap(),
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
 }
 
@@ -343,7 +345,7 @@ interface TrashRepository {
      */
     suspend fun moveToTrash(
         paths: List<String>,
-        onProgress: ((BulkFileOperationProgress) -> Unit)? = null
+        onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
 
     /**
@@ -381,6 +383,7 @@ interface TrashRepository {
  */
 interface FileRepository :
     FileBrowserRepository,
+    SelectionPropertiesRepository,
     FileMutationRepository,
     SearchRepository,
     StorageAnalyticsRepository,

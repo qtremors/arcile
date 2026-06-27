@@ -7,8 +7,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -28,7 +28,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.delegate.ArchiveActionDelegate
 import dev.qtremors.arcile.feature.browser.delegate.BrowserOperationDelegate
 import dev.qtremors.arcile.feature.browser.delegate.ClipboardDelegate
@@ -460,7 +460,7 @@ class BrowserViewModel @Inject constructor(
     fun updateSearchFilters(filters: SearchFilters) = searchDelegate.updateSearchFilters(filters)
     fun toggleSearchFilterMenu(visible: Boolean) = searchDelegate.toggleSearchFilterMenu(visible)
     fun updateBrowserPresentation(
-        presentation: BrowserPresentationPreferences,
+        presentation: FileListingPreferences,
         applyToSubfolders: Boolean
     ) {
         if (_state.value.isVolumeRootScreen) return

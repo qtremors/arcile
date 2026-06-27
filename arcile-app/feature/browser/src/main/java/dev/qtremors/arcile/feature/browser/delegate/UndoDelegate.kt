@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import kotlinx.collections.immutable.persistentListOf

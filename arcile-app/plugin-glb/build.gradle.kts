@@ -96,7 +96,7 @@ androidComponents {
 
 dependencies {
     implementation(project(":plugin-api"))
-    implementation(project(":shared"))
+    implementation(project(":plugin-ui"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)

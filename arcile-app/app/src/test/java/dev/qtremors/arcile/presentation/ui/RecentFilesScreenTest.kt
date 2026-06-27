@@ -6,8 +6,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
@@ -125,7 +125,7 @@ class RecentFilesScreenTest {
             ArcileTestTheme {
                 RecentFilesScreen(
                     state = recentScreenState().copy(
-                        presentation = BrowserPresentationPreferences(viewMode = BrowserViewMode.GRID)
+                        presentation = FileListingPreferences(viewMode = FileViewMode.GRID)
                     ),
                     onNavigateBack = {},
                     onOpenFile = {},
@@ -151,9 +151,9 @@ class RecentFilesScreenTest {
             ArcileTestTheme {
                 RecentFilesScreen(
                     state = recentScreenState().copy(
-                        presentation = BrowserPresentationPreferences(
+                        presentation = FileListingPreferences(
                             sortOption = FileSortOption.DATE_NEWEST,
-                            viewMode = BrowserViewMode.GRID
+                            viewMode = FileViewMode.GRID
                         )
                     ),
                     onNavigateBack = {},

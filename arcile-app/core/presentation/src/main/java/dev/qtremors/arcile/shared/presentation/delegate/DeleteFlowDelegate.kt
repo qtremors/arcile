@@ -9,7 +9,7 @@ import dev.qtremors.arcile.core.storage.domain.DeletePolicyResult
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.evaluateDeletePolicy
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

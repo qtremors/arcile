@@ -43,8 +43,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.ui.theme.bounceClickable
@@ -72,10 +72,10 @@ import androidx.compose.ui.text.style.TextOverflow
 @Composable
 fun SortOptionDialog(
     title: String,
-    selectedPreferences: BrowserPresentationPreferences,
+    selectedPreferences: FileListingPreferences,
     showApplyToSubfolders: Boolean,
     onDismiss: () -> Unit,
-    onApply: (BrowserPresentationPreferences, Boolean) -> Unit,
+    onApply: (FileListingPreferences, Boolean) -> Unit,
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
     onDateRangeChange: ((Long?, Long?) -> Unit)? = null,
@@ -127,7 +127,7 @@ fun SortOptionDialog(
                     )
 
                     ExpressiveSegmentedRow(
-                        options = BrowserViewMode.entries,
+                        options = FileViewMode.entries,
                         selectedOption = draftPreferences.viewMode,
                         onOptionSelected = { mode -> draftPreferences = draftPreferences.copy(viewMode = mode) },
                         modifier = Modifier.fillMaxWidth()
@@ -137,7 +137,7 @@ fun SortOptionDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = if (mode == BrowserViewMode.LIST) {
+                                imageVector = if (mode == FileViewMode.LIST) {
                                     Icons.AutoMirrored.Filled.ViewList
                                 } else {
                                     Icons.Default.GridView
@@ -152,7 +152,7 @@ fun SortOptionDialog(
                         targetState = draftPreferences.viewMode,
                         label = "browser_layout_controls"
                     ) { mode ->
-                        if (mode == BrowserViewMode.LIST) {
+                        if (mode == FileViewMode.LIST) {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -177,7 +177,7 @@ fun SortOptionDialog(
                                     onValueChange = {
                                         draftPreferences = draftPreferences.copy(listZoom = it)
                                     },
-                                    valueRange = BrowserPresentationPreferences.MIN_LIST_ZOOM..BrowserPresentationPreferences.MAX_LIST_ZOOM,
+                                    valueRange = FileListingPreferences.MIN_LIST_ZOOM..FileListingPreferences.MAX_LIST_ZOOM,
                                     steps = 7
                                 )
                             }
@@ -206,7 +206,7 @@ fun SortOptionDialog(
                                     onValueChange = {
                                         draftPreferences = draftPreferences.copy(gridMinCellSize = it)
                                     },
-                                    valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
+                                    valueRange = FileListingPreferences.MIN_GRID_MIN_CELL_SIZE..FileListingPreferences.MAX_GRID_MIN_CELL_SIZE,
                                     steps = 1
                                 )
                             }
@@ -527,7 +527,7 @@ fun SortOptionDialog(
 @Composable
 private fun SortOptionChip(
     option: FileSortOption,
-    preferences: BrowserPresentationPreferences,
+    preferences: FileListingPreferences,
     modifier: Modifier = Modifier,
     onSelect: (FileSortOption) -> Unit
 ) {
@@ -559,8 +559,8 @@ private fun sortLabel(option: FileSortOption): String {
 }
 
 @Composable
-private fun viewModeLabel(mode: BrowserViewMode): String {
+private fun viewModeLabel(mode: FileViewMode): String {
     return stringResource(
-        if (mode == BrowserViewMode.LIST) R.string.list_view else R.string.grid_view
+        if (mode == FileViewMode.LIST) R.string.list_view else R.string.grid_view
     )
 }

@@ -7,8 +7,8 @@ import kotlinx.coroutines.flow.flowOf
 interface BrowserPreferencesStore {
     val preferencesFlow: Flow<BrowserPreferences>
 
-    suspend fun updateGlobalPresentation(presentation: BrowserPresentationPreferences)
-    suspend fun updateRecentPresentation(presentation: BrowserPresentationPreferences)
+    suspend fun updateGlobalPresentation(presentation: FileListingPreferences)
+    suspend fun updateRecentPresentation(presentation: FileListingPreferences)
     suspend fun updateHomeRecentCarouselLimit(limit: Int)
     suspend fun updateShowHiddenFiles(show: Boolean)
     suspend fun updateBrowserScrollbarEnabled(enabled: Boolean)
@@ -18,11 +18,11 @@ interface BrowserPreferencesStore {
     suspend fun updateImageGallerySectioned(enabled: Boolean)
     suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping)
     suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab)
-    suspend fun updateAlbumPresentation(presentation: BrowserPresentationPreferences)
+    suspend fun updateAlbumPresentation(presentation: FileListingPreferences)
     suspend fun updateAlbumAspectRatio(enabled: Boolean)
     suspend fun updatePathPresentation(
         path: String,
-        presentation: BrowserPresentationPreferences?,
+        presentation: FileListingPreferences?,
         applyToSubfolders: Boolean = false
     )
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)

@@ -64,7 +64,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStats
@@ -391,7 +391,7 @@ fun FileItemRow(
                 val shouldLoadThumbnail = row.canShowThumbnail && thumbnailPolicy.shouldLoad(
                     ThumbnailPolicyInput(
                         userEnabled = showThumbnails,
-                        viewMode = BrowserViewMode.LIST,
+                        viewMode = FileViewMode.LIST,
                         thumbnailSizePx = row.thumbnailSizePx,
                         itemIndex = itemIndex,
                         visibleRange = visibleRange,

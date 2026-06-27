@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
@@ -21,7 +21,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -64,7 +64,7 @@ data class RecentFilesState(
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,
     val activeSearchFilters: SearchFilters = SearchFilters(),
-    val presentation: BrowserPresentationPreferences = BrowserPresentationPreferences(
+    val presentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.DATE_NEWEST
     ),
     val todayStart: Long = 0L,
@@ -402,7 +402,7 @@ class RecentFilesViewModel @Inject constructor(
         }
     }
 
-    fun updatePresentation(preferences: BrowserPresentationPreferences) {
+    fun updatePresentation(preferences: FileListingPreferences) {
         val normalized = preferences.normalized()
         _state.update {
             it.copy(

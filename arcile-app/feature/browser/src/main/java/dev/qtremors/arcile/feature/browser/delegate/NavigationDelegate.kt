@@ -9,11 +9,11 @@ import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.feature.browser.BrowserNavigationEvent
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
@@ -675,7 +675,7 @@ class NavigationDelegate(
         }
     }
 
-    private fun applyPresentation(presentation: BrowserPresentationPreferences, generation: Long? = null) {
+    private fun applyPresentation(presentation: FileListingPreferences, generation: Long? = null) {
         if (generation != null && !isActiveLoad(generation)) return
         state.update {
             it.copy(

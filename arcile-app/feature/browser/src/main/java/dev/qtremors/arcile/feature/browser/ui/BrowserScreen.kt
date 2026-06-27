@@ -38,7 +38,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
@@ -47,9 +47,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.ui.asString
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 import dev.qtremors.arcile.feature.browser.BrowserScrollPosition
 import dev.qtremors.arcile.feature.browser.scrollPositionKey
@@ -89,7 +89,7 @@ fun BrowserScreen(
     onRenameFile: (String, String) -> Unit,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onPresentationChange: (BrowserPresentationPreferences, Boolean) -> Unit,
+    onPresentationChange: (FileListingPreferences, Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit,
     onCutSelected: () -> Unit,
@@ -211,7 +211,7 @@ fun BrowserScreen(
             ?.takeIf { it >= 0 }
     }
     if (pendingRevealReady && pendingRevealIndex != null) {
-        if (state.browserViewMode == BrowserViewMode.GRID) {
+        if (state.browserViewMode == FileViewMode.GRID) {
             gridState.requestScrollToItem(pendingRevealIndex)
         } else {
             listState.requestScrollToItem(pendingRevealIndex)
@@ -224,7 +224,7 @@ fun BrowserScreen(
         state.browserGridMinCellSize,
         state.browserShowThumbnails
     ) {
-        BrowserPresentationPreferences(
+        FileListingPreferences(
             sortOption = state.browserSortOption,
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
@@ -322,7 +322,7 @@ fun BrowserScreen(
             if (shouldRestore) savedScrollPositionProvider(scrollPositionKey)?.let { position ->
                 val listIndex = position.listIndex.coerceAtMost(state.displayState.visibleListRows.lastIndex.coerceAtLeast(0))
                 val gridIndex = position.gridIndex.coerceAtMost(state.displayState.visibleGridRows.lastIndex.coerceAtLeast(0))
-                if (state.browserViewMode == BrowserViewMode.GRID) {
+                if (state.browserViewMode == FileViewMode.GRID) {
                     gridState.scrollToItem(gridIndex, position.gridOffset)
                 } else {
                     listState.scrollToItem(listIndex, position.listOffset)
@@ -335,7 +335,7 @@ fun BrowserScreen(
         val revealPath = pendingRevealFilePath
         val index = pendingRevealIndex
         if (pendingRevealReady && !revealPath.isNullOrBlank() && index != null) {
-                if (state.browserViewMode == BrowserViewMode.GRID) {
+                if (state.browserViewMode == FileViewMode.GRID) {
                     gridState.scrollToItem(index)
                 } else {
                     listState.scrollToItem(index)
@@ -380,7 +380,7 @@ fun BrowserScreen(
                             ?.let { position ->
                                 val listIndex = position.listIndex.coerceAtMost(state.displayState.visibleListRows.lastIndex.coerceAtLeast(0))
                                 val gridIndex = position.gridIndex.coerceAtMost(state.displayState.visibleGridRows.lastIndex.coerceAtLeast(0))
-                                if (state.browserViewMode == BrowserViewMode.GRID) {
+                                if (state.browserViewMode == FileViewMode.GRID) {
                                     gridState.scrollToItem(gridIndex, position.gridOffset)
                                 } else {
                                     listState.scrollToItem(listIndex, position.listOffset)

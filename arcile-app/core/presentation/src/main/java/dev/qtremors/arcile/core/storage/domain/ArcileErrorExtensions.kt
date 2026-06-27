@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.storage.domain
 
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.runtime.R
 
 val ArcileError.userMessage: UiText

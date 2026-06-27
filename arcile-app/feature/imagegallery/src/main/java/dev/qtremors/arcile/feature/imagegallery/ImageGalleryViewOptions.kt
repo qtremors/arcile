@@ -149,8 +149,8 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Precision
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
@@ -186,13 +186,13 @@ import kotlinx.coroutines.flow.SharedFlow
 @Composable
 fun GalleryViewOptionsDialog(
     currentTab: GalleryTab,
-    photosPresentation: BrowserPresentationPreferences,
-    albumPresentation: BrowserPresentationPreferences,
+    photosPresentation: FileListingPreferences,
+    albumPresentation: FileListingPreferences,
     isAspectRatio: Boolean,
     grouping: ImageGalleryGrouping,
     showFileDetails: Boolean,
-    onPhotosPresentationChange: (BrowserPresentationPreferences) -> Unit,
-    onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit,
+    onPhotosPresentationChange: (FileListingPreferences) -> Unit,
+    onAlbumPresentationChange: (FileListingPreferences) -> Unit,
     onPhotosAspectRatioChange: (Boolean) -> Unit,
     onGroupingChange: (ImageGalleryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
@@ -255,7 +255,7 @@ fun GalleryViewOptionsDialog(
                             fontWeight = FontWeight.Medium
                         )
                         ExpressiveSegmentedRow(
-                            options = BrowserViewMode.entries,
+                            options = FileViewMode.entries,
                             selectedOption = draftPhotosPreferences.viewMode,
                             onOptionSelected = { mode -> draftPhotosPreferences = draftPhotosPreferences.copy(viewMode = mode) },
                             modifier = Modifier.fillMaxWidth()
@@ -265,7 +265,7 @@ fun GalleryViewOptionsDialog(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
-                                    imageVector = if (mode == BrowserViewMode.LIST) {
+                                    imageVector = if (mode == FileViewMode.LIST) {
                                         Icons.AutoMirrored.Filled.ViewList
                                     } else {
                                         Icons.Default.GridView
@@ -274,7 +274,7 @@ fun GalleryViewOptionsDialog(
                                 )
                                 Text(
                                     stringResource(
-                                        if (mode == BrowserViewMode.LIST) R.string.list_view else R.string.grid_view
+                                        if (mode == FileViewMode.LIST) R.string.list_view else R.string.grid_view
                                     )
                                 )
                             }
@@ -286,7 +286,7 @@ fun GalleryViewOptionsDialog(
                         targetState = draftPhotosPreferences.viewMode,
                         label = "gallery_layout_controls"
                     ) { mode ->
-                        if (mode == BrowserViewMode.LIST) {
+                        if (mode == FileViewMode.LIST) {
                             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -311,7 +311,7 @@ fun GalleryViewOptionsDialog(
                                     onValueChange = {
                                         draftPhotosPreferences = draftPhotosPreferences.copy(listZoom = it)
                                     },
-                                    valueRange = BrowserPresentationPreferences.MIN_LIST_ZOOM..BrowserPresentationPreferences.MAX_LIST_ZOOM,
+                                    valueRange = FileListingPreferences.MIN_LIST_ZOOM..FileListingPreferences.MAX_LIST_ZOOM,
                                     steps = 7
                                 )
                             }
@@ -340,7 +340,7 @@ fun GalleryViewOptionsDialog(
                                     onValueChange = {
                                         draftPhotosPreferences = draftPhotosPreferences.copy(gridMinCellSize = it)
                                     },
-                                    valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
+                                    valueRange = FileListingPreferences.MIN_GRID_MIN_CELL_SIZE..FileListingPreferences.MAX_GRID_MIN_CELL_SIZE,
                                     steps = 1
                                 )
                             }
@@ -348,7 +348,7 @@ fun GalleryViewOptionsDialog(
                     }
 
                     // 3. Grid Mode: Square vs Aspect Ratio (only in Grid View Mode)
-                    if (draftPhotosPreferences.viewMode == BrowserViewMode.GRID) {
+                    if (draftPhotosPreferences.viewMode == FileViewMode.GRID) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(
                                 text = stringResource(R.string.image_gallery_grid_mode),
@@ -492,7 +492,7 @@ fun GalleryViewOptionsDialog(
                             onValueChange = {
                                 draftAlbumPreferences = draftAlbumPreferences.copy(gridMinCellSize = it)
                             },
-                            valueRange = BrowserPresentationPreferences.MIN_GRID_MIN_CELL_SIZE..BrowserPresentationPreferences.MAX_GRID_MIN_CELL_SIZE,
+                            valueRange = FileListingPreferences.MIN_GRID_MIN_CELL_SIZE..FileListingPreferences.MAX_GRID_MIN_CELL_SIZE,
                             steps = 1
                         )
                     }
@@ -583,7 +583,7 @@ fun GalleryViewOptionsDialog(
 @Composable
 fun SortChip(
     option: FileSortOption,
-    preferences: BrowserPresentationPreferences,
+    preferences: FileListingPreferences,
     modifier: Modifier = Modifier,
     onSelect: (FileSortOption) -> Unit
 ) {

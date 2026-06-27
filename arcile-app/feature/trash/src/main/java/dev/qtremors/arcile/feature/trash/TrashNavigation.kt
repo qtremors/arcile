@@ -12,7 +12,7 @@ import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 
-fun NavGraphBuilder.trashScreen(
+fun NavGraphBuilder.registerTrashRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,

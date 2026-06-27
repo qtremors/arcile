@@ -9,7 +9,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext

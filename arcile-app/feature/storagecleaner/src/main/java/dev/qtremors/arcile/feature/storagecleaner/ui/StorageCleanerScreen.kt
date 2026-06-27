@@ -87,7 +87,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.shared.ui.getFileIconVector
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.shared.ui.rememberDateFormatter
 import java.io.File
 import java.util.Date

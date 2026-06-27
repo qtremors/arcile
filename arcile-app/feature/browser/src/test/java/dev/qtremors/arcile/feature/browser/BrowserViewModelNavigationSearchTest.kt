@@ -1,13 +1,13 @@
 package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -31,9 +31,9 @@ class BrowserViewModelNavigationSearchTest {
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)
         val preferences = FakeBrowserPreferencesStore(
             BrowserPreferences(
-                globalPresentation = BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC),
+                globalPresentation = FileListingPreferences(sortOption = FileSortOption.NAME_ASC),
                 pathPresentationOptions = mapOf(
-                    "/" to BrowserPresentationPreferences(sortOption = FileSortOption.SIZE_LARGEST)
+                    "/" to FileListingPreferences(sortOption = FileSortOption.SIZE_LARGEST)
                 )
             )
         )
@@ -48,7 +48,7 @@ class BrowserViewModelNavigationSearchTest {
         assertTrue(viewModel.state.value.isVolumeRootScreen)
         assertEquals(listOf("Internal", "SD Card"), viewModel.state.value.files.map { it.name })
         assertEquals(FileSortOption.SIZE_LARGEST, viewModel.state.value.browserSortOption)
-        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
+        assertEquals(FileViewMode.LIST, viewModel.state.value.browserViewMode)
         assertFalse(viewModel.state.value.isLoading)
     }
 

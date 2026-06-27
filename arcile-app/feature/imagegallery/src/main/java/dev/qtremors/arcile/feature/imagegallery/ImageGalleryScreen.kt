@@ -80,7 +80,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
@@ -139,7 +139,7 @@ fun ImageGalleryScreen(
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
     onSelectAlbum: (String?) -> Unit,
-    onPresentationChange: (BrowserPresentationPreferences) -> Unit,
+    onPresentationChange: (FileListingPreferences) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
     onClearError: () -> Unit,
     onCopySelected: () -> Unit = {},
@@ -157,7 +157,7 @@ fun ImageGalleryScreen(
     onSectionedChange: (Boolean) -> Unit = {},
     onGroupingChange: (ImageGalleryGrouping) -> Unit = {},
     onDefaultTabChange: (ImageGalleryDefaultTab) -> Unit = {},
-    onAlbumPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
+    onAlbumPresentationChange: (FileListingPreferences) -> Unit = {},
     onTogglePinnedAlbum: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {},
     nativeRequestFlow: SharedFlow<android.content.IntentSender>? = null

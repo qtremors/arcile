@@ -1,10 +1,10 @@
 package dev.qtremors.arcile.image
 
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 
 data class ThumbnailPolicyInput(
     val userEnabled: Boolean,
-    val viewMode: BrowserViewMode,
+    val viewMode: FileViewMode,
     val thumbnailSizePx: Int,
     val itemIndex: Int,
     val visibleRange: IntRange?,
@@ -52,7 +52,7 @@ class ThumbnailPolicy(
         GlobalThumbnailStatePersistence.delegate?.clearFailure(key)
     }
 
-    private fun isInVisibleBudget(index: Int, visibleRange: IntRange?, viewMode: BrowserViewMode): Boolean {
+    private fun isInVisibleBudget(index: Int, visibleRange: IntRange?, viewMode: FileViewMode): Boolean {
         if (visibleRange == null || visibleRange.isEmpty()) {
             return index < fallbackInitialBudget(viewMode)
         }
@@ -61,10 +61,10 @@ class ThumbnailPolicy(
         return index in start..end
     }
 
-    private fun fallbackInitialBudget(viewMode: BrowserViewMode): Int =
+    private fun fallbackInitialBudget(viewMode: FileViewMode): Int =
         when (viewMode) {
-            BrowserViewMode.LIST -> 18
-            BrowserViewMode.GRID -> 30
+            FileViewMode.LIST -> 18
+            FileViewMode.GRID -> 30
         }
 
     private fun isSafeForType(key: ThumbnailKey, thumbnailSizePx: Int): Boolean =

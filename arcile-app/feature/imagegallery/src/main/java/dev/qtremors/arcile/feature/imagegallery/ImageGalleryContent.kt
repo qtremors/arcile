@@ -147,8 +147,8 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Precision
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
@@ -335,7 +335,7 @@ fun ImageGalleryContent(
             }
             else -> {
                 val scrollbarState = when {
-                    state.presentation.viewMode == BrowserViewMode.GRID && state.isAspectRatio -> {
+                    state.presentation.viewMode == FileViewMode.GRID && state.isAspectRatio -> {
                         val staggeredGridState = rememberSaveable(
                             albumScrollKey,
                             saver = LazyStaggeredGridState.Saver
@@ -344,7 +344,7 @@ fun ImageGalleryContent(
                         }
                         LazyStaggeredGridScrollbarState(staggeredGridState)
                     }
-                    state.presentation.viewMode == BrowserViewMode.GRID -> {
+                    state.presentation.viewMode == FileViewMode.GRID -> {
                         val gridState = rememberSaveable(
                             albumScrollKey,
                             saver = LazyGridState.Saver
@@ -379,7 +379,7 @@ fun ImageGalleryContent(
                 val scrollbarLabelFormatter = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()) }
 
                 Box(modifier = Modifier.fillMaxSize()) {
-                    if (state.presentation.viewMode == BrowserViewMode.GRID) {
+                    if (state.presentation.viewMode == FileViewMode.GRID) {
                         if (state.isAspectRatio) {
                             val staggeredGridState = (scrollbarState as LazyStaggeredGridScrollbarState).state
                             LazyVerticalStaggeredGrid(

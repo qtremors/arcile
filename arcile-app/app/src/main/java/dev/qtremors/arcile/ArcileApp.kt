@@ -29,6 +29,8 @@ import javax.inject.Inject
 
 @HiltAndroidApp
 class ArcileApp : Application(), ImageLoaderFactory {
+    val appSessionTracker = AppSessionTracker()
+
     @Inject
     lateinit var mutationJournal: MutationJournal
 

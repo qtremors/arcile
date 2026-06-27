@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.recentfiles
 
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
@@ -10,7 +10,7 @@ fun buildRecentFilesDisplay(
     files: List<FileModel>,
     query: String,
     filters: SearchFilters,
-    presentation: BrowserPresentationPreferences
+    presentation: FileListingPreferences
 ): List<FileModel> {
     val normalizedQuery = query.trim().lowercase()
     val filtered = files.filter { file ->

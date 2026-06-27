@@ -15,7 +15,6 @@ kotlin {
 }
 
 dependencies {
-    api(project(":core:operation:api"))
     implementation("javax.inject:javax.inject:1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.coroutines.get()}")
     implementation(libs.kotlinx.serialization.json)

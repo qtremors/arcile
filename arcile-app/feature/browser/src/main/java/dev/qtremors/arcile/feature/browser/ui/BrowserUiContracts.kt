@@ -9,7 +9,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 
@@ -85,7 +85,7 @@ internal data class BrowserUiActions(
     val onRenameFile: (String, String) -> Unit,
     val onSearchQueryChange: (String) -> Unit,
     val onClearSearch: () -> Unit,
-    val onPresentationChange: (BrowserPresentationPreferences, Boolean) -> Unit,
+    val onPresentationChange: (FileListingPreferences, Boolean) -> Unit,
     val onClearError: () -> Unit,
     val onCopySelected: () -> Unit,
     val onCutSelected: () -> Unit,

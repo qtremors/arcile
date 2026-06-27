@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,8 +48,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.AppLaunchContext
+import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
+import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
@@ -68,13 +71,19 @@ private val FeedbackAboveActionsPadding = 88.dp
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
+    appLaunchContext: AppLaunchContext,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRestartApp: () -> Unit
 ) {
-    val navController = rememberNavController()
+    val navController = key(appLaunchContext.navigationSessionId) {
+        rememberNavController()
+    }
+    var isColdLaunchResetting by remember(appLaunchContext.navigationSessionId) {
+        mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val context = LocalContext.current
@@ -104,6 +113,19 @@ fun ArcileAppShell(
         snackbarHostState.currentSnackbarData?.dismiss()
     }
 
+    LaunchedEffect(appLaunchContext.navigationSessionId, appLaunchContext.mode) {
+        if (appLaunchContext.mode == AppLaunchMode.ColdLauncher) {
+            navController.navigate(AppRoutes.Main(initialPage = 0, restorePersistentLocation = false)) {
+                popUpTo(navController.graph.id) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+                restoreState = false
+            }
+            isColdLaunchResetting = false
+        }
+    }
+
     androidx.compose.animation.SharedTransitionLayout {
         Scaffold(
             snackbarHost = {
@@ -130,6 +152,13 @@ fun ArcileAppShell(
                     onRestartApp = onRestartApp,
                     onFeedback = { feedbackEvents.tryEmit(it) }
                 )
+                if (isColdLaunchResetting) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                        content = {}
+                    )
+                }
             }
         }
     }

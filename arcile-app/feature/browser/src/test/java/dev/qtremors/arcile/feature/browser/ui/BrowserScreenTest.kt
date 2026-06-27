@@ -10,7 +10,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.printToLog
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.FolderStats
@@ -265,7 +265,7 @@ class BrowserScreenTest {
                     state = BrowserState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        browserViewMode = BrowserViewMode.GRID,
+                        browserViewMode = FileViewMode.GRID,
                         files = listOf(browserFile("photo.jpg", "/storage/emulated/0/Download/photo.jpg")).toPersistentList()
                     ),
                     onNavigateBack = {},

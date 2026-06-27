@@ -147,7 +147,7 @@ class BrowserStateReducerTest {
 
         val updated = base
             .reduce(BrowserDialogEvent.ConflictDialogShown(listOf(conflict)))
-            .reduce(BrowserOperationEvent.StatusMessageChanged(dev.qtremors.arcile.core.ui.UiText.Dynamic("Done")))
+            .reduce(BrowserOperationEvent.StatusMessageChanged(dev.qtremors.arcile.core.presentation.UiText.Dynamic("Done")))
 
         assertEquals(navigation, updated.navigationState())
         assertEquals(listing, updated.listingState())

@@ -11,14 +11,18 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
 
-fun NavGraphBuilder.quickAccessScreen(
+sealed interface QuickAccessDestination {
+    data class LocalPath(val path: String) : QuickAccessDestination
+    data class ExternalFolder(val uri: String) : QuickAccessDestination
+}
+
+fun NavGraphBuilder.registerQuickAccessRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onNavigateToPath: (String) -> Unit,
-    onNavigateToSaf: (String) -> Unit
+    onDestination: (QuickAccessDestination) -> Unit
 ) {
     composable<AppRoutes.QuickAccess>(
         enterTransition = enterTransition,
@@ -31,8 +35,12 @@ fun NavGraphBuilder.quickAccessScreen(
         QuickAccessScreen(
             state = state,
             onNavigateBack = onNavigateBack,
-            onNavigateToPath = onNavigateToPath,
-            onNavigateToSaf = onNavigateToSaf,
+            onNavigateToPath = { path ->
+                onDestination(QuickAccessDestination.LocalPath(path))
+            },
+            onNavigateToSaf = { uri ->
+                onDestination(QuickAccessDestination.ExternalFolder(uri))
+            },
             onTogglePin = { viewModel.togglePin(it) },
             onRemoveItem = { viewModel.removeCustomItem(it) },
             onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },

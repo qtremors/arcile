@@ -43,11 +43,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.feature.archive.archiveViewerScreen
+import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
-import dev.qtremors.arcile.feature.imagegallery.imageGalleryScreen
-import dev.qtremors.arcile.feature.imagegallery.imageViewerScreen
-import dev.qtremors.arcile.feature.trash.trashScreen
+import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
+import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
+import dev.qtremors.arcile.feature.trash.registerTrashRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.browser.BrowserScrollPosition
 import dev.qtremors.arcile.feature.browser.BrowserViewModel
@@ -55,9 +55,9 @@ import dev.qtremors.arcile.feature.browser.scrollPositionKey
 import dev.qtremors.arcile.presentation.home.HomeRefreshMode
 import dev.qtremors.arcile.presentation.home.HomeViewModel
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
-import dev.qtremors.arcile.feature.quickaccess.quickAccessScreen
-import dev.qtremors.arcile.feature.recentfiles.recentFilesScreen
-import dev.qtremors.arcile.feature.storagecleaner.storageCleanerScreen
+import dev.qtremors.arcile.feature.quickaccess.registerQuickAccessRoute
+import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
+import dev.qtremors.arcile.feature.storagecleaner.registerStorageCleanerRoute
 import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -145,7 +145,7 @@ fun AppNavigationGraph(
                 is PluginFileResolution.Incompatible -> pluginPrompt = pluginResolution
                 is PluginFileResolution.Failed -> onFeedback(
                     ArcileFeedbackEvent(
-                        message = dev.qtremors.arcile.core.ui.UiText.Dynamic(
+                        message = dev.qtremors.arcile.core.presentation.UiText.Dynamic(
                             context.getString(R.string.cannot_open_file, pluginResolution.error.localizedMessage.orEmpty())
                         ),
                         severity = ArcileFeedbackSeverity.Error
@@ -160,7 +160,7 @@ fun AppNavigationGraph(
                         archiveFormat != null -> {
                             onFeedback(
                                 ArcileFeedbackEvent(
-                                    message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.unsupported_archive_format),
+                                    message = dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.unsupported_archive_format),
                                     severity = ArcileFeedbackSeverity.Error
                                 )
                             )
@@ -188,6 +188,11 @@ fun AppNavigationGraph(
     val openPathWithSurroundingImages: (String, List<FileModel>) -> Unit = { path, files ->
         openPathWithContext(path, files, false)
     }
+    val destinationMapper = FeatureDestinationMapper(
+        navigateToBrowser = navigateToBrowserRoute,
+        openPath = openPath,
+        openExternalFolder = { uri -> ExternalFileAccessHelper.openInFilesApp(context, uri) }
+    )
     val fileReferenceFor: (FileModel) -> ExternalFileAccessHelper.ExternalFileReference = { file ->
         ExternalFileAccessHelper.ExternalFileReference(
             path = file.absolutePath,
@@ -297,11 +302,15 @@ fun AppNavigationGraph(
                     } else {
                         mainArgs.initialPage
                     }
-                    var savedMainPagerPage by rememberSaveable { mutableStateOf(requestedInitialMainPage) }
-                    val pagerState = rememberPagerState(
-                        initialPage = savedMainPagerPage,
-                        pageCount = { 2 }
-                    )
+                    var savedMainPagerPage by rememberSaveable(backStackEntry.id) {
+                        mutableStateOf(requestedInitialMainPage)
+                    }
+                    val pagerState = androidx.compose.runtime.key(backStackEntry.id) {
+                        rememberPagerState(
+                            initialPage = savedMainPagerPage,
+                            pageCount = { 2 }
+                        )
+                    }
                     androidx.compose.runtime.LaunchedEffect(pagerState) {
                         snapshotFlow { pagerState.currentPage }.collect { page ->
                             savedMainPagerPage = page
@@ -526,7 +535,7 @@ fun AppNavigationGraph(
                                         if (!ExternalFileAccessHelper.openInFilesApp(context, uriString)) {
                                             onFeedback(
                                                 ArcileFeedbackEvent(
-                                                    message = dev.qtremors.arcile.core.ui.UiText.StringResource(R.string.could_not_open_folder_files_app),
+                                                    message = dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.could_not_open_folder_files_app),
                                                     severity = ArcileFeedbackSeverity.Error
                                                 )
                                             )
@@ -732,7 +741,7 @@ fun AppNavigationGraph(
                         popUpTo<AppRoutes.Main> { inclusive = true }
                     }
                 }
-                trashScreen(
+                registerTrashRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
@@ -740,7 +749,7 @@ fun AppNavigationGraph(
                     onNavigateBack = { navController.popBackStack() },
                     onFeedback = onFeedback
                 )
-                recentFilesScreen(
+                registerRecentFilesRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
@@ -750,24 +759,22 @@ fun AppNavigationGraph(
                     onShareSelected = { files ->
                         shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
-                    onOpenContainingFolder = { path ->
-                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
-                    },
+                    onDestination = destinationMapper::fromRecentFiles,
                     onFeedback = onFeedback
                 )
-                imageGalleryScreen(
+                registerImageGalleryRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onOpenFile = openPath,
+                    onDestination = destinationMapper::fromGallery,
                     onShareSelected = { files ->
                         shareFilesWithKnownModels(files.map { it.absolutePath }, files)
                     },
                     onFeedback = onFeedback
                 )
-                imageViewerScreen(
+                registerImageViewerRoute(
                     navController = navController,
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
@@ -811,26 +818,13 @@ fun AppNavigationGraph(
                 ) {
                     ActivityLogRoute(onNavigateBack = { navController.popBackStack() })
                 }
-                storageCleanerScreen(
+                registerStorageCleanerRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onOpenFile = openPath,
-                    onOpenContainingFolder = { path ->
-                        val parentPath = path.substringBeforeLast('/', missingDelimiterValue = "")
-                        if (parentPath.isNotBlank()) {
-                            navigateToBrowserRoute(
-                                AppRoutes.Main(
-                                    initialPage = 1,
-                                    path = parentPath,
-                                    focusPath = path,
-                                    seedInitialPathHistory = false
-                                )
-                            )
-                        }
-                    },
+                    onDestination = destinationMapper::fromStorageCleaner,
                     onFeedback = onFeedback
                 )
                 composable<AppRoutes.Settings>(
@@ -914,28 +908,21 @@ fun AppNavigationGraph(
                         onNavigateBack = { navController.popBackStack() }
                     )
                 }
-                quickAccessScreen(
+                registerQuickAccessRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToPath = { path ->
-                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, path = path, seedInitialPathHistory = false))
-                    },
-                    onNavigateToSaf = { uriString ->
-                        ExternalFileAccessHelper.openInFilesApp(context, uriString)
-                    }
+                    onDestination = destinationMapper::fromQuickAccess
                 )
-                archiveViewerScreen(
+                registerArchiveViewerRoute(
                     enterTransition = detailEnterTransition,
                     exitTransition = detailExitTransition,
                     popEnterTransition = detailPopEnterTransition,
                     popExitTransition = detailPopExitTransition,
                     onNavigateBack = { navController.popBackStack() },
-                    onOpenArchiveInBrowser = { archivePath ->
-                        navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = archivePath, seedInitialPathHistory = false))
-                    }
+                    onDestination = destinationMapper::fromArchive
                 )
             }
 }

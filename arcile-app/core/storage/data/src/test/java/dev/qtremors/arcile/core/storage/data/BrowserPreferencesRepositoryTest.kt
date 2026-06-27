@@ -11,8 +11,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import kotlinx.coroutines.flow.first
@@ -67,17 +67,17 @@ class BrowserPreferencesRepositoryTest {
         val preferences = repository.preferencesFlow.first()
 
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
-        assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
-        assertEquals(BrowserViewMode.GRID, preferences.albumPresentation.viewMode)
-        assertEquals(BrowserPresentationPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
-        assertEquals(BrowserPresentationPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
+        assertEquals(FileViewMode.LIST, preferences.globalPresentation.viewMode)
+        assertEquals(FileViewMode.GRID, preferences.albumPresentation.viewMode)
+        assertEquals(FileListingPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
+        assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
         assertEquals(ImageGalleryDefaultTab.PHOTOS, preferences.imageGalleryDefaultTab)
         assertEquals(true, preferences.showHiddenFiles)
         assertEquals(true, preferences.browserScrollbarEnabled)
         assertEquals(true, preferences.galleryScrollbarEnabled)
-        assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.pathPresentationOptions)
-        assertEquals(emptyMap<String, BrowserPresentationPreferences>(), preferences.exactPathPresentationOptions)
+        assertEquals(emptyMap<String, FileListingPreferences>(), preferences.pathPresentationOptions)
+        assertEquals(emptyMap<String, FileListingPreferences>(), preferences.exactPathPresentationOptions)
     }
 
     @Test
@@ -86,9 +86,9 @@ class BrowserPreferencesRepositoryTest {
 
         repository.updatePathPresentation(
             "/storage/emulated/0/Download/",
-            BrowserPresentationPreferences(
+            FileListingPreferences(
                 sortOption = FileSortOption.SIZE_LARGEST,
-                viewMode = BrowserViewMode.GRID,
+                viewMode = FileViewMode.GRID,
                 listZoom = 1.1f,
                 gridMinCellSize = 148f
             ),
@@ -96,9 +96,9 @@ class BrowserPreferencesRepositoryTest {
         )
         repository.updatePathPresentation(
             "/storage/emulated/0/Pictures/",
-            BrowserPresentationPreferences(
+            FileListingPreferences(
                 sortOption = FileSortOption.DATE_NEWEST,
-                viewMode = BrowserViewMode.LIST,
+                viewMode = FileViewMode.LIST,
                 listZoom = 0.95f,
                 gridMinCellSize = 124f
             ),
@@ -108,7 +108,7 @@ class BrowserPreferencesRepositoryTest {
         val preferences = repository.preferencesFlow.first()
 
         assertEquals(FileSortOption.SIZE_LARGEST, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.sortOption)
-        assertEquals(BrowserViewMode.GRID, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.viewMode)
+        assertEquals(FileViewMode.GRID, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.viewMode)
         assertEquals(FileSortOption.DATE_NEWEST, preferences.pathPresentationOptions["/storage/emulated/0/Pictures"]?.sortOption)
         assertEquals(124f, preferences.pathPresentationOptions["/storage/emulated/0/Pictures"]?.gridMinCellSize)
     }
@@ -119,7 +119,7 @@ class BrowserPreferencesRepositoryTest {
 
         repository.updatePathPresentation(
             "/storage/emulated/0/Download",
-            BrowserPresentationPreferences(sortOption = FileSortOption.NAME_DESC, viewMode = BrowserViewMode.GRID),
+            FileListingPreferences(sortOption = FileSortOption.NAME_DESC, viewMode = FileViewMode.GRID),
             applyToSubfolders = true
         )
         repository.updatePathPresentation("/storage/emulated/0/Download", null, applyToSubfolders = false)
@@ -167,8 +167,8 @@ class BrowserPreferencesRepositoryTest {
         val preferences = BrowserPreferencesRepository(context, dataStore).preferencesFlow.first()
 
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
-        assertEquals(BrowserViewMode.LIST, preferences.globalPresentation.viewMode)
-        assertEquals(BrowserPresentationPreferences.MAX_LIST_ZOOM, preferences.globalPresentation.listZoom)
+        assertEquals(FileViewMode.LIST, preferences.globalPresentation.viewMode)
+        assertEquals(FileListingPreferences.MAX_LIST_ZOOM, preferences.globalPresentation.listZoom)
     }
 
     @Test
@@ -179,7 +179,7 @@ class BrowserPreferencesRepositoryTest {
 
         val preferences = BrowserPreferencesRepository(context, dataStore).preferencesFlow.first()
 
-        assertEquals(BrowserViewMode.GRID, preferences.albumPresentation.viewMode)
+        assertEquals(FileViewMode.GRID, preferences.albumPresentation.viewMode)
     }
 
     @Test

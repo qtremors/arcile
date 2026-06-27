@@ -4,7 +4,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
 import dev.qtremors.arcile.feature.browser.MoveUndoEntry
 import dev.qtremors.arcile.feature.browser.BrowserState

@@ -61,8 +61,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
@@ -106,7 +106,7 @@ fun RecentFilesScreen(
     onSearchQueryChange: (String) -> Unit = {},
     onClearSearch: () -> Unit = {},
     onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
+    onPresentationChange: (FileListingPreferences) -> Unit = {},
     onSelectMultiple: (List<String>) -> Unit = {},
     onLoadMore: () -> Unit = {},
     onOpenProperties: () -> Unit = {},

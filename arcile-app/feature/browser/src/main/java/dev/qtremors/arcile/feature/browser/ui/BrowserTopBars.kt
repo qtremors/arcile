@@ -6,7 +6,7 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserState
 import dev.qtremors.arcile.shared.ui.ArcileTopBar
@@ -73,7 +73,7 @@ internal fun BrowserTopBars(
             showSortAction = !state.isVolumeRootScreen,
             showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.archiveContext == null,
             showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty() && state.archiveContext == null,
-            isGridView = state.browserViewMode == BrowserViewMode.GRID,
+            isGridView = state.browserViewMode == FileViewMode.GRID,
             scrollBehavior = scrollBehavior,
             onBackClick = onBackClick,
             onClearSelection = actions.onClearSelection,

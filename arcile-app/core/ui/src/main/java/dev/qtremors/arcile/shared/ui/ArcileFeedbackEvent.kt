@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.shared.ui
 
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import java.util.UUID
 
 data class ArcileFeedbackEvent(

@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.recentfiles.ui
 
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import org.junit.Assert.assertEquals
@@ -45,9 +45,9 @@ class RecentFilesGroupingTest {
 
     @Test
     fun `calendar grouping is limited to date sorts outside search`() {
-        val newest = BrowserPresentationPreferences(sortOption = FileSortOption.DATE_NEWEST)
-        val oldest = BrowserPresentationPreferences(sortOption = FileSortOption.DATE_OLDEST)
-        val named = BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC)
+        val newest = FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST)
+        val oldest = FileListingPreferences(sortOption = FileSortOption.DATE_OLDEST)
+        val named = FileListingPreferences(sortOption = FileSortOption.NAME_ASC)
 
         assertTrue(shouldGroupRecentFiles(showSearchBar = false, newest))
         assertTrue(shouldGroupRecentFiles(showSearchBar = false, oldest))

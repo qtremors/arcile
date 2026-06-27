@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.6
-> **Last Updated:** 2026-06-28
+> **Version:** 1.2.7
+> **Last Updated:** 2026-06-29
 
 ---
+
+## [1.2.7] - 2026-06-29
+
+- **Reliable App Relaunch**: Cold launcher starts now open Home instead of briefly restoring a previous utility screen, while Browser still restores its last location when opened and configuration changes retain the active screen.
+- **Architecture Groundwork**: Renamed shared file-listing presentation contracts away from Browser-specific terms and added ratcheting size guardrails while preserving existing preferences.
 
 ## [1.2.6] - 2026-06-28
 
