@@ -27,6 +27,7 @@ rootProject.name = "Arcile"
 include(":app")
 include(":core:runtime")
 include(":core:operation:api")
+include(":core:operation:android")
 include(":core:operation")
 include(":core:navigation:api")
 include(":core:presentation")

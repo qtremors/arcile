@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.7
-> **Last Updated:** 2026-06-29
+> **Version:** 1.2.8
+> **Last Updated:** 2026-07-01
 
 ---
+
+## [1.2.8] - 2026-07-01
+
+- **Background Operation Reliability**: Isolated background file operations, shared-file imports, and interrupted-operation recovery with dedicated coverage while preserving import safeguards.
+- **File Opening Reliability**: Centralized plugin, archive, image, and external file resolution with direct coverage for viewer context and unsupported archives.
 
 ## [1.2.7] - 2026-06-29
 

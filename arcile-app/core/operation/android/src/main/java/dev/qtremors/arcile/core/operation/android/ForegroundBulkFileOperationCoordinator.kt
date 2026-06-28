@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.operations
+package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
 import android.content.Intent
@@ -22,7 +22,6 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.di.ApplicationScope
-import dev.qtremors.arcile.di.DeferOperationJournalRecovery
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

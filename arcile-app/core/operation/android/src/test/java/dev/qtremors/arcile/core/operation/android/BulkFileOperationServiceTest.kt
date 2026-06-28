@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.operations
+package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
 import android.content.Intent

@@ -1,11 +1,9 @@
-package dev.qtremors.arcile.operations
+package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
-import dev.qtremors.arcile.core.storage.domain.toArcileError
-import dev.qtremors.arcile.core.storage.domain.userMessage
 import dev.qtremors.arcile.utils.AppLogger
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.Serializable
@@ -164,5 +162,3 @@ fun OperationJournalRecord.toRecoveryRecord(): OperationRecoveryRecord =
         trashResultIds = trashResultIds,
         error = error
     )
-
-fun Throwable.toOperationMessage(): String = toArcileError().userMessage.toString()

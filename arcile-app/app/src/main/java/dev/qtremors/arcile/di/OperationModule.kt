@@ -7,15 +7,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import dev.qtremors.arcile.operations.DefaultOperationJournal
-import dev.qtremors.arcile.operations.ForegroundBulkFileOperationCoordinator
-import dev.qtremors.arcile.operations.OperationJournal
-import javax.inject.Qualifier
+import dev.qtremors.arcile.core.operation.android.DeferOperationJournalRecovery
+import dev.qtremors.arcile.core.operation.android.DefaultOperationJournal
+import dev.qtremors.arcile.core.operation.android.ForegroundBulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.android.OperationJournal
 import javax.inject.Singleton
-
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class DeferOperationJournalRecovery
 
 @Module
 @InstallIn(SingletonComponent::class)

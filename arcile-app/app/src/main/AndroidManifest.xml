@@ -111,10 +111,6 @@
             android:exported="false"
             android:grantUriPermissions="true" />
 
-        <service
-            android:name=".operations.BulkFileOperationService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

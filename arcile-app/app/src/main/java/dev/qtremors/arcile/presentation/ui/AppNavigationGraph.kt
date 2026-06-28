@@ -77,9 +77,7 @@ import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.plugins.PluginFileResolution
-import dev.qtremors.arcile.plugins.PluginLaunchResult
 import dev.qtremors.arcile.plugins.PluginManager
-import android.webkit.MimeTypeMap
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -99,88 +97,63 @@ fun AppNavigationGraph(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
-    val pluginManager = remember(context) { PluginManager(context) }
-    var pluginPrompt by remember { mutableStateOf<PluginFileResolution?>(null) }
-    val browserViewerReturnPendingKey = "browserViewerReturnPending"
-    val imageContextPathsFor: (List<FileModel>) -> ArrayList<String> = { files ->
-        ArrayList(
-            files.asSequence()
-                .filterNot { it.isDirectory }
-                .filter { FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images }
-                .map { it.absolutePath }
-                .distinct()
-                .toList()
+    val fileOpenResolver = remember(context) {
+        AppFileOpenResolver(
+            InstalledPluginFileResolutionGateway(PluginManager(context))
         )
     }
+    var pluginPrompt by remember { mutableStateOf<PluginFileResolution?>(null) }
+    val browserViewerReturnPendingKey = "browserViewerReturnPending"
     val navigateToBrowserRoute: (AppRoutes.Main) -> Unit = { route ->
         navController.navigate(route)
     }
     val openPathWithContext: (String, List<FileModel>, Boolean) -> Unit = { path, surroundingFiles, returnToBrowserPage ->
         coroutineScope.launch {
-            val knownFile = surroundingFiles.firstOrNull { it.absolutePath == path }
-            val extension = knownFile?.extension
-                ?.takeIf { it.isNotBlank() }
-                ?.lowercase()
-                ?: path.substringAfterLast('.', "").lowercase()
-            val mimeType = knownFile?.mimeType?.takeIf { it.isNotBlank() } ?: when (extension) {
-                "glb" -> "model/gltf-binary"
-                else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
-            }
-            val installedPlugin = pluginManager.findPlugin(mimeType, extension)
-            val pluginResolution = when {
-                installedPlugin != null -> when (val result = pluginManager.launchPlugin(installedPlugin, path)) {
-                    PluginLaunchResult.Launched -> PluginFileResolution.Launched
-                    is PluginLaunchResult.Incompatible -> PluginFileResolution.Incompatible(result.plugin)
-                    is PluginLaunchResult.Failed -> PluginFileResolution.Failed(result.error)
-                }
-                else -> PluginManager.catalog
-                    .firstOrNull { it.available && it.matches(mimeType, extension) }
-                    ?.let(PluginFileResolution::Missing)
-                    ?: PluginFileResolution.NotApplicable
-            }
-
-            when (pluginResolution) {
-                PluginFileResolution.Launched -> Unit
-                is PluginFileResolution.Missing,
-                is PluginFileResolution.Incompatible -> pluginPrompt = pluginResolution
-                is PluginFileResolution.Failed -> onFeedback(
+            when (val resolution = fileOpenResolver.resolve(path, surroundingFiles)) {
+                AppFileOpenResolution.Handled -> Unit
+                is AppFileOpenResolution.PluginPrompt -> pluginPrompt = resolution.prompt
+                is AppFileOpenResolution.Failed -> onFeedback(
                     ArcileFeedbackEvent(
                         message = dev.qtremors.arcile.core.presentation.UiText.Dynamic(
-                            context.getString(R.string.cannot_open_file, pluginResolution.error.localizedMessage.orEmpty())
+                            context.getString(R.string.cannot_open_file, resolution.error.localizedMessage.orEmpty())
                         ),
                         severity = ArcileFeedbackSeverity.Error
                     )
                 )
-                PluginFileResolution.NotApplicable -> {
-                    val archiveFormat = ArchiveFormat.fromPath(path)
-                    when {
-                        archiveFormat?.canBrowse == true -> {
-                            navigateToBrowserRoute(AppRoutes.Main(initialPage = 1, archivePath = path, seedInitialPathHistory = false))
-                        }
-                        archiveFormat != null -> {
-                            onFeedback(
-                                ArcileFeedbackEvent(
-                                    message = dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.unsupported_archive_format),
-                                    severity = ArcileFeedbackSeverity.Error
-                                )
-                            )
-                        }
-                        extension in FileCategories.Images.extensions -> {
-                            val contextPaths = imageContextPathsFor(surroundingFiles)
-                            val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-                            if (contextPaths.size > 1 && contextPaths.contains(path)) {
-                                savedStateHandle?.set(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY, contextPaths)
-                            } else {
-                                savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
-                            }
-                            if (returnToBrowserPage) {
-                                savedStateHandle?.set(browserViewerReturnPendingKey, true)
-                            }
-                            navController.navigate(AppRoutes.ImageViewer(initialPath = path, returnToBrowserPage = returnToBrowserPage))
-                        }
-                        else -> onOpenFile(path)
+                is AppFileOpenResolution.BrowseArchive -> navigateToBrowserRoute(
+                    AppRoutes.Main(
+                        initialPage = 1,
+                        archivePath = resolution.path,
+                        seedInitialPathHistory = false
+                    )
+                )
+                AppFileOpenResolution.UnsupportedArchive -> onFeedback(
+                    ArcileFeedbackEvent(
+                        message = dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.unsupported_archive_format),
+                        severity = ArcileFeedbackSeverity.Error
+                    )
+                )
+                is AppFileOpenResolution.ViewImage -> {
+                    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+                    if (resolution.contextPaths.size > 1 && resolution.path in resolution.contextPaths) {
+                        savedStateHandle?.set(
+                            AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY,
+                            ArrayList(resolution.contextPaths)
+                        )
+                    } else {
+                        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
                     }
+                    if (returnToBrowserPage) {
+                        savedStateHandle?.set(browserViewerReturnPendingKey, true)
+                    }
+                    navController.navigate(
+                        AppRoutes.ImageViewer(
+                            initialPath = resolution.path,
+                            returnToBrowserPage = returnToBrowserPage
+                        )
+                    )
                 }
+                is AppFileOpenResolution.External -> onOpenFile(resolution.path)
             }
         }
     }

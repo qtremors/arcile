@@ -453,7 +453,6 @@ class ArchitectureBoundaryTest {
         val LARGE_FILE_BASELINE = mapOf(
             "arcile-app/app/src/main/java/dev/qtremors/arcile/SaveToArcileActivity.kt" to 790,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt" to 584,
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/operations/BulkFileOperationService.kt" to 564,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt" to 945,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt" to 590,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt" to 915,
