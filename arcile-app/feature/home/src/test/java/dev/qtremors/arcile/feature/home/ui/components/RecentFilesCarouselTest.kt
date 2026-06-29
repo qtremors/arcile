@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components.home
+package dev.qtremors.arcile.feature.home.ui.components
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.image.ThumbnailKey

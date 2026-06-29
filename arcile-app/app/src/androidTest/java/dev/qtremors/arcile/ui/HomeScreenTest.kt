@@ -5,8 +5,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.presentation.ui.HomeScreen
+import dev.qtremors.arcile.feature.home.HomeState
+import dev.qtremors.arcile.feature.home.ui.HomeContentIntents
+import dev.qtremors.arcile.feature.home.ui.HomeNavigationIntents
+import dev.qtremors.arcile.feature.home.ui.HomeScreen
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -19,32 +21,11 @@ class HomeScreenTest {
 
     @Test
     fun homeScreen_rendersCategoriesAndFolders() {
-        var openFileBrowserCalled = false
-        var navigateToToolsCalled = false
-
         composeTestRule.setContent {
             HomeScreen(
                 state = HomeState(isLoading = false),
-                onOpenFileBrowser = { openFileBrowserCalled = true },
-                onNavigateToPath = {},
-                onOpenFile = {},
-                onCategoryClick = {},
-                onSettingsClick = {},
-                onNavigateToTools = { navigateToToolsCalled = true },
-                onNavigateToAbout = {},
-                onNavigateToTrash = {},
-                onNavigateToRecentFiles = {},
-                onNavigateToQuickAccess = {},
-                onNavigateToSaf = {},
-                onOpenStorageDashboard = {},
-                onSearchQueryChange = {},
-                onSearchFiltersChange = {},
-                onToggleSearchFilterMenu = {},
-                onRefresh = {},
-                onResumeRefresh = {},
-                onSetVolumeClassification = { _, _ -> },
-                onHideClassificationPrompt = {},
-                onNavigateToCleaner = {}
+                navigationIntents = testNavigationIntents(),
+                contentIntents = testContentIntents()
             )
         }
 
@@ -66,29 +47,36 @@ class HomeScreenTest {
         composeTestRule.setContent {
             HomeScreen(
                 state = HomeState(isLoading = true),
-                onOpenFileBrowser = {},
-                onNavigateToPath = {},
-                onOpenFile = {},
-                onCategoryClick = {},
-                onSettingsClick = {},
-                onNavigateToTools = {},
-                onNavigateToAbout = {},
-                onNavigateToTrash = {},
-                onNavigateToRecentFiles = {},
-                onNavigateToQuickAccess = {},
-                onNavigateToSaf = {},
-                onOpenStorageDashboard = {},
-                onSearchQueryChange = {},
-                onSearchFiltersChange = {},
-                onToggleSearchFilterMenu = {},
-                onRefresh = {},
-                onResumeRefresh = {},
-                onSetVolumeClassification = { _, _ -> },
-                onHideClassificationPrompt = {},
-                onNavigateToCleaner = {}
+                navigationIntents = testNavigationIntents(),
+                contentIntents = testContentIntents()
             )
         }
 
         composeTestRule.onNodeWithTag("storage_bar_loading").assertIsDisplayed()
     }
+
+    private fun testNavigationIntents() = HomeNavigationIntents(
+        openFileBrowser = {},
+        navigateToPath = {},
+        openFileWithContext = { _, _ -> },
+        categoryClick = {},
+        settingsClick = {},
+        navigateToTools = {},
+        navigateToAbout = {},
+        navigateToTrash = {},
+        navigateToRecentFiles = {},
+        navigateToQuickAccess = {},
+        navigateToExternalFolder = {},
+        openStorageDashboard = {},
+        navigateToCleaner = {},
+        navigateToActivity = {}
+    )
+
+    private fun testContentIntents() = HomeContentIntents(
+        refresh = {},
+        resumeRefresh = {},
+        shareRecentFile = {},
+        setVolumeClassification = { _, _ -> },
+        hideClassificationPrompt = {}
+    )
 }

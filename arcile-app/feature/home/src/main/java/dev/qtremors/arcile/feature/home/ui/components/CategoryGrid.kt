@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components.home
+package dev.qtremors.arcile.feature.home.ui.components
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState

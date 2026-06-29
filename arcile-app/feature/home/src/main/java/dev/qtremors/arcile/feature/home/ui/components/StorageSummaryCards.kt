@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components.home
+package dev.qtremors.arcile.feature.home.ui.components
 
 import dev.qtremors.arcile.ui.theme.spacing
 import androidx.compose.animation.AnimatedContent
@@ -69,7 +69,7 @@ import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
-import dev.qtremors.arcile.presentation.home.HomeState
+import dev.qtremors.arcile.feature.home.HomeState
 import dev.qtremors.arcile.shared.ui.shimmer
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.ui.theme.bodyMediumMedium

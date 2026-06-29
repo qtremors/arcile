@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui
+package dev.qtremors.arcile.feature.home.ui
 
 import dev.qtremors.arcile.ui.theme.spacing
 import android.os.Environment
@@ -109,16 +109,17 @@ import dev.qtremors.arcile.ui.theme.bodyMediumMedium
 import dev.qtremors.arcile.ui.theme.bodySmallMedium
 import dev.qtremors.arcile.shared.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
-import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.presentation.home.HomeState
+import dev.qtremors.arcile.feature.home.HomeState
 import dev.qtremors.arcile.shared.ui.ArcileTopBar
 import dev.qtremors.arcile.shared.ui.ToolCard
 import dev.qtremors.arcile.shared.ui.ToolItem
-import dev.qtremors.arcile.presentation.ui.components.home.StorageSummaryCard
-import dev.qtremors.arcile.presentation.ui.components.home.CategoryGrid
-import dev.qtremors.arcile.presentation.ui.components.home.QuickAccessGrid
+import dev.qtremors.arcile.feature.home.ui.components.StorageSummaryCard
+import dev.qtremors.arcile.feature.home.ui.components.CategoryGrid
+import dev.qtremors.arcile.feature.home.ui.components.QuickAccessGrid
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.utilities.HomeUtilityCatalog
+import dev.qtremors.arcile.core.ui.utilities.UtilityAction
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -128,7 +129,6 @@ import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.SearchTopBar
 import dev.qtremors.arcile.shared.ui.shimmer
 import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
-import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -153,8 +153,8 @@ import dev.qtremors.arcile.image.ThumbnailKey
 import dev.qtremors.arcile.image.ThumbnailTargetSize
 import dev.qtremors.arcile.image.ThumbnailType
 import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.presentation.ui.components.home.HomeRecentFilesCarouselThumbnailSizePx
-import dev.qtremors.arcile.presentation.ui.components.home.homeThumbnailCacheKey
+import dev.qtremors.arcile.feature.home.ui.components.HomeRecentFilesCarouselThumbnailSizePx
+import dev.qtremors.arcile.feature.home.ui.components.homeThumbnailCacheKey
 
 private const val HomeRecentFilesPreloadLimit = 6
 /**
@@ -164,19 +164,8 @@ private const val HomeRecentFilesPreloadLimit = 6
  * shortcuts, a utilities tray, and a recent-files list.
  *
  * @param state Current [HomeState] providing storage info, recent files, and category data.
- * @param onOpenFileBrowser Invoked when the user wants to browse all files from the storage root.
- * @param onNavigateToPath Invoked when the user taps a quick-access folder shortcut.
- * @param onOpenFile Invoked when the user taps a recent file to open it externally.
- * @param onCategoryClick Invoked with the category name when the user taps a category tile.
- * @param onSettingsClick Navigates to the Settings screen.
- * @param onNavigateToTools Navigates to the Tools screen.
- * @param onNavigateToAbout Navigates to the About screen.
- * @param onNavigateToTrash Navigates to the Trash screen.
- * @param onNavigateToRecentFiles Navigates to the full Recent Files screen.
- * @param onOpenStorageDashboard Navigates to the Storage Dashboard screen.
- * @param onSearchQueryChange Propagates search query changes to the ViewModel.
- * @param onSearchFiltersChange Propagates updated search filter selections to the ViewModel.
- * @param onToggleSearchFilterMenu Opens or closes the search filter bottom sheet.
+ * [navigationIntents] emits navigation requests without depending on app routes.
+ * [contentIntents] contains Home-owned refresh, sharing, and classification actions.
  */
 
 @Composable
@@ -269,36 +258,14 @@ fun StorageClassificationPrompt(
 @Composable
 fun HomeScreen(
     state: HomeState,
-    onOpenFileBrowser: () -> Unit,
-    onNavigateToPath: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onCategoryClick: (String) -> Unit,
-    onSettingsClick: () -> Unit,
-    onNavigateToTools: () -> Unit,
-    onNavigateToAbout: () -> Unit,
-    onNavigateToTrash: () -> Unit,
-    onNavigateToRecentFiles: () -> Unit,
-    onNavigateToQuickAccess: () -> Unit,
-    onNavigateToSaf: (String) -> Unit,
-    onOpenStorageDashboard: (String?) -> Unit,
-    onSwipeToBrowser: () -> Unit = {},
-    onSearchQueryChange: (String) -> Unit = {},
-    onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
-    onRefresh: () -> Unit = {},
-    onResumeRefresh: () -> Unit = {},
-    onShareRecentFile: (String) -> Unit = {},
-    onOpenFileWithContext: (String, List<FileModel>) -> Unit = { path, _ -> onOpenFile(path) },
+    navigationIntents: HomeNavigationIntents,
+    contentIntents: HomeContentIntents,
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
-    onSetVolumeClassification: (String, dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit = { _, _ -> },
-    onHideClassificationPrompt: (String) -> Unit = {},
-    onNavigateToCleaner: () -> Unit = {},
-    onNavigateToActivity: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
     LifecycleResumeEffect(Unit) {
-        onResumeRefresh()
+        contentIntents.resumeRefresh()
         onPauseOrDispose { }
     }
 
@@ -355,14 +322,14 @@ fun HomeScreen(
                     showSettingsMenuAction = false,
                     showAboutAction = true,
                     scrollBehavior = scrollBehavior,
-                    onSettingsClick = onSettingsClick,
+                    onSettingsClick = navigationIntents.settingsClick,
                     onClearSelection = {},
                     onSearchClick = {},
                     onSortClick = {},
                     onActionSelected = { action ->
                         when (action) {
-                            TopBarAction.Settings -> onSettingsClick()
-                            TopBarAction.About -> onNavigateToAbout()
+                            TopBarAction.Settings -> navigationIntents.settingsClick()
+                            TopBarAction.About -> navigationIntents.navigateToAbout()
                             else -> {}
                         }
                     }
@@ -378,7 +345,7 @@ fun HomeScreen(
         ) {
             PullToRefreshBox(
                 isRefreshing = state.isPullToRefreshing,
-                onRefresh = onRefresh,
+                onRefresh = contentIntents.refresh,
                 state = pullRefreshState,
                 modifier = Modifier.fillMaxSize(),
                 indicator = {
@@ -401,12 +368,12 @@ fun HomeScreen(
                             StorageClassificationPrompt(
                                 volume = volume,
                                 onClassify = { kind ->
-                                    onSetVolumeClassification(
+                                    contentIntents.setVolumeClassification(
                                         volume.storageKey,
                                         kind
                                     )
                                 },
-                                onDecideLater = { onHideClassificationPrompt(volume.storageKey) }
+                                onDecideLater = { contentIntents.hideClassificationPrompt(volume.storageKey) }
                             )
                         }
                     }
@@ -414,9 +381,9 @@ fun HomeScreen(
                     item {
                         StorageSummaryCard(
                             state = state,
-                            onNavigateToPath = onNavigateToPath,
-                            onOpenStorageDashboard = onOpenStorageDashboard,
-                            onOpenFileBrowser = onOpenFileBrowser
+                            onNavigateToPath = navigationIntents.navigateToPath,
+                            onOpenStorageDashboard = navigationIntents.openStorageDashboard,
+                            onOpenFileBrowser = navigationIntents.openFileBrowser
                         )
                     }
 
@@ -436,7 +403,7 @@ fun HomeScreen(
                         CategoryGrid(
                             categoryStorages = state.categoryStorages,
                             reserveSizeLine = state.isLoading || state.isCalculatingStorage || state.categoryStorages.isEmpty(),
-                            onCategoryClick = onCategoryClick
+                            onCategoryClick = navigationIntents.categoryClick
                         )
                     }
 
@@ -458,7 +425,7 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.titleMediumBold
                             )
                             TextButton(
-                                onClick = onNavigateToQuickAccess,
+                                onClick = navigationIntents.navigateToQuickAccess,
                                 shape = ExpressiveShapes.medium
                             ) {
                                 Text(stringResource(R.string.manage))
@@ -468,9 +435,9 @@ fun HomeScreen(
                     item {
                         QuickAccessGrid(
                             quickAccessItems = state.quickAccessItems,
-                            onOpenFileBrowser = onOpenFileBrowser,
-                            onNavigateToPath = onNavigateToPath,
-                            onNavigateToSaf = onNavigateToSaf
+                            onOpenFileBrowser = navigationIntents.openFileBrowser,
+                            onNavigateToPath = navigationIntents.navigateToPath,
+                            onNavigateToSaf = navigationIntents.navigateToExternalFolder
                         )
                     }
 
@@ -493,7 +460,7 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.titleMediumBold
                             )
                             TextButton(
-                                onClick = onNavigateToTools,
+                                onClick = navigationIntents.navigateToTools,
                                 shape = ExpressiveShapes.medium
                             ) {
                                 Text(stringResource(R.string.show_all))
@@ -519,9 +486,9 @@ fun HomeScreen(
                                             ),
                                             onClick = {
                                                 when (definition.action) {
-                                                    UtilityAction.Trash -> onNavigateToTrash()
-                                                    UtilityAction.Cleaner -> onNavigateToCleaner()
-                                                    UtilityAction.Activity -> onNavigateToActivity()
+                                                    UtilityAction.Trash -> navigationIntents.navigateToTrash()
+                                                    UtilityAction.Cleaner -> navigationIntents.navigateToCleaner()
+                                                    UtilityAction.Activity -> navigationIntents.navigateToActivity()
                                                     UtilityAction.None -> Unit
                                                 }
                                             }
@@ -551,7 +518,7 @@ fun HomeScreen(
                                     style = MaterialTheme.typography.titleMediumBold
                                 )
                                 TextButton(
-                                    onClick = onNavigateToRecentFiles,
+                                    onClick = navigationIntents.navigateToRecentFiles,
                                     shape = ExpressiveShapes.medium
                                 ) {
                                     Text(stringResource(R.string.see_all))
@@ -570,11 +537,13 @@ fun HomeScreen(
                             }
                         } else if (displayedRecentFiles.isNotEmpty()) {
                             item {
-                                dev.qtremors.arcile.presentation.ui.components.home.RecentFilesCarousel(
+                                dev.qtremors.arcile.feature.home.ui.components.RecentFilesCarousel(
                                     files = displayedRecentFiles,
-                                    onOpenFile = { path -> onOpenFileWithContext(path, displayedRecentFiles) },
-                                    onNavigateToPath = onNavigateToPath,
-                                    onShareFile = onShareRecentFile,
+                                    onOpenFile = { path ->
+                                        navigationIntents.openFileWithContext(path, displayedRecentFiles)
+                                    },
+                                    onNavigateToPath = navigationIntents.navigateToPath,
+                                    onShareFile = contentIntents.shareRecentFile,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }

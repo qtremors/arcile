@@ -15,7 +15,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
-import dev.qtremors.arcile.presentation.home.HomeViewModel
+import dev.qtremors.arcile.feature.home.HomeViewModel
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
 import dev.qtremors.arcile.feature.trash.TrashViewModel
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle

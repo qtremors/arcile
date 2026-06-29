@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.qtremors.arcile.feature.storageusage"
+    namespace = "dev.qtremors.arcile.feature.home"
     compileSdk = 37
 
     defaultConfig {
@@ -37,7 +37,6 @@ dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation"))
-    implementation(project(":core:navigation:api"))
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))
@@ -47,15 +46,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
-    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.navigation.compose)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.coil.compose)
-    implementation(libs.coil.video)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
@@ -64,7 +60,6 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
-    testImplementation(libs.app.cash.turbine)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.compose.ui.test.manifest)

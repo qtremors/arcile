@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui.components.home
+package dev.qtremors.arcile.feature.home.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

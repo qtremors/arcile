@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui
+package dev.qtremors.arcile.core.ui.utilities
 
 import androidx.annotation.StringRes
 import androidx.compose.material.icons.Icons

@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui
+package dev.qtremors.arcile.feature.storageusage.ui
 
 import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import androidx.compose.foundation.shape.CircleShape
-import dev.qtremors.arcile.presentation.home.HomeState
+import dev.qtremors.arcile.feature.storageusage.StorageOverviewState
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
 import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
@@ -62,7 +62,7 @@ import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StorageManagementScreen(
-    state: HomeState,
+    state: StorageOverviewState,
     onNavigateBack: () -> Unit,
     onSetVolumeClassification: (String, StorageKind) -> Unit,
     onResetVolumeClassification: (String) -> Unit

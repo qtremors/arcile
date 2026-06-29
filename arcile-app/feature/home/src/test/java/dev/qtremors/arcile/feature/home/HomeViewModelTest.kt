@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.home
+package dev.qtremors.arcile.feature.home
 
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.StorageClassification

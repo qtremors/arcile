@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.home
+package dev.qtremors.arcile.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

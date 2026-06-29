@@ -1,5 +1,4 @@
-package dev.qtremors.arcile.presentation.ui
-
+package dev.qtremors.arcile.feature.storageusage.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,17 +51,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.storage.MultiColorStorageBar
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.isIndexed
-import dev.qtremors.arcile.presentation.home.HomeState
-import dev.qtremors.arcile.feature.storageusage.StorageUsageViewModel
+import dev.qtremors.arcile.feature.storageusage.StorageOverviewState
+import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
+import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
 import dev.qtremors.arcile.shared.ui.EmptyState
 import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.presentation.ui.components.home.MultiColorStorageBar
 import dev.qtremors.arcile.feature.storageusage.ui.StorageUsageMap
 import dev.qtremors.arcile.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.ui.theme.bodyLargeMedium
@@ -75,17 +73,21 @@ import dev.qtremors.arcile.ui.theme.titleSmallSemiBold
 import dev.qtremors.arcile.utils.formatFileSize
 import dev.qtremors.arcile.utils.getCategoryColor
 import kotlinx.coroutines.delay
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun StorageDashboardScreen(
-    state: HomeState,
+    state: StorageOverviewState,
+    usageState: StorageUsageUiState,
     selectedVolumeId: String? = null,
     onNavigateBack: () -> Unit,
     onCategoryClick: (String, String?) -> Unit,
     onOpenPath: (String) -> Unit,
     onOpenFile: (String) -> Unit,
-    storageUsageViewModel: StorageUsageViewModel = hiltViewModel()
+    onLoadUsage: (String?) -> Unit,
+    onSelectUsageNode: (StorageUsageNode) -> Unit,
+    onDrillIntoUsageNode: (StorageUsageNode) -> Unit,
+    onUsageBreadcrumbClick: (Int) -> Unit,
+    onRefreshUsage: () -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val allVolumes = state.allStorageVolumes
@@ -93,9 +95,8 @@ fun StorageDashboardScreen(
         allVolumes.firstOrNull { it.id == requestedId }
     }
     val isTemporarySelection = selectedVolume != null && !selectedVolume.kind.isIndexed
-    val indexedVolumes = state.displayState.indexedDashboardVolumes
+    val indexedVolumes = state.indexedVolumes
     val singleIndexedVolumeId = indexedVolumes.singleOrNull()?.id
-
     val volumes = if (selectedVolumeId != null) {
         if (isTemporarySelection) emptyList() else state.storageInfo?.volumes?.filter { it.id == selectedVolumeId }.orEmpty()
     } else {
@@ -106,10 +107,10 @@ fun StorageDashboardScreen(
             emptyList()
         } else {
             state.categoryStoragesByVolume[selectedVolumeId]
-                ?: if (selectedVolumeId == singleIndexedVolumeId) state.displayState.sortedCategoryStorages else emptyList()
+                ?: if (selectedVolumeId == singleIndexedVolumeId) state.sortedCategoryStorages else emptyList()
         }
     } else {
-        state.displayState.sortedCategoryStorages
+        state.sortedCategoryStorages
     }
     val totalBytes = volumes.sumOf { it.totalBytes }
     val freeBytes = volumes.sumOf { it.freeBytes }
@@ -126,7 +127,6 @@ fun StorageDashboardScreen(
 
     var showLoading by remember { mutableStateOf(false) }
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val usageState by storageUsageViewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
         if (state.isLoading || state.isCalculatingStorage) {
@@ -138,7 +138,7 @@ fun StorageDashboardScreen(
     }
     LaunchedEffect(selectedTabIndex, selectedVolumeId) {
         if (selectedTabIndex == 1) {
-            storageUsageViewModel.load(selectedVolumeId)
+            onLoadUsage(selectedVolumeId)
         }
     }
 
@@ -238,12 +238,12 @@ fun StorageDashboardScreen(
                         item {
                             StorageUsageMap(
                                 state = usageState,
-                                onSelectNode = storageUsageViewModel::selectNode,
-                                onDrillInto = storageUsageViewModel::drillInto,
-                                onBreadcrumbClick = storageUsageViewModel::navigateToBreadcrumb,
+                                onSelectNode = onSelectUsageNode,
+                                onDrillInto = onDrillIntoUsageNode,
+                                onBreadcrumbClick = onUsageBreadcrumbClick,
                                 onOpenPath = onOpenPath,
                                 onOpenFile = onOpenFile,
-                                onRefresh = storageUsageViewModel::refresh,
+                                onRefresh = onRefreshUsage,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -256,7 +256,7 @@ fun StorageDashboardScreen(
 
 @Composable
 private fun StorageSummaryTab(
-    state: HomeState,
+    state: StorageOverviewState,
     selectedVolume: StorageVolume?,
     selectedVolumeId: String?,
     isTemporarySelection: Boolean,

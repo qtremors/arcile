@@ -36,6 +36,7 @@ class ArchitectureBoundaryTest {
         val features = listOf(
             "archive",
             "browser",
+            "home",
             "onboarding",
             "quickaccess",
             "recentfiles",
@@ -174,6 +175,8 @@ class ArchitectureBoundaryTest {
             "browser.BrowserScrollPosition",
             "browser.scrollPositionKey",
             "browser.ui.BrowserScreen",
+            "home.HomeDestination",
+            "home.HomeRoute",
             "imagegallery.GalleryDestination",
             "imagegallery.registerImageGalleryRoute",
             "imagegallery.registerImageViewerRoute",
@@ -185,6 +188,9 @@ class ArchitectureBoundaryTest {
             "storagecleaner.StorageCleanerDestination",
             "storagecleaner.registerStorageCleanerRoute",
             "storageusage.StorageUsageViewModel",
+            "storageusage.StorageDashboardDestination",
+            "storageusage.registerStorageDashboardRoute",
+            "storageusage.registerStorageManagementRoute",
             "storageusage.ui.StorageUsageMap",
             "trash.registerTrashRoute",
             "trash.TrashViewModel",
@@ -193,8 +199,7 @@ class ArchitectureBoundaryTest {
         val allowedShellFiles = setOf(
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
-            "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt",
-            "dev/qtremors/arcile/presentation/ui/StorageDashboardScreen.kt"
+            "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt"
         )
         val offenders = sourceRoot.kotlinFiles()
             .flatMap { file ->
@@ -326,6 +331,7 @@ class ArchitectureBoundaryTest {
             "core/ui",
             "feature/archive",
             "feature/browser",
+            "feature/home",
             "feature/imagegallery",
             "feature/onboarding",
             "feature/quickaccess",
@@ -452,12 +458,8 @@ class ArchitectureBoundaryTest {
 
         val LARGE_FILE_BASELINE = mapOf(
             "arcile-app/app/src/main/java/dev/qtremors/arcile/SaveToArcileActivity.kt" to 790,
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt" to 584,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt" to 945,
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt" to 590,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt" to 915,
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/StorageDashboardScreen.kt" to 586,
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/components/home/StorageSummaryCards.kt" to 629,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/TrashManager.kt" to 540,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt" to 723,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreClient.kt" to 529,
@@ -471,6 +473,9 @@ class ArchitectureBoundaryTest {
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserArchiveDialogs.kt" to 568,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserFloatingSurfaces.kt" to 694,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserScreen.kt" to 650,
+            "arcile-app/feature/home/src/main/java/dev/qtremors/arcile/feature/home/HomeViewModel.kt" to 584,
+            "arcile-app/feature/home/src/main/java/dev/qtremors/arcile/feature/home/ui/HomeScreen.kt" to 590,
+            "arcile-app/feature/home/src/main/java/dev/qtremors/arcile/feature/home/ui/components/StorageSummaryCards.kt" to 629,
             "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryChrome.kt" to 614,
             "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryContent.kt" to 647,
             "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryItems.kt" to 598,
@@ -484,12 +489,13 @@ class ArchitectureBoundaryTest {
             "arcile-app/feature/recentfiles/src/main/java/dev/qtremors/arcile/feature/recentfiles/RecentFilesViewModel.kt" to 522,
             "arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerDetailsSheet.kt" to 895,
             "arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerScreen.kt" to 508,
+            "arcile-app/feature/storageusage/src/main/java/dev/qtremors/arcile/feature/storageusage/ui/StorageDashboardScreen.kt" to 586,
             "arcile-app/feature/trash/src/main/java/dev/qtremors/arcile/feature/trash/TrashScreen.kt" to 659,
             "arcile-app/plugin-glb/src/main/java/dev/qtremors/arcile/plugin/glb/ModelViewerScreen.kt" to 643
         )
 
         val LARGE_VIEWMODEL_BASELINE = mapOf(
-            "app/src/main/java/dev/qtremors/arcile/presentation/home/HomeViewModel.kt" to 584,
+            "feature/home/src/main/java/dev/qtremors/arcile/feature/home/HomeViewModel.kt" to 584,
             "feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerViewModel.kt" to 468,
             "feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 748,
             "feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryViewModel.kt" to 990,
@@ -514,7 +520,6 @@ class ArchitectureBoundaryTest {
         )
 
         val COMPOSABLE_PARAMETER_BASELINE = mapOf(
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/HomeScreen.kt:HomeScreen" to 28,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt:SettingsScreen" to 22,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/ArcileTopBar.kt:ArcileTopBar" to 20,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt:FileGrid" to 16,

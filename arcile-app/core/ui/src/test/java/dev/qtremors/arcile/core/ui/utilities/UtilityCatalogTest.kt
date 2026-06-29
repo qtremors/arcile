@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui
+package dev.qtremors.arcile.core.ui.utilities
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

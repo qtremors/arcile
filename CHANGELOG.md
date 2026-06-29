@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.8
+> **Version:** 1.2.9
 > **Last Updated:** 2026-07-01
 
 ---
+
+## [1.2.9] - 2026-07-01
+
+- **Home and Storage Reliability**: Isolated Home, storage dashboard, and storage management state so loading, refreshes, file opening, and volume classification no longer depend on app-shell state ownership.
 
 ## [1.2.8] - 2026-07-01
 
