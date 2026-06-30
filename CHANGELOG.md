@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.9
-> **Last Updated:** 2026-07-01
+> **Version:** 1.3.0
+> **Last Updated:** 2026-07-02
 
 ---
+
+## [1.3.0] - 2026-07-02
+
+- **Settings and Import Reliability**: Isolated settings, backup, activity history, plugins, external file access, and shared-file imports so these workflows no longer depend on app-shell state ownership.
 
 ## [1.2.9] - 2026-07-01
 

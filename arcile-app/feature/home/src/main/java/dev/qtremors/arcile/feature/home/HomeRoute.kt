@@ -29,11 +29,12 @@ sealed interface HomeDestination {
 
 @Composable
 fun HomeRoute(
-    homeRecentCarouselLimit: Int,
     onDestination: (HomeDestination) -> Unit
 ) {
     val viewModel = hiltViewModel<HomeViewModel>()
+    val preferencesViewModel = hiltViewModel<HomePreferencesViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val homeRecentCarouselLimit by preferencesViewModel.recentCarouselLimit.collectAsStateWithLifecycle()
     HomeScreen(
         state = state,
         navigationIntents = HomeNavigationIntents(

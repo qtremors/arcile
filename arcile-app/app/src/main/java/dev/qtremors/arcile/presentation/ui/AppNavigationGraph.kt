@@ -44,6 +44,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
+import dev.qtremors.arcile.feature.activitylog.registerActivityLogRoute
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
@@ -56,12 +57,15 @@ import dev.qtremors.arcile.feature.home.HomeDestination
 import dev.qtremors.arcile.feature.home.HomeRoute
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.feature.quickaccess.registerQuickAccessRoute
+import dev.qtremors.arcile.feature.plugins.registerPluginsRoute
 import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
 import dev.qtremors.arcile.feature.storagecleaner.registerStorageCleanerRoute
 import dev.qtremors.arcile.feature.storageusage.StorageDashboardDestination
 import dev.qtremors.arcile.feature.storageusage.registerStorageDashboardRoute
 import dev.qtremors.arcile.feature.storageusage.registerStorageManagementRoute
-import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
+import dev.qtremors.arcile.feature.settings.SettingsDestination
+import dev.qtremors.arcile.feature.settings.registerSettingsRoute
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -79,8 +83,8 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.plugins.PluginFileResolution
-import dev.qtremors.arcile.plugins.PluginManager
+import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
+import dev.qtremors.arcile.core.plugin.android.PluginManager
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -262,9 +266,7 @@ fun AppNavigationGraph(
                     val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()
                     val browserViewModel = hiltViewModel<BrowserViewModel>()
                     val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
-                    val settingsViewModel = hiltViewModel<SettingsViewModel>()
                     val browserState by browserViewModel.state.collectAsStateWithLifecycle()
-                    val browserPrefs by settingsViewModel.browserPreferences.collectAsStateWithLifecycle()
                     val showBrowserPageRequest by backStackEntry.savedStateHandle
                         .getStateFlow("showBrowserPage", false)
                         .collectAsStateWithLifecycle()
@@ -426,7 +428,6 @@ fun AppNavigationGraph(
                         when (page) {
                             0 -> {
                                 HomeRoute(
-                                    homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
                                     onDestination = { destination ->
                                         when (destination) {
                                             HomeDestination.BrowseRoot -> {
@@ -769,14 +770,13 @@ fun AppNavigationGraph(
                         onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
                     )
                 }
-                composable<AppRoutes.ActivityLog>(
+                registerActivityLogRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) {
-                    ActivityLogRoute(onNavigateBack = { navController.popBackStack() })
-                }
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() }
+                )
                 registerStorageCleanerRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
@@ -786,48 +786,32 @@ fun AppNavigationGraph(
                     onDestination = destinationMapper::fromStorageCleaner,
                     onFeedback = onFeedback
                 )
-                composable<AppRoutes.Settings>(
+                registerSettingsRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) {
-                    val viewModel = hiltViewModel<SettingsViewModel>()
-                    val browserPrefs by viewModel.browserPreferences.collectAsStateWithLifecycle()
-                    val backupState by viewModel.backupState.collectAsStateWithLifecycle()
-                    SettingsScreen(
-                        currentThemeState = currentThemeState,
-                        showThumbnails = browserPrefs.globalPresentation.showThumbnails,
-                        homeRecentCarouselLimit = browserPrefs.homeRecentCarouselLimit,
-                        showHiddenFiles = browserPrefs.showHiddenFiles,
-                        browserScrollbarEnabled = browserPrefs.browserScrollbarEnabled,
-                        galleryScrollbarEnabled = browserPrefs.galleryScrollbarEnabled,
-                        onShowThumbnailsChange = { viewModel.updateShowThumbnails(it) },
-                        onHomeRecentCarouselLimitChange = { viewModel.updateHomeRecentCarouselLimit(it) },
-                        onShowHiddenFilesChange = { viewModel.updateShowHiddenFiles(it) },
-                        onBrowserScrollbarEnabledChange = { viewModel.updateBrowserScrollbarEnabled(it) },
-                        onGalleryScrollbarEnabledChange = { viewModel.updateGalleryScrollbarEnabled(it) },
-                        onNavigateBack = { navController.popBackStack() },
-                        onThemeChange = onThemeChange,
-                        onOpenStorageManagement = { navController.navigate(AppRoutes.StorageManagement) },
-                        onNavigateToPlugins = { navController.navigate(AppRoutes.Plugins) },
-                        onNavigateToAbout = { navController.navigate(AppRoutes.About) },
-                        onRestartApp = onRestartApp,
-                        backupState = backupState,
-                        onExportSettingsBackup = { viewModel.exportPreferences(it) },
-                        onRestoreSettingsBackup = { viewModel.previewRestore(it) },
-                        onApplySettingsRestore = { viewModel.restorePreferences(it) },
-                        onClearBackupState = { viewModel.clearBackupState() }
-                    )
-                }
-                composable<AppRoutes.Plugins>(
+                    popExitTransition = utilityPopExitTransition,
+                    currentThemeState = currentThemeState,
+                    onThemeChange = onThemeChange,
+                    onNavigateBack = { navController.popBackStack() },
+                    onDestination = { destination ->
+                        when (destination) {
+                            SettingsDestination.StorageManagement -> {
+                                navController.navigate(AppRoutes.StorageManagement)
+                            }
+                            SettingsDestination.Plugins -> navController.navigate(AppRoutes.Plugins)
+                            SettingsDestination.About -> navController.navigate(AppRoutes.About)
+                        }
+                    },
+                    onRestartApp = onRestartApp
+                )
+                registerPluginsRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,
                     popEnterTransition = utilityPopEnterTransition,
-                    popExitTransition = utilityPopExitTransition
-                ) {
-                    PluginsScreen(onNavigateBack = { navController.popBackStack() })
-                }
+                    popExitTransition = utilityPopExitTransition,
+                    onNavigateBack = { navController.popBackStack() }
+                )
                 registerStorageManagementRoute(
                     enterTransition = utilityEnterTransition,
                     exitTransition = utilityExitTransition,

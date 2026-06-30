@@ -17,6 +17,12 @@ import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.ui.theme.ThemePreset
 import dev.qtremors.arcile.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupFailure
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItem
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItemStatus
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,7 +31,7 @@ import javax.inject.Singleton
 class PreferencesBackupManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val themePreferences: ThemePreferences
-) {
+) : PreferencesBackupGateway {
     constructor(context: Context) : this(context, ThemePreferences(context))
 
     private val json = Json {
@@ -34,7 +40,7 @@ class PreferencesBackupManager @Inject constructor(
         prettyPrint = true
     }
 
-    suspend fun exportTo(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(Dispatchers.IO) {
+    override suspend fun exportTo(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(Dispatchers.IO) {
         runCatching {
             val failures = mutableListOf<PreferencesBackupFailure>()
             val payload = PreferencesBackupPayload(
@@ -69,7 +75,7 @@ class PreferencesBackupManager @Inject constructor(
         }
     }
 
-    suspend fun preview(uri: Uri): Result<PreferencesBackupPreview> = withContext(Dispatchers.IO) {
+    override suspend fun preview(uri: Uri): Result<PreferencesBackupPreview> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = readPayload(uri)
             validatePayload(payload)
@@ -90,7 +96,7 @@ class PreferencesBackupManager @Inject constructor(
         }
     }
 
-    suspend fun restoreFrom(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(Dispatchers.IO) {
+    override suspend fun restoreFrom(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(Dispatchers.IO) {
         runCatching {
             val payload = readPayload(uri)
             validatePayload(payload)
@@ -219,41 +225,6 @@ class PreferencesBackupManager @Inject constructor(
         )
     }
 }
-
-data class PreferencesBackupPreview(
-    val createdAtMillis: Long,
-    val items: List<PreferencesBackupItem>
-)
-
-data class PreferencesBackupOperationResult(
-    val items: List<PreferencesBackupItem>,
-    val failures: List<PreferencesBackupFailure> = emptyList()
-) {
-    val successCount: Int
-        get() = items.count { it.status == PreferencesBackupItemStatus.Exported || it.status == PreferencesBackupItemStatus.Restored || it.status == PreferencesBackupItemStatus.Reset }
-
-    val hasFailures: Boolean
-        get() = failures.isNotEmpty()
-}
-
-data class PreferencesBackupItem(
-    val id: String,
-    val label: String,
-    val status: PreferencesBackupItemStatus
-)
-
-enum class PreferencesBackupItemStatus {
-    Exported,
-    WillRestore,
-    WillReset,
-    Restored,
-    Reset
-}
-
-data class PreferencesBackupFailure(
-    val label: String,
-    val message: String
-)
 
 @Serializable
 private data class PreferencesBackupPayload(

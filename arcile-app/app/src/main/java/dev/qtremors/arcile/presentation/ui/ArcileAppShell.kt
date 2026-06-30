@@ -41,7 +41,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -50,10 +49,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.AppLaunchContext
 import dev.qtremors.arcile.AppLaunchMode
-import dev.qtremors.arcile.feature.browser.BrowserViewModel
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.feature.trash.TrashViewModel
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.ui.theme.ThemeState

@@ -4,9 +4,9 @@ import android.webkit.MimeTypeMap
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.plugins.PluginFileResolution
-import dev.qtremors.arcile.plugins.PluginLaunchResult
-import dev.qtremors.arcile.plugins.PluginManager
+import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
+import dev.qtremors.arcile.core.plugin.android.PluginLaunchResult
+import dev.qtremors.arcile.core.plugin.android.PluginManager
 
 internal fun interface PluginFileResolutionGateway {
     suspend fun resolve(path: String, mimeType: String?, extension: String): PluginFileResolution

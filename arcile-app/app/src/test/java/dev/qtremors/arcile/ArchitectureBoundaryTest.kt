@@ -34,10 +34,14 @@ class ArchitectureBoundaryTest {
     @Test
     fun `feature packages do not depend on unrelated feature packages`() {
         val features = listOf(
+            "activitylog",
             "archive",
             "browser",
             "home",
+            "importing",
+            "settings",
             "onboarding",
+            "plugins",
             "quickaccess",
             "recentfiles",
             "storagecleaner",
@@ -169,6 +173,7 @@ class ArchitectureBoundaryTest {
         val sourceRoot = sourceRoot("presentation")
         val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.(.+)""")
         val allowedFeatureImports = setOf(
+            "activitylog.registerActivityLogRoute",
             "archive.ArchiveDestination",
             "archive.registerArchiveViewerRoute",
             "browser.BrowserViewModel",
@@ -181,10 +186,13 @@ class ArchitectureBoundaryTest {
             "imagegallery.registerImageGalleryRoute",
             "imagegallery.registerImageViewerRoute",
             "quickaccess.QuickAccessViewModel",
+            "plugins.registerPluginsRoute",
             "quickaccess.QuickAccessDestination",
             "quickaccess.registerQuickAccessRoute",
             "recentfiles.RecentFilesDestination",
             "recentfiles.registerRecentFilesRoute",
+            "settings.SettingsDestination",
+            "settings.registerSettingsRoute",
             "storagecleaner.StorageCleanerDestination",
             "storagecleaner.registerStorageCleanerRoute",
             "storageusage.StorageUsageViewModel",
@@ -326,14 +334,19 @@ class ArchitectureBoundaryTest {
             "app",
             "core/runtime",
             "core/operation/android",
+            "core/plugin/android",
             "core/presentation",
             "core/storage/data",
             "core/ui",
             "feature/archive",
+            "feature/activitylog",
             "feature/browser",
             "feature/home",
+            "feature/import",
+            "feature/settings",
             "feature/imagegallery",
             "feature/onboarding",
+            "feature/plugins",
             "feature/quickaccess",
             "feature/recentfiles",
             "feature/storagecleaner",
@@ -457,9 +470,7 @@ class ArchitectureBoundaryTest {
         val PUBLIC_FUNCTION = Regex("""^(?:public\s+)?fun\s+([A-Za-z0-9_]+)\s*\(.*""")
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/SaveToArcileActivity.kt" to 790,
             "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt" to 945,
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt" to 915,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/TrashManager.kt" to 540,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt" to 723,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreClient.kt" to 529,
@@ -487,6 +498,7 @@ class ArchitectureBoundaryTest {
             "arcile-app/feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/ui/OnboardingPages.kt" to 860,
             "arcile-app/feature/quickaccess/src/main/java/dev/qtremors/arcile/feature/quickaccess/QuickAccessScreen.kt" to 919,
             "arcile-app/feature/recentfiles/src/main/java/dev/qtremors/arcile/feature/recentfiles/RecentFilesViewModel.kt" to 522,
+            "arcile-app/feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsScreen.kt" to 915,
             "arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerDetailsSheet.kt" to 895,
             "arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerScreen.kt" to 508,
             "arcile-app/feature/storageusage/src/main/java/dev/qtremors/arcile/feature/storageusage/ui/StorageDashboardScreen.kt" to 586,
@@ -520,7 +532,7 @@ class ArchitectureBoundaryTest {
         )
 
         val COMPOSABLE_PARAMETER_BASELINE = mapOf(
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/SettingsScreen.kt:SettingsScreen" to 22,
+            "arcile-app/feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsScreen.kt:SettingsScreen" to 22,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/ArcileTopBar.kt:ArcileTopBar" to 20,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt:FileGrid" to 16,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt:FileGridItem" to 16,

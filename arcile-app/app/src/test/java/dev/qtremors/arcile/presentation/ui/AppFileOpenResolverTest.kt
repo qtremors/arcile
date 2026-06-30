@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.presentation.ui
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.plugins.PluginCatalogEntry
-import dev.qtremors.arcile.plugins.PluginFileResolution
+import dev.qtremors.arcile.core.plugin.android.PluginCatalogEntry
+import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame

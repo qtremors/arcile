@@ -12,7 +12,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import dev.qtremors.arcile.shared.ui.StandaloneImageViewer
 import dev.qtremors.arcile.ui.theme.ArcileTheme

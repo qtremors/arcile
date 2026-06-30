@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 129
-        versionName = "1.2.9"
+        versionCode = 130
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -112,6 +112,7 @@ dependencies {
     implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation:android"))
+    implementation(project(":core:plugin:android"))
     implementation(project(":core:operation"))
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
@@ -127,6 +128,10 @@ dependencies {
     implementation(project(":feature:storagecleaner"))
     implementation(project(":feature:storageusage"))
     implementation(project(":feature:home"))
+    implementation(project(":feature:settings"))
+    implementation(project(":feature:activitylog"))
+    implementation(project(":feature:plugins"))
+    implementation(project(":feature:import"))
     implementation(project(":plugin-api"))
 
     implementation(libs.androidx.core.ktx)
