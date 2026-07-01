@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.0
+> **Version:** 1.3.1
 > **Last Updated:** 2026-07-02
 
 ---
+
+## [1.3.1] - 2026-07-02
+
+- **Browser Navigation Reliability**: Browser now owns its navigation state, scroll restoration, file actions, and back handling while Home-to-Browser requests use explicit folder, category, archive, and restore targets.
+- **Onboarding and Browser Search Reliability**: Onboarding now owns permission and backup restoration state, while Browser search uses an independently owned, debounced state controller.
 
 ## [1.3.0] - 2026-07-02
 

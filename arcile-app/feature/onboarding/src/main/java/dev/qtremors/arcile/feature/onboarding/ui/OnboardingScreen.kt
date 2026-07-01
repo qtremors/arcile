@@ -84,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet
 import dev.qtremors.arcile.shared.ui.settings.accentLabelRes
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
@@ -228,21 +229,3 @@ fun OnboardingScreen(
         onRestartApp = onRestartApp
     )
 }
-
-sealed interface OnboardingRestoreState {
-    data object Idle : OnboardingRestoreState
-    data object Busy : OnboardingRestoreState
-    data class Preview(val items: List<OnboardingRestoreItem>) : OnboardingRestoreState
-    data class Restored(val items: List<OnboardingRestoreItem>, val failures: List<OnboardingRestoreFailure>) : OnboardingRestoreState
-    data class Failed(val message: String) : OnboardingRestoreState
-}
-
-data class OnboardingRestoreItem(
-    val label: String,
-    val status: String
-)
-
-data class OnboardingRestoreFailure(
-    val label: String,
-    val message: String
-)

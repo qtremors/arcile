@@ -24,7 +24,7 @@ import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 
 @Immutable
-data class BrowserNavigationState(
+data class BrowserLocationState(
     val currentPath: String = "",
     val currentVolumeId: String? = null,
     val isVolumeRootScreen: Boolean = false,
@@ -83,12 +83,23 @@ data class BrowserDialogState(
 )
 
 @Immutable
-data class OperationUiState(
+data class BrowserOperationState(
     val clipboardState: ClipboardState? = null,
     val activeFileOperation: BrowserFileOperationUiState? = null,
     val activeRecoveryOperation: BrowserOperationRecoveryUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
     val pendingTrashUndoIds: PersistentList<String> = persistentListOf()
+)
+
+@Immutable
+data class BrowserUiState(
+    val source: BrowserState = BrowserState(),
+    val location: BrowserLocationState = BrowserLocationState(),
+    val listing: BrowserListingState = BrowserListingState(),
+    val selection: BrowserSelectionState = BrowserSelectionState(),
+    val search: BrowserSearchState = BrowserSearchState(),
+    val dialogs: BrowserDialogState = BrowserDialogState(),
+    val operation: BrowserOperationState = BrowserOperationState()
 )
 
 sealed interface BrowserNavigationEvent {
@@ -136,7 +147,7 @@ sealed interface BrowserOperationEvent {
     data class PendingTrashUndoChanged(val ids: List<String>) : BrowserOperationEvent
 }
 
-fun BrowserState.navigationState() = BrowserNavigationState(
+fun BrowserState.locationState() = BrowserLocationState(
     currentPath = currentPath,
     currentVolumeId = currentVolumeId,
     isVolumeRootScreen = isVolumeRootScreen,
@@ -190,12 +201,22 @@ fun BrowserState.dialogState() = BrowserDialogState(
     properties = properties
 )
 
-fun BrowserState.operationUiState() = OperationUiState(
+fun BrowserState.operationState() = BrowserOperationState(
     clipboardState = clipboardState,
     activeFileOperation = activeFileOperation,
     activeRecoveryOperation = activeRecoveryOperation,
     fileOperationStatusMessage = fileOperationStatusMessage,
     pendingTrashUndoIds = pendingTrashUndoIds
+)
+
+fun BrowserState.toUiState() = BrowserUiState(
+    source = this,
+    location = locationState(),
+    listing = listingState(),
+    selection = selectionState(),
+    search = searchState(),
+    dialogs = dialogState(),
+    operation = operationState()
 )
 
 fun BrowserState.reduce(event: BrowserNavigationEvent): BrowserState = when (event) {

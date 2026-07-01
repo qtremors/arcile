@@ -141,7 +141,7 @@ class BrowserStateReducerTest {
             selectedFiles = persistentSetOf("/root/a.txt"),
             selectedFilesTotalSize = 1L
         ).withUpdatedDisplayState()
-        val navigation = base.navigationState()
+        val navigation = base.locationState()
         val listing = base.listingState()
         val selection = base.selectionState()
 
@@ -149,7 +149,7 @@ class BrowserStateReducerTest {
             .reduce(BrowserDialogEvent.ConflictDialogShown(listOf(conflict)))
             .reduce(BrowserOperationEvent.StatusMessageChanged(dev.qtremors.arcile.core.presentation.UiText.Dynamic("Done")))
 
-        assertEquals(navigation, updated.navigationState())
+        assertEquals(navigation, updated.locationState())
         assertEquals(listing, updated.listingState())
         assertEquals(selection, updated.selectionState())
         assertTrue(updated.showConflictDialog)

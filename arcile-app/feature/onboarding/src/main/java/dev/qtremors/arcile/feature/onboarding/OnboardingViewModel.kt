@@ -1,13 +1,12 @@
 package dev.qtremors.arcile.feature.onboarding
 
-import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
+import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,7 +26,10 @@ data class OnboardingUiState(
     val hasNotificationPermission: Boolean = false,
     val notificationPermissionRequired: Boolean = false,
     val notificationPermissionHandled: Boolean = false,
-    val isCompleting: Boolean = false
+    val isCompleting: Boolean = false,
+    val preferencesLoaded: Boolean = false,
+    val isCompleted: Boolean = false,
+    val backupState: OnboardingBackupState = OnboardingBackupState.Idle
 ) {
     val canContinue: Boolean
         get() = step != OnboardingStep.SetupPermissions || hasStoragePermission
@@ -36,11 +38,25 @@ data class OnboardingUiState(
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
     private val onboardingPreferencesStore: OnboardingPreferencesStore,
-    @ApplicationContext private val context: Context
+    private val backupGateway: PreferencesBackupGateway,
+    private val appVersionCodeProvider: AppVersionCodeProvider
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingUiState())
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            onboardingPreferencesStore.preferencesFlow.collect { preferences ->
+                _state.update {
+                    it.copy(
+                        preferencesLoaded = true,
+                        isCompleted = preferences.isCompleted
+                    )
+                }
+            }
+        }
+    }
 
     fun updatePermissionState(
         hasStoragePermission: Boolean,
@@ -92,6 +108,48 @@ class OnboardingViewModel @Inject constructor(
         _state.update { it.copy(step = step) }
     }
 
+    fun previewBackup(uri: Uri) {
+        if (_state.value.backupState == OnboardingBackupState.Busy) return
+        _state.update { it.copy(backupState = OnboardingBackupState.Busy) }
+        viewModelScope.launch {
+            backupGateway.preview(uri).fold(
+                onSuccess = { preview ->
+                    _state.update {
+                        it.copy(backupState = OnboardingBackupState.Preview(preview))
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(backupState = OnboardingBackupState.Failed(error.message))
+                    }
+                }
+            )
+        }
+    }
+
+    fun restoreBackup(uri: Uri) {
+        if (_state.value.backupState == OnboardingBackupState.Busy) return
+        _state.update { it.copy(backupState = OnboardingBackupState.Busy) }
+        viewModelScope.launch {
+            backupGateway.restoreFrom(uri).fold(
+                onSuccess = { result ->
+                    _state.update {
+                        it.copy(backupState = OnboardingBackupState.Restored(result))
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(backupState = OnboardingBackupState.Failed(error.message))
+                    }
+                }
+            )
+        }
+    }
+
+    fun dismissBackup() {
+        _state.update { it.copy(backupState = OnboardingBackupState.Idle) }
+    }
+
     private fun completeOnboarding(markNotificationHandled: Boolean) {
         if (_state.value.isCompleting || !_state.value.hasStoragePermission) return
         _state.update {
@@ -102,22 +160,7 @@ class OnboardingViewModel @Inject constructor(
             )
         }
 
-        val versionCode = try {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(context.packageName, 0)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode.toInt()
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode
-            }
-        } catch (e: Exception) {
-            1
-        }
+        val versionCode = appVersionCodeProvider.currentVersionCode()
 
         viewModelScope.launch {
             onboardingPreferencesStore.markCompleted(

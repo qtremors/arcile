@@ -4,6 +4,7 @@ import com.tngtech.archunit.core.domain.JavaClasses
 import com.tngtech.archunit.core.importer.ClassFileImporter
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import java.io.File
+import org.junit.Assert.assertFalse
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -176,16 +177,16 @@ class ArchitectureBoundaryTest {
             "activitylog.registerActivityLogRoute",
             "archive.ArchiveDestination",
             "archive.registerArchiveViewerRoute",
-            "browser.BrowserViewModel",
-            "browser.BrowserScrollPosition",
-            "browser.scrollPositionKey",
-            "browser.ui.BrowserScreen",
+            "browser.BrowserDestination",
+            "browser.BrowserEntry",
+            "browser.BrowserEntryRequest",
+            "browser.BrowserRoute",
+            "browser.BrowserRouteStatus",
             "home.HomeDestination",
             "home.HomeRoute",
             "imagegallery.GalleryDestination",
             "imagegallery.registerImageGalleryRoute",
             "imagegallery.registerImageViewerRoute",
-            "quickaccess.QuickAccessViewModel",
             "plugins.registerPluginsRoute",
             "quickaccess.QuickAccessDestination",
             "quickaccess.registerQuickAccessRoute",
@@ -207,7 +208,8 @@ class ArchitectureBoundaryTest {
         val allowedShellFiles = setOf(
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
-            "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt"
+            "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt",
+            "dev/qtremors/arcile/presentation/ui/MainRoute.kt"
         )
         val offenders = sourceRoot.kotlinFiles()
             .flatMap { file ->
@@ -228,6 +230,17 @@ class ArchitectureBoundaryTest {
         if (offenders.isNotEmpty()) {
             fail("Presentation may import feature code only from approved app-shell composition files:\n${offenders.joinToString("\n")}")
         }
+    }
+
+    @Test
+    fun `app navigation graph does not own viewmodels`() {
+        val graph = File(
+            projectRoot(),
+            "app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt"
+        ).readText()
+
+        assertFalse(graph.contains("ViewModel"))
+        assertFalse(graph.contains("hiltViewModel"))
     }
 
     @Test
@@ -470,7 +483,7 @@ class ArchitectureBoundaryTest {
         val PUBLIC_FUNCTION = Regex("""^(?:public\s+)?fun\s+([A-Za-z0-9_]+)\s*\(.*""")
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt" to 945,
+            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt" to 545,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/TrashManager.kt" to 540,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSource.kt" to 723,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreClient.kt" to 529,
@@ -479,7 +492,7 @@ class ArchitectureBoundaryTest {
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/SortOptionDialog.kt" to 566,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt" to 530,
             "arcile-app/core/ui/src/main/res/values/strings.xml" to 827,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 748,
+            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 741,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/NavigationDelegate.kt" to 729,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserArchiveDialogs.kt" to 568,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserFloatingSurfaces.kt" to 694,
@@ -509,7 +522,7 @@ class ArchitectureBoundaryTest {
         val LARGE_VIEWMODEL_BASELINE = mapOf(
             "feature/home/src/main/java/dev/qtremors/arcile/feature/home/HomeViewModel.kt" to 584,
             "feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerViewModel.kt" to 468,
-            "feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 748,
+            "feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 741,
             "feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryViewModel.kt" to 990,
             "feature/recentfiles/src/main/java/dev/qtremors/arcile/feature/recentfiles/RecentFilesViewModel.kt" to 522,
             "feature/trash/src/main/java/dev/qtremors/arcile/feature/trash/TrashViewModel.kt" to 426
@@ -525,10 +538,6 @@ class ArchitectureBoundaryTest {
                 "ApplicationContext",
                 "Dispatchers.IO"
             ),
-            "feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/OnboardingViewModel.kt" to setOf(
-                "Context",
-                "ApplicationContext"
-            )
         )
 
         val COMPOSABLE_PARAMETER_BASELINE = mapOf(

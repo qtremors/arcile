@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.presentation.ui
+package dev.qtremors.arcile.feature.browser
 
 internal enum class BrowserBackFallback {
     PopAppBackStack,

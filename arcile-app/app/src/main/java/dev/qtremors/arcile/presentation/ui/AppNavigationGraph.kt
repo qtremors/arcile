@@ -21,22 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -45,17 +31,12 @@ import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
 import dev.qtremors.arcile.feature.activitylog.registerActivityLogRoute
-import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
+import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
 import dev.qtremors.arcile.feature.trash.registerTrashRoute
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.feature.browser.BrowserScrollPosition
-import dev.qtremors.arcile.feature.browser.BrowserViewModel
-import dev.qtremors.arcile.feature.browser.scrollPositionKey
 import dev.qtremors.arcile.feature.home.HomeDestination
-import dev.qtremors.arcile.feature.home.HomeRoute
-import dev.qtremors.arcile.feature.quickaccess.QuickAccessViewModel
 import dev.qtremors.arcile.feature.quickaccess.registerQuickAccessRoute
 import dev.qtremors.arcile.feature.plugins.registerPluginsRoute
 import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
@@ -67,20 +48,9 @@ import dev.qtremors.arcile.feature.settings.SettingsDestination
 import dev.qtremors.arcile.feature.settings.registerSettingsRoute
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.ui.theme.ThemeState
-import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
@@ -264,400 +234,85 @@ fun AppNavigationGraph(
     ) {
                 composable<AppRoutes.Main> { backStackEntry ->
                     val mainArgs = backStackEntry.toRoute<AppRoutes.Main>()
-                    val browserViewModel = hiltViewModel<BrowserViewModel>()
-                    val quickAccessViewModel = hiltViewModel<QuickAccessViewModel>()
-                    val browserState by browserViewModel.state.collectAsStateWithLifecycle()
-                    val showBrowserPageRequest by backStackEntry.savedStateHandle
-                        .getStateFlow("showBrowserPage", false)
-                        .collectAsStateWithLifecycle()
-                    val pendingBrowserPageReturn =
-                        backStackEntry.savedStateHandle.get<Boolean>("showBrowserPage") == true ||
-                            backStackEntry.savedStateHandle.get<Boolean>(browserViewerReturnPendingKey) == true
-
-                    val requestedInitialMainPage = if (pendingBrowserPageReturn || mainArgs.initialPage == 1) {
-                        1
-                    } else {
-                        mainArgs.initialPage
-                    }
-                    var savedMainPagerPage by rememberSaveable(backStackEntry.id) {
-                        mutableStateOf(requestedInitialMainPage)
-                    }
-                    val pagerState = androidx.compose.runtime.key(backStackEntry.id) {
-                        rememberPagerState(
-                            initialPage = savedMainPagerPage,
-                            pageCount = { 2 }
-                        )
-                    }
-                    androidx.compose.runtime.LaunchedEffect(pagerState) {
-                        snapshotFlow { pagerState.currentPage }.collect { page ->
-                            savedMainPagerPage = page
-                        }
-                    }
-                    val browserListState = rememberSaveable(saver = LazyListState.Saver) {
-                        LazyListState()
-                    }
-                    val browserGridState = rememberSaveable(saver = LazyGridState.Saver) {
-                        LazyGridState()
-                    }
-                    val browserScrollPositionKey = browserState.scrollPositionKey()
-                    val saveBrowserScrollPosition: () -> Unit = {
-                        browserViewModel.saveScrollPosition(
-                            browserScrollPositionKey,
-                            BrowserScrollPosition(
-                                listIndex = browserListState.firstVisibleItemIndex,
-                                listOffset = browserListState.firstVisibleItemScrollOffset,
-                                gridIndex = browserGridState.firstVisibleItemIndex,
-                                gridOffset = browserGridState.firstVisibleItemScrollOffset
-                            )
-                        )
-                    }
-                    val hasActiveBrowserLocation =
-                        browserState.currentPath.isNotBlank() ||
-                            browserState.isVolumeRootScreen ||
-                            browserState.isCategoryScreen ||
-                            browserState.archiveContext != null
-                    val coroutineScope = rememberCoroutineScope()
-                    var pendingExplicitBrowserEntry by remember {
-                        mutableStateOf(mainArgs.initialPage == 1 || pendingBrowserPageReturn)
-                    }
-                    var revealedFocusPath by rememberSaveable(mainArgs.focusPath) { mutableStateOf<String?>(null) }
-                    val navigateBackFromBrowser: () -> Unit = {
-                        val hasPreviousRoute = navController.previousBackStackEntry != null
-                        if (!browserViewModel.navigateBack(allowVolumeRootFallback = !hasPreviousRoute)) {
-                            when (browserBackFallback(hasPreviousRoute)) {
-                                BrowserBackFallback.PopAppBackStack -> navController.popBackStack()
-                                BrowserBackFallback.ShowHomePager -> coroutineScope.launch {
-                                    pagerState.animateScrollToPage(
-                                        page = 0,
-                                        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    androidx.compose.runtime.LaunchedEffect(mainArgs) {
-                        if (mainArgs.initialPage == 1) {
-                            pendingExplicitBrowserEntry = true
-                            val path = mainArgs.path
-                            val archivePath = mainArgs.archivePath
-                            val category = mainArgs.category
-                            when {
-                                !archivePath.isNullOrEmpty() -> browserViewModel.openArchive(archivePath)
-                                !path.isNullOrEmpty() -> browserViewModel.navigateToSpecificFolder(
-                                    path,
-                                    seedInitialPathHistory = mainArgs.seedInitialPathHistory
+                    MainRoute(
+                        backStackEntry = backStackEntry,
+                        mainArgs = mainArgs,
+                        hasPreviousRoute = navController.previousBackStackEntry != null,
+                        coroutineScope = coroutineScope,
+                        onHomeDestination = { destination ->
+                            when (destination) {
+                                is HomeDestination.OpenFile -> openPathWithSurroundingImages(
+                                    destination.path,
+                                    destination.context
                                 )
-                                !category.isNullOrEmpty() -> browserViewModel.navigateToCategory(category, mainArgs.volumeId)
-                                else -> browserViewModel.openFileBrowser(restorePersistentLocation = mainArgs.restorePersistentLocation)
-                            }
-                            pagerState.scrollToPage(1)
-                        }
-                    }
-
-                    androidx.compose.runtime.LaunchedEffect(
-                        mainArgs.focusPath,
-                        pagerState.currentPage,
-                        browserState.displayState.visibleFiles
-                    ) {
-                        val focusPath = mainArgs.focusPath
-                        if (
-                            focusPath != null &&
-                            revealedFocusPath != focusPath &&
-                            pagerState.currentPage == 1
-                        ) {
-                            val index = browserState.displayState.visibleFiles.indexOfFirst { it.absolutePath == focusPath }
-                            if (index >= 0) {
-                                browserListState.scrollToItem(index)
-                                browserGridState.scrollToItem(index)
-                                revealedFocusPath = focusPath
-                            }
-                        }
-                    }
-
-                    androidx.compose.runtime.LaunchedEffect(showBrowserPageRequest) {
-                        if (showBrowserPageRequest) {
-                            pendingExplicitBrowserEntry = true
-                            pagerState.scrollToPage(1)
-                            backStackEntry.savedStateHandle["showBrowserPage"] = false
-                        }
-                    }
-
-                    androidx.compose.runtime.LaunchedEffect(pagerState.currentPage) {
-                        if (pagerState.currentPage == 1) {
-                            if (
-                                pendingExplicitBrowserEntry ||
-                                backStackEntry.savedStateHandle.get<Boolean>("showBrowserPage") == true ||
-                                backStackEntry.savedStateHandle.get<Boolean>(browserViewerReturnPendingKey) == true
-                            ) {
-                                pendingExplicitBrowserEntry = false
-                                backStackEntry.savedStateHandle[browserViewerReturnPendingKey] = false
-                            } else if (!hasActiveBrowserLocation) {
-                                browserViewModel.openFileBrowser(restorePersistentLocation = true)
-                            }
-                        }
-                    }
-
-                    val isBrowserAtRoot = !hasActiveBrowserLocation
-                    var backProgress by remember { mutableStateOf(0f) }
-                    var isBackPredicting by remember { mutableStateOf(false) }
-
-                    BackHandler(enabled = pagerState.currentPage == 1 && !isBrowserAtRoot) {
-                        navigateBackFromBrowser()
-                    }
-
-                    PredictiveBackHandler(enabled = pagerState.currentPage == 1 && isBrowserAtRoot) { progressFlow ->
-                        isBackPredicting = true
-                        try {
-                            progressFlow.collect { backEvent ->
-                                backProgress = backEvent.progress
-                            }
-                            navigateBackFromBrowser()
-                        } finally {
-                            isBackPredicting = false
-                            backProgress = 0f
-                        }
-                    }
-
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = !(pagerState.currentPage == 1 && browserState.isCategoryScreen),
-                        beyondViewportPageCount = 1
-                    ) { page ->
-                        when (page) {
-                            0 -> {
-                                HomeRoute(
-                                    onDestination = { destination ->
-                                        when (destination) {
-                                            HomeDestination.BrowseRoot -> {
-                                                pendingExplicitBrowserEntry = true
-                                                browserViewModel.openFileBrowser(restorePersistentLocation = false)
-                                                coroutineScope.launch {
-                                                    pagerState.animateScrollToPage(
-                                                        page = 1,
-                                                        animationSpec = spring(
-                                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                                            stiffness = Spring.StiffnessLow
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                            is HomeDestination.BrowsePath -> {
-                                                pendingExplicitBrowserEntry = true
-                                                browserViewModel.navigateToSpecificFolder(destination.path)
-                                                coroutineScope.launch {
-                                                    pagerState.animateScrollToPage(
-                                                        page = 1,
-                                                        animationSpec = spring(
-                                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                                            stiffness = Spring.StiffnessLow
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                            is HomeDestination.OpenFile -> {
-                                                openPathWithSurroundingImages(destination.path, destination.context)
-                                            }
-                                            is HomeDestination.BrowseCategory -> {
-                                                if (destination.name == FileCategories.Images.name) {
-                                                    navController.navigate(AppRoutes.ImageGallery()) {
-                                                        popUpTo<AppRoutes.Main> { saveState = true }
-                                                        launchSingleTop = true
-                                                    }
-                                                } else {
-                                                    pendingExplicitBrowserEntry = true
-                                                    browserViewModel.navigateToCategory(destination.name)
-                                                    coroutineScope.launch {
-                                                        pagerState.animateScrollToPage(
-                                                            page = 1,
-                                                            animationSpec = spring(
-                                                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                                                stiffness = Spring.StiffnessLow
-                                                            )
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                            HomeDestination.Settings -> navController.navigate(AppRoutes.Settings)
-                                            HomeDestination.Tools -> navController.navigate(AppRoutes.Tools) {
-                                                popUpTo<AppRoutes.Main> { saveState = true }
-                                                launchSingleTop = true
-                                            }
-                                            HomeDestination.About -> navController.navigate(AppRoutes.About)
-                                            HomeDestination.Trash -> navController.navigate(AppRoutes.Trash) {
-                                                popUpTo<AppRoutes.Main> { saveState = true }
-                                                launchSingleTop = true
-                                            }
-                                            HomeDestination.RecentFiles -> navController.navigate(AppRoutes.RecentFiles()) {
-                                                popUpTo<AppRoutes.Main> { saveState = true }
-                                                launchSingleTop = true
-                                            }
-                                            HomeDestination.QuickAccess -> navController.navigate(AppRoutes.QuickAccess)
-                                            is HomeDestination.ExternalFolder -> {
-                                                if (!ExternalFileAccessHelper.openInFilesApp(context, destination.uri)) {
-                                                    onFeedback(
-                                                        ArcileFeedbackEvent(
-                                                            message = dev.qtremors.arcile.core.presentation.UiText.StringResource(
-                                                                R.string.could_not_open_folder_files_app
-                                                            ),
-                                                            severity = ArcileFeedbackSeverity.Error
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                            is HomeDestination.StorageDashboard -> {
-                                                navController.navigate(AppRoutes.StorageDashboard(destination.volumeId)) {
-                                                    popUpTo<AppRoutes.Main> { saveState = true }
-                                                    launchSingleTop = true
-                                                }
-                                            }
-                                            HomeDestination.Cleaner -> navController.navigate(AppRoutes.StorageCleaner) {
-                                                popUpTo<AppRoutes.Main> { saveState = true }
-                                                launchSingleTop = true
-                                            }
-                                            HomeDestination.ActivityLog -> navController.navigate(AppRoutes.ActivityLog) {
-                                                popUpTo<AppRoutes.Main> { saveState = true }
-                                                launchSingleTop = true
-                                            }
-                                            is HomeDestination.ShareRecentFile -> coroutineScope.launch {
-                                                shareFilesWithKnownModels(
-                                                    listOf(destination.path),
-                                                    destination.context
-                                                )
-                                            }
-                                        }
+                                is HomeDestination.BrowseCategory -> {
+                                    navController.navigate(AppRoutes.ImageGallery()) {
+                                        popUpTo<AppRoutes.Main> { saveState = true }
+                                        launchSingleTop = true
                                     }
-                                )
+                                }
+                                HomeDestination.Settings -> navController.navigate(AppRoutes.Settings)
+                                HomeDestination.Tools -> navController.navigate(AppRoutes.Tools) {
+                                    popUpTo<AppRoutes.Main> { saveState = true }
+                                    launchSingleTop = true
+                                }
+                                HomeDestination.About -> navController.navigate(AppRoutes.About)
+                                HomeDestination.Trash -> navController.navigate(AppRoutes.Trash) {
+                                    popUpTo<AppRoutes.Main> { saveState = true }
+                                    launchSingleTop = true
+                                }
+                                HomeDestination.RecentFiles -> navController.navigate(AppRoutes.RecentFiles()) {
+                                    popUpTo<AppRoutes.Main> { saveState = true }
+                                    launchSingleTop = true
+                                }
+                                HomeDestination.QuickAccess -> navController.navigate(AppRoutes.QuickAccess)
+                                is HomeDestination.ExternalFolder -> {
+                                    if (!ExternalFileAccessHelper.openInFilesApp(context, destination.uri)) {
+                                        onFeedback(
+                                            ArcileFeedbackEvent(
+                                                message = dev.qtremors.arcile.core.presentation.UiText.StringResource(
+                                                    R.string.could_not_open_folder_files_app
+                                                ),
+                                                severity = ArcileFeedbackSeverity.Error
+                                            )
+                                        )
+                                    }
+                                }
+                                is HomeDestination.StorageDashboard -> {
+                                    navController.navigate(AppRoutes.StorageDashboard(destination.volumeId)) {
+                                        popUpTo<AppRoutes.Main> { saveState = true }
+                                        launchSingleTop = true
+                                    }
+                                }
+                                HomeDestination.Cleaner -> navController.navigate(AppRoutes.StorageCleaner) {
+                                    popUpTo<AppRoutes.Main> { saveState = true }
+                                    launchSingleTop = true
+                                }
+                                HomeDestination.ActivityLog -> navController.navigate(AppRoutes.ActivityLog) {
+                                    popUpTo<AppRoutes.Main> { saveState = true }
+                                    launchSingleTop = true
+                                }
+                                is HomeDestination.ShareRecentFile -> coroutineScope.launch {
+                                    shareFilesWithKnownModels(listOf(destination.path), destination.context)
+                                }
+                                HomeDestination.BrowseRoot,
+                                is HomeDestination.BrowsePath -> Unit
                             }
-                            1 -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .graphicsLayer {
-                                            if (isBackPredicting && pagerState.currentPage == 1) {
-                                                val scale = 1f - (backProgress * 0.08f)
-                                                scaleX = scale
-                                                scaleY = scale
-                                                translationX = backProgress * size.width.toFloat()
-                                                alpha = 1f - (backProgress * 0.4f)
-                                            }
-                                        }
-                                ) {
-                                    BrowserScreen(
-                                        state = browserState,
-                                        onNavigateBack = navigateBackFromBrowser,
-                                    onNavigateTo = { browserViewModel.navigateToFolder(it) },
-                                    onOpenFile = { path ->
-                                        saveBrowserScrollPosition()
-                                        if (ArchiveFormat.isSupported(path)) {
-                                            browserViewModel.openArchive(path)
-                                        } else {
-                                            browserViewModel.requestOpenedFileReveal(path)
-                                            val browserImageContext = if (browserState.browserSearchQuery.isNotBlank()) {
-                                                browserState.searchResults
-                                            } else {
-                                                browserState.displayState.visibleFiles
-                                            }
-                                            openPathWithContext(path, browserImageContext, true)
-                                        }
-                                    },
-                                    onToggleSelection = { browserViewModel.toggleSelection(it) },
-                                    onSelectMultiple = { browserViewModel.selectMultiple(it) },
-                                    onClearSelection = { browserViewModel.clearSelection() },
-                                    onCreateFolder = { browserViewModel.createFolder(it) },
-                                    onCreateFile = { browserViewModel.createFile(it) },
-                                    onCreateFakeFile = { name, size -> browserViewModel.createFakeFile(name, size) },
-                                    onRequestDeleteSelected = { browserViewModel.requestDeleteSelected() },
-                                    onConfirmDelete = { browserViewModel.confirmDeleteSelected() },
-                                    onTogglePermanentDelete = { browserViewModel.togglePermanentDelete() },
-                                    onToggleShred = { browserViewModel.toggleShred() },
-                                    onDismissDeleteConfirmation = { browserViewModel.dismissDeleteConfirmation() },
-                                    onRenameFile = { path, newName -> browserViewModel.renameFile(path, newName) },
-                                    onSearchQueryChange = { browserViewModel.updateBrowserSearchQuery(it) },
-                                    onClearSearch = { browserViewModel.updateBrowserSearchQuery("") },
-                                    onPresentationChange = { presentation, applyToSubfolders ->
-                                        browserViewModel.updateBrowserPresentation(presentation, applyToSubfolders)
-                                    },
-                                    onClearError = { browserViewModel.clearError() },
-                                    onCopySelected = { browserViewModel.copySelectedToClipboard() },
-                                    onCutSelected = { browserViewModel.cutSelectedToClipboard() },
-                                    onPasteFromClipboard = { browserViewModel.pasteFromClipboard() },
-                                    onCancelClipboard = { browserViewModel.cancelClipboard() },
-                                    onShareSelected = {
-                                        coroutineScope.launch {
-                                            val browserShareFiles = if (browserState.browserSearchQuery.isNotBlank()) {
-                                                browserState.searchResults
-                                            } else {
-                                                browserState.displayState.visibleFiles
-                                            }
-                                            if (shareFilesWithKnownModels(browserState.selectedFiles.toList(), browserShareFiles)) {
-                                                browserViewModel.clearSelection()
-                                            }
-                                        }
-                                    },
-                                    onClearFileOperationStatusMessage = { browserViewModel.clearFileOperationStatusMessage() },
-                                    onOpenProperties = { browserViewModel.openPropertiesForSelection() },
-                                    onDismissProperties = { browserViewModel.dismissProperties() },
-                                    onClearActiveFileOperation = { browserViewModel.clearActiveFileOperation() },
-                                    isRefreshing = browserState.isPullToRefreshing,
-                                    onRefresh = { browserViewModel.refresh(pullToRefresh = true) },
-                                    onSearchFiltersChange = { browserViewModel.updateSearchFilters(it) },
-                                    onToggleSearchFilterMenu = { browserViewModel.toggleSearchFilterMenu(it) },
-                                    onResolvingConflicts = { browserViewModel.resolveConflicts(it) },
-                                    onDismissConflictDialog = { browserViewModel.dismissConflictDialog() },
-                                    onPinToQuickAccess = { path, label -> quickAccessViewModel.addCustomFolder(path, label) },
-                                    onNativeRequestResult = { confirmed -> browserViewModel.handleNativeActionResult(confirmed) },
-                                    onSelectAll = { browserViewModel.selectAll(it) },
-                                    onInvertSelection = { browserViewModel.invertSelection(it) },
-                                    onRemoveFromClipboard = { browserViewModel.removeFromClipboard(it) },
-                                    onSelectFolderTab = { browserViewModel.selectFolderTab(it) },
-                                    onExtractArchive = { target, customDestination ->
-                                        browserViewModel.extractArchive(target, customDestination)
-                                    },
-                                    onExtractSelectedArchiveEntries = { target, customDestination ->
-                                        browserViewModel.extractSelectedArchiveEntries(target, customDestination)
-                                    },
-                                    onExtractCurrentArchiveFolder = { target, customDestination ->
-                                        browserViewModel.extractCurrentArchiveFolder(target, customDestination)
-                                    },
-                                    onCreateZipFromSelection = { browserViewModel.createZipFromSelection() },
-                                    onCreateArchiveFromSelection = { name, format, compressionLevel, password ->
-                                        browserViewModel.createArchiveFromSelection(name, format, compressionLevel, password)
-                                    },
-                                    onSubmitArchivePassword = { password ->
-                                        if (browserState.archiveContext?.pendingPasswordAction == dev.qtremors.arcile.feature.browser.ArchivePasswordAction.EXTRACT) {
-                                            browserViewModel.submitArchiveExtractionPassword(password)
-                                        } else {
-                                            browserViewModel.submitArchivePassword(password)
-                                        }
-                                    },
-                                    onDismissArchivePassword = { browserViewModel.dismissArchivePasswordPrompt() },
-                                    onUndoLastTrashMove = { browserViewModel.undoLastTrashMove() },
-                                    onClearPendingTrashUndo = { browserViewModel.clearPendingTrashUndo() },
-                                    onUndoLastOperation = { browserViewModel.undoLastOperation() },
-                                    onClearPendingUndo = { browserViewModel.clearPendingUndo() },
-                                    onRetryRecoveredOperation = { browserViewModel.retryRecoveredOperation(it) },
-                                    onCleanupRecoveredOperation = { browserViewModel.cleanupRecoveredOperation(it) },
-                                    onDismissRecoveredOperation = { browserViewModel.dismissRecoveredOperation(it) },
-                                    onFeedback = onFeedback,
-                                    nativeRequestFlow = browserViewModel.nativeRequestFlow,
-                                    listState = browserListState,
-                                    gridState = browserGridState,
-                                    scrollPositionKey = browserScrollPositionKey,
-                                    savedScrollPosition = browserViewModel.savedScrollPosition(browserScrollPositionKey),
-                                    savedScrollPositionProvider = browserViewModel::savedScrollPosition,
-                                    onSaveScrollPosition = browserViewModel::saveScrollPosition,
-                                    onClearScrollPosition = browserViewModel::clearScrollPosition,
-                                    pendingRevealFilePath = browserState.pendingRevealFilePath,
-                                    pendingRevealReady = browserState.pendingRevealReady,
-                                    onArmPendingReveal = browserViewModel::armOpenedFileReveal,
-                                    onConsumePendingReveal = browserViewModel::consumeOpenedFileReveal
+                        },
+                        onBrowserDestination = { destination ->
+                            when (destination) {
+                                BrowserDestination.ExitToPreviousRoute -> navController.popBackStack()
+                                is BrowserDestination.OpenFile -> openPathWithContext(
+                                    destination.path,
+                                    destination.surroundingFiles,
+                                    true
                                 )
+                                BrowserDestination.ExitToHome -> Unit
                             }
-                        }
-                    }
-                    }
+                        },
+                        onShareBrowserFiles = shareFilesWithKnownModels,
+                        onFeedback = onFeedback
+                    )
                 }
                 registerStorageDashboardRoute(
                     enterTransition = detailEnterTransition,
@@ -754,9 +409,7 @@ fun AppNavigationGraph(
                     popEnterTransition = utilityPopEnterTransition,
                     popExitTransition = utilityPopExitTransition
                 ) {
-                    val viewModel = hiltViewModel<UtilityPreferencesViewModel>()
-                    val homeUtilityIds by viewModel.homeUtilityIds.collectAsStateWithLifecycle()
-                    ToolsScreen(
+                    ToolsRoute(
                         onNavigateBack = { navController.popBackStack() },
                         onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) },
                         onNavigateToTrash = {
@@ -765,9 +418,7 @@ fun AppNavigationGraph(
                                 launchSingleTop = true
                             }
                         },
-                        onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
-                        homeUtilityIds = homeUtilityIds,
-                        onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
+                        onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) }
                     )
                 }
                 registerActivityLogRoute(

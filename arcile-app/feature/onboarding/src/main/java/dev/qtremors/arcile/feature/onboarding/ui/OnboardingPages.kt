@@ -69,6 +69,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreFailure
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
 import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
@@ -153,7 +156,6 @@ private data class FeatureInfo(
     val titleRes: Int,
     val descRes: Int
 )
-
 @Composable
 internal fun OnboardingWelcomeAndFeatures() {
     var selectedFeatureIndex by remember { mutableStateOf(0) }
@@ -600,7 +602,6 @@ private fun OnboardingActionChip(
         }
     }
 }
-
 @Composable
 private fun PermissionStatusChip(
     label: String,
@@ -813,7 +814,6 @@ internal fun OnboardingRestoreDialog(
         )
     }
 }
-
 @Composable
 private fun OnboardingRestoreItemList(
     description: String,

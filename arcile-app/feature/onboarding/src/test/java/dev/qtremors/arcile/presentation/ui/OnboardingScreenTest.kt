@@ -9,8 +9,8 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
-import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreItem
-import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreState
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import dev.qtremors.arcile.ui.theme.ThemeState

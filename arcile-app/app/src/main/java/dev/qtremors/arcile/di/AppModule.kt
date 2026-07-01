@@ -9,6 +9,8 @@ import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.ui.theme.ThemePreferences
 import dev.qtremors.arcile.backup.PreferencesBackupManager
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
+import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
+import dev.qtremors.arcile.BuildConfig
 import javax.inject.Singleton
 
 @Module
@@ -28,4 +30,8 @@ object AppModule {
     fun providePreferencesBackupGateway(
         manager: PreferencesBackupManager
     ): PreferencesBackupGateway = manager
+
+    @Provides
+    fun provideAppVersionCode(): AppVersionCodeProvider =
+        AppVersionCodeProvider { BuildConfig.VERSION_CODE }
 }

@@ -34,7 +34,7 @@ import dev.qtremors.arcile.feature.browser.delegate.BrowserOperationDelegate
 import dev.qtremors.arcile.feature.browser.delegate.ClipboardDelegate
 import dev.qtremors.arcile.feature.browser.delegate.NavigationDelegate
 import dev.qtremors.arcile.feature.browser.delegate.PropertiesDelegate
-import dev.qtremors.arcile.feature.browser.delegate.SearchDelegate
+import dev.qtremors.arcile.feature.browser.delegate.SearchController
 import dev.qtremors.arcile.feature.browser.delegate.UndoDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
@@ -81,31 +81,24 @@ class BrowserViewModel @Inject constructor(
     private val scrollPositions = decodeScrollPositions(
         savedStateHandle.get<Array<String>>(SavedScrollPositionsKey)?.toList().orEmpty()
     ).toMutableMap()
-    val navigationState: StateFlow<BrowserNavigationState> = _state
-        .map { it.navigationState() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.navigationState())
-    val listingState: StateFlow<BrowserListingState> = _state
-        .map { it.listingState() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.listingState())
-    val selectionState: StateFlow<BrowserSelectionState> = _state
-        .map { it.selectionState() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.selectionState())
-    val searchState: StateFlow<BrowserSearchState> = _state
-        .map { it.searchState() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.searchState())
-    val dialogState: StateFlow<BrowserDialogState> = _state
-        .map { it.dialogState() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.dialogState())
-    val operationUiState: StateFlow<OperationUiState> = _state
-        .map { it.operationUiState() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), _state.value.operationUiState())
+    val uiState: StateFlow<BrowserUiState> = _state
+        .map(BrowserState::toUiState)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            _state.value.toUiState()
+        )
     private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>(
         replay = 0,
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
-    private val searchDelegate = SearchDelegate(_state, viewModelScope, searchRepository)
+    private val searchController: SearchController = createBrowserSearchController(
+        state = _state,
+        scope = viewModelScope,
+        repository = searchRepository
+    )
     private val navigationDelegate = NavigationDelegate(
         state = _state,
         viewModelScope = viewModelScope,
@@ -114,7 +107,7 @@ class BrowserViewModel @Inject constructor(
         searchRepository = searchRepository,
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
-        onClearSearch = { searchDelegate.updateBrowserSearchQuery("") }
+        onClearSearch = { searchController.updateQuery("") }
     )
     private val clipboardDelegate = ClipboardDelegate(
         state = _state,
@@ -456,9 +449,9 @@ class BrowserViewModel @Inject constructor(
     fun selectFolderTab(path: String?) {
         _state.update { currentState -> currentState.reduce(BrowserNavigationEvent.SelectFolderTab(path)) }
     }
-    fun updateBrowserSearchQuery(query: String) = searchDelegate.updateBrowserSearchQuery(query)
-    fun updateSearchFilters(filters: SearchFilters) = searchDelegate.updateSearchFilters(filters)
-    fun toggleSearchFilterMenu(visible: Boolean) = searchDelegate.toggleSearchFilterMenu(visible)
+    fun updateBrowserSearchQuery(query: String) = searchController.updateQuery(query)
+    fun updateSearchFilters(filters: SearchFilters) = searchController.updateFilters(filters)
+    fun toggleSearchFilterMenu(visible: Boolean) = searchController.setFilterMenuVisible(visible)
     fun updateBrowserPresentation(
         presentation: FileListingPreferences,
         applyToSubfolders: Boolean
