@@ -1,9 +1,10 @@
 package dev.qtremors.arcile.core.storage.domain
 
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOf
 
+/**
+ * Compatibility facade while Browser consumers migrate to focused preference stores.
+ */
 interface BrowserPreferencesStore {
     val preferencesFlow: Flow<BrowserPreferences>
 
@@ -30,96 +31,4 @@ interface BrowserPreferencesStore {
     suspend fun updateFavorite(path: String, isFavorite: Boolean)
     suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean)
     suspend fun updateAlbumCover(albumPath: String, coverPath: String)
-}
-
-interface OnboardingPreferencesStore {
-    val preferencesFlow: Flow<OnboardingPreferences>
-
-    suspend fun markCompleted(completedVersion: Int, notificationPermissionHandled: Boolean)
-    suspend fun markNotificationPermissionHandled()
-}
-
-interface QuickAccessPreferencesStore {
-    val quickAccessItems: Flow<List<QuickAccessItem>>
-
-    suspend fun updateItems(items: List<QuickAccessItem>)
-    suspend fun addItem(item: QuickAccessItem)
-    suspend fun removeItem(id: String)
-}
-
-interface UtilityPreferencesStore {
-    val homeUtilityIds: Flow<Set<String>>
-
-    suspend fun setHomeUtilityIds(ids: Set<String>)
-}
-
-object NoOpUtilityPreferencesStore : UtilityPreferencesStore {
-    override val homeUtilityIds: Flow<Set<String>> = flowOf(setOf("trash", "cleaner"))
-
-    override suspend fun setHomeUtilityIds(ids: Set<String>) = Unit
-}
-
-interface StorageCleanerPreferencesStore {
-    val rulesFlow: Flow<StorageCleanerRules>
-
-    suspend fun updateRules(rules: StorageCleanerRules)
-    suspend fun updateSectionRule(type: CleanerGroupType, rule: CleanerSectionRule)
-    suspend fun ignorePath(path: String)
-    suspend fun unignorePath(path: String)
-    suspend fun resetSection(type: CleanerGroupType)
-}
-
-object NoOpStorageCleanerPreferencesStore : StorageCleanerPreferencesStore {
-    override val rulesFlow: Flow<StorageCleanerRules> = flowOf(StorageCleanerRules())
-
-    override suspend fun updateRules(rules: StorageCleanerRules) = Unit
-    override suspend fun updateSectionRule(type: CleanerGroupType, rule: CleanerSectionRule) = Unit
-    override suspend fun ignorePath(path: String) = Unit
-    override suspend fun unignorePath(path: String) = Unit
-    override suspend fun resetSection(type: CleanerGroupType) = Unit
-}
-
-interface StorageClassificationStore {
-    fun observeClassifications(): Flow<Map<String, StorageClassification>>
-    suspend fun getClassification(storageKey: String): StorageClassification?
-    suspend fun setClassification(
-        storageKey: String,
-        kind: StorageKind,
-        lastSeenName: String? = null,
-        lastSeenPath: String? = null
-    )
-    suspend fun resetClassification(storageKey: String)
-}
-
-interface StorageWorkCoordinator {
-    val isMutationActive: StateFlow<Boolean>
-    fun beginMutation()
-    fun endMutation()
-    suspend fun awaitLowPrioritySlot()
-}
-
-interface StorageUsageScanner {
-    fun scanStorageUsage(
-        rootPath: String,
-        limits: StorageUsageScanLimits = StorageUsageScanLimits()
-    ): Flow<StorageUsageScanState>
-
-    fun invalidateStorageUsage(paths: Collection<String> = emptyList())
-}
-
-interface StorageCleanerScanner {
-    suspend fun cachedScan(
-        rootPaths: List<String>,
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): StorageCleanerResult? = null
-
-    suspend fun scan(
-        rootPaths: List<String>,
-        now: Long = System.currentTimeMillis(),
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): StorageCleanerResult
-
-    suspend fun invalidateStorageCleaner(paths: Collection<String> = emptyList()) = Unit
 }

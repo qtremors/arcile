@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.1
-> **Last Updated:** 2026-07-02
+> **Version:** 1.3.2
+> **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.2] - 2026-07-05
+
+- **Storage Reliability**: Added focused storage capabilities for browsing, file changes, archives, media, trash, volumes, preferences, and authorization so each workflow can depend only on the operations it needs.
 
 ## [1.3.1] - 2026-07-02
 
