@@ -7,29 +7,26 @@ import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
-import dev.qtremors.arcile.core.storage.data.db.StorageNodeEntity
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.di.ArcileDispatchers as LegacyArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ListingPage
-import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 
 
 class DefaultFileSystemDataSource(
@@ -51,6 +48,27 @@ class DefaultFileSystemDataSource(
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }, mutationJournal = mutationJournal)
 ) : FileSystemDataSource {
+    constructor(
+        context: Context,
+        volumeProvider: VolumeProvider,
+        mutationFinalizer: MutationFinalizer,
+        dispatchers: LegacyArcileDispatchers,
+        storageNodeDao: StorageNodeDao? = null,
+        mutationJournal: MutationJournal = NoOpMutationJournal()
+    ) : this(
+        context = context,
+        volumeProvider = volumeProvider,
+        mutationFinalizer = mutationFinalizer,
+        dispatchers = ArcileDispatchers(
+            io = dispatchers.io,
+            default = dispatchers.default,
+            main = dispatchers.main,
+            storage = dispatchers.storage
+        ),
+        storageNodeDao = storageNodeDao,
+        mutationJournal = mutationJournal
+    )
+
     internal sealed class SecureOverwriteResult {
         data object Success : SecureOverwriteResult()
         data class Failure(val message: String, val causeType: String = "SecureOverwriteFailed") : SecureOverwriteResult()
@@ -66,6 +84,26 @@ class DefaultFileSystemDataSource(
 
     private val listingComparator = compareBy<FileModel> { !it.isDirectory }
         .thenBy { it.name.lowercase() }
+    private val fileListingComparator = compareBy<File> { !it.isDirectory }
+        .thenBy { it.name.lowercase() }
+    private val fileModelMapper = LocalFileModelMapper()
+    private val secureFileEraser = SecureFileEraser {
+        secureOverwriteOverrideForTest
+    }
+    private val transferCoordinator = LocalFileTransferCoordinator(
+        dispatchers = dispatchers,
+        conflictDetector = conflictDetector,
+        transferEngine = transferEngine,
+        validateDestination = { file -> validatedDestructiveRef(file).map { Unit } },
+        finalizeMutation = { paths -> finalizeMutation(*paths.toTypedArray()) }
+    )
+    private val syntheticFileCreator = SyntheticFileCreator(
+        dispatchers = dispatchers,
+        validateName = ::validateFileName,
+        validatePath = { file -> validatedDestructiveRef(file).map { Unit } },
+        finalizeMutation = { path -> finalizeMutation(path) },
+        fileModelMapper = fileModelMapper
+    )
 
     private fun validatePath(file: File): Result<Unit> {
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
@@ -102,76 +140,6 @@ class DefaultFileSystemDataSource(
         }
         throw IllegalStateException("Unable to reserve temporary rename target")
     }
-
-    private fun File.toFileModel(): FileModel {
-        val ext = extension
-        val mime = if (ext.isNotEmpty()) {
-            android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext.lowercase())
-        } else null
-        return FileModel(
-            name = name,
-            absolutePath = absolutePath,
-            size = if (isFile) length() else 0L,
-            lastModified = lastModified(),
-            isDirectory = isDirectory,
-            extension = ext,
-            isHidden = isHidden,
-            mimeType = mime,
-            nodeRef = StorageNodeRef.local(
-                path = absolutePath,
-                capabilities = StorageNodeCapabilities(
-                    canRead = true,
-                    canWrite = true,
-                    canDelete = true,
-                    canTrash = false,
-                    canArchive = isFile
-                )
-            )
-        )
-    }
-
-    private fun File.toStorageNodeEntity(volumeId: String?, scannedAt: Long): StorageNodeEntity =
-        StorageNodeEntity(
-            path = absolutePath,
-            parentPath = parentFile?.absolutePath,
-            name = name,
-            extension = extension.lowercase(),
-            mimeType = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase()),
-            sizeBytes = if (isFile) length() else 0L,
-            lastModified = lastModified(),
-            isDirectory = isDirectory,
-            isHidden = isHidden,
-            contentUri = null,
-            mediaStoreId = null,
-            mediaStoreVolume = null,
-            volumeId = volumeId,
-            width = null,
-            height = null,
-            dateAdded = scannedAt,
-            scannedAt = scannedAt
-        )
-
-    private fun StorageNodeEntity.toFileModel(): FileModel =
-        FileModel(
-            name = name,
-            absolutePath = path,
-            size = sizeBytes,
-            lastModified = lastModified,
-            isDirectory = isDirectory,
-            extension = extension.orEmpty(),
-            isHidden = isHidden,
-            mimeType = mimeType,
-            nodeRef = StorageNodeRef.local(
-                path = path,
-                capabilities = StorageNodeCapabilities(
-                    canRead = true,
-                    canWrite = true,
-                    canDelete = true,
-                    canTrash = false,
-                    canArchive = !isDirectory
-                )
-            )
-        )
 
     private suspend fun finalizeMutation(vararg paths: String) {
         mutationFinalizer.finalize(*paths)
@@ -219,18 +187,19 @@ class DefaultFileSystemDataSource(
                 val volumes = volumeProvider.currentVolumes()
                 deleteChildren(directory.absolutePath)
                 upsert(children.map { child ->
-                    child.toStorageNodeEntity(
+                    fileModelMapper.toStorageNodeEntity(
+                        file = child,
                         volumeId = volumes.firstOrNull { volume -> child.absolutePath.startsWith(volume.path) }?.id,
                         scannedAt = scannedAt
                     )
                 })
             }
 
-            emitPages(
+            emitListingPages(
                 path = path,
                 files = children.asSequence()
                 .sortedWith(fileListingComparator)
-                .map { it.toFileModel() }
+                .map(fileModelMapper::toFileModel)
                 .toList(),
                 pageSize = pageSize
             ) { page -> emit(page) }
@@ -243,30 +212,6 @@ class DefaultFileSystemDataSource(
             emit(ListingPage.failed(path, FileOperationException.Unknown(cause = e)))
         }
     }.flowOn(dispatchers.io)
-
-    private suspend fun emitPages(
-        path: StorageNodePath,
-        files: List<FileModel>,
-        pageSize: Int,
-        emitPage: suspend (ListingPage) -> Unit
-    ) {
-        if (files.isEmpty()) {
-            emitPage(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
-            return
-        }
-        val boundedPageSize = pageSize.coerceIn(1, ListingPage.MAX_PAGE_SIZE)
-        files.chunked(boundedPageSize).forEachIndexed { index, chunk ->
-            kotlinx.coroutines.currentCoroutineContext().ensureActive()
-            emitPage(
-                ListingPage(
-                    path = path,
-                    files = chunk,
-                    pageIndex = index,
-                    isComplete = (index + 1) * boundedPageSize >= files.size
-                )
-            )
-        }
-    }
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {
@@ -297,7 +242,7 @@ class DefaultFileSystemDataSource(
             }
             if (newDir.mkdirs()) {
                 finalizeMutation(newDir.absolutePath)
-                Result.success(newDir.toFileModel())
+                Result.success(fileModelMapper.toFileModel(newDir))
             } else {
                 Result.failure(Exception("Failed to create directory"))
             }
@@ -322,7 +267,7 @@ class DefaultFileSystemDataSource(
             }
             if (newFile.createNewFile()) {
                 finalizeMutation(newFile.absolutePath)
-                Result.success(newFile.toFileModel())
+                Result.success(fileModelMapper.toFileModel(newFile))
             } else {
                 Result.failure(Exception("Failed to create file"))
             }
@@ -422,7 +367,9 @@ class DefaultFileSystemDataSource(
                     continue
                 }
 
-                val shredFailures = runCatching { shredRecursively(file) }.getOrElse { error ->
+                val shredFailures = runCatching {
+                    secureFileEraser.shredRecursively(file)
+                }.getOrElse { error ->
                     listOf(error.toBatchFailure(file, cleanupRequired = true))
                 }
                 if (shredFailures.isNotEmpty()) {
@@ -473,69 +420,6 @@ class DefaultFileSystemDataSource(
             cleanupRequired = cleanupRequired
         )
 
-    private val fileListingComparator = compareBy<File> { !it.isDirectory }
-        .thenBy { it.name.lowercase() }
-
-    private fun shredRecursively(file: File): List<BatchMutationFailure> {
-        if (file.isDirectory) {
-            val children = file.listFiles() ?: return listOf(
-                BatchMutationFailure(
-                    path = file.absolutePath,
-                    displayName = file.name.ifBlank { file.absolutePath },
-                    message = "Unable to inspect directory before secure shred: ${file.name}",
-                    causeType = "SecureOverwriteFailed",
-                    cleanupRequired = true
-                )
-            )
-            return children.flatMap { shredRecursively(it) }
-        } else if (file.isFile) {
-            return when (val result = overwriteSecurely(file)) {
-                SecureOverwriteResult.Success -> emptyList()
-                is SecureOverwriteResult.Failure -> listOf(
-                    BatchMutationFailure(
-                        path = file.absolutePath,
-                        displayName = file.name.ifBlank { file.absolutePath },
-                        message = result.message,
-                        causeType = result.causeType,
-                        cleanupRequired = true
-                    )
-                )
-            }
-        }
-        return emptyList()
-    }
-
-    private fun overwriteSecurely(file: File): SecureOverwriteResult {
-        secureOverwriteOverrideForTest?.let { return it(file) }
-
-        if (!file.canWrite()) {
-            return SecureOverwriteResult.Failure("Unable to securely overwrite ${file.name}: file is not writable")
-        }
-        val length = file.length()
-        if (length <= 0) return SecureOverwriteResult.Success
-
-        val bufferSize = 64 * 1024
-        val buffer = ByteArray(bufferSize)
-        return try {
-            FileOutputStream(file, false).use { output ->
-                var remaining = length
-                while (remaining > 0) {
-                    val toWrite = remaining.coerceAtMost(bufferSize.toLong()).toInt()
-                    output.write(buffer, 0, toWrite)
-                    remaining -= toWrite
-                }
-                output.flush()
-                output.fd.sync()
-            }
-            SecureOverwriteResult.Success
-        } catch (e: Exception) {
-            SecureOverwriteResult.Failure(
-                message = "Unable to securely overwrite ${file.name}: ${e.message ?: e.javaClass.simpleName}",
-                causeType = "SecureOverwriteFailed"
-            )
-        }
-    }
-
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = withContext(dispatchers.io) {
          try {
              validateFileName(newName).onFailure { return@withContext Result.failure(it) }
@@ -556,12 +440,12 @@ class DefaultFileSystemDataSource(
              }
 
              if (file.name == newName) {
-                 return@withContext Result.success(file.toFileModel())
+                 return@withContext Result.success(fileModelMapper.toFileModel(file))
              }
 
              if (file.renameTo(newFile)) {
                  finalizeMutation(file.absolutePath, newFile.absolutePath)
-                 Result.success(newFile.toFileModel())
+                 Result.success(fileModelMapper.toFileModel(newFile))
              } else if (isCaseOnlyRename) {
                  val tempFile = temporaryCaseRenameTarget(file.parentFile ?: return@withContext Result.failure(Exception("Failed to rename file")), file.name)
                  validatedDestructiveRef(tempFile).onFailure { return@withContext Result.failure(it) }
@@ -570,7 +454,7 @@ class DefaultFileSystemDataSource(
                  }
                  if (tempFile.renameTo(newFile)) {
                      finalizeMutation(file.absolutePath, tempFile.absolutePath, newFile.absolutePath)
-                     Result.success(newFile.toFileModel())
+                     Result.success(fileModelMapper.toFileModel(newFile))
                  } else {
                      tempFile.renameTo(file)
                      Result.failure(Exception("Failed to rename file"))
@@ -591,133 +475,32 @@ class DefaultFileSystemDataSource(
     override suspend fun detectCopyConflicts(
         sourcePaths: List<String>,
         destinationPath: String
-    ): Result<List<FileConflict>> = withContext(dispatchers.io) {
-        try {
-            val destDir = File(destinationPath)
-            validatedDestructiveRef(destDir).onFailure { return@withContext Result.failure(it) }
-
-            if (!destDir.exists() || !destDir.isDirectory) {
-                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
-            }
-
-            Result.success(conflictDetector.detectCopyConflicts(sourcePaths, destDir))
-        } catch (e: SecurityException) {
-            Result.failure(FileOperationException.AccessDenied(cause = e))
-        } catch (e: java.io.IOException) {
-            Result.failure(FileOperationException.IOError(cause = e))
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Result.failure(FileOperationException.Unknown(cause = e))
-        }
-    }
+    ): Result<List<FileConflict>> =
+        transferCoordinator.detectCopyConflicts(sourcePaths, destinationPath)
 
     override suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = withContext(dispatchers.io) {
-        try {
-            val destDir = File(destinationPath)
-            validatedDestructiveRef(destDir).onFailure { return@withContext Result.failure(it) }
-
-            if (!destDir.exists() || !destDir.isDirectory) {
-                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
-            }
-
-            val scannedPaths = transferEngine.copyFiles(sourcePaths, destDir, resolutions, onProgress)
-                .getOrElse { return@withContext Result.failure(it) }
-            finalizeMutation(*scannedPaths.toTypedArray())
-            Result.success(Unit)
-        } catch (e: SecurityException) {
-            Result.failure(FileOperationException.AccessDenied(cause = e))
-        } catch (e: java.io.IOException) {
-            Result.failure(FileOperationException.IOError(cause = e))
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Result.failure(FileOperationException.Unknown(cause = e))
-        }
-    }
+    ): Result<Unit> = transferCoordinator.copyFiles(
+        sourcePaths, destinationPath, resolutions, onProgress
+    )
 
     override suspend fun moveFiles(
         sourcePaths: List<String>,
         destinationPath: String,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = withContext(dispatchers.io) {
-        try {
-            val destDir = File(destinationPath)
-            validatedDestructiveRef(destDir).onFailure { return@withContext Result.failure(it) }
-
-            if (!destDir.exists() || !destDir.isDirectory) {
-                return@withContext Result.failure(IllegalArgumentException("Destination must be a valid directory"))
-            }
-
-            val scannedPaths = transferEngine.moveFiles(sourcePaths, destDir, resolutions, onProgress)
-                .getOrElse { return@withContext Result.failure(it) }
-            finalizeMutation(*scannedPaths.toTypedArray())
-            Result.success(Unit)
-        } catch (e: SecurityException) {
-            Result.failure(FileOperationException.AccessDenied(cause = e))
-        } catch (e: java.io.IOException) {
-            Result.failure(FileOperationException.IOError(cause = e))
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Result.failure(FileOperationException.Unknown(cause = e))
-        }
-    }
+    ): Result<Unit> = transferCoordinator.moveFiles(
+        sourcePaths, destinationPath, resolutions, onProgress
+    )
 
     override suspend fun createFakeFile(
         parentPath: String,
         name: String,
         size: Long,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<FileModel> = withContext(dispatchers.io) {
-        try {
-            validateFileName(name).getOrThrow()
-            val parentFile = File(parentPath)
-            validatedDestructiveRef(parentFile).getOrThrow()
-
-            val targetFile = File(parentFile, name)
-            validatedDestructiveRef(targetFile).getOrThrow()
-            if (targetFile.exists()) {
-                return@withContext Result.failure(Exception("File already exists"))
-            }
-
-            val bufferSize = 1024 * 1024 // 1MB
-            val buffer = ByteArray(bufferSize)
-            val random = java.util.Random()
-            
-            targetFile.outputStream().use { output ->
-                var remaining = size
-                var totalWritten = 0L
-                
-                while (remaining > 0) {
-                    ensureActive()
-                    val toWrite = remaining.coerceAtMost(bufferSize.toLong()).toInt()
-                    random.nextBytes(buffer) // Pseudo-randomize
-                    output.write(buffer, 0, toWrite)
-                    
-                    remaining -= toWrite
-                    totalWritten += toWrite
-                    
-                    onProgress?.invoke(
-                        BulkFileOperationProgress(
-                            completedItems = 0,
-                            totalItems = 1,
-                            currentPath = targetFile.absolutePath,
-                            bytesCopied = totalWritten,
-                            totalBytes = size
-                        )
-                    )
-                }
-            }
-
-            finalizeMutation(targetFile.absolutePath)
-            Result.success(targetFile.toFileModel())
-        } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            Result.failure(e)
-        }
-    }
+    ): Result<FileModel> =
+        syntheticFileCreator.create(parentPath, name, size, onProgress)
 }

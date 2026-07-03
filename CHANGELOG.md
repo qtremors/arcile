@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.2
+> **Version:** 1.3.3
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.3] - 2026-07-05
+
+- **Storage Path Reliability**: Isolated filesystem listing, file transfer, secure deletion, synthetic-file creation, MediaStore queries, volume selection, and archive destination handling for more predictable storage operations.
 
 ## [1.3.2] - 2026-07-05
 
