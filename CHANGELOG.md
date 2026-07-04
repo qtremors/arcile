@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.3
+> **Version:** 1.3.4
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.4] - 2026-07-05
+
+- **Shared Workflow Reliability**: Consolidated selection properties, clipboard state, debounced search, file formatting, folder tabs, and operation feedback into focused shared presentation components.
 
 ## [1.3.3] - 2026-07-05
 
