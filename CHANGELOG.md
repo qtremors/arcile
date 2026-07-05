@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.4
+> **Version:** 1.3.5
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.5] - 2026-07-05
+
+- **Theme Reliability**: Consolidated theme state, colors, typography, shapes, spacing, motion, and category styling under the shared UI layer with direct preference coverage.
 
 ## [1.3.4] - 2026-07-05
 
