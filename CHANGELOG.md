@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.5
+> **Version:** 1.3.6
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.6] - 2026-07-05
+
+- **Media Browsing Reliability**: Consolidated thumbnail sizing, loading and failure state, image metadata presentation, and fast-scroll behavior into shared UI components.
 
 ## [1.3.5] - 2026-07-05
 
