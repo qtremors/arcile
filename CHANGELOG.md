@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.6
+> **Version:** 1.3.7
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.7] - 2026-07-05
+
+- **File List Reliability**: Consolidated list, grid, volume, filter, row presentation, and accessibility behavior into bounded shared file-browsing components.
 
 ## [1.3.6] - 2026-07-05
 
