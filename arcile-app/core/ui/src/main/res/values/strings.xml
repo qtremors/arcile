@@ -439,6 +439,7 @@
     <string name="error_recovery_choose_safe_path">Choose a folder inside an available storage volume.</string>
     <string name="error_recovery_try_again">Try again. If it keeps failing, refresh the folder.</string>
     <string name="quick_access_home_toggle_description">%1$s %2$s</string>
+    <string name="clear_date_filter">Clear date filter</string>
 
     <!-- Trash Bin -->
     <string name="restore">Restore</string>

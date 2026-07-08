@@ -491,7 +491,7 @@ class ArchitectureBoundaryTest {
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/SearchFiltersBottomSheet.kt" to 597,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/SortOptionDialog.kt" to 566,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt" to 530,
-            "arcile-app/core/ui/src/main/res/values/strings.xml" to 827,
+            "arcile-app/core/ui/src/main/res/values/strings.xml" to 828,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 741,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/NavigationDelegate.kt" to 729,
             "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserArchiveDialogs.kt" to 568,

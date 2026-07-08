@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.7
+> **Version:** 1.3.8
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.8] - 2026-07-05
+
+- **Search Filter Reliability**: Consolidated search filters, date-range selection, localized date formatting, presets, and expressive filter controls into shared UI ownership.
 
 ## [1.3.7] - 2026-07-05
 
