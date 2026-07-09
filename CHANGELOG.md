@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.8
+> **Version:** 1.3.9
 > **Last Updated:** 2026-07-05
 
 ---
+
+## [1.3.9] - 2026-07-05
+
+- **File Workflow Reliability**: Consolidated creation, rename, deletion, properties, clipboard, and conflict dialogs into shared UI ownership.
 
 ## [1.3.8] - 2026-07-05
 
