@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui.scrollbar
+package dev.qtremors.arcile.core.ui.scrollbar
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

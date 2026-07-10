@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.feature.browser.BrowserSearchState
 import io.mockk.coEvery
@@ -20,7 +20,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SearchControllerTest {
-    private lateinit var repository: FileRepository
+    private lateinit var repository: SearchRepository
     private lateinit var controller: SearchController
     private lateinit var testScope: TestScope
     private var latestState = BrowserSearchState()

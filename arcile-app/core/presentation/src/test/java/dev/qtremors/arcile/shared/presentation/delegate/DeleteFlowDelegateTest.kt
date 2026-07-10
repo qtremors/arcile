@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.presentation.delegate
+package dev.qtremors.arcile.core.presentation.delegate
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.runtime.R

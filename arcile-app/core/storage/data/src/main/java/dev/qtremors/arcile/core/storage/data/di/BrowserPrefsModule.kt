@@ -12,12 +12,15 @@ import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.StorageCleanerPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.UtilityPreferencesRepository
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import javax.inject.Singleton
 
 @Module
@@ -39,12 +42,24 @@ object BrowserPrefsModule {
     }
 
     @Provides
-    @Singleton
-    fun provideBrowserPreferencesStore(
+    fun provideBrowserLocationPreferencesStore(
         repository: BrowserPreferencesRepository
-    ): BrowserPreferencesStore {
-        return repository
-    }
+    ): BrowserLocationPreferencesStore = repository
+
+    @Provides
+    fun provideRecentFilesPreferencesStore(
+        repository: BrowserPreferencesRepository
+    ): RecentFilesPreferencesStore = repository
+
+    @Provides
+    fun provideGalleryPreferencesStore(
+        repository: BrowserPreferencesRepository
+    ): GalleryPreferencesStore = repository
+
+    @Provides
+    fun provideSaveDestinationPreferencesStore(
+        repository: BrowserPreferencesRepository
+    ): SaveDestinationPreferencesStore = repository
 
     @Provides
     @Singleton

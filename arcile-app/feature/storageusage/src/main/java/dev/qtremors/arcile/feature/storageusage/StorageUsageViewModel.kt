@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class StorageUsageUiState(
+internal data class StorageUsageUiState(
     val selectedVolumeId: String? = null,
     val rootVolume: StorageVolume? = null,
     val scanState: StorageUsageScanState = StorageUsageScanState.Idle,
@@ -37,7 +37,7 @@ data class StorageUsageUiState(
 )
 
 @HiltViewModel
-class StorageUsageViewModel @Inject constructor(
+internal class StorageUsageViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val scanner: StorageUsageScanner,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,

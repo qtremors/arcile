@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui
+package dev.qtremors.arcile.core.ui
 
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import org.junit.Assert.assertEquals

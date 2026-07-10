@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.home.ui
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 
-data class HomeNavigationIntents(
+internal data class HomeNavigationIntents(
     val openFileBrowser: () -> Unit,
     val navigateToPath: (String) -> Unit,
     val openFileWithContext: (String, List<FileModel>) -> Unit,
@@ -20,7 +20,7 @@ data class HomeNavigationIntents(
     val navigateToActivity: () -> Unit
 )
 
-data class HomeContentIntents(
+internal data class HomeContentIntents(
     val refresh: () -> Unit,
     val resumeRefresh: () -> Unit,
     val shareRecentFile: (String) -> Unit,

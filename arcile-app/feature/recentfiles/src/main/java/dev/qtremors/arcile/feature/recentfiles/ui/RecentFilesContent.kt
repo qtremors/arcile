@@ -32,11 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
-import dev.qtremors.arcile.shared.ui.lists.FileGrid
-import dev.qtremors.arcile.shared.ui.lists.FileItemRow
-import dev.qtremors.arcile.shared.ui.lists.FileList
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.lists.FileGrid
+import dev.qtremors.arcile.core.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.lists.FileList
+import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.theme.spacing
 import java.util.Date
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -117,12 +118,14 @@ internal fun RecentFilesContent(
                         },
                         contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
                     ) { _, file ->
-                        dev.qtremors.arcile.shared.ui.lists.FileGridItem(
+                        dev.qtremors.arcile.core.ui.lists.FileGridItem(
                             modifier = Modifier.animateItem(),
                             file = file,
                             formattedDate = formatter.format(Date(file.lastModified)),
                             isSelected = state.selectedFiles.contains(file.absolutePath),
-                            showThumbnails = state.presentation.showThumbnails,
+                            presentation = FileItemPresentation(
+                                showThumbnails = state.presentation.showThumbnails
+                            ),
                             onClick = {
                                 if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
                             },
@@ -153,7 +156,9 @@ internal fun RecentFilesContent(
                 onSelectMultiple = onSelectMultiple,
                 gridState = gridState,
                 minCellSize = state.presentation.gridMinCellSize.dp,
-                showThumbnails = state.presentation.showThumbnails,
+                presentation = FileItemPresentation(
+                    showThumbnails = state.presentation.showThumbnails
+                ),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = topPadding),
@@ -217,8 +222,10 @@ internal fun RecentFilesContent(
                         file = file,
                         formattedDate = formatter.format(Date(file.lastModified)),
                         isSelected = state.selectedFiles.contains(file.absolutePath),
-                        zoom = state.presentation.listZoom,
-                        showThumbnails = state.presentation.showThumbnails,
+                        presentation = FileItemPresentation(
+                            zoom = state.presentation.listZoom,
+                            showThumbnails = state.presentation.showThumbnails
+                        ),
                         onClick = {
                             if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
                         },
@@ -261,8 +268,10 @@ internal fun RecentFilesContent(
             onToggleSelection = onToggleSelection,
             onSelectMultiple = onSelectMultiple,
             listState = listState,
-            zoom = state.presentation.listZoom,
-            showThumbnails = state.presentation.showThumbnails,
+            presentation = FileItemPresentation(
+                zoom = state.presentation.listZoom,
+                showThumbnails = state.presentation.showThumbnails
+            ),
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = topPadding),

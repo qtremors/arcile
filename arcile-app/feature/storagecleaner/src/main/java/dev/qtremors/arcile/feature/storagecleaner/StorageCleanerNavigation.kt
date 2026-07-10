@@ -11,7 +11,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 sealed interface StorageCleanerDestination {
     data class OpenFile(val path: String) : StorageCleanerDestination

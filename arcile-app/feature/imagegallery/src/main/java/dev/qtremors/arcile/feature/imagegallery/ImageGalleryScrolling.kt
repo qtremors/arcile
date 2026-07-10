@@ -28,7 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.foundation.clickable
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -80,7 +80,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -168,34 +168,34 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailPolicy
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
-enum class GalleryViewState {
+internal enum class GalleryViewState {
     PHOTOS_TAB, ALBUMS_TAB_GRID, ALBUM_PHOTOS
 }
-fun Modifier.pinchToResize(
+internal fun Modifier.pinchToResize(
     currentCellSize: Float,
     minSize: Float = 96f,
     maxSize: Float = 256f,

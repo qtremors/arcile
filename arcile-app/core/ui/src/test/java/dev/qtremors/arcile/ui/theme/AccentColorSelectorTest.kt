@@ -1,6 +1,6 @@
-package dev.qtremors.arcile.ui.theme
+package dev.qtremors.arcile.core.ui.theme
 
-import dev.qtremors.arcile.shared.ui.settings.displayedAccentColors
+import dev.qtremors.arcile.core.ui.settings.displayedAccentColors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

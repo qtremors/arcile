@@ -19,7 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItemStatus
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 
 @Composable
 fun OnboardingRoute(

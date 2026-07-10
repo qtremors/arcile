@@ -3,10 +3,10 @@ package dev.qtremors.arcile.backup
 import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
-import dev.qtremors.arcile.ui.theme.AccentColor
-import dev.qtremors.arcile.ui.theme.ThemeMode
-import dev.qtremors.arcile.ui.theme.ThemePreferences
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.AccentColor
+import dev.qtremors.arcile.core.ui.theme.ThemeMode
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals

@@ -8,7 +8,7 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -29,7 +29,7 @@ class BrowserViewModelNavigationSearchTest {
     fun `multiple volumes open volume root screen with stored root sort option`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)
-        val preferences = FakeBrowserPreferencesStore(
+        val preferences = FakeFilePreferencesStore(
             BrowserPreferences(
                 globalPresentation = FileListingPreferences(sortOption = FileSortOption.NAME_ASC),
                 pathPresentationOptions = mapOf(
@@ -57,7 +57,7 @@ class BrowserViewModelNavigationSearchTest {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true))),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -80,7 +80,7 @@ class BrowserViewModelNavigationSearchTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 

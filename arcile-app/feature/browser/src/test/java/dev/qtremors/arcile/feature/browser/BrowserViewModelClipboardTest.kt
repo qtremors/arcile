@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.browser
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.FileConflict
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -32,7 +32,7 @@ class BrowserViewModelClipboardTest {
                     )
                 )
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -67,7 +67,7 @@ class BrowserViewModelClipboardTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 

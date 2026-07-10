@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.image
+package dev.qtremors.arcile.core.ui.image
 
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel

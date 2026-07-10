@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -65,56 +65,61 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
-import dev.qtremors.arcile.shared.ui.SearchTopBar
-import dev.qtremors.arcile.shared.ui.SortOptionDialog
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.lists.ActiveFiltersRow
-import dev.qtremors.arcile.shared.ui.lists.FileGrid
-import dev.qtremors.arcile.shared.ui.lists.FileItemRow
-import dev.qtremors.arcile.shared.ui.lists.FileList
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.SearchFiltersSheet
+import dev.qtremors.arcile.core.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.SortOptionDialog
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
+import dev.qtremors.arcile.core.ui.lists.FileGrid
+import dev.qtremors.arcile.core.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.lists.FileList
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import kotlinx.coroutines.delay
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun RecentFilesScreen(
+internal fun RecentFilesScreen(
     state: RecentFilesState,
-    onNavigateBack: () -> Unit,
-    onOpenFile: (String) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onClearSelection: () -> Unit,
-    onRequestDeleteSelected: () -> Unit,
-    onConfirmDelete: () -> Unit,
-    onTogglePermanentDelete: () -> Unit,
-    onDismissDeleteConfirmation: () -> Unit,
-    onToggleShred: () -> Unit = {},
-    onShareSelected: () -> Unit,
-    onSelectAll: () -> Unit,
-    onRefresh: () -> Unit,
-    onClearError: () -> Unit = {},
-    onSearchQueryChange: (String) -> Unit = {},
-    onClearSearch: () -> Unit = {},
-    onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onPresentationChange: (FileListingPreferences) -> Unit = {},
-    onSelectMultiple: (List<String>) -> Unit = {},
-    onLoadMore: () -> Unit = {},
-    onOpenProperties: () -> Unit = {},
-    onDismissProperties: () -> Unit = {},
-    onOpenContainingFolder: (String) -> Unit = {},
-    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
+    navigationActions: RecentNavigationActions,
+    selectionActions: RecentSelectionActions,
+    deleteActions: RecentDeleteActions,
+    searchActions: RecentSearchActions,
+    contentActions: RecentContentActions,
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val onNavigateBack = navigationActions.navigateBack
+    val onOpenFile = navigationActions.openFile
+    val onOpenContainingFolder = navigationActions.openContainingFolder
+    val onToggleSelection = selectionActions.toggle
+    val onClearSelection = selectionActions.clear
+    val onShareSelected = selectionActions.share
+    val onSelectAll = selectionActions.selectAll
+    val onSelectMultiple = selectionActions.selectMultiple
+    val onOpenProperties = selectionActions.openProperties
+    val onDismissProperties = selectionActions.dismissProperties
+    val onRequestDeleteSelected = deleteActions.request
+    val onConfirmDelete = deleteActions.confirm
+    val onTogglePermanentDelete = deleteActions.togglePermanent
+    val onToggleShred = deleteActions.toggleShred
+    val onDismissDeleteConfirmation = deleteActions.dismissConfirmation
+    val onSearchQueryChange = searchActions.queryChange
+    val onClearSearch = searchActions.clear
+    val onSearchFiltersChange = searchActions.filtersChange
+    val onPresentationChange = searchActions.presentationChange
+    val onLoadMore = searchActions.loadMore
+    val onRefresh = contentActions.refresh
+    val onClearError = contentActions.clearError
+    val onFeedback = contentActions.feedback
     val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
@@ -192,7 +197,7 @@ fun RecentFilesScreen(
                 when {
                     isSelectionMode -> RecentSelectionTopBar(
                         selectedCount = state.selectedFiles.size,
-                        selectedSize = dev.qtremors.arcile.utils.formatFileSize(state.selectedFilesTotalSize),
+                        selectedSize = dev.qtremors.arcile.core.presentation.formatFileSize(state.selectedFilesTotalSize),
                         onClearSelection = onClearSelection
                     )
                     showSearchBar -> Column {
@@ -382,7 +387,7 @@ fun RecentFilesScreen(
     }
 
     if (showFilterSheet) {
-        SearchFiltersBottomSheet(
+        SearchFiltersSheet(
             currentFilters = state.activeSearchFilters,
             onApplyFilters = onSearchFiltersChange,
             onDismiss = { showFilterSheet = false },

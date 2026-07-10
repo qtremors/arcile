@@ -11,11 +11,11 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.first
-import dev.qtremors.arcile.ui.theme.AccentColor
-import dev.qtremors.arcile.ui.theme.ThemeMode
-import dev.qtremors.arcile.ui.theme.ThemePreferences
-import dev.qtremors.arcile.ui.theme.ThemePreset
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.AccentColor
+import dev.qtremors.arcile.core.ui.theme.ThemeMode
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
+import dev.qtremors.arcile.core.ui.theme.ThemePreset
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupFailure
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway

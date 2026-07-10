@@ -32,27 +32,27 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import dev.qtremors.arcile.ui.theme.ThemeState
-import dev.qtremors.arcile.ui.theme.ThemePreset
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ThemePreset
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
-import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
-import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
-import dev.qtremors.arcile.shared.ui.settings.SettingsSection
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
-import dev.qtremors.arcile.shared.ui.ArcileListSurface
-import dev.qtremors.arcile.shared.ui.ExpressiveSwitch
+import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
+import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
+import dev.qtremors.arcile.core.ui.settings.SettingsSection
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.ArcileListSurface
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import dev.qtremors.arcile.shared.ui.keyboardInputField
+import dev.qtremors.arcile.core.ui.keyboardInputField
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.asString
@@ -62,44 +62,36 @@ import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItemStatus
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.feature.settings.PreferencesBackupUiState
 
-/**
- * Settings screen for theme and appearance preferences.
- *
- * Displays a theme mode selector (System / Light / Dark / OLED) and an accent color picker.
- * Theme state is persisted via [dev.qtremors.arcile.ui.theme.ThemePreferences] (DataStore).
- * Also includes a link to the About page with app version, developer, privacy policy, and changelogs.
- *
- * @param currentThemeState Current [ThemeState] reflecting the active theme mode and accent color.
- * @param onNavigateBack Called when the user navigates back.
- * @param onThemeChange Called with the updated [ThemeState] whenever the user changes a setting.
- * @param onNavigateToAbout Called when the user wants to navigate to the About page.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(
-    currentThemeState: ThemeState,
-    showThumbnails: Boolean,
-    homeRecentCarouselLimit: Int,
-    showHiddenFiles: Boolean,
-    browserScrollbarEnabled: Boolean,
-    galleryScrollbarEnabled: Boolean,
-    onShowThumbnailsChange: (Boolean) -> Unit,
-    onHomeRecentCarouselLimitChange: (Int) -> Unit,
-    onShowHiddenFilesChange: (Boolean) -> Unit,
-    onBrowserScrollbarEnabledChange: (Boolean) -> Unit,
-    onGalleryScrollbarEnabledChange: (Boolean) -> Unit,
-    onNavigateBack: () -> Unit,
-    onThemeChange: (ThemeState) -> Unit,
-    onOpenStorageManagement: () -> Unit = {},
-    onNavigateToPlugins: () -> Unit = {},
-    onNavigateToAbout: () -> Unit = {},
-    onRestartApp: () -> Unit = {},
-    backupState: PreferencesBackupUiState = PreferencesBackupUiState.Idle,
-    onExportSettingsBackup: (android.net.Uri) -> Unit = {},
-    onRestoreSettingsBackup: (android.net.Uri) -> Unit = {},
-    onApplySettingsRestore: (android.net.Uri) -> Unit = {},
-    onClearBackupState: () -> Unit = {}
+internal fun SettingsScreen(
+    state: SettingsScreenState,
+    navigationActions: SettingsNavigationActions,
+    preferenceActions: SettingsPreferenceActions,
+    backupActions: SettingsBackupActions
 ) {
+    val currentThemeState = state.theme
+    val showThumbnails = state.preferences.globalPresentation.showThumbnails
+    val homeRecentCarouselLimit = state.preferences.homeRecentCarouselLimit
+    val showHiddenFiles = state.preferences.showHiddenFiles
+    val browserScrollbarEnabled = state.preferences.browserScrollbarEnabled
+    val galleryScrollbarEnabled = state.preferences.galleryScrollbarEnabled
+    val backupState = state.backup
+    val onNavigateBack = navigationActions.navigateBack
+    val onOpenStorageManagement = navigationActions.openStorageManagement
+    val onNavigateToPlugins = navigationActions.navigateToPlugins
+    val onNavigateToAbout = navigationActions.navigateToAbout
+    val onRestartApp = navigationActions.restartApp
+    val onThemeChange = preferenceActions.themeChange
+    val onShowThumbnailsChange = preferenceActions.showThumbnailsChange
+    val onHomeRecentCarouselLimitChange = preferenceActions.homeRecentCarouselLimitChange
+    val onShowHiddenFilesChange = preferenceActions.showHiddenFilesChange
+    val onBrowserScrollbarEnabledChange = preferenceActions.browserScrollbarEnabledChange
+    val onGalleryScrollbarEnabledChange = preferenceActions.galleryScrollbarEnabledChange
+    val onExportSettingsBackup = backupActions.export
+    val onRestoreSettingsBackup = backupActions.previewRestore
+    val onApplySettingsRestore = backupActions.applyRestore
+    val onClearBackupState = backupActions.clearState
     val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val coroutineScope = rememberCoroutineScope()
@@ -124,112 +116,12 @@ fun SettingsScreen(
         }
     }
 
-    when (val state = backupState) {
-        PreferencesBackupUiState.Idle,
-        PreferencesBackupUiState.Busy -> Unit
-        is PreferencesBackupUiState.RestorePreview -> {
-            AlertDialog(
-                onDismissRequest = onClearBackupState,
-                title = { Text(stringResource(R.string.settings_backup_restore_preview_title)) },
-                text = {
-                    BackupItemList(
-                        description = stringResource(R.string.settings_backup_restore_preview_description),
-                        items = state.preview.items
-                    )
-                },
-                confirmButton = {
-                    val onConfirmClick = { onApplySettingsRestore(state.uri) }
-                    TextButton(
-                        onClick = onConfirmClick,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(onClick = onConfirmClick)
-                    ) {
-                        Text(stringResource(R.string.settings_backup_restore))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = onClearBackupState,
-                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
-                    ) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                }
-            )
-        }
-        is PreferencesBackupUiState.Exported -> {
-            AlertDialog(
-                onDismissRequest = onClearBackupState,
-                title = { Text(stringResource(R.string.settings_backup_export_complete_title)) },
-                text = {
-                    BackupResultList(
-                        description = stringResource(
-                            R.string.settings_backup_export_complete_description,
-                            state.result.successCount
-                        ),
-                        result = state.result
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = onClearBackupState,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
-                    ) {
-                        Text(stringResource(R.string.ok))
-                    }
-                }
-            )
-        }
-        is PreferencesBackupUiState.Restored -> {
-            AlertDialog(
-                onDismissRequest = onClearBackupState,
-                title = { Text(stringResource(R.string.settings_backup_restore_complete_title)) },
-                text = {
-                    BackupResultList(
-                        description = stringResource(
-                            R.string.settings_backup_restore_complete_description,
-                            state.result.successCount
-                        ),
-                        result = state.result
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = onRestartApp,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(onClick = onRestartApp)
-                    ) {
-                        Text(stringResource(R.string.restart_now))
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = onClearBackupState,
-                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
-                    ) {
-                        Text(stringResource(R.string.later))
-                    }
-                }
-            )
-        }
-        is PreferencesBackupUiState.Failed -> {
-            AlertDialog(
-                onDismissRequest = onClearBackupState,
-                title = { Text(stringResource(R.string.settings_backup_failed_title)) },
-                text = { Text(state.message.asString(context)) },
-                confirmButton = {
-                    TextButton(
-                        onClick = onClearBackupState,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(onClick = onClearBackupState)
-                    ) {
-                        Text(stringResource(R.string.ok))
-                    }
-                }
-            )
-        }
-    }
+    SettingsBackupDialogs(
+        state = backupState,
+        onApplyRestore = onApplySettingsRestore,
+        onClear = onClearBackupState,
+        onRestart = onRestartApp
+    )
 
     ArcileScreenScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -547,15 +439,7 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.section_plugins)) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.plugins_title)) },
-                        supportingContent = { Text(stringResource(R.string.plugins_settings_description)) },
-                        leadingContent = { Icon(Icons.Default.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onNavigateToPlugins)
-                    )
-                }
+                SettingsPluginSection(onOpen = onNavigateToPlugins)
             }
 
             item {
@@ -591,324 +475,19 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.section_setup)) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.settings_backup_export)) },
-                        supportingContent = { Text(stringResource(R.string.settings_backup_export_description)) },
-                        leadingContent = { Icon(Icons.Default.FileUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        trailingContent = {
-                            if (backupState == PreferencesBackupUiState.Busy) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                            }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(
-                            enabled = backupState != PreferencesBackupUiState.Busy
-                        ) {
-                            exportBackupLauncher.launch("arcile-settings-backup.json")
-                        }
-                    )
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.settings_backup_restore)) },
-                        supportingContent = { Text(stringResource(R.string.settings_backup_restore_description)) },
-                        leadingContent = { Icon(Icons.Default.FileDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(
-                            enabled = backupState != PreferencesBackupUiState.Busy
-                        ) {
-                            restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-                        }
-                    )
-                }
+                SettingsBackupSection(
+                    state = backupState,
+                    onExport = {
+                        exportBackupLauncher.launch("arcile-settings-backup.json")
+                    },
+                    onRestore = {
+                        restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
+                    }
+                )
             }
 
             item {
-                SettingsSection(title = stringResource(R.string.section_info)) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.about_headline)) },
-                        supportingContent = { Text(stringResource(R.string.about_description)) },
-                        leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.padding(horizontal = 4.dp).clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onNavigateToAbout)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ThemePresetSelector(
-    currentPreset: ThemePreset,
-    onPresetSelected: (ThemePreset) -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-        Text(
-            text = "Theme Preset",
-            style = MaterialTheme.typography.titleMediumBold,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ThemePreset.values().forEach { preset ->
-                val isSelected = currentPreset == preset
-                val label = when (preset) {
-                    ThemePreset.NONE -> stringResource(R.string.theme_preset_none)
-                    ThemePreset.DRACULA -> stringResource(R.string.theme_preset_dracula)
-                    ThemePreset.TOKYO_NIGHT -> stringResource(R.string.theme_preset_tokyo_night)
-                    ThemePreset.CUSTOM -> stringResource(R.string.theme_preset_custom)
-                }
-
-                val colors = if (isSelected) {
-                    ButtonDefaults.filledTonalButtonColors()
-                } else {
-                    ButtonDefaults.outlinedButtonColors()
-                }
-
-                val border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-
-                val onPresetClick = { onPresetSelected(preset) }
-                OutlinedButton(
-                    onClick = onPresetClick,
-                    colors = colors,
-                    border = border,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier
-                        .weight(1f)
-                        .bounceClickable(onClick = onPresetClick),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text(text = label, style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CustomThemeCreatorPanel(
-    themeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit
-) {
-    var primaryInput by remember(themeState.customPrimaryColorHex) {
-        mutableStateOf(themeState.customPrimaryColorHex)
-    }
-    var bgInput by remember(themeState.customBackgroundColorHex) {
-        mutableStateOf(themeState.customBackgroundColorHex)
-    }
-
-    var isPrimaryFocused by remember { mutableStateOf(false) }
-    var isBgFocused by remember { mutableStateOf(false) }
-
-    val primaryScale by animateFloatAsState(
-        targetValue = if (isPrimaryFocused) 1.03f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "primaryScale"
-    )
-
-    val bgScale by animateFloatAsState(
-        targetValue = if (isBgFocused) 1.03f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "bgScale"
-    )
-
-    val primaryParsed = remember(primaryInput) {
-        try { Color(android.graphics.Color.parseColor(primaryInput)) } catch (e: Exception) { null }
-    }
-    val bgParsed = remember(bgInput) {
-        try { Color(android.graphics.Color.parseColor(bgInput)) } catch (e: Exception) { null }
-    }
-
-    val colorsTooSimilar = remember(primaryParsed, bgParsed) {
-        if (primaryParsed != null && bgParsed != null) {
-            val bgLuminance = bgParsed.red * 0.299f + bgParsed.green * 0.587f + bgParsed.blue * 0.114f
-            val priLuminance = primaryParsed.red * 0.299f + primaryParsed.green * 0.587f + primaryParsed.blue * 0.114f
-            kotlin.math.abs(bgLuminance - priLuminance) < 0.25f
-        } else false
-    }
-
-    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        Text(
-            text = "Custom Theme Settings",
-            style = MaterialTheme.typography.titleMediumBold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        OutlinedTextField(
-            value = primaryInput,
-            onValueChange = { input ->
-                primaryInput = input
-                if (input.startsWith("#") && (input.length == 7 || input.length == 9)) {
-                    try {
-                        android.graphics.Color.parseColor(input)
-                        onThemeChange(themeState.copy(customPrimaryColorHex = input))
-                    } catch (e: Exception) { }
-                }
-            },
-            label = { Text(stringResource(R.string.custom_theme_primary_label)) },
-            trailingIcon = {
-                primaryParsed?.let {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(it)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    )
-                }
-            },
-            shape = ExpressiveShapes.medium,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-                .onFocusChanged { isPrimaryFocused = it.isFocused }
-                .graphicsLayer {
-                    scaleX = primaryScale
-                    scaleY = primaryScale
-                }
-                .keyboardInputField()
-        )
-
-        OutlinedTextField(
-            value = bgInput,
-            onValueChange = { input ->
-                bgInput = input
-                if (input.startsWith("#") && (input.length == 7 || input.length == 9)) {
-                    try {
-                        android.graphics.Color.parseColor(input)
-                        onThemeChange(themeState.copy(customBackgroundColorHex = input))
-                    } catch (e: Exception) { }
-                }
-            },
-            label = { Text(stringResource(R.string.custom_theme_bg_label)) },
-            trailingIcon = {
-                bgParsed?.let {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clip(CircleShape)
-                            .background(it)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
-                    )
-                }
-            },
-            shape = ExpressiveShapes.medium,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-                .onFocusChanged { isBgFocused = it.isFocused }
-                .graphicsLayer {
-                    scaleX = bgScale
-                    scaleY = bgScale
-                }
-                .keyboardInputField()
-        )
-
-        if (colorsTooSimilar) {
-            Text(
-                text = stringResource(R.string.custom_theme_similarity_warning),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun BackupItemList(
-    description: String,
-    items: List<PreferencesBackupItem>
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(description, style = MaterialTheme.typography.bodyMedium)
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier
-                .heightIn(max = 360.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            items.forEach { item ->
-                BackupItemRow(item)
-            }
-        }
-    }
-}
-
-@Composable
-private fun BackupResultList(
-    description: String,
-    result: PreferencesBackupOperationResult
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(description, style = MaterialTheme.typography.bodyMedium)
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier
-                .heightIn(max = 360.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            result.items.forEach { item ->
-                BackupItemRow(item)
-            }
-            result.failures.forEach { failure ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                        Text(failure.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
-                        Text(failure.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun BackupItemRow(item: PreferencesBackupItem) {
-    val label = when (item.status) {
-        PreferencesBackupItemStatus.Exported -> stringResource(R.string.settings_backup_status_exported)
-        PreferencesBackupItemStatus.WillRestore -> stringResource(R.string.settings_backup_status_will_restore)
-        PreferencesBackupItemStatus.WillReset -> stringResource(R.string.settings_backup_status_will_reset)
-        PreferencesBackupItemStatus.Restored -> stringResource(R.string.settings_backup_status_restored)
-        PreferencesBackupItemStatus.Reset -> stringResource(R.string.settings_backup_status_reset)
-    }
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(item.label, style = MaterialTheme.typography.bodyMedium)
-            Surface(
-                shape = ExpressiveShapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                )
+                SettingsAboutSection(onOpen = onNavigateToAbout)
             }
         }
     }

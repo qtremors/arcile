@@ -38,24 +38,25 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.Breadcrumbs
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.FolderTabsRow
-import dev.qtremors.arcile.shared.ui.lists.FileGridRows
-import dev.qtremors.arcile.shared.ui.lists.FileItemRow
-import dev.qtremors.arcile.shared.ui.lists.FileListRows
-import dev.qtremors.arcile.shared.ui.lists.VolumeRootList
-import dev.qtremors.arcile.shared.ui.rememberDateOnlyFormatter
-import dev.qtremors.arcile.shared.ui.scrollbar.ArcileFastScrollbar
-import dev.qtremors.arcile.shared.ui.scrollbar.LazyGridScrollbarState
-import dev.qtremors.arcile.shared.ui.scrollbar.LazyListScrollbarState
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.feature.browser.BrowserUiState
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.Breadcrumbs
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.FolderTabsRow
+import dev.qtremors.arcile.core.ui.lists.FileGridRows
+import dev.qtremors.arcile.core.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
+import dev.qtremors.arcile.core.ui.lists.FileListRows
+import dev.qtremors.arcile.core.ui.lists.VolumeRootList
+import dev.qtremors.arcile.core.ui.rememberDateOnlyFormatter
+import dev.qtremors.arcile.core.ui.scrollbar.ArcileFastScrollbar
+import dev.qtremors.arcile.core.ui.scrollbar.LazyGridScrollbarState
+import dev.qtremors.arcile.core.ui.scrollbar.LazyListScrollbarState
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.spacing
 import java.util.Date
 import kotlin.math.abs
 
@@ -69,7 +70,7 @@ private data class BrowserContentKey(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun BrowserContent(
-    state: BrowserState,
+    state: BrowserUiState,
     displayedFiles: List<FileModel>,
     currentPresentation: FileListingPreferences,
     showSearchBar: Boolean,
@@ -80,7 +81,9 @@ internal fun BrowserContent(
     layoutDirection: LayoutDirection,
     listState: LazyListState,
     gridState: LazyGridState,
-    actions: BrowserUiActions,
+    navigationIntents: BrowserNavigationIntents,
+    selectionIntents: BrowserSelectionIntents,
+    searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit,
     onSwitchCategoryFolderTab: (Int) -> Unit
 ) {
@@ -104,9 +107,9 @@ internal fun BrowserContent(
                 ArchiveBreadcrumbs(
                     archiveName = state.archiveContext.archiveName,
                     entryPrefix = state.archiveContext.entryPrefix,
-                    onArchiveRootClick = { actions.onNavigateTo(state.archiveContext.archivePath) },
+                    onArchiveRootClick = { navigationIntents.onNavigateTo(state.archiveContext.archivePath) },
                     onEntryClick = {
-                        actions.onNavigateTo(
+                        navigationIntents.onNavigateTo(
                             ArchiveEntryThumbnailData.virtualPath(state.archiveContext.archivePath, it)
                         )
                     }
@@ -115,7 +118,7 @@ internal fun BrowserContent(
                 Breadcrumbs(
                     currentPath = state.currentPath,
                     storageVolumes = state.storageVolumes,
-                    onPathSegmentClick = { path -> actions.onNavigateTo(path) }
+                    onPathSegmentClick = { path -> navigationIntents.onNavigateTo(path) }
                 )
             }
 
@@ -145,7 +148,7 @@ internal fun BrowserContent(
                 FolderTabsRow(
                     tabs = categoryFolderTabs,
                     selectedPath = state.selectedFolderTabPath,
-                    onSelectTab = actions.onSelectFolderTab
+                    onSelectTab = navigationIntents.onSelectFolderTab
                 )
             }
         }
@@ -153,7 +156,7 @@ internal fun BrowserContent(
         val pullRefreshState = rememberPullToRefreshState()
         PullToRefreshBox(
             isRefreshing = isRefreshing,
-            onRefresh = actions.onRefresh,
+            onRefresh = navigationIntents.onRefresh,
             state = pullRefreshState,
             modifier = Modifier
                 .fillMaxWidth()
@@ -192,7 +195,8 @@ internal fun BrowserContent(
                     BrowserSearchResults(
                         state = state,
                         currentPresentation = currentPresentation,
-                        actions = actions,
+                        navigationIntents = navigationIntents,
+                        searchIntents = searchIntents,
                         onShowSearchBarChange = onShowSearchBarChange
                     )
                 }
@@ -216,7 +220,8 @@ internal fun BrowserContent(
                         layoutDirection = layoutDirection,
                         listState = listState,
                         gridState = gridState,
-                        actions = actions
+                        navigationIntents = navigationIntents,
+                        selectionIntents = selectionIntents
                     )
                 }
             }
@@ -272,9 +277,10 @@ private fun ArchiveBreadcrumbs(
 
 @Composable
 private fun BrowserSearchResults(
-    state: BrowserState,
+    state: BrowserUiState,
     currentPresentation: FileListingPreferences,
-    actions: BrowserUiActions,
+    navigationIntents: BrowserNavigationIntents,
+    searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit
 ) {
     if (state.searchResults.isEmpty()) {
@@ -306,14 +312,16 @@ private fun BrowserSearchResults(
                         file = file,
                         formattedDate = formatter.format(Date(file.lastModified)),
                         isSelected = false,
-                        showThumbnails = currentPresentation.showThumbnails,
+                        presentation = FileItemPresentation(
+                            showThumbnails = currentPresentation.showThumbnails
+                        ),
                         onClick = {
                             onShowSearchBarChange(false)
-                            actions.onClearSearch()
+                            searchIntents.onClearSearch()
                             if (file.isDirectory) {
-                                actions.onNavigateTo(file.absolutePath)
+                                navigationIntents.onNavigateTo(file.absolutePath)
                             } else if (state.archiveContext == null) {
-                                actions.onOpenFile(file.absolutePath)
+                                navigationIntents.onOpenFile(file.absolutePath)
                             }
                         },
                         onLongClick = {}
@@ -335,7 +343,7 @@ private fun BrowserSearchResults(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun BrowserListingContent(
-    state: BrowserState,
+    state: BrowserUiState,
     displayedFiles: List<FileModel>,
     currentPresentation: FileListingPreferences,
     showLoading: Boolean,
@@ -345,7 +353,8 @@ private fun BrowserListingContent(
     layoutDirection: LayoutDirection,
     listState: LazyListState,
     gridState: LazyGridState,
-    actions: BrowserUiActions
+    navigationIntents: BrowserNavigationIntents,
+    selectionIntents: BrowserSelectionIntents
 ) {
     if (showLoading && state.files.isEmpty() && !isRefreshing) {
         Box(
@@ -357,7 +366,7 @@ private fun BrowserListingContent(
     } else if (state.isVolumeRootScreen) {
         VolumeRootList(
             volumes = state.storageVolumes,
-            onNavigateTo = actions.onNavigateTo,
+            onNavigateTo = navigationIntents.onNavigateTo,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = 8.dp,
@@ -382,17 +391,20 @@ private fun BrowserListingContent(
             FileGridRows(
                 rows = state.displayState.visibleGridRows,
                 selectedFiles = state.selectedFiles,
-                onNavigateTo = actions.onNavigateTo,
-                onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
-                onToggleSelection = actions.onToggleSelection,
-                onSelectMultiple = actions.onSelectMultiple,
-                showThumbnails = currentPresentation.showThumbnails,
-                thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
+                onNavigateTo = navigationIntents.onNavigateTo,
+                onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
+                onToggleSelection = selectionIntents.onToggleSelection,
+                onSelectMultiple = selectionIntents.onSelectMultiple,
+                presentation = FileItemPresentation(
+                    showThumbnails = currentPresentation.showThumbnails,
+                    thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null &&
+                        state.activeFileOperation != null,
+                    openImageFromThumbnailInSelectionMode = state.archiveContext == null
+                ),
                 modifier = Modifier.fillMaxSize(),
                 gridState = gridState,
                 minCellSize = state.browserGridMinCellSize.dp,
                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
-                openImageFromThumbnailInSelectionMode = state.archiveContext == null,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding,
@@ -416,17 +428,20 @@ private fun BrowserListingContent(
             FileListRows(
                 rows = state.displayState.visibleListRows,
                 selectedFiles = state.selectedFiles,
-                onNavigateTo = actions.onNavigateTo,
-                onOpenFile = if (state.archiveContext == null) actions.onOpenFile else { _ -> },
-                onToggleSelection = actions.onToggleSelection,
-                onSelectMultiple = actions.onSelectMultiple,
-                showThumbnails = currentPresentation.showThumbnails,
-                thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null && state.activeFileOperation != null,
+                onNavigateTo = navigationIntents.onNavigateTo,
+                onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
+                onToggleSelection = selectionIntents.onToggleSelection,
+                onSelectMultiple = selectionIntents.onSelectMultiple,
+                presentation = FileItemPresentation(
+                    zoom = state.browserListZoom,
+                    showThumbnails = currentPresentation.showThumbnails,
+                    thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null &&
+                        state.activeFileOperation != null,
+                    openImageFromThumbnailInSelectionMode = state.archiveContext == null
+                ),
                 modifier = Modifier.fillMaxSize(),
                 listState = listState,
-                zoom = state.browserListZoom,
                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
-                openImageFromThumbnailInSelectionMode = state.archiveContext == null,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding

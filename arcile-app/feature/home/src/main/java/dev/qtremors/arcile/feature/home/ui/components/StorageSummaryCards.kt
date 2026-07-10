@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.home.ui.components
 
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -70,20 +70,20 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import dev.qtremors.arcile.feature.home.HomeState
-import dev.qtremors.arcile.shared.ui.shimmer
-import dev.qtremors.arcile.ui.theme.LocalCategoryColors
-import dev.qtremors.arcile.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.ui.theme.bodySmallMedium
+import dev.qtremors.arcile.core.ui.shimmer
+import dev.qtremors.arcile.core.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
+import dev.qtremors.arcile.core.ui.theme.bodySmallMedium
 
-import dev.qtremors.arcile.ui.theme.titleLargeBold
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.ui.theme.bounceCombinedClickable
-import dev.qtremors.arcile.utils.formatFileSize
-import dev.qtremors.arcile.utils.getCategoryColor
+import dev.qtremors.arcile.core.ui.theme.titleLargeBold
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.ui.theme.bounceCombinedClickable
+import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.getCategoryColor
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun StorageSummaryCard(
+internal fun StorageSummaryCard(
     state: HomeState,
     onNavigateToPath: (String) -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
@@ -235,7 +235,6 @@ fun StorageSummaryCard(
         }
     }
 }
-
 @Composable
 private fun CategoryLegendPlaceholder() {
     Row(
@@ -255,115 +254,8 @@ private fun CategoryLegendPlaceholder() {
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-fun StorageVolumeCard(
-    volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
-    categoryStorages: List<CategoryStorage>,
-    trashBytes: Long,
-    isLoading: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit
-) {
-    val used = volume.totalBytes - volume.freeBytes
-    val showPlaceholder = isLoading || volume.totalBytes <= 0L
-    
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.extraLarge)
-            .bounceCombinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = if (volume.isPrimary) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer,
-            contentColor = if (volume.isPrimary) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
-        ),
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Column(modifier = Modifier.padding(MaterialTheme.spacing.space20)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = volume.name,
-                            style = MaterialTheme.typography.titleMediumBold
-                        )
-                        if (volume.kind.showTemporaryStorageBadge) {
-                            Spacer(modifier = Modifier.width(MaterialTheme.spacing.small))
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = CircleShape,
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (volume.kind == StorageKind.OTG) Icons.Default.Usb else Icons.Default.Info,
-                                        contentDescription = stringResource(R.string.desc_temporary),
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    if (volume.kind.showTemporaryStorageBadge) {
-                        Text(
-                            text = if (volume.kind == StorageKind.OTG) stringResource(R.string.otg_usb) else "Unclassified External",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = when (volume.kind) {
-                        StorageKind.INTERNAL -> Icons.Default.Storage
-                        StorageKind.SD_CARD -> Icons.Default.SdCard
-                        StorageKind.OTG -> Icons.Default.Usb
-                        StorageKind.EXTERNAL_UNCLASSIFIED -> Icons.Default.SdCard
-                    },
-                    contentDescription = volume.name,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
-
-            MultiColorStorageBar(
-                totalBytes = volume.totalBytes.takeIf { it > 0L } ?: 1L,
-                freeBytes = volume.freeBytes.takeIf { volume.totalBytes > 0L } ?: 1L,
-                categoryStorages = categoryStorages,
-                trashBytes = trashBytes,
-                isCalculating = showPlaceholder
-            )
-
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${formatFileSize(used)} / ${formatFileSize(volume.totalBytes)}",
-                    style = MaterialTheme.typography.bodySmallMedium
-                )
-                val percent = if (volume.totalBytes > 0) (used * 100 / volume.totalBytes) else 0
-                Text(
-                    text = "$percent%",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
-
-
-@Composable
-fun MultiColorStorageBar(
+internal fun MultiColorStorageBar(
     totalBytes: Long,
     freeBytes: Long,
     categoryStorages: List<CategoryStorage>,
@@ -561,69 +453,4 @@ fun MultiColorStorageBar(
             }
         }
     }
-}
-
-@Composable
-fun CategoryLegend(
-    categoryStorages: List<CategoryStorage>,
-    trashBytes: Long = 0L,
-    systemBytes: Long = 0L
-) {
-    val scrollState = rememberScrollState()
-    Row(
-        modifier = Modifier
-            .horizontalScroll(scrollState)
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
-    ) {
-        val categoryColors = LocalCategoryColors.current
-        val sortedCategories = categoryStorages.sortedByDescending { it.sizeBytes }
-        val legendItems = sortedCategories
-            .filter { it.sizeBytes > 0 }
-            .map { cat ->
-                val catColor = getCategoryColor(cat.name, categoryColors, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                Triple(cat.name, cat.sizeBytes, catColor)
-            } + listOfNotNull(
-            if (trashBytes > 0L) Triple(stringResource(R.string.trash_bin), trashBytes, MaterialTheme.colorScheme.error) else null,
-            if (systemBytes > 0L) {
-                Triple(
-                    stringResource(R.string.other_files_system),
-                    systemBytes,
-                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            } else {
-                null
-            }
-        )
-
-        legendItems.forEach { (name, sizeBytes, color) ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(color)
-                )
-                Text(
-                    text = "$name ${formatFileSize(sizeBytes)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-    }
-}
-
-fun systemInaccessibleBytes(
-    totalBytes: Long,
-    freeBytes: Long,
-    categoryStorages: List<CategoryStorage>,
-    trashBytes: Long
-): Long {
-    val actualUsedBytes = (totalBytes - freeBytes).coerceAtLeast(0L)
-    val visibleBytes = categoryStorages.sumOf { it.sizeBytes } + trashBytes.coerceAtLeast(0L)
-    return (actualUsedBytes - visibleBytes).coerceAtLeast(0L)
 }

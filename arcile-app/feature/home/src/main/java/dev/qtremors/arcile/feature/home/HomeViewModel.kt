@@ -7,35 +7,25 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.NoOpBulkFileOperationCoordinator
+import dev.qtremors.arcile.core.presentation.DebouncedSearchController
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
-import dev.qtremors.arcile.core.storage.domain.CategoryStorage
-import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
-import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
-import kotlinx.collections.immutable.PersistentList
-import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.PersistentSet
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
@@ -45,66 +35,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
-import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
-@androidx.compose.runtime.Immutable
-data class HomeDisplayState(
-    val todayRecentFiles: PersistentList<FileModel> = persistentListOf(),
-    val indexedDashboardVolumes: PersistentList<StorageVolume> = persistentListOf(),
-    val sortedCategoryStorages: PersistentList<CategoryStorage> = persistentListOf()
-)
-
-@androidx.compose.runtime.Immutable
-data class HomeState(
-    val allStorageVolumes: PersistentList<StorageVolume> = persistentListOf(),
-    val quickAccessItems: PersistentList<QuickAccessItem> = persistentListOf(),
-    val storageInfo: StorageInfo? = null,
-    val categoryStorages: PersistentList<CategoryStorage> = persistentListOf(),
-    val categoryStoragesByVolume: PersistentMap<String, PersistentList<CategoryStorage>> = persistentMapOf(),
-    val trashStorageUsage: TrashStorageUsage = TrashStorageUsage(0L, emptyMap()),
-    val recentFiles: PersistentList<FileModel> = persistentListOf(),
-    val searchResults: PersistentList<FileModel> = persistentListOf(),
-    val homeSearchQuery: String = "",
-    val homeSortOption: FileSortOption = FileSortOption.DATE_NEWEST,
-    val activeSearchFilters: SearchFilters = SearchFilters(),
-    val isSearching: Boolean = false,
-    val isSearchFilterMenuVisible: Boolean = false,
-    val isLoading: Boolean = true,
-    val isPullToRefreshing: Boolean = false,
-    val isCalculatingStorage: Boolean = false,
-    val error: UiText? = null,
-    val unclassifiedVolumes: PersistentList<StorageVolume> = persistentListOf(),
-    val showClassificationPrompt: Boolean = false,
-    val todayStart: Long = 0L,
-    val displayState: HomeDisplayState = HomeDisplayState(),
-    val homeUtilityIds: PersistentSet<String> = persistentSetOf("trash", "cleaner")
-)
-
-fun HomeState.withUpdatedDisplayState(): HomeState {
-    val todayFiles = recentFiles.filter { it.lastModified >= todayStart }
-    return copy(
-        displayState = HomeDisplayState(
-            todayRecentFiles = filterAndSortFiles(todayFiles, homeSearchQuery, homeSortOption).toPersistentList(),
-            indexedDashboardVolumes = storageInfo?.volumes?.filter { it.kind.isIndexed }.orEmpty().toPersistentList(),
-            sortedCategoryStorages = categoryStorages.sortedByDescending { it.sizeBytes }.toPersistentList()
-        )
-    )
-}
-
-enum class HomeRefreshMode {
-    INITIAL,
-    MANUAL,
-    SILENT
-}
-
 @HiltViewModel
-class HomeViewModel @Inject constructor(
+internal class HomeViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val storageAnalyticsRepository: StorageAnalyticsRepository,
     private val searchRepository: SearchRepository,
@@ -119,15 +56,52 @@ class HomeViewModel @Inject constructor(
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
     private val recentsPreviewLimit = 50
-    private var searchJob: Job? = null
     private var refreshJob: Job? = null
     private var pendingSilentRefresh = false
     private var pendingSilentForceAnalytics = false
-    private var dashboardBreakdownJob: Job? = null
-    private val suppressedVolumeKeys = ConcurrentHashMap.newKeySet<String>()
     private var lastAnalyticsRefreshTime = 0L
+    private val searchController = DebouncedSearchController(
+        scope = viewModelScope,
+        initialFilters = SearchFilters(),
+        debounceMillis = 400,
+        fallbackError = UiText.StringResource(R.string.error_search_failed)
+    ) { query, filters ->
+        searchRepository.searchFiles(query, StorageScope.AllStorage, filters)
+    }
+    private val dashboardController = HomeDashboardController(
+        scope = viewModelScope,
+        repository = storageAnalyticsRepository,
+        currentState = _state::value,
+        onUpdate = ::applyDashboardUpdate
+    )
+    private val classificationController = HomeClassificationController(
+        scope = viewModelScope,
+        repository = classificationRepo,
+        findVolume = { storageKey ->
+            _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
+        },
+        onUpdate = ::applyClassificationUpdate
+    )
 
     init {
+        viewModelScope.launch {
+            searchController.state.collectLatest { searchState ->
+                _state.update {
+                    it.copy(
+                        homeSearchQuery = searchState.query,
+                        activeSearchFilters = searchState.filters,
+                        searchResults = searchState.results.toPersistentList(),
+                        isSearching = searchState.isSearching,
+                        error = if (searchState.isSearching || searchState.error != null) {
+                            searchState.error
+                        } else {
+                            it.error
+                        }
+                    ).withUpdatedDisplayState()
+                }
+            }
+        }
+
         viewModelScope.launch {
             quickAccessRepo.quickAccessItems.collectLatest { items ->
                 _state.update { it.copy(quickAccessItems = items.toPersistentList()) }
@@ -294,82 +268,22 @@ class HomeViewModel @Inject constructor(
                     }
                 } else null
 
-                var recentResult: Result<List<FileModel>>? = null
-                var allVolumesResult: Result<List<StorageVolume>>? = null
-                var storageResult: Result<StorageInfo>? = null
-                var categoryResult: Result<List<CategoryStorage>>? = null
-                var trashUsageResult: Result<TrashStorageUsage>? = null
+                val results = awaitHomeRefreshResults(
+                    shouldRefreshAnalytics = shouldRefreshAnalytics,
+                    cacheInvalidationError = cacheInvalidationError,
+                    recentFiles = recentResultDef,
+                    volumes = allVolumesResultDef,
+                    storageInfo = storageResultDef,
+                    categories = categoryResultDef,
+                    trashUsage = trashUsageResultDef
+                )
+                val allStorageVolumes = results.resolveVolumes(_state.value)
+                val unclassified = classificationController.unsuppressed(
+                    allStorageVolumes.filter { it.kind == StorageKind.EXTERNAL_UNCLASSIFIED }
+                )
+                _state.update { it.afterRefresh(results, unclassified) }
 
-                val completedWithinTimeout = withTimeoutOrNull(15_000) {
-                    recentResult = recentResultDef.await()
-                    allVolumesResult = allVolumesResultDef.await()
-                    storageResult = storageResultDef?.await()
-                    categoryResult = categoryResultDef?.await()
-                    trashUsageResult = trashUsageResultDef?.await()
-                } != null
-
-                val timedOut = !completedWithinTimeout
-                if (timedOut) {
-                    recentResultDef.cancel()
-                    allVolumesResultDef.cancel()
-                    storageResultDef?.cancel()
-                    categoryResultDef?.cancel()
-                    trashUsageResultDef?.cancel()
-                }
-                val storageInfo = if (shouldRefreshAnalytics && !timedOut) storageResult?.getOrNull() else _state.value.storageInfo
-                val allStorageVolumes = allVolumesResult?.getOrNull()
-                    ?: _state.value.allStorageVolumes
-                val unclassified = allStorageVolumes.filter {
-                    it.kind == StorageKind.EXTERNAL_UNCLASSIFIED && !suppressedVolumeKeys.contains(it.storageKey)
-                }
-
-                val errorMsg = listOfNotNull(
-                    cacheInvalidationError?.message,
-                    storageResult?.exceptionOrNull()?.message,
-                    allVolumesResult?.exceptionOrNull()?.message,
-                    recentResult?.exceptionOrNull()?.message,
-                    categoryResult?.exceptionOrNull()?.message,
-                    trashUsageResult?.exceptionOrNull()?.message
-                ).firstOrNull()
-                val errorText = if (timedOut) {
-                    UiText.StringResource(R.string.error_home_data_timeout)
-                } else {
-                    errorMsg?.let(UiText::Dynamic)
-                }
-
-                _state.update { currentState ->
-                    val nextCategoryStorages = (if (shouldRefreshAnalytics && !timedOut) {
-                        categoryResult?.getOrNull() ?: emptyList()
-                    } else {
-                        currentState.categoryStorages
-                    }).toPersistentList()
-                    val indexedVolumes = storageInfo?.volumes
-                        ?.filter { it.kind.isIndexed }
-                        ?: allStorageVolumes.filter { it.kind.isIndexed }
-                    val nextCategoryStoragesByVolume = currentState.categoryStoragesByVolume.toMutableMap()
-                    if (!timedOut && shouldRefreshAnalytics && indexedVolumes.size == 1 && nextCategoryStorages.isNotEmpty()) {
-                        nextCategoryStoragesByVolume[indexedVolumes.first().id] = nextCategoryStorages
-                            .sortedByDescending(CategoryStorage::sizeBytes)
-                            .toPersistentList()
-                    }
-                    val nextState = currentState.copy(
-                        isLoading = false,
-                        isPullToRefreshing = false,
-                        isCalculatingStorage = false,
-                        error = errorText,
-                        allStorageVolumes = allStorageVolumes.toPersistentList(),
-                        recentFiles = (recentResult?.getOrNull() ?: currentState.recentFiles).toPersistentList(),
-                        storageInfo = storageInfo,
-                        categoryStorages = nextCategoryStorages,
-                        categoryStoragesByVolume = nextCategoryStoragesByVolume.toPersistentMap(),
-                        trashStorageUsage = if (shouldRefreshAnalytics && !timedOut) trashUsageResult?.getOrNull() ?: currentState.trashStorageUsage else currentState.trashStorageUsage,
-                        unclassifiedVolumes = unclassified.toPersistentList(),
-                        showClassificationPrompt = unclassified.isNotEmpty()
-                    ).withUpdatedDisplayState()
-                    nextState
-                }
-
-                if (!timedOut && allStorageVolumes.size > 1) {
+                if (!results.timedOut && allStorageVolumes.size > 1) {
                     loadDashboardCategoryBreakdown()
                 }
             }
@@ -393,164 +307,27 @@ class HomeViewModel @Inject constructor(
     }
 
     fun loadDashboardCategoryBreakdown(selectedVolumeId: String? = null) {
-        val currentState = _state.value
-        val indexedVolumes = currentState.storageInfo?.volumes
-            ?.filter { it.kind.isIndexed }
-            ?: currentState.allStorageVolumes.filter { it.kind.isIndexed }
-        val targetVolumes = if (selectedVolumeId != null) {
-            indexedVolumes.filter { it.id == selectedVolumeId }
-        } else {
-            indexedVolumes
-        }.filter { currentState.categoryStoragesByVolume[it.id] == null }
-
-        if (targetVolumes.isEmpty()) return
-        if (indexedVolumes.size == 1 && currentState.categoryStorages.isNotEmpty()) {
-            val volumeId = indexedVolumes.first().id
-            _state.update {
-                it.copy(
-                    categoryStoragesByVolume = it.categoryStoragesByVolume
-                        .put(
-                            volumeId,
-                            it.categoryStorages
-                                .sortedByDescending(CategoryStorage::sizeBytes)
-                                .toPersistentList()
-                        )
-                ).withUpdatedDisplayState()
-            }
-            return
-        }
-
-        dashboardBreakdownJob?.cancel()
-        dashboardBreakdownJob = viewModelScope.launch {
-            _state.update { it.copy(isCalculatingStorage = true) }
-            val results = supervisorScope {
-                targetVolumes.map { volume ->
-                    async {
-                        volume.id to storageAnalyticsRepository
-                            .getCategoryStorageSizes(StorageScope.Volume(volume.id))
-                            .getOrNull()
-                            .orEmpty()
-                    }
-                }.map { it.await() }
-            }
-
-            _state.update { current ->
-                val merged = current.categoryStoragesByVolume.toMutableMap()
-                results.forEach { (volumeId, categories) ->
-                    merged[volumeId] = categories
-                        .sortedByDescending(CategoryStorage::sizeBytes)
-                        .toPersistentList()
-                }
-                current.copy(
-                    isCalculatingStorage = false,
-                    categoryStoragesByVolume = merged.toPersistentMap()
-                ).withUpdatedDisplayState()
-            }
-        }
+        dashboardController.load(selectedVolumeId)
     }
 
     fun ensureDashboardCategoryBreakdown(selectedVolumeId: String? = null) {
-        val currentState = _state.value
-        val indexedVolumes = currentState.storageInfo?.volumes
-            ?.filter { it.kind.isIndexed }
-            ?: currentState.allStorageVolumes.filter { it.kind.isIndexed }
-        val missingBreakdown = if (selectedVolumeId != null) {
-            indexedVolumes.any { it.id == selectedVolumeId && currentState.categoryStoragesByVolume[it.id] == null }
-        } else {
-            indexedVolumes.any { currentState.categoryStoragesByVolume[it.id] == null }
-        }
-        if (missingBreakdown) {
-            loadDashboardCategoryBreakdown(selectedVolumeId)
-        }
+        dashboardController.ensureLoaded(selectedVolumeId)
     }
 
     fun setVolumeClassification(storageKey: String, kind: StorageKind) {
-        _state.update { currentState ->
-            val remaining = currentState.unclassifiedVolumes.filter { v -> v.storageKey != storageKey }
-            currentState.copy(
-                unclassifiedVolumes = remaining.toPersistentList(),
-                showClassificationPrompt = remaining.isNotEmpty()
-            )
-        }
-
-        viewModelScope.launch {
-            try {
-                val volume = _state.value.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
-                classificationRepo.setClassification(
-                    storageKey = storageKey,
-                    kind = kind,
-                    lastSeenName = volume?.name,
-                    lastSeenPath = volume?.path
-                )
-                suppressedVolumeKeys.remove(storageKey)
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                _state.update { currentState ->
-                    val volume = currentState.allStorageVolumes.firstOrNull { it.storageKey == storageKey }
-                    val restoredVolumes = if (volume != null && !currentState.unclassifiedVolumes.any { it.storageKey == storageKey }) {
-                        currentState.unclassifiedVolumes + volume
-                    } else currentState.unclassifiedVolumes
-
-                    currentState.copy(
-                        unclassifiedVolumes = restoredVolumes.toPersistentList(),
-                        showClassificationPrompt = restoredVolumes.isNotEmpty(),
-                        error = UiText.StringResource(
-                            R.string.error_save_classification_failed,
-                            listOf(e.message.orEmpty())
-                        )
-                    )
-                }
-            }
-        }
+        classificationController.classify(storageKey, kind)
     }
 
     fun resetVolumeClassification(storageKey: String) {
-        viewModelScope.launch {
-            classificationRepo.resetClassification(storageKey)
-            suppressedVolumeKeys.remove(storageKey)
-        }
+        classificationController.reset(storageKey)
     }
 
     fun hideClassificationPrompt(storageKey: String) {
-        suppressedVolumeKeys.add(storageKey)
-        val remaining = _state.value.unclassifiedVolumes.filter { it.storageKey != storageKey }
-        _state.update {
-            it.copy(
-                unclassifiedVolumes = remaining.toPersistentList(),
-                showClassificationPrompt = remaining.isNotEmpty()
-            )
-        }
+        classificationController.suppress(storageKey)
     }
 
     fun updateHomeSearchQuery(query: String) {
-        _state.update { it.copy(homeSearchQuery = query).withUpdatedDisplayState() }
-        debouncedSearch(query)
-    }
-
-    private fun debouncedSearch(query: String) {
-        searchJob?.cancel()
-        if (query.isBlank()) {
-            _state.update { it.copy(searchResults = persistentListOf(), isSearching = false) }
-            return
-        }
-        searchJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(400)
-            _state.update { it.copy(isSearching = true, error = null) }
-
-            val filters = _state.value.activeSearchFilters
-            val result = searchRepository.searchFiles(query, StorageScope.AllStorage, filters)
-
-            result.onSuccess { files ->
-                _state.update { it.copy(isSearching = false, searchResults = files.toPersistentList()) }
-            }.onFailure { error ->
-                _state.update {
-                    it.copy(
-                        isSearching = false,
-                        error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_search_failed)
-                    )
-                }
-            }
-        }
+        searchController.updateQuery(query)
     }
 
     fun updateHomeSortOption(sortOption: FileSortOption) {
@@ -558,15 +335,51 @@ class HomeViewModel @Inject constructor(
     }
 
     fun updateSearchFilters(filters: SearchFilters) {
-        _state.update { it.copy(activeSearchFilters = filters) }
-        val currentQuery = _state.value.homeSearchQuery
-        if (currentQuery.isNotBlank()) {
-            debouncedSearch(currentQuery)
-        }
+        searchController.updateFilters(filters)
     }
 
     fun toggleSearchFilterMenu(visible: Boolean) {
         _state.update { it.copy(isSearchFilterMenuVisible = visible) }
+    }
+
+    private fun applyDashboardUpdate(update: HomeDashboardUpdate) {
+        _state.update { current ->
+            val merged = current.categoryStoragesByVolume.toMutableMap()
+            update.categoriesByVolume.forEach { (volumeId, categories) ->
+                merged[volumeId] = categories.toPersistentList()
+            }
+            current.copy(
+                isCalculatingStorage = update.isCalculating ?: current.isCalculatingStorage,
+                categoryStoragesByVolume = merged.toPersistentMap()
+            ).withUpdatedDisplayState()
+        }
+    }
+
+    private fun applyClassificationUpdate(update: HomeClassificationUpdate) {
+        _state.update { current ->
+            val volumes = when (update) {
+                is HomeClassificationUpdate.Dismiss ->
+                    current.unclassifiedVolumes.filterNot { it.storageKey == update.storageKey }
+                is HomeClassificationUpdate.Restore -> {
+                    val volume = current.allStorageVolumes.firstOrNull {
+                        it.storageKey == update.storageKey
+                    }
+                    if (volume != null && current.unclassifiedVolumes.none {
+                            it.storageKey == update.storageKey
+                        }
+                    ) {
+                        current.unclassifiedVolumes + volume
+                    } else {
+                        current.unclassifiedVolumes
+                    }
+                }
+            }
+            current.copy(
+                unclassifiedVolumes = volumes.toPersistentList(),
+                showClassificationPrompt = volumes.isNotEmpty(),
+                error = (update as? HomeClassificationUpdate.Restore)?.error ?: current.error
+            )
+        }
     }
 }
 

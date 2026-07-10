@@ -40,14 +40,14 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.util.Calendar
 import java.util.Date
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TrashList(
+internal fun TrashList(
     files: List<TrashMetadata>,
     selectedFiles: Set<String>,
     onToggleSelection: (String) -> Unit,
@@ -124,7 +124,7 @@ private fun TrashRow(
                         error = {
                             androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
                                 androidx.compose.material3.Icon(
-                                    imageVector = dev.qtremors.arcile.shared.ui.getFileIconVector(file),
+                                    imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(file),
                                     contentDescription = null,
                                     tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(24.dp)
@@ -134,7 +134,7 @@ private fun TrashRow(
                     )
                 } else {
                     androidx.compose.material3.Icon(
-                        imageVector = dev.qtremors.arcile.shared.ui.getFileIconVector(file),
+                        imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(file),
                         contentDescription = null,
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(40.dp)

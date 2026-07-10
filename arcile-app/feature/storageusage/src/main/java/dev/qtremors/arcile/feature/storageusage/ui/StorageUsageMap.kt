@@ -42,7 +42,7 @@ import androidx.compose.runtime.key
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.ui.graphics.graphicsLayer
-import dev.qtremors.arcile.ui.theme.ArcileMotion
+import dev.qtremors.arcile.core.ui.theme.ArcileMotion
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -75,12 +75,12 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
 import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -92,7 +92,7 @@ private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
 
 
 @Composable
-fun StorageUsageMap(
+internal fun StorageUsageMap(
     state: StorageUsageUiState,
     onSelectNode: (StorageUsageNode) -> Unit,
     onDrillInto: (StorageUsageNode) -> Unit,

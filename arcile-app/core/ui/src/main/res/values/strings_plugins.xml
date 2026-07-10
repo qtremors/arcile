@@ -1,0 +1,35 @@
+<resources>
+    <string name="model_viewer_title">Model Viewer</string>
+    <string name="model_viewer_loading">Loading model...</string>
+    <string name="model_viewer_error">Arcile could not render this model.</string>
+    <string name="model_viewer_empty">No model loaded</string>
+    <string name="model_viewer_hint">Drag to rotate, pinch to zoom.</string>
+    <string name="model_viewer_zoom">Zoom</string>
+    <string name="model_viewer_zoom_value">%1$d%%</string>
+    <string name="model_viewer_brightness">Brightness</string>
+    <string name="model_viewer_brightness_value">%1$d%%</string>
+    <string name="model_viewer_background">Background</string>
+    <string name="model_viewer_background_theme">Theme</string>
+    <string name="model_viewer_background_white">White</string>
+    <string name="model_viewer_background_black">Black</string>
+    <string name="section_plugins">Plugins</string>
+    <string name="plugins_title">Plugins</string>
+    <string name="plugins_settings_description">Manage optional Arcile viewers.</string>
+    <string name="plugins_available">Arcile plugins</string>
+    <string name="plugin_missing_title">%1$s Plugin is not installed</string>
+    <string name="plugin_missing_message">Install the %1$s plugin from GitHub Releases?</string>
+    <string name="plugin_incompatible_title">Plugin update required</string>
+    <string name="plugin_incompatible_message">%1$s uses an incompatible Arcile plugin API. Update it before opening this file.</string>
+    <string name="plugin_status_installed">Installed %1$s · API %2$d</string>
+    <string name="plugin_status_incompatible">Incompatible · API %1$d</string>
+    <string name="plugin_status_not_installed">Not installed</string>
+    <string name="plugin_status_coming_soon">Coming soon</string>
+    <string name="view_github">View GitHub</string>
+    <string name="uninstall">Uninstall</string>
+    <string name="install">Install</string>
+    <string name="unsupported_archive_format">This archive type cannot be browsed safely in Arcile.</string>
+    <string name="no_app_found">No app found</string>
+    <string name="could_not_open_folder_files_app">Could not open folder in Files app</string>
+    <string name="share_files_via">Share files via</string>
+    <string name="volume_usage">%1$s used of %2$s</string>
+</resources>

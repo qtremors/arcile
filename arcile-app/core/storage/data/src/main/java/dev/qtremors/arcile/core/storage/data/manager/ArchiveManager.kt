@@ -15,7 +15,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.io.IOException
 import java.util.UUID

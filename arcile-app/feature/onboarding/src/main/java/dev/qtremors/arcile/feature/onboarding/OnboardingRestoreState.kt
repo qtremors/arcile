@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.onboarding
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
 
-sealed interface OnboardingBackupState {
+internal sealed interface OnboardingBackupState {
     data object Idle : OnboardingBackupState
     data object Busy : OnboardingBackupState
     data class Preview(val value: PreferencesBackupPreview) : OnboardingBackupState
@@ -11,7 +11,7 @@ sealed interface OnboardingBackupState {
     data class Failed(val message: String?) : OnboardingBackupState
 }
 
-sealed interface OnboardingRestoreState {
+internal sealed interface OnboardingRestoreState {
     data object Idle : OnboardingRestoreState
     data object Busy : OnboardingRestoreState
     data class Preview(val items: List<OnboardingRestoreItem>) : OnboardingRestoreState
@@ -22,12 +22,12 @@ sealed interface OnboardingRestoreState {
     data class Failed(val message: String) : OnboardingRestoreState
 }
 
-data class OnboardingRestoreItem(
+internal data class OnboardingRestoreItem(
     val label: String,
     val status: String
 )
 
-data class OnboardingRestoreFailure(
+internal data class OnboardingRestoreFailure(
     val label: String,
     val message: String
 )

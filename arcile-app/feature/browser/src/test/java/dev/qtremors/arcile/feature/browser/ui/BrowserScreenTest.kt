@@ -16,10 +16,16 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
-import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.feature.browser.withUpdatedDisplayState
+import dev.qtremors.arcile.core.presentation.OperationUiState
+import dev.qtremors.arcile.feature.browser.BrowserNavigationState
+import dev.qtremors.arcile.feature.browser.BrowserOperationState
+import dev.qtremors.arcile.feature.browser.BrowserPropertiesState
+import dev.qtremors.arcile.feature.browser.BrowserSearchState
+import dev.qtremors.arcile.feature.browser.BrowserSelectionState
+import dev.qtremors.arcile.feature.browser.BrowserUiState
+import dev.qtremors.arcile.feature.browser.scrollPositionKey
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.presentation.PropertiesUiModel
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -47,7 +53,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         browserSearchQuery = "report",
                         searchResults = listOf(browserFile("report.pdf", "/storage/emulated/0/Docs/report.pdf")).toPersistentList(),
                         isSearching = false,
@@ -93,7 +99,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isVolumeRootScreen = true,
                         isLoading = false,
                         storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0")).toPersistentList()
@@ -135,14 +141,14 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         isCategoryScreen = true,
                         activeCategoryName = "Images",
                         currentPath = "/storage/emulated/0/Download",
                         currentVolumeId = "primary",
                         storageVolumes = listOf(browserVolume("primary", "Internal", "/storage/emulated/0")).toPersistentList()
-                    ).withUpdatedDisplayState(),
+                    ),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -179,7 +185,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         files = persistentListOf()
@@ -219,7 +225,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         browserSearchQuery = "missing",
                         searchResults = persistentListOf(),
                         isSearching = false,
@@ -262,7 +268,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         browserViewMode = FileViewMode.GRID,
@@ -306,7 +312,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         files = listOf(browserFolder("Docs", "/storage/emulated/0/Download/Docs")).toPersistentList(),
@@ -317,7 +323,7 @@ class BrowserScreenTest {
                                 cachedAt = System.currentTimeMillis()
                             )
                         ).toPersistentMap()
-                    ).withUpdatedDisplayState(),
+                    ),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -353,11 +359,11 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android")).toPersistentList()
-                    ).withUpdatedDisplayState(),
+                    ),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -394,7 +400,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         files = listOf(browserFolder("Android", "/storage/emulated/0/Download/Android")).toPersistentList(),
@@ -406,7 +412,7 @@ class BrowserScreenTest {
                                 status = FolderStatsStatus.Partial
                             )
                         ).toPersistentMap()
-                    ).withUpdatedDisplayState(),
+                    ),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -442,12 +448,12 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
                         selectedFiles = setOf("/storage/emulated/0/Download/Docs").toPersistentSet(),
                         isPropertiesVisible = true,
-                        properties = dev.qtremors.arcile.shared.presentation.PropertiesUiModel(
+                        properties = dev.qtremors.arcile.core.presentation.PropertiesUiModel(
                             title = "Docs",
                             pathSummary = "/storage/emulated/0/Download/Docs",
                             itemCount = 1,
@@ -505,10 +511,10 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Download",
-                        activeFileOperation = BrowserFileOperationUiState(
+                        activeFileOperation = OperationUiState(
                             type = BulkFileOperationType.COPY,
                             totalItems = 3,
                             completedItems = 1
@@ -558,7 +564,7 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Pictures",
                         files = listOf(
@@ -566,7 +572,7 @@ class BrowserScreenTest {
                             browserFile("notes.txt", "/storage/emulated/0/Pictures/notes.txt")
                         ).toPersistentList(),
                         selectedFiles = setOf("/storage/emulated/0/Pictures/notes.txt").toPersistentSet()
-                    ).withUpdatedDisplayState(),
+                    ),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = { openedPath = it },
@@ -612,12 +618,12 @@ class BrowserScreenTest {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
-                    state = BrowserState(
+                    state = browserUiState(
                         isLoading = false,
                         currentPath = "/storage/emulated/0/Documents",
                         files = listOf(browserFile("notes.txt", filePath)).toPersistentList(),
                         selectedFiles = setOf(filePath).toPersistentSet()
-                    ).withUpdatedDisplayState(),
+                    ),
                     onNavigateBack = {},
                     onNavigateTo = {},
                     onOpenFile = {},
@@ -649,6 +655,177 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("notes.txt").performClick()
         assertEquals(filePath, toggledPath)
     }
+}
+
+@androidx.compose.runtime.Composable
+private fun BrowserScreen(
+    state: BrowserUiState,
+    onNavigateBack: () -> Unit,
+    onNavigateTo: (String) -> Unit,
+    onOpenFile: (String) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onSelectMultiple: (List<String>) -> Unit,
+    onClearSelection: () -> Unit,
+    onCreateFolder: (String) -> Unit,
+    onCreateFile: (String) -> Unit,
+    onCreateFakeFile: (String, Long) -> Unit,
+    onRequestDeleteSelected: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onTogglePermanentDelete: () -> Unit,
+    onDismissDeleteConfirmation: () -> Unit,
+    onRenameFile: (String, String) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onClearSearch: () -> Unit,
+    onPresentationChange: (dev.qtremors.arcile.core.storage.domain.FileListingPreferences, Boolean) -> Unit,
+    onClearError: () -> Unit,
+    onCopySelected: () -> Unit,
+    onCutSelected: () -> Unit,
+    onPasteFromClipboard: () -> Unit,
+    onCancelClipboard: () -> Unit,
+    onShareSelected: () -> Unit,
+    onOpenProperties: () -> Unit = {},
+    onClearActiveFileOperation: () -> Unit = {}
+) {
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    val nativeRequests = androidx.compose.runtime.remember {
+        kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
+    }
+    BrowserScreen(
+        state = state,
+        intents = BrowserIntents(
+            navigation = BrowserNavigationIntents(
+                onNavigateBack,
+                onNavigateTo,
+                onOpenFile,
+                onRefresh = {},
+                onSelectFolderTab = {}
+            ),
+            selection = BrowserSelectionIntents(
+                onToggleSelection,
+                onSelectMultiple,
+                onClearSelection,
+                onShareSelected,
+                onOpenProperties,
+                onDismissProperties = {},
+                onInvertSelection = {},
+                onSelectAll = {},
+                onPinToQuickAccess = { _, _ -> }
+            ),
+            mutation = BrowserMutationIntents(
+                onCreateFolder,
+                onCreateFile,
+                onCreateFakeFile,
+                onRequestDeleteSelected,
+                onConfirmDelete,
+                onTogglePermanentDelete,
+                onToggleShred = {},
+                onDismissDeleteConfirmation,
+                onRenameFile,
+                onNativeRequestResult = {}
+            ),
+            search = BrowserSearchIntents(
+                onSearchQueryChange,
+                onClearSearch,
+                onPresentationChange,
+                onClearError,
+                onSearchFiltersChange = {},
+                onToggleSearchFilterMenu = {}
+            ),
+            clipboard = BrowserClipboardIntents(
+                onCopySelected,
+                onCutSelected,
+                onPasteFromClipboard,
+                onCancelClipboard,
+                onRemoveFromClipboard = {},
+                onResolvingConflicts = {},
+                onDismissConflictDialog = {}
+            ),
+            archive = BrowserArchiveIntents(
+                onExtractArchive = { _, _ -> },
+                onExtractSelectedArchiveEntries = { _, _ -> },
+                onExtractCurrentArchiveFolder = { _, _ -> },
+                onCreateZipFromSelection = {},
+                onCreateArchiveFromSelection = { _, _, _, _ -> },
+                onSubmitArchivePassword = {},
+                onDismissArchivePassword = {}
+            ),
+            operation = BrowserOperationIntents(
+                onClearFileOperationStatusMessage = {},
+                onClearActiveFileOperation = onClearActiveFileOperation,
+                onUndoLastTrashMove = {},
+                onClearPendingTrashUndo = {},
+                onUndoLastOperation = {},
+                onClearPendingUndo = {},
+                onRetryRecoveredOperation = {},
+                onCleanupRecoveredOperation = {},
+                onDismissRecoveredOperation = {}
+            )
+        ),
+        scroll = BrowserScrollBindings(
+            listState,
+            gridState,
+            state.scrollPositionKey(),
+            savedPosition = null,
+            savedPositionProvider = { null },
+            onSavePosition = { _, _ -> },
+            onClearPosition = {},
+            pendingRevealFilePath = state.pendingRevealFilePath,
+            pendingRevealReady = state.pendingRevealReady,
+            onArmPendingReveal = {},
+            onConsumePendingReveal = {}
+        ),
+        effects = BrowserEffects(onFeedback = {}, nativeRequestFlow = nativeRequests)
+    )
+}
+
+@Suppress("LongParameterList")
+private fun browserUiState(
+    currentPath: String = "",
+    currentVolumeId: String? = null,
+    isVolumeRootScreen: Boolean = false,
+    isCategoryScreen: Boolean = false,
+    activeCategoryName: String = "",
+    files: List<FileModel> = emptyList(),
+    folderStatsByPath: Map<String, FolderStats> = emptyMap(),
+    storageVolumes: List<StorageVolume> = emptyList(),
+    isLoading: Boolean = true,
+    browserViewMode: FileViewMode = FileViewMode.LIST,
+    browserSearchQuery: String = "",
+    searchResults: List<FileModel> = emptyList(),
+    isSearching: Boolean = false,
+    selectedFiles: Set<String> = emptySet(),
+    isPropertiesVisible: Boolean = false,
+    properties: PropertiesUiModel? = null,
+    activeFileOperation: OperationUiState? = null
+): BrowserUiState {
+    val navigation = BrowserNavigationState().withValues(
+        currentPath = currentPath,
+        currentVolumeId = currentVolumeId,
+        isVolumeRootScreen = isVolumeRootScreen,
+        isCategoryScreen = isCategoryScreen,
+        activeCategoryName = activeCategoryName,
+        files = files.toPersistentList(),
+        folderStatsByPath = folderStatsByPath.toPersistentMap(),
+        storageVolumes = storageVolumes.toPersistentList(),
+        isLoading = isLoading,
+        browserViewMode = browserViewMode
+    )
+    return BrowserUiState(
+        location = navigation.location,
+        listing = navigation.listing,
+        search = BrowserSearchState(
+            browserSearchQuery = browserSearchQuery,
+            searchResults = searchResults.toPersistentList(),
+            isSearching = isSearching
+        ),
+        selection = BrowserSelectionState(selectedFiles.toPersistentSet()),
+        propertiesState = BrowserPropertiesState(
+            isVisible = isPropertiesVisible,
+            properties = properties
+        ),
+        operation = BrowserOperationState(activeFileOperation = activeFileOperation)
+    )
 }
 
 private fun browserFile(name: String, path: String) = FileModel(

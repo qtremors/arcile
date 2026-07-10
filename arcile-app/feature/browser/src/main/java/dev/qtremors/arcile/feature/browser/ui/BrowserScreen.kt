@@ -36,12 +36,12 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.feature.browser.BrowserState
+import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -58,9 +58,8 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserCreateFab
 import dev.qtremors.arcile.feature.browser.ui.BrowserDialogs
 import dev.qtremors.arcile.feature.browser.ui.BrowserFloatingSurfaces
 import dev.qtremors.arcile.feature.browser.ui.BrowserTopBars
-import dev.qtremors.arcile.feature.browser.ui.BrowserUiActions
 import dev.qtremors.arcile.feature.browser.ui.rememberBrowserDialogVisibility
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 
 /**
  * Full-featured file browser screen.
@@ -70,82 +69,34 @@ import dev.qtremors.arcile.ui.theme.spacing
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun BrowserScreen(
-    state: BrowserState,
-    onNavigateBack: () -> Unit,
-    onNavigateTo: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onSelectMultiple: (List<String>) -> Unit,
-    onClearSelection: () -> Unit,
-    onCreateFolder: (String) -> Unit,
-    onCreateFile: (String) -> Unit,
-    onCreateFakeFile: (String, Long) -> Unit,
-    onRequestDeleteSelected: () -> Unit,
-    onConfirmDelete: () -> Unit,
-    onTogglePermanentDelete: () -> Unit,
-    onDismissDeleteConfirmation: () -> Unit,
-    onToggleShred: () -> Unit = {},
-    onRenameFile: (String, String) -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    onPresentationChange: (FileListingPreferences, Boolean) -> Unit,
-    onClearError: () -> Unit,
-    onCopySelected: () -> Unit,
-    onCutSelected: () -> Unit,
-    onPasteFromClipboard: () -> Unit,
-    onCancelClipboard: () -> Unit,
-    onShareSelected: () -> Unit,
-    onClearFileOperationStatusMessage: () -> Unit = {},
-    onOpenProperties: () -> Unit = {},
-    onDismissProperties: () -> Unit = {},
-    onClearActiveFileOperation: () -> Unit = {},
-    onDismissConflictDialog: () -> Unit = {},
-    isRefreshing: Boolean = false,
-    onRefresh: () -> Unit = {},
-    onSearchFiltersChange: (dev.qtremors.arcile.core.storage.domain.SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
-    onResolvingConflicts: (Map<String, dev.qtremors.arcile.core.storage.domain.ConflictResolution>) -> Unit = {},
-    onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
-    onNativeRequestResult: (Boolean) -> Unit = {},
-    onInvertSelection: (List<String>) -> Unit = {},
-    onSelectAll: (List<String>) -> Unit = {},
-    onRemoveFromClipboard: (String) -> Unit = {},
-    onSelectFolderTab: (String?) -> Unit = {},
-    onExtractArchive: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
-    onExtractSelectedArchiveEntries: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
-    onExtractCurrentArchiveFolder: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
-    onCreateZipFromSelection: () -> Unit = {},
-    onCreateArchiveFromSelection: (String, ArchiveFormat, ArchiveCompressionLevel, String?) -> Unit = { _, _, _, _ -> },
-    onSubmitArchivePassword: (String) -> Unit = {},
-    onDismissArchivePassword: () -> Unit = {},
-    onUndoLastTrashMove: () -> Unit = {},
-    onClearPendingTrashUndo: () -> Unit = {},
-    onUndoLastOperation: () -> Unit = onUndoLastTrashMove,
-    onClearPendingUndo: () -> Unit = onClearPendingTrashUndo,
-    onRetryRecoveredOperation: (String) -> Unit = {},
-    onCleanupRecoveredOperation: (String) -> Unit = {},
-    onDismissRecoveredOperation: (String) -> Unit = {},
-    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
-    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null,
-    listState: LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    gridState: LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState(),
-    scrollPositionKey: String = state.scrollPositionKey(),
-    savedScrollPosition: BrowserScrollPosition? = null,
-    savedScrollPositionProvider: (String) -> BrowserScrollPosition? = { savedScrollPosition },
-    onSaveScrollPosition: (String, BrowserScrollPosition) -> Unit = { _, _ -> },
-    onClearScrollPosition: (String) -> Unit = {},
-    pendingRevealFilePath: String? = state.pendingRevealFilePath,
-    pendingRevealReady: Boolean = state.pendingRevealReady,
-    onArmPendingReveal: () -> Unit = {},
-    onConsumePendingReveal: (String) -> Unit = {}
+internal fun BrowserScreen(
+    state: BrowserUiState,
+    intents: BrowserIntents,
+    scroll: BrowserScrollBindings,
+    effects: BrowserEffects
 ) {
+    val listState = scroll.listState
+    val gridState = scroll.gridState
+    val onArmPendingReveal = scroll.onArmPendingReveal
+    val nativeRequestFlow = effects.nativeRequestFlow
+    val onFeedback = effects.onFeedback
+    val onNativeRequestResult = intents.mutation.onNativeRequestResult
+    val onSelectFolderTab = intents.navigation.onSelectFolderTab
+    val onDismissConflictDialog = intents.clipboard.onDismissConflictDialog
+    val onDismissProperties = intents.selection.onDismissProperties
+    val onDismissDeleteConfirmation = intents.mutation.onDismissDeleteConfirmation
+    val onToggleSearchFilterMenu = intents.search.onToggleSearchFilterMenu
+    val onClearSearch = intents.search.onClearSearch
+    val onClearSelection = intents.selection.onClearSelection
+    val onNavigateBack = intents.navigation.onNavigateBack
+    val onClearError = intents.search.onClearError
+    val onClearFileOperationStatusMessage = intents.operation.onClearFileOperationStatusMessage
+    val onUndoLastOperation = intents.operation.onUndoLastOperation
+    val onClearPendingUndo = intents.operation.onClearPendingUndo
+    val isRefreshing = state.isPullToRefreshing
     val haptics = rememberArcileHaptics()
     val dialogVisibility = rememberBrowserDialogVisibility()
     val lifecycleOwner = LocalLifecycleOwner.current
-    var isBrowserLifecycleResumed by remember {
-        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
-    }
     var resumeRestoreTick by remember { mutableStateOf(0) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
     
@@ -171,11 +122,9 @@ fun BrowserScreen(
             when (event) {
                 Lifecycle.Event.ON_PAUSE,
                 Lifecycle.Event.ON_STOP -> {
-                    isBrowserLifecycleResumed = false
                     onArmPendingReveal()
                 }
                 Lifecycle.Event.ON_RESUME -> {
-                    isBrowserLifecycleResumed = true
                     resumeRestoreTick += 1
                 }
                 else -> Unit
@@ -200,23 +149,6 @@ fun BrowserScreen(
     }
 
     val displayedFiles = state.displayState.visibleFiles
-    val pendingRevealIndex = remember(
-        pendingRevealFilePath,
-        pendingRevealReady,
-        displayedFiles
-    ) {
-        pendingRevealFilePath
-            ?.takeIf { pendingRevealReady }
-            ?.let { revealPath -> displayedFiles.indexOfFirst { it.absolutePath == revealPath } }
-            ?.takeIf { it >= 0 }
-    }
-    if (pendingRevealReady && pendingRevealIndex != null) {
-        if (state.browserViewMode == FileViewMode.GRID) {
-            gridState.requestScrollToItem(pendingRevealIndex)
-        } else {
-            listState.requestScrollToItem(pendingRevealIndex)
-        }
-    }
     val currentPresentation = remember(
         state.browserSortOption,
         state.browserViewMode,
@@ -232,59 +164,7 @@ fun BrowserScreen(
             showThumbnails = state.browserShowThumbnails && state.archiveContext == null
         )
     }
-    val actions = BrowserUiActions(
-        onNavigateBack = onNavigateBack,
-        onNavigateTo = onNavigateTo,
-        onOpenFile = onOpenFile,
-        onToggleSelection = onToggleSelection,
-        onSelectMultiple = onSelectMultiple,
-        onClearSelection = onClearSelection,
-        onCreateFolder = onCreateFolder,
-        onCreateFile = onCreateFile,
-        onCreateFakeFile = onCreateFakeFile,
-        onRequestDeleteSelected = onRequestDeleteSelected,
-        onConfirmDelete = onConfirmDelete,
-        onTogglePermanentDelete = onTogglePermanentDelete,
-        onToggleShred = onToggleShred,
-        onDismissDeleteConfirmation = onDismissDeleteConfirmation,
-        onRenameFile = onRenameFile,
-        onSearchQueryChange = onSearchQueryChange,
-        onClearSearch = onClearSearch,
-        onPresentationChange = onPresentationChange,
-        onClearError = onClearError,
-        onCopySelected = onCopySelected,
-        onCutSelected = onCutSelected,
-        onPasteFromClipboard = onPasteFromClipboard,
-        onCancelClipboard = onCancelClipboard,
-        onShareSelected = onShareSelected,
-        onClearFileOperationStatusMessage = onClearFileOperationStatusMessage,
-        onOpenProperties = onOpenProperties,
-        onDismissProperties = onDismissProperties,
-        onClearActiveFileOperation = onClearActiveFileOperation,
-        onDismissConflictDialog = onDismissConflictDialog,
-        onRefresh = onRefresh,
-        onSearchFiltersChange = onSearchFiltersChange,
-        onToggleSearchFilterMenu = onToggleSearchFilterMenu,
-        onResolvingConflicts = onResolvingConflicts,
-        onPinToQuickAccess = onPinToQuickAccess,
-        onNativeRequestResult = onNativeRequestResult,
-        onInvertSelection = onInvertSelection,
-        onSelectAll = onSelectAll,
-        onRemoveFromClipboard = onRemoveFromClipboard,
-        onSelectFolderTab = onSelectFolderTab,
-        onExtractArchive = onExtractArchive,
-        onExtractSelectedArchiveEntries = onExtractSelectedArchiveEntries,
-        onExtractCurrentArchiveFolder = onExtractCurrentArchiveFolder,
-        onCreateZipFromSelection = onCreateZipFromSelection,
-        onCreateArchiveFromSelection = onCreateArchiveFromSelection,
-        onSubmitArchivePassword = onSubmitArchivePassword,
-        onDismissArchivePassword = onDismissArchivePassword,
-        onUndoLastTrashMove = onUndoLastTrashMove,
-        onClearPendingTrashUndo = onClearPendingTrashUndo,
-        onRetryRecoveredOperation = onRetryRecoveredOperation,
-        onCleanupRecoveredOperation = onCleanupRecoveredOperation,
-        onDismissRecoveredOperation = onDismissRecoveredOperation
-    )
+    BrowserScrollEffects(state, scroll, resumeRestoreTick)
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
     val switchCategoryFolderTab: (Int) -> Unit = { direction ->
@@ -295,100 +175,6 @@ fun BrowserScreen(
                 onSelectFolderTab(categoryFolderTabs[nextIndex].path)
             }
         }
-    }
-
-    val scrollResetKey = scrollPositionKey
-    var restoredScrollKey by remember { mutableStateOf<String?>(null) }
-    var lastScrollResetKey by rememberSaveable { mutableStateOf(scrollResetKey) }
-    var pendingScrollReset by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(scrollResetKey) {
-        if (scrollResetKey != lastScrollResetKey) {
-            pendingScrollReset = true
-            lastScrollResetKey = scrollResetKey
-        }
-    }
-    LaunchedEffect(scrollResetKey, displayedFiles.size) {
-        if (pendingScrollReset && displayedFiles.isNotEmpty()) {
-            listState.scrollToItem(0)
-            gridState.scrollToItem(0)
-            onClearScrollPosition(scrollPositionKey)
-            restoredScrollKey = scrollPositionKey
-            pendingScrollReset = false
-        }
-    }
-    LaunchedEffect(scrollPositionKey, resumeRestoreTick, displayedFiles.size, state.displayState.visibleListRows.size, state.displayState.visibleGridRows.size, pendingScrollReset) {
-        if (!pendingScrollReset && displayedFiles.isNotEmpty()) {
-            val shouldRestore = restoredScrollKey != scrollPositionKey || resumeRestoreTick > 0
-            if (shouldRestore) savedScrollPositionProvider(scrollPositionKey)?.let { position ->
-                val listIndex = position.listIndex.coerceAtMost(state.displayState.visibleListRows.lastIndex.coerceAtLeast(0))
-                val gridIndex = position.gridIndex.coerceAtMost(state.displayState.visibleGridRows.lastIndex.coerceAtLeast(0))
-                if (state.browserViewMode == FileViewMode.GRID) {
-                    gridState.scrollToItem(gridIndex, position.gridOffset)
-                } else {
-                    listState.scrollToItem(listIndex, position.listOffset)
-                }
-            }
-            restoredScrollKey = scrollPositionKey
-        }
-    }
-    LaunchedEffect(pendingRevealFilePath, pendingRevealReady, displayedFiles.size, state.browserViewMode) {
-        val revealPath = pendingRevealFilePath
-        val index = pendingRevealIndex
-        if (pendingRevealReady && !revealPath.isNullOrBlank() && index != null) {
-                if (state.browserViewMode == FileViewMode.GRID) {
-                    gridState.scrollToItem(index)
-                } else {
-                    listState.scrollToItem(index)
-                }
-                onSaveScrollPosition(
-                    scrollPositionKey,
-                    BrowserScrollPosition(
-                        listIndex = index,
-                        listOffset = 0,
-                        gridIndex = index,
-                        gridOffset = 0
-                    )
-                )
-                onConsumePendingReveal(revealPath)
-                restoredScrollKey = scrollPositionKey
-        }
-    }
-    LaunchedEffect(scrollPositionKey, state.displayState.visibleListRows.size, state.displayState.visibleGridRows.size, restoredScrollKey, listState, gridState) {
-        snapshotFlow {
-            BrowserScrollCapture(
-                hasRows = state.displayState.visibleListRows.isNotEmpty() || state.displayState.visibleGridRows.isNotEmpty(),
-                isScrollInProgress = listState.isScrollInProgress || gridState.isScrollInProgress,
-                position = BrowserScrollPosition(
-                    listIndex = listState.firstVisibleItemIndex,
-                    listOffset = listState.firstVisibleItemScrollOffset,
-                    gridIndex = gridState.firstVisibleItemIndex,
-                    gridOffset = gridState.firstVisibleItemScrollOffset
-                )
-            )
-        }
-            .distinctUntilChanged()
-            .collect { capture ->
-                if (capture.hasRows && restoredScrollKey == scrollPositionKey) {
-                    if (
-                        (!capture.isScrollInProgress && !capture.position.isAtTop()) ||
-                        (capture.isScrollInProgress && capture.position.isAtTop())
-                    ) {
-                        onSaveScrollPosition(scrollPositionKey, capture.position)
-                    } else {
-                        savedScrollPositionProvider(scrollPositionKey)
-                            ?.takeUnless { it.isAtTop() }
-                            ?.let { position ->
-                                val listIndex = position.listIndex.coerceAtMost(state.displayState.visibleListRows.lastIndex.coerceAtLeast(0))
-                                val gridIndex = position.gridIndex.coerceAtMost(state.displayState.visibleGridRows.lastIndex.coerceAtLeast(0))
-                                if (state.browserViewMode == FileViewMode.GRID) {
-                                    gridState.scrollToItem(gridIndex, position.gridOffset)
-                                } else {
-                                    listState.scrollToItem(listIndex, position.listOffset)
-                                }
-                            }
-                    }
-                }
-            }
     }
 
     LaunchedEffect(state.browserSearchQuery) {
@@ -463,7 +249,7 @@ fun BrowserScreen(
                 BrowserBackAction.NavigateFolderUp,
                 BrowserBackAction.PopRoute,
                 BrowserBackAction.ExitApp -> onNavigateBack()
-                null -> Unit
+                else -> Unit
             }
         } catch (e: Exception) {
             // Cancelled
@@ -550,7 +336,10 @@ fun BrowserScreen(
                     onShowSearchBarChange = { showSearchBar = it },
                     scrollBehavior = scrollBehavior,
                     dialogVisibility = dialogVisibility,
-                    actions = actions,
+                    searchIntents = intents.search,
+                    selectionIntents = intents.selection,
+                    mutationIntents = intents.mutation,
+                    clipboardIntents = intents.clipboard,
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
                     onShowPinnedSnackbar = { label ->
@@ -602,7 +391,9 @@ fun BrowserScreen(
                     layoutDirection = layoutDirection,
                     listState = listState,
                     gridState = gridState,
-                    actions = actions,
+                    navigationIntents = intents.navigation,
+                    selectionIntents = intents.selection,
+                    searchIntents = intents.search,
                     onShowSearchBarChange = { showSearchBar = it },
                     onSwitchCategoryFolderTab = switchCategoryFolderTab
                 )
@@ -624,7 +415,10 @@ fun BrowserScreen(
                     isFabExpanded = isFabExpanded,
                     onFabExpandedChange = { isFabExpanded = it },
                     dialogVisibility = dialogVisibility,
-                    actions = actions,
+                    selectionIntents = intents.selection,
+                    mutationIntents = intents.mutation,
+                    clipboardIntents = intents.clipboard,
+                    operationIntents = intents.operation,
                     onOperationSucceeded = { haptics.success() },
                     onOperationFailed = { haptics.error() }
                 )
@@ -636,15 +430,10 @@ fun BrowserScreen(
         state = state,
         currentPresentation = currentPresentation,
         dialogVisibility = dialogVisibility,
-        actions = actions
+        selectionIntents = intents.selection,
+        mutationIntents = intents.mutation,
+        searchIntents = intents.search,
+        clipboardIntents = intents.clipboard,
+        archiveIntents = intents.archive
     )
 }
-
-private data class BrowserScrollCapture(
-    val hasRows: Boolean,
-    val isScrollInProgress: Boolean,
-    val position: BrowserScrollPosition
-)
-
-private fun BrowserScrollPosition.isAtTop(): Boolean =
-    listIndex == 0 && listOffset == 0 && gridIndex == 0 && gridOffset == 0

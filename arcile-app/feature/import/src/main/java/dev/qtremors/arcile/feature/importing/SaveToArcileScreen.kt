@@ -52,7 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

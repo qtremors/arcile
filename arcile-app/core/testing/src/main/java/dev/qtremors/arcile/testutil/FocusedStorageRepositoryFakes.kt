@@ -25,6 +25,7 @@ import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
+import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -373,6 +374,11 @@ class FakeStorageRepositoryBundle(
         get() = trashRepository.restoreFromTrashResultProvider
         set(value) {
             trashRepository.restoreFromTrashResultProvider = value
+        }
+    var restoreFromTrashMutationResultProvider: (suspend (List<String>, String?) -> StorageMutationResult)?
+        get() = trashRepository.restoreFromTrashMutationResultProvider
+        set(value) {
+            trashRepository.restoreFromTrashMutationResultProvider = value
         }
     var emptyTrashResult: Result<Unit>
         get() = trashRepository.emptyTrashResult

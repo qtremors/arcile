@@ -44,8 +44,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.filled.Refresh
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -67,20 +67,20 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
-import dev.qtremors.arcile.feature.browser.BrowserState
+import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
-import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
-import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.menus.ExpandableFabMenu
-import dev.qtremors.arcile.shared.ui.menus.FabMenuItem
-import dev.qtremors.arcile.ui.theme.LocalSemanticColors
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.menus.ExpandableFabMenu
+import dev.qtremors.arcile.core.ui.menus.FabMenuItem
+import dev.qtremors.arcile.core.ui.theme.LocalSemanticColors
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.delay
 
 private const val PROGRESS_PILL_TERMINAL_HOLD_MS = 800L
@@ -88,7 +88,7 @@ private const val PROGRESS_PILL_WIDTH_DP = 192
 
 @Composable
 internal fun BrowserCreateFab(
-    state: BrowserState,
+    state: BrowserUiState,
     showSearchBar: Boolean,
     isFabExpanded: Boolean,
     fabIconRotation: Float,
@@ -144,12 +144,15 @@ internal fun BrowserCreateFab(
 
 @Composable
 internal fun BrowserFloatingSurfaces(
-    state: BrowserState,
+    state: BrowserUiState,
     scaffoldPadding: PaddingValues,
     isFabExpanded: Boolean,
     onFabExpandedChange: (Boolean) -> Unit,
     dialogVisibility: BrowserDialogVisibility,
-    actions: BrowserUiActions,
+    selectionIntents: BrowserSelectionIntents,
+    mutationIntents: BrowserMutationIntents,
+    clipboardIntents: BrowserClipboardIntents,
+    operationIntents: BrowserOperationIntents,
     onOperationSucceeded: () -> Unit,
     onOperationFailed: () -> Unit
 ) {
@@ -184,17 +187,20 @@ internal fun BrowserFloatingSurfaces(
             BrowserSelectionToolbar(
                 state = state,
                 dialogVisibility = dialogVisibility,
-                actions = actions
+                selectionIntents = selectionIntents,
+                mutationIntents = mutationIntents,
+                clipboardIntents = clipboardIntents
             )
         } else if (state.archiveContext != null && state.activeFileOperation == null) {
             BrowserArchiveToolbar(dialogVisibility = dialogVisibility)
         } else if (state.activeRecoveryOperation != null) {
-            BrowserRecoveryToolbar(state = state, actions = actions)
+            BrowserRecoveryToolbar(state = state, operationIntents = operationIntents)
         } else if (state.clipboardState != null || state.activeFileOperation != null) {
             BrowserClipboardOperationToolbar(
                 state = state,
                 dialogVisibility = dialogVisibility,
-                actions = actions,
+                clipboardIntents = clipboardIntents,
+                operationIntents = operationIntents,
                 onOperationSucceeded = onOperationSucceeded,
                 onOperationFailed = onOperationFailed,
                 onProgressClick = { showDetailedProgressSheet = true }
@@ -205,7 +211,7 @@ internal fun BrowserFloatingSurfaces(
     if (showDetailedProgressSheet && state.activeFileOperation != null) {
         OperationProgressDetailsSheet(
             activeOp = state.activeFileOperation,
-            actions = actions,
+            clipboardIntents = clipboardIntents,
             onDismissRequest = { showDetailedProgressSheet = false }
         )
     }
@@ -228,279 +234,11 @@ private fun BrowserArchiveToolbar(
 }
 
 @Composable
-private fun BrowserRecoveryToolbar(
-    state: BrowserState,
-    actions: BrowserUiActions
-) {
-    val recovery = state.activeRecoveryOperation ?: return
-    Surface(
-        shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        tonalElevation = 4.dp,
-        shadowElevation = 2.dp,
-        modifier = Modifier
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .widthIn(max = 560.dp)
-            .fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(20.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.file_operation_recovery_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = recoverySummary(state),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.86f),
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val onDismissClick = { actions.onDismissRecoveredOperation(recovery.operationId) }
-                OutlinedButton(
-                    onClick = onDismissClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = onDismissClick)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.file_operation_recovery_dismiss))
-                }
-                val onCleanupClick = { actions.onCleanupRecoveredOperation(recovery.operationId) }
-                OutlinedButton(
-                    onClick = onCleanupClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = onCleanupClick)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DeleteSweep,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.file_operation_recovery_cleanup))
-                }
-                val onRetryClick = { actions.onRetryRecoveredOperation(recovery.operationId) }
-                Button(
-                    onClick = onRetryClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = onRetryClick)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.file_operation_recovery_retry))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun recoverySummary(state: BrowserState): String {
-    val recovery = state.activeRecoveryOperation ?: return ""
-    val operationName = when (recovery.type) {
-        BulkFileOperationType.COPY -> stringResource(R.string.file_operation_copying_files)
-        BulkFileOperationType.MOVE -> stringResource(R.string.file_operation_moving_files)
-        BulkFileOperationType.TRASH -> stringResource(R.string.file_operation_moving_files_to_trash)
-        BulkFileOperationType.DELETE -> stringResource(R.string.file_operation_deleting_files)
-        BulkFileOperationType.SHRED -> stringResource(R.string.file_operation_shredding_files)
-        BulkFileOperationType.CREATE_FAKE -> stringResource(R.string.file_operation_creating_fake_file)
-        BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
-        BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
-        BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
-    }
-    val current = recovery.currentPath?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
-    val progress = stringResource(
-        R.string.transfer_progress_items,
-        recovery.completedItems,
-        recovery.totalItems
-    )
-    return listOfNotNull(
-        stringResource(R.string.file_operation_recovery_body, operationName, progress),
-        current?.let { stringResource(R.string.file_operation_recovery_current_file, it) }
-    ).joinToString(" ")
-}
-
-@Composable
-private fun BrowserSelectionToolbar(
-    state: BrowserState,
-    dialogVisibility: BrowserDialogVisibility,
-    actions: BrowserUiActions
-) {
-    val isArchiveSelection = state.archiveContext != null
-    val selectedArchive = state.selectedFiles.singleOrNull()?.let { ArchiveFormat.isSupported(it) } == true
-    val mainActions = mutableListOf<ToolbarAction>()
-    if (isArchiveSelection) {
-        mainActions.add(
-            ToolbarAction(
-                icon = Icons.Default.Unarchive,
-                contentDescription = stringResource(R.string.archive_extract_archive),
-                onClick = { dialogVisibility.showExtractArchiveDialog = true }
-            )
-        )
-    } else {
-        mainActions.add(
-            ToolbarAction(
-                icon = Icons.Default.ContentCopy,
-                contentDescription = stringResource(R.string.action_copy),
-                onClick = actions.onCopySelected
-            )
-        )
-        mainActions.add(
-            ToolbarAction(
-                icon = Icons.Default.ContentCut,
-                contentDescription = stringResource(R.string.action_cut),
-                onClick = actions.onCutSelected
-            )
-        )
-        mainActions.add(
-            ToolbarAction(
-                icon = Icons.Default.Delete,
-                contentDescription = stringResource(R.string.action_delete_selected),
-                tint = MaterialTheme.colorScheme.error,
-                onClick = actions.onRequestDeleteSelected
-            )
-        )
-        if (state.selectedFiles.size == 1) {
-            mainActions.add(
-                ToolbarAction(
-                    icon = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.action_rename),
-                    onClick = { dialogVisibility.showRenameDialog = true }
-                )
-            )
-        }
-    }
-
-    FloatingSelectionToolbar(
-        isVisible = true,
-        actions = mainActions,
-        moreContent = {
-            var showSelectionMenu by rememberSaveable { mutableStateOf(false) }
-            Box {
-                Surface(
-                    onClick = { showSelectionMenu = true },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    shadowElevation = 4.dp,
-                    tonalElevation = 4.dp,
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.action_more_options),
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                DropdownMenu(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    expanded = showSelectionMenu,
-                    onDismissRequest = { showSelectionMenu = false }
-                ) {
-                    val menuActions = remember(actions.onShareSelected, state.selectedFiles, isArchiveSelection) {
-                        mutableListOf<@Composable () -> Unit>().apply {
-                            if (!isArchiveSelection) add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.archive_compress_zip)) },
-                                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        dialogVisibility.showCreateArchiveDialog = true
-                                    }
-                                )
-                            }
-                            if (selectedArchive) {
-                                add {
-                                    ArcileDropdownMenuItem(
-                                        text = { Text(stringResource(R.string.archive_extract_here)) },
-                                        leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
-                                        onClick = {
-                                            showSelectionMenu = false
-                                            dialogVisibility.showExtractArchiveDialog = true
-                                        }
-                                    )
-                                }
-                            }
-                            if (!isArchiveSelection) add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.share)) },
-                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        actions.onShareSelected()
-                                    }
-                                )
-                            }
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.properties_title)) },
-                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        actions.onOpenProperties()
-                                    }
-                                )
-                            }
-                        }
-                    }
-
-                    menuActions.forEachIndexed { index, action ->
-                        val shape = when {
-                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                            else -> MaterialTheme.shapes.menuGroupMiddle
-                        }
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                                .clip(shape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        ) {
-                            action()
-                        }
-                    }
-                }
-            }
-        }
-    )
-}
-
-@Composable
 private fun BrowserClipboardOperationToolbar(
-    state: BrowserState,
+    state: BrowserUiState,
     dialogVisibility: BrowserDialogVisibility,
-    actions: BrowserUiActions,
+    clipboardIntents: BrowserClipboardIntents,
+    operationIntents: BrowserOperationIntents,
     onOperationSucceeded: () -> Unit,
     onOperationFailed: () -> Unit,
     onProgressClick: () -> Unit
@@ -513,13 +251,13 @@ private fun BrowserClipboardOperationToolbar(
             OperationCompletionStatus.SUCCESS -> {
                 onOperationSucceeded()
                 delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
-                actions.onClearActiveFileOperation()
+                operationIntents.onClearActiveFileOperation()
             }
             OperationCompletionStatus.FAILED,
             OperationCompletionStatus.CANCELLED -> {
                 onOperationFailed()
                 delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
-                actions.onClearActiveFileOperation()
+                operationIntents.onClearActiveFileOperation()
             }
             null -> Unit
         }
@@ -554,7 +292,7 @@ private fun BrowserClipboardOperationToolbar(
                 contentDescription = stringResource(R.string.action_cancel_transfer),
                 containerColor = MaterialTheme.colorScheme.error,
                 tint = Color.White,
-                onClick = actions.onCancelClipboard
+                onClick = clipboardIntents.onCancelClipboard
             )
         )
     } else if (activeOp == null) {
@@ -562,14 +300,14 @@ private fun BrowserClipboardOperationToolbar(
             ToolbarAction(
                 icon = Icons.Default.ContentPaste,
                 contentDescription = stringResource(R.string.action_paste_here),
-                onClick = actions.onPasteFromClipboard
+                onClick = clipboardIntents.onPasteFromClipboard
             ),
             ToolbarAction(
                 icon = Icons.Default.Close,
                 contentDescription = stringResource(R.string.action_cancel_transfer),
                 containerColor = MaterialTheme.colorScheme.error,
                 tint = Color.White,
-                onClick = actions.onCancelClipboard
+                onClick = clipboardIntents.onCancelClipboard
             )
         )
     } else {

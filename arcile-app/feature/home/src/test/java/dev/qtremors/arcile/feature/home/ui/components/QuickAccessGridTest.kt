@@ -2,8 +2,8 @@ package dev.qtremors.arcile.feature.home.ui.components
 
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
-import dev.qtremors.arcile.shared.ui.packageNameForQuickAccessItem
-import dev.qtremors.arcile.shared.ui.selectDocumentsUiPackageName
+import dev.qtremors.arcile.core.ui.packageNameForQuickAccessItem
+import dev.qtremors.arcile.core.ui.selectDocumentsUiPackageName
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

@@ -85,17 +85,17 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
-import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet
-import dev.qtremors.arcile.shared.ui.settings.accentLabelRes
-import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
+import dev.qtremors.arcile.core.ui.settings.AccentColorPickerSheet
+import dev.qtremors.arcile.core.ui.settings.accentLabelRes
+import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import androidx.activity.compose.PredictiveBackHandler
-import dev.qtremors.arcile.ui.theme.ThemeState
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.spacing
 import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun OnboardingScreen(
+internal fun OnboardingScreen(
     state: OnboardingUiState,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,

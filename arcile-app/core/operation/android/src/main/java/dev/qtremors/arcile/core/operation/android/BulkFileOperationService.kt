@@ -17,7 +17,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -27,9 +27,9 @@ import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
-import dev.qtremors.arcile.core.storage.domain.userMessage
+import dev.qtremors.arcile.core.presentation.userMessage
 import dev.qtremors.arcile.core.ui.asString
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope

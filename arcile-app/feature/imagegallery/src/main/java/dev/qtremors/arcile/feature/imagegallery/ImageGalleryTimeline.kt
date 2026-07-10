@@ -28,7 +28,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.foundation.clickable
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -79,7 +79,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -154,34 +154,34 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailPolicy
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 
 @Composable
-fun GallerySectionHeader(
+internal fun GallerySectionHeader(
     title: String,
     modifier: Modifier = Modifier
 ) {
@@ -208,19 +208,19 @@ fun GallerySectionHeader(
     }
 }
 
-enum class TimeSection {
+internal enum class TimeSection {
     TODAY, WEEK, MONTH, OLDER
 }
 
 @Composable
-fun TimeSection.toDisplayString(): String = when (this) {
+internal fun TimeSection.toDisplayString(): String = when (this) {
     TimeSection.TODAY -> stringResource(R.string.image_gallery_section_today)
     TimeSection.WEEK -> stringResource(R.string.image_gallery_section_week)
     TimeSection.MONTH -> stringResource(R.string.image_gallery_section_month)
     TimeSection.OLDER -> stringResource(R.string.image_gallery_section_older)
 }
 
-fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): TimeSection {
+internal fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): TimeSection {
     val diff = now - lastModified
     val oneDay = 24 * 60 * 60 * 1000L
     val oneWeek = 7 * oneDay
@@ -233,13 +233,13 @@ fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): 
     }
 }
 
-data class GroupKey(val label: String, val timestamp: Long) : Comparable<GroupKey> {
+internal data class GroupKey(val label: String, val timestamp: Long) : Comparable<GroupKey> {
     override fun compareTo(other: GroupKey): Int {
         return other.timestamp.compareTo(this.timestamp)
     }
 }
 
-fun getWeekLabel(timestamp: Long): String {
+internal fun getWeekLabel(timestamp: Long): String {
     val cal = java.util.Calendar.getInstance()
     cal.timeInMillis = timestamp
     cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -262,5 +262,5 @@ fun getWeekLabel(timestamp: Long): String {
     return "${weekFormatter.format(startDate)} - ${weekFormatter.format(endDate)}, ${yearFormatter.format(startDate)}"
 }
 
-const val GALLERY_MAX_THUMBNAIL_PX = 512
+internal const val GALLERY_MAX_THUMBNAIL_PX = 512
 

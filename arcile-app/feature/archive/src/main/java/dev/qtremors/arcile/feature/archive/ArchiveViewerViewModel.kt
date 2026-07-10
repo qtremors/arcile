@@ -1,22 +1,20 @@
 package dev.qtremors.arcile.feature.archive
 
-import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
-import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
-import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
+import dev.qtremors.arcile.core.presentation.OperationPresentationMapper
+import dev.qtremors.arcile.core.presentation.SelectionReducer
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,65 +25,11 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
-data class ArchiveBrowserItem(
-    val name: String,
-    val path: String,
-    val size: Long,
-    val lastModified: Long?,
-    val isDirectory: Boolean,
-    val childCount: Int = 0
-)
-
-data class ArchiveOperationUiState(
-    val totalItems: Int,
-    val completedItems: Int = 0,
-    val currentPath: String? = null,
-    val isCancelling: Boolean = false,
-    val terminalStatus: OperationCompletionStatus? = null
-)
-
-enum class ArchiveOperationStatusMessage {
-    ExtractionComplete,
-    ExtractionCancelled
-}
-
-data class ArchiveViewerState(
-    val archivePath: String = "",
-    val currentPrefix: String? = null,
-    val searchQuery: String = "",
-    val summary: ArchiveSummary? = null,
-    val entries: List<ArchiveEntryModel> = emptyList(),
-    val visibleItems: List<ArchiveBrowserItem> = emptyList(),
-    val isLoading: Boolean = true,
-    val error: String? = null,
-    val passwordRequired: Boolean = false,
-    val archivePassword: String? = null,
-    val nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
-    val pendingConflicts: List<FileConflict> = emptyList(),
-    val conflictResolutions: Map<String, ConflictResolution> = emptyMap(),
-    val pendingExtractionPrefix: String? = null,
-    val pendingExtractionPassword: String? = null,
-    val activeOperation: ArchiveOperationUiState? = null,
-    val operationStatusMessage: ArchiveOperationStatusMessage? = null,
-    val selectedItems: Set<String> = emptySet(),
-    val pendingExtractionPrefixes: List<String> = emptyList()
-) {
-    val archiveFormat: ArchiveFormat? get() = ArchiveFormat.fromPath(archivePath)
-    val breadcrumbSegments: List<Pair<String, String?>> get() {
-        val prefix = currentPrefix?.trimEnd('/')?.takeIf { it.isNotBlank() } ?: return listOf("Root" to null)
-        val segments = prefix.split('/').filter { it.isNotBlank() }
-        return listOf("Root" to null) + segments.mapIndexed { index, segment ->
-            segment to segments.take(index + 1).joinToString("/")
-        }
-    }
-}
-
 @HiltViewModel
-class ArchiveViewerViewModel @Inject constructor(
+internal class ArchiveViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ArchiveRepository,
-    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
-    @ApplicationContext private val context: Context
+    private val bulkFileOperationCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
     private val archivePath = savedStateHandle.get<String>("archivePath").orEmpty()
 
@@ -111,7 +55,7 @@ class ArchiveViewerViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         isLoading = false,
-                        error = message,
+                        error = UiText.Dynamic(message),
                         passwordRequired = message.contains("password", ignoreCase = true)
                     )
                 }
@@ -122,7 +66,7 @@ class ArchiveViewerViewModel @Inject constructor(
                 it.copy(
                     entries = entries,
                     summary = metadataResult.getOrThrow(),
-                    visibleItems = buildVisibleItems(entries, it.currentPrefix, it.searchQuery),
+                    visibleItems = buildArchiveBrowserItems(entries, it.currentPrefix, it.searchQuery),
                     isLoading = false,
                     passwordRequired = false
                 )
@@ -145,7 +89,7 @@ class ArchiveViewerViewModel @Inject constructor(
         _state.update {
             it.copy(
                 currentPrefix = path,
-                visibleItems = buildVisibleItems(it.entries, path, it.searchQuery),
+                visibleItems = buildArchiveBrowserItems(it.entries, path, it.searchQuery),
                 selectedItems = emptySet()
             )
         }
@@ -155,7 +99,7 @@ class ArchiveViewerViewModel @Inject constructor(
         _state.update {
             it.copy(
                 searchQuery = query,
-                visibleItems = buildVisibleItems(it.entries, it.currentPrefix, query),
+                visibleItems = buildArchiveBrowserItems(it.entries, it.currentPrefix, query),
                 selectedItems = emptySet()
             )
         }
@@ -163,8 +107,7 @@ class ArchiveViewerViewModel @Inject constructor(
 
     fun toggleItemSelection(path: String) {
         _state.update { state ->
-            val next = if (state.selectedItems.contains(path)) state.selectedItems - path else state.selectedItems + path
-            state.copy(selectedItems = next)
+            state.copy(selectedItems = SelectionReducer.toggle(state.selectedItems, path))
         }
     }
 
@@ -174,7 +117,7 @@ class ArchiveViewerViewModel @Inject constructor(
 
     fun selectAllVisible() {
         _state.update { state ->
-            state.copy(selectedItems = state.visibleItems.map { it.path }.toSet())
+            state.copy(selectedItems = SelectionReducer.all(state.visibleItems.map(ArchiveBrowserItem::path)))
         }
     }
 
@@ -184,7 +127,7 @@ class ArchiveViewerViewModel @Inject constructor(
         _state.update {
             it.copy(
                 currentPrefix = parent,
-                visibleItems = buildVisibleItems(it.entries, parent, it.searchQuery),
+                visibleItems = buildArchiveBrowserItems(it.entries, parent, it.searchQuery),
                 selectedItems = emptySet()
             )
         }
@@ -298,7 +241,11 @@ class ArchiveViewerViewModel @Inject constructor(
                 },
                 onFailure = { error ->
                     _state.update {
-                        it.copy(error = error.message ?: context.getString(R.string.archive_conflict_inspection_failed))
+                        it.copy(
+                            error = error.message
+                                ?.let(UiText::Dynamic)
+                                ?: UiText.StringResource(R.string.archive_conflict_inspection_failed)
+                        )
                     }
                 }
             )
@@ -327,10 +274,7 @@ class ArchiveViewerViewModel @Inject constructor(
                         if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
                         _state.update {
                             it.copy(
-                                activeOperation = ArchiveOperationUiState(
-                                    totalItems = event.request.sourcePaths.size,
-                                    currentPath = event.request.archiveEntryPrefix ?: event.request.sourcePaths.firstOrNull()
-                                ),
+                                activeOperation = OperationPresentationMapper.map(event.request),
                                 operationStatusMessage = null
                             )
                         }
@@ -339,11 +283,10 @@ class ArchiveViewerViewModel @Inject constructor(
                         if (!event.request.isCurrentArchiveExtraction()) return@collectLatest
                         _state.update {
                             it.copy(
-                                activeOperation = ArchiveOperationUiState(
-                                    totalItems = event.progress.totalItems,
-                                    completedItems = event.progress.completedItems,
-                                    currentPath = event.progress.currentPath,
-                                    isCancelling = false
+                                activeOperation = OperationPresentationMapper.map(
+                                    request = event.request,
+                                    progress = event.progress,
+                                    previous = it.activeOperation
                                 )
                             )
                         }
@@ -353,9 +296,8 @@ class ArchiveViewerViewModel @Inject constructor(
                         _state.update { currentState ->
                             currentState.copy(
                                 activeOperation = currentState.activeOperation?.copy(isCancelling = true)
-                                    ?: ArchiveOperationUiState(
-                                        totalItems = event.request.sourcePaths.size,
-                                        currentPath = event.request.archiveEntryPrefix,
+                                    ?: OperationPresentationMapper.map(
+                                        request = event.request,
                                         isCancelling = true
                                     )
                             )
@@ -391,7 +333,7 @@ class ArchiveViewerViewModel @Inject constructor(
                         _state.update {
                             it.copy(
                                 activeOperation = it.activeOperation?.copy(terminalStatus = OperationCompletionStatus.FAILED),
-                                error = event.message,
+                                error = UiText.Dynamic(event.message),
                                 pendingExtractionPrefixes = emptyList()
                             )
                         }
@@ -417,49 +359,6 @@ class ArchiveViewerViewModel @Inject constructor(
 
     private fun dev.qtremors.arcile.core.operation.BulkFileOperationRequest.isCurrentArchiveExtraction(): Boolean =
         type == BulkFileOperationType.EXTRACT_ARCHIVE && sourcePaths.firstOrNull() == archivePath
-
-    private fun buildVisibleItems(entries: List<ArchiveEntryModel>, prefix: String?, searchQuery: String): List<ArchiveBrowserItem> {
-        val normalizedPrefix = prefix?.trimEnd('/')?.takeIf { it.isNotBlank() }
-        val normalizedQuery = searchQuery.trim().lowercase().takeIf { it.isNotBlank() }
-        val children = linkedMapOf<String, ArchiveBrowserItem>()
-        entries.forEach { entry ->
-            if (normalizedQuery != null && !entry.path.lowercase().contains(normalizedQuery)) return@forEach
-            val path = entry.path.trim('/')
-            val remainder = if (normalizedPrefix == null) {
-                path
-            } else if (path == normalizedPrefix) {
-                ""
-            } else if (path.startsWith("$normalizedPrefix/")) {
-                path.removePrefix("$normalizedPrefix/")
-            } else {
-                return@forEach
-            }
-            if (remainder.isBlank()) return@forEach
-            val childName = remainder.substringBefore('/')
-            val childPath = if (normalizedPrefix == null) childName else "$normalizedPrefix/$childName"
-            val isFolder = remainder.contains('/') || entries.any { it.isDirectory && it.path.trimEnd('/') == childPath }
-            val childCount = if (isFolder) {
-                entries.count { candidate ->
-                    val candidatePath = candidate.path.trim('/')
-                    candidatePath.startsWith("$childPath/") && candidatePath.removePrefix("$childPath/").trim('/').isNotBlank()
-                }
-            } else {
-                0
-            }
-            val existing = children[childPath]
-            if (existing == null || (!isFolder && existing.isDirectory)) {
-                children[childPath] = ArchiveBrowserItem(
-                    name = childName,
-                    path = childPath,
-                    size = if (isFolder) 0L else entry.size,
-                    lastModified = entry.lastModified,
-                    isDirectory = isFolder,
-                    childCount = childCount
-                )
-            }
-        }
-        return children.values.sortedWith(compareBy<ArchiveBrowserItem> { !it.isDirectory }.thenBy { it.name.lowercase() })
-    }
 
     private fun File.archiveBaseName(): String {
         val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension

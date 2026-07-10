@@ -27,7 +27,7 @@ import dev.qtremors.arcile.feature.browser.BrowserRouteStatus
 import dev.qtremors.arcile.feature.home.HomeDestination
 import dev.qtremors.arcile.feature.home.HomeRoute
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 

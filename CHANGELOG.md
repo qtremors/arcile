@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.3.9
-> **Last Updated:** 2026-07-05
+> **Version:** 1.4.0
+> **Last Updated:** 2026-07-10
 
 ---
+
+## [1.4.0] - 2026-07-10
+
+- **Architecture Reliability**: Completed feature ownership for browsing, Home, galleries, storage tools, settings, recents, trash, onboarding, archives, and plugin viewers.
+- **Storage Reliability**: Split storage browsing, mutations, media, volumes, and trash into focused repositories with clearer runtime boundaries.
+- **Interface Consistency**: Consolidated shared workflow feedback, viewer navigation, theming, and reusable file-management presentation.
 
 ## [1.3.9] - 2026-07-05
 

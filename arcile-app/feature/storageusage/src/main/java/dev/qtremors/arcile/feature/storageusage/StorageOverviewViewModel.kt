@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 @Immutable
-data class StorageOverviewState(
+internal data class StorageOverviewState(
     val selectedVolumeId: String? = null,
     val allStorageVolumes: List<StorageVolume> = emptyList(),
     val storageInfo: StorageInfo? = null,
@@ -49,7 +49,7 @@ data class StorageOverviewState(
 }
 
 @HiltViewModel
-class StorageOverviewViewModel @Inject constructor(
+internal class StorageOverviewViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val storageAnalyticsRepository: StorageAnalyticsRepository,
     private val classificationStore: StorageClassificationStore,

@@ -83,8 +83,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Job
@@ -94,7 +94,7 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 
 @Composable
-fun ZoomableImageViewer(
+internal fun ZoomableImageViewer(
     file: FileModel,
     rotation: Float,
     onDismiss: () -> Unit,
@@ -435,7 +435,7 @@ fun ZoomableImageViewer(
 }
 
 // Reusable utility method for format size
-fun formatFileSize(size: Long): String {
+internal fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
@@ -443,7 +443,7 @@ fun formatFileSize(size: Long): String {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-enum class DragDirection {
+internal enum class DragDirection {
     VERTICAL, HORIZONTAL
 }
 

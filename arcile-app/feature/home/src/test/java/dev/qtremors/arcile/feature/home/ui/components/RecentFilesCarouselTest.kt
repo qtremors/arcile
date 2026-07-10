@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.feature.home.ui.components
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

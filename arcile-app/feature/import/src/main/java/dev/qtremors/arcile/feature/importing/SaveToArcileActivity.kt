@@ -21,12 +21,12 @@ import dev.qtremors.arcile.core.operation.android.MAX_IMPORT_BYTES
 import dev.qtremors.arcile.core.operation.android.MAX_IMPORT_ITEMS
 import dev.qtremors.arcile.core.operation.android.STREAM_BUFFER_SIZE
 import dev.qtremors.arcile.core.operation.android.sanitizeIncomingFileName
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ArcileTheme
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ArcileTheme
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.io.File
@@ -44,7 +44,7 @@ class SaveToArcileActivity : ComponentActivity() {
     lateinit var bulkFileOperationCoordinator: BulkFileOperationCoordinator
 
     @Inject
-    lateinit var browserPreferencesStore: BrowserPreferencesStore
+    lateinit var browserPreferencesStore: SaveDestinationPreferencesStore
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,7 +65,7 @@ class SaveToArcileActivity : ComponentActivity() {
                     SaveToArcileScreen(
                         incoming = preflight.accepted,
                         loadVolumes = { volumeRepository.getStorageVolumes().getOrElse { emptyList() } },
-                        loadDefaultPath = { browserPreferencesStore.preferencesFlow.first().defaultSaveToArcilePath },
+                        loadDefaultPath = { browserPreferencesStore.saveDestinationPreferencesFlow.first().defaultPath },
                         saveDefaultPath = { browserPreferencesStore.updateDefaultSaveToArcilePath(it) },
                         copyTo = { destination -> enqueueIncomingImport(destination, preflight.accepted) },
                         onCancel = { finish() },
@@ -133,7 +133,7 @@ class SaveToArcileActivity : ComponentActivity() {
 
 }
 
-data class IncomingSharedFile(
+internal data class IncomingSharedFile(
     val uri: Uri,
     val displayName: String,
     val sizeBytes: Long? = null,
@@ -141,7 +141,7 @@ data class IncomingSharedFile(
     val requiresCountedStream: Boolean = false
 )
 
-data class IncomingSharePreflightResult(
+internal data class IncomingSharePreflightResult(
     val accepted: List<IncomingSharedFile>,
     val rejected: List<IncomingShareFailure>,
     val limitExceeded: Boolean = false
@@ -150,14 +150,14 @@ data class IncomingSharePreflightResult(
         rejected.firstOrNull()?.message ?: defaultMessage
 }
 
-data class IncomingShareFailure(
+internal data class IncomingShareFailure(
     val uri: Uri?,
     val displayName: String?,
     val reason: IncomingShareFailureReason,
     val message: String
 )
 
-enum class IncomingShareFailureReason {
+internal enum class IncomingShareFailureReason {
     UnsupportedScheme,
     ExternalFileUri,
     InvalidName,
@@ -166,7 +166,7 @@ enum class IncomingShareFailureReason {
     CopyFailed
 }
 
-data class SaveIncomingResult(
+internal data class SaveIncomingResult(
     val savedCount: Int,
     val failures: List<IncomingShareFailure>,
     val queued: Boolean = false
@@ -187,9 +187,9 @@ data class SaveIncomingResult(
         }
 }
 
-data class CopyResult(val bytesCopied: Long)
+internal data class CopyResult(val bytesCopied: Long)
 
-suspend fun saveIncomingFiles(
+internal suspend fun saveIncomingFiles(
     destination: File,
     incoming: List<IncomingSharedFile>,
     openInputStream: (Uri) -> InputStream?,
@@ -242,7 +242,7 @@ suspend fun saveIncomingFiles(
     return Result.success(SaveIncomingResult(successes.size, failures))
 }
 
-object IncomingShareReader {
+internal object IncomingShareReader {
     fun fromIntent(context: Context, intent: Intent): List<IncomingSharedFile> =
         preflightFromIntent(context, intent).accepted
 
@@ -400,7 +400,7 @@ private fun keepBothTarget(destination: File, requestedName: String): File {
     return candidate
 }
 
-fun copyWithByteLimit(input: InputStream, output: java.io.OutputStream, remainingBudget: Long): CopyResult {
+internal fun copyWithByteLimit(input: InputStream, output: java.io.OutputStream, remainingBudget: Long): CopyResult {
     if (remainingBudget <= 0L) throw IOException("Shared import exceeds the 10 GB limit")
     val buffer = ByteArray(STREAM_BUFFER_SIZE)
     var copied = 0L

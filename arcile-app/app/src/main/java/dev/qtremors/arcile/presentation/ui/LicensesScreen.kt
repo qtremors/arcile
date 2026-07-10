@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.shape.CircleShape
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -38,11 +38,11 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
-import dev.qtremors.arcile.shared.ui.ArcileListSurface
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.ArcileListSurface
 
 // ──────────────────────────────────────────────────────
 // Data model for a third-party library entry

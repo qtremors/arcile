@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui.metadata
+package dev.qtremors.arcile.core.ui.metadata
 
 import android.graphics.Bitmap
 import androidx.exifinterface.media.ExifInterface

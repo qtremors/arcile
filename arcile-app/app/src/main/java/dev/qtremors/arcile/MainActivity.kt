@@ -23,11 +23,11 @@ import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.feature.onboarding.OnboardingRoute
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
-import dev.qtremors.arcile.ui.theme.ArcileTheme
-import dev.qtremors.arcile.ui.theme.ThemePreferences
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ArcileTheme
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint

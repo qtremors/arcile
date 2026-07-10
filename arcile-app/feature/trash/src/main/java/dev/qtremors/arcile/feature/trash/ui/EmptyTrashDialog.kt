@@ -13,11 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
 @Composable
-fun EmptyTrashDialog(
+internal fun EmptyTrashDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit
 ) {

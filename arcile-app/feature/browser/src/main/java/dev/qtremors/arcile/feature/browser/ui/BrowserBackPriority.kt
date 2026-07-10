@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.browser.ui
 
-enum class BrowserBackAction {
+internal enum class BrowserBackAction {
     CloseModal,
     CloseSheet,
     CloseSearch,
@@ -10,7 +10,7 @@ enum class BrowserBackAction {
     ExitApp
 }
 
-data class BrowserBackState(
+internal data class BrowserBackState(
     val hasModal: Boolean = false,
     val hasSheet: Boolean = false,
     val hasSearch: Boolean = false,
@@ -19,7 +19,7 @@ data class BrowserBackState(
     val canPopRoute: Boolean = false
 )
 
-fun resolveBrowserBackAction(state: BrowserBackState): BrowserBackAction = when {
+internal fun resolveBrowserBackAction(state: BrowserBackState): BrowserBackAction = when {
     state.hasModal -> BrowserBackAction.CloseModal
     state.hasSheet -> BrowserBackAction.CloseSheet
     state.hasSearch -> BrowserBackAction.CloseSearch

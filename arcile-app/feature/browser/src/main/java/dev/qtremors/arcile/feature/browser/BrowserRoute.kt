@@ -22,7 +22,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserClipboardIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserEffects
+import dev.qtremors.arcile.feature.browser.ui.BrowserIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserMutationIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserNavigationIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserOperationIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserScrollBindings
+import dev.qtremors.arcile.feature.browser.ui.BrowserSearchIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserSelectionIntents
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
 
 sealed interface BrowserEntry {
@@ -72,7 +82,7 @@ fun BrowserRoute(
     val viewModel = hiltViewModel<BrowserViewModel>()
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val state = uiState.source
+    val state = uiState
     val scope = rememberCoroutineScope()
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
@@ -160,21 +170,8 @@ fun BrowserRoute(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                if (isBackPredicting && isVisible) {
-                    val scale = 1f - (backProgress * 0.08f)
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = backProgress * size.width
-                    alpha = 1f - (backProgress * 0.4f)
-                }
-            }
-    ) {
-        BrowserScreen(
-            state = state,
+    val screenIntents = BrowserIntents(
+        navigation = BrowserNavigationIntents(
             onNavigateBack = navigateBack,
             onNavigateTo = viewModel::navigateToFolder,
             onOpenFile = { path ->
@@ -195,26 +192,13 @@ fun BrowserRoute(
                     )
                 }
             },
+            onRefresh = { viewModel.refresh(pullToRefresh = true) },
+            onSelectFolderTab = viewModel::selectFolderTab
+        ),
+        selection = BrowserSelectionIntents(
             onToggleSelection = viewModel::toggleSelection,
             onSelectMultiple = viewModel::selectMultiple,
             onClearSelection = viewModel::clearSelection,
-            onCreateFolder = viewModel::createFolder,
-            onCreateFile = viewModel::createFile,
-            onCreateFakeFile = viewModel::createFakeFile,
-            onRequestDeleteSelected = viewModel::requestDeleteSelected,
-            onConfirmDelete = viewModel::confirmDeleteSelected,
-            onTogglePermanentDelete = viewModel::togglePermanentDelete,
-            onToggleShred = viewModel::toggleShred,
-            onDismissDeleteConfirmation = viewModel::dismissDeleteConfirmation,
-            onRenameFile = viewModel::renameFile,
-            onSearchQueryChange = viewModel::updateBrowserSearchQuery,
-            onClearSearch = { viewModel.updateBrowserSearchQuery("") },
-            onPresentationChange = viewModel::updateBrowserPresentation,
-            onClearError = viewModel::clearError,
-            onCopySelected = viewModel::copySelectedToClipboard,
-            onCutSelected = viewModel::cutSelectedToClipboard,
-            onPasteFromClipboard = viewModel::pasteFromClipboard,
-            onCancelClipboard = viewModel::cancelClipboard,
             onShareSelected = {
                 scope.launch {
                     val visibleFiles = if (state.browserSearchQuery.isNotBlank()) {
@@ -227,22 +211,42 @@ fun BrowserRoute(
                     }
                 }
             },
-            onClearFileOperationStatusMessage = viewModel::clearFileOperationStatusMessage,
             onOpenProperties = viewModel::openPropertiesForSelection,
             onDismissProperties = viewModel::dismissProperties,
-            onClearActiveFileOperation = viewModel::clearActiveFileOperation,
-            isRefreshing = state.isPullToRefreshing,
-            onRefresh = { viewModel.refresh(pullToRefresh = true) },
-            onSearchFiltersChange = viewModel::updateSearchFilters,
-            onToggleSearchFilterMenu = viewModel::toggleSearchFilterMenu,
-            onResolvingConflicts = viewModel::resolveConflicts,
-            onDismissConflictDialog = viewModel::dismissConflictDialog,
-            onPinToQuickAccess = pinViewModel::addCustomFolder,
-            onNativeRequestResult = viewModel::handleNativeActionResult,
-            onSelectAll = viewModel::selectAll,
             onInvertSelection = viewModel::invertSelection,
+            onSelectAll = viewModel::selectAll,
+            onPinToQuickAccess = pinViewModel::addCustomFolder
+        ),
+        mutation = BrowserMutationIntents(
+            onCreateFolder = viewModel::createFolder,
+            onCreateFile = viewModel::createFile,
+            onCreateFakeFile = viewModel::createFakeFile,
+            onRequestDeleteSelected = viewModel::requestDeleteSelected,
+            onConfirmDelete = viewModel::confirmDeleteSelected,
+            onTogglePermanentDelete = viewModel::togglePermanentDelete,
+            onToggleShred = viewModel::toggleShred,
+            onDismissDeleteConfirmation = viewModel::dismissDeleteConfirmation,
+            onRenameFile = viewModel::renameFile,
+            onNativeRequestResult = viewModel::handleNativeActionResult
+        ),
+        search = BrowserSearchIntents(
+            onSearchQueryChange = viewModel::updateBrowserSearchQuery,
+            onClearSearch = { viewModel.updateBrowserSearchQuery("") },
+            onPresentationChange = viewModel::updateBrowserPresentation,
+            onClearError = viewModel::clearError,
+            onSearchFiltersChange = viewModel::updateSearchFilters,
+            onToggleSearchFilterMenu = viewModel::toggleSearchFilterMenu
+        ),
+        clipboard = BrowserClipboardIntents(
+            onCopySelected = viewModel::copySelectedToClipboard,
+            onCutSelected = viewModel::cutSelectedToClipboard,
+            onPasteFromClipboard = viewModel::pasteFromClipboard,
+            onCancelClipboard = viewModel::cancelClipboard,
             onRemoveFromClipboard = viewModel::removeFromClipboard,
-            onSelectFolderTab = viewModel::selectFolderTab,
+            onResolvingConflicts = viewModel::resolveConflicts,
+            onDismissConflictDialog = viewModel::dismissConflictDialog
+        ),
+        archive = BrowserArchiveIntents(
             onExtractArchive = viewModel::extractArchive,
             onExtractSelectedArchiveEntries = viewModel::extractSelectedArchiveEntries,
             onExtractCurrentArchiveFolder = viewModel::extractCurrentArchiveFolder,
@@ -255,27 +259,54 @@ fun BrowserRoute(
                     viewModel.submitArchivePassword(password)
                 }
             },
-            onDismissArchivePassword = viewModel::dismissArchivePasswordPrompt,
+            onDismissArchivePassword = viewModel::dismissArchivePasswordPrompt
+        ),
+        operation = BrowserOperationIntents(
+            onClearFileOperationStatusMessage = viewModel::clearFileOperationStatusMessage,
+            onClearActiveFileOperation = viewModel::clearActiveFileOperation,
             onUndoLastTrashMove = viewModel::undoLastTrashMove,
             onClearPendingTrashUndo = viewModel::clearPendingTrashUndo,
             onUndoLastOperation = viewModel::undoLastOperation,
             onClearPendingUndo = viewModel::clearPendingUndo,
             onRetryRecoveredOperation = viewModel::retryRecoveredOperation,
             onCleanupRecoveredOperation = viewModel::cleanupRecoveredOperation,
-            onDismissRecoveredOperation = viewModel::dismissRecoveredOperation,
-            onFeedback = onFeedback,
-            nativeRequestFlow = viewModel.nativeRequestFlow,
-            listState = listState,
-            gridState = gridState,
-            scrollPositionKey = scrollPositionKey,
-            savedScrollPosition = viewModel.savedScrollPosition(scrollPositionKey),
-            savedScrollPositionProvider = viewModel::savedScrollPosition,
-            onSaveScrollPosition = viewModel::saveScrollPosition,
-            onClearScrollPosition = viewModel::clearScrollPosition,
-            pendingRevealFilePath = state.pendingRevealFilePath,
-            pendingRevealReady = state.pendingRevealReady,
-            onArmPendingReveal = viewModel::armOpenedFileReveal,
-            onConsumePendingReveal = viewModel::consumeOpenedFileReveal
+            onDismissRecoveredOperation = viewModel::dismissRecoveredOperation
+        )
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                if (isBackPredicting && isVisible) {
+                    val scale = 1f - (backProgress * 0.08f)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = backProgress * size.width
+                    alpha = 1f - (backProgress * 0.4f)
+                }
+            }
+    ) {
+        BrowserScreen(
+            state = state,
+            intents = screenIntents,
+            scroll = BrowserScrollBindings(
+                listState = listState,
+                gridState = gridState,
+                positionKey = scrollPositionKey,
+                savedPosition = viewModel.savedScrollPosition(scrollPositionKey),
+                savedPositionProvider = viewModel::savedScrollPosition,
+                onSavePosition = viewModel::saveScrollPosition,
+                onClearPosition = viewModel::clearScrollPosition,
+                pendingRevealFilePath = state.pendingRevealFilePath,
+                pendingRevealReady = state.pendingRevealReady,
+                onArmPendingReveal = viewModel::armOpenedFileReveal,
+                onConsumePendingReveal = viewModel::consumeOpenedFileReveal
+            ),
+            effects = BrowserEffects(
+                onFeedback = onFeedback,
+                nativeRequestFlow = viewModel.nativeRequestFlow
+            )
         )
     }
 }

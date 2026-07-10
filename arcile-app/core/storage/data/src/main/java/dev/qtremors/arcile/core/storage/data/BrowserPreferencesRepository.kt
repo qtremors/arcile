@@ -3,20 +3,21 @@ package dev.qtremors.arcile.core.storage.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -40,38 +41,11 @@ class BrowserPreferencesRepository(
         main = Dispatchers.Main,
         storage = Dispatchers.IO
     )
-) : BrowserPreferencesStore {
-    private val GLOBAL_SORT_KEY = stringPreferencesKey("global_sort_option")
-    private val GLOBAL_VIEW_MODE_KEY = stringPreferencesKey("global_view_mode")
-    private val GLOBAL_LIST_ZOOM_KEY = floatPreferencesKey("global_list_zoom")
-    private val GLOBAL_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("global_grid_min_cell_size")
-    private val GLOBAL_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("global_show_thumbnails")
-    private val RECENT_SORT_KEY = stringPreferencesKey("recent_sort_option")
-    private val RECENT_VIEW_MODE_KEY = stringPreferencesKey("recent_view_mode")
-    private val RECENT_LIST_ZOOM_KEY = floatPreferencesKey("recent_list_zoom")
-    private val RECENT_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("recent_grid_min_cell_size")
-    private val RECENT_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("recent_show_thumbnails")
-    private val HOME_RECENT_CAROUSEL_LIMIT_KEY = intPreferencesKey("home_recent_carousel_limit")
-    private val SHOW_HIDDEN_FILES_KEY = booleanPreferencesKey("show_hidden_files")
-    private val BROWSER_SCROLLBAR_ENABLED_KEY = booleanPreferencesKey("browser_scrollbar_enabled")
-    private val GALLERY_SCROLLBAR_ENABLED_KEY = booleanPreferencesKey("gallery_scrollbar_enabled")
-    private val IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY = booleanPreferencesKey("image_gallery_show_file_details")
-    private val IMAGE_GALLERY_ASPECT_RATIO_KEY = booleanPreferencesKey("image_gallery_aspect_ratio")
-    private val IMAGE_GALLERY_SECTIONED_KEY = booleanPreferencesKey("image_gallery_sectioned")
-    private val IMAGE_GALLERY_GROUPING_KEY = stringPreferencesKey("image_gallery_grouping")
-    private val IMAGE_GALLERY_DEFAULT_TAB_KEY = stringPreferencesKey("image_gallery_default_tab")
-    private val ALBUM_VIEW_MODE_KEY = stringPreferencesKey("album_view_mode")
-    private val ALBUM_GRID_MIN_CELL_SIZE_KEY = floatPreferencesKey("album_grid_min_cell_size")
-    private val ALBUM_SORT_OPTION_KEY = stringPreferencesKey("album_sort_option")
-    private val ALBUM_ASPECT_RATIO_KEY = booleanPreferencesKey("album_aspect_ratio")
-    private val LAST_OPENED_PATH_KEY = stringPreferencesKey("last_opened_path")
-    private val LAST_OPENED_VOLUME_ID_KEY = stringPreferencesKey("last_opened_volume_id")
-    private val DEFAULT_SAVE_TO_ARCILE_PATH_KEY = stringPreferencesKey("default_save_to_arcile_path")
-    private val FAVORITE_FILES_KEY = stringPreferencesKey("gallery_favorites")
-    private val PINNED_ALBUMS_KEY = stringPreferencesKey("gallery_pinned_albums")
-    private val ALBUM_COVERS_KEY = stringPreferencesKey("gallery_album_covers")
-
-    override val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
+) : BrowserLocationPreferencesStore,
+    RecentFilesPreferencesStore,
+    GalleryPreferencesStore,
+    SaveDestinationPreferencesStore {
+    internal val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -261,6 +235,11 @@ class BrowserPreferencesRepository(
         }
         .flowOn(dispatchers.io)
 
+    override val locationPreferencesFlow = preferencesFlow.asLocationPreferences()
+    override val recentFilesPreferencesFlow = preferencesFlow.asRecentFilesPreferences()
+    override val galleryPreferencesFlow = preferencesFlow.asGalleryPreferences()
+    override val saveDestinationPreferencesFlow = preferencesFlow.asSaveDestinationPreferences()
+
     override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
@@ -344,6 +323,14 @@ class BrowserPreferencesRepository(
             prefs[ALBUM_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
         }
+    }
+
+    override suspend fun updateImageGalleryPresentation(presentation: FileListingPreferences) {
+        updatePathPresentation(
+            path = IMAGE_GALLERY_PRESENTATION_PATH,
+            presentation = presentation,
+            applyToSubfolders = false
+        )
     }
 
     override suspend fun updateAlbumAspectRatio(enabled: Boolean) {

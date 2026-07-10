@@ -26,26 +26,34 @@ class ArchiveViewerScreenTest {
                         archivePath = "/storage/emulated/0/Download/empty.zip",
                         isLoading = false
                     ),
-                    onNavigateBack = {},
-                    onNavigateUpInArchive = { false },
-                    onOpenFolder = {},
-                    onSearchQueryChange = {},
-                    onExtractAll = {},
-                    onExtractCurrentFolder = {},
-                    onSubmitPassword = {},
-                    onSelectNameEncoding = {},
-                    onSetConflictResolution = { _, _ -> },
-                    onApplyConflictResolutionToAll = {},
-                    onConfirmConflictResolutions = {},
-                    onDismissConflicts = {},
-                    onClearError = {},
-                    onCancelExtraction = {},
-                    onClearOperationStatusMessage = {},
-                    onClearActiveOperation = {},
-                    onToggleItemSelection = {},
-                    onClearSelection = {},
-                    onExtractSelected = {},
-                    onSelectAll = {}
+                    navigationActions = ArchiveNavigationActions(
+                        navigateBack = {},
+                        navigateUpInArchive = { false },
+                        openFolder = {},
+                        searchQueryChange = {}
+                    ),
+                    extractionActions = ArchiveExtractionActions(
+                        extractAll = {},
+                        extractCurrentFolder = {},
+                        submitPassword = {},
+                        selectNameEncoding = {},
+                        cancelExtraction = {},
+                        clearError = {},
+                        clearOperationStatusMessage = {},
+                        clearActiveOperation = {}
+                    ),
+                    conflictActions = ArchiveConflictActions(
+                        setResolution = { _, _ -> },
+                        applyResolutionToAll = {},
+                        confirmResolutions = {},
+                        dismissConflicts = {}
+                    ),
+                    selectionActions = ArchiveSelectionActions(
+                        toggleItem = {},
+                        clear = {},
+                        extractSelected = {},
+                        selectAll = {}
+                    )
                 )
             }
         }

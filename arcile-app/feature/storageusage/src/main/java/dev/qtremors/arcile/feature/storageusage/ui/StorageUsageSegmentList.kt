@@ -26,9 +26,9 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
 
 @Composable
 internal fun StorageUsageSegmentList(

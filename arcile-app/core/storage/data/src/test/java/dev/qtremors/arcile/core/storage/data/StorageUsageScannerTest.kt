@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.storage.data
 
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState

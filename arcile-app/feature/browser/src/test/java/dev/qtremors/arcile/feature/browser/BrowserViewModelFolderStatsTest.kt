@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -39,7 +39,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -71,7 +71,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -98,7 +98,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -132,7 +132,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -182,7 +182,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false, "currentPath" to "/storage/emulated/0/Download", "currentVolumeId" to "primary"))
         )
 

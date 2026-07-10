@@ -18,7 +18,7 @@ import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogSnapshot
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui.dialogs
+package dev.qtremors.arcile.core.ui.dialogs
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

@@ -27,7 +27,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -78,7 +78,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -154,35 +154,35 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailPolicy
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 
 @Composable
-fun GalleryImageItem(
+internal fun GalleryImageItem(
     file: FileModel,
     isSelected: Boolean,
     isSelectionMode: Boolean = false,
@@ -354,7 +354,7 @@ fun GalleryImageItem(
 }
 
 @Composable
-fun GalleryThumbnail(
+internal fun GalleryThumbnail(
     file: FileModel,
     thumbnailKey: ThumbnailKey,
     thumbnailPolicy: ThumbnailPolicy,
@@ -430,148 +430,8 @@ fun GalleryThumbnail(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun GalleryImageListItem(
-    file: FileModel,
-    isSelected: Boolean,
-    isSelectionMode: Boolean = false,
-    zoom: Float,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    onOpenDirectly: () -> Unit = onClick,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val haptics = rememberArcileHaptics()
-    val thumbnailPolicy = remember { ThumbnailPolicy() }
-    val thumbnailKey = remember(file) { ThumbnailKey.from(file) }
-    val thumbnailSizePx = ThumbnailTargetSize.fromBounds((48 * zoom).roundToInt())
-
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 0.98f else 1.0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "scale"
-    )
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size((48 * zoom).dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surface),
-            contentAlignment = Alignment.Center
-        ) {
-            var showPlaceholder by remember(file.absolutePath, file.size, file.lastModified) { mutableStateOf(true) }
-            val archiveThumbnailData = remember(file.absolutePath, file.size, file.lastModified) {
-                ArchiveEntryThumbnailData.fromVirtualPath(
-                    path = file.absolutePath,
-                    sizeBytes = file.size,
-                    lastModifiedMillis = file.lastModified
-                )
-            }
-            val cacheKey = remember(archiveThumbnailData, thumbnailKey, thumbnailSizePx) {
-                archiveThumbnailData?.cacheKey ?: thumbnailKey.variantKey(thumbnailSizePx).cacheKey
-            }
-            val requestData = remember(file, archiveThumbnailData) {
-                galleryThumbnailRequestDataFor(file, archiveThumbnailData)
-            }
-            val request = remember(context, requestData, cacheKey, thumbnailSizePx) {
-                ImageRequest.Builder(context)
-                    .data(requestData)
-                    .size(thumbnailSizePx)
-                    .precision(Precision.INEXACT)
-                    .memoryCacheKey(cacheKey)
-                    .diskCacheKey(cacheKey)
-                    .diskCachePolicy(CachePolicy.ENABLED)
-                    .memoryCachePolicy(CachePolicy.ENABLED)
-                    .networkCachePolicy(CachePolicy.DISABLED)
-                    .build()
-            }
-            if (showPlaceholder) {
-                Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            AsyncImage(
-                model = request,
-                onLoading = {
-                    showPlaceholder = true
-                    thumbnailPolicy.recordInFlight(thumbnailKey, thumbnailSizePx)
-                },
-                onSuccess = {
-                    showPlaceholder = false
-                    thumbnailPolicy.clearFailure(thumbnailKey)
-                    thumbnailPolicy.recordLoaded(thumbnailKey, thumbnailSizePx)
-                },
-                onError = {
-                    showPlaceholder = true
-                    thumbnailPolicy.recordFailure(thumbnailKey, thumbnailSizePx)
-                },
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                )
-            }
-            if (isSelectionMode) {
-                GalleryOpenImageAction(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(4.dp),
-                    onClick = onOpenDirectly,
-                    size = 28.dp,
-                    iconSize = 16.dp
-                )
-            }
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = formatFileSize(file.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun GalleryOpenImageAction(
+internal fun GalleryOpenImageAction(
     modifier: Modifier,
     onClick: () -> Unit,
     size: androidx.compose.ui.unit.Dp = 34.dp,

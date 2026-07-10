@@ -36,14 +36,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.presentation.containingFolderPath
-import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.presentation.containingFolderPath
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 
 @Composable
 internal fun RecentSelectionTopBar(

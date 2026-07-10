@@ -69,7 +69,9 @@ class ImageGalleryStateTest {
             FileModel("file1", "path1", size = 100, lastModified = 0, isDirectory = false)
         )
         val clipboard = ClipboardState(ClipboardOperation.COPY, dummyFiles)
-        val state = ImageGalleryState(clipboardState = clipboard)
+        val state = ImageGalleryState(
+            fileActions = ImageGalleryFileActionState(clipboardState = clipboard)
+        )
         assertEquals(clipboard, state.clipboardState)
     }
 
@@ -610,7 +612,6 @@ class ImageGalleryStateTest {
                 ImageGalleryAlbum("/photos/other", "other", 1, 300)
             ),
             selectedAlbumPath = "/photos/album",
-            selectedFiles = kotlinx.collections.immutable.persistentSetOf(deleted.absolutePath),
             favoriteFiles = kotlinx.collections.immutable.persistentSetOf(deleted.absolutePath, kept.absolutePath),
             albumCovers = kotlinx.collections.immutable.persistentMapOf("/photos/album" to deleted.absolutePath)
         )
@@ -620,7 +621,6 @@ class ImageGalleryStateTest {
         assertEquals(listOf(kept.absolutePath, other.absolutePath), next.files.map { it.absolutePath })
         assertEquals(listOf(kept.absolutePath), next.displayedFiles.map { it.absolutePath })
         assertEquals(setOf(kept.absolutePath), next.favoriteFiles)
-        assertTrue(next.selectedFiles.isEmpty())
         assertTrue(next.albumCovers.isEmpty())
         assertEquals(1, next.albums.first { it.path == "/photos/album" }.count)
     }

@@ -13,7 +13,7 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.testutil.ArcileTestTheme
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

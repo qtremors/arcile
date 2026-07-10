@@ -39,7 +39,7 @@ import androidx.compose.runtime.key
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.ui.graphics.graphicsLayer
-import dev.qtremors.arcile.ui.theme.ArcileMotion
+import dev.qtremors.arcile.core.ui.theme.ArcileMotion
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -72,14 +72,14 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
 import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
@@ -91,7 +91,7 @@ private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
 
 
 @Composable
-fun StorageUsageBreadcrumbs(
+internal fun StorageUsageBreadcrumbs(
     breadcrumbs: List<StorageUsageNode>,
     onBreadcrumbClick: (Int) -> Unit
 ) {
@@ -128,7 +128,7 @@ fun StorageUsageBreadcrumbs(
 }
 
 @Composable
-fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
+internal fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -161,7 +161,7 @@ fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
 }
 
 @Composable
-fun StorageUsageError(
+internal fun StorageUsageError(
     message: String,
     onRefresh: () -> Unit
 ) {

@@ -1,9 +1,9 @@
-package dev.qtremors.arcile.shared.ui.lists
+package dev.qtremors.arcile.core.ui.lists
 
 import android.net.Uri
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

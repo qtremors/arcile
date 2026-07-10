@@ -5,8 +5,10 @@ import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
-import dev.qtremors.arcile.core.storage.domain.NativeConfirmationRequiredException
+import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
+import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationOperation
+import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
+import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -86,16 +88,26 @@ class TrashViewModelTest {
 
     @Test
     fun `restoreToDestination stores pending native confirmation context`() = runTest(mainDispatcherRule.dispatcher) {
+        val gateway = NativeStorageAuthorizationGateway()
+        val requirement = StorageAuthorizationRequirement(
+            requestId = "restore-request",
+            operation = StorageAuthorizationOperation.RESTORE_TRASH
+        )
+        gateway.register(requirement, fakeIntentSender())
         val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
-            restoreFromTrashResultProvider = { _, destinationPath ->
-                if (destinationPath != null) Result.failure(NativeConfirmationRequiredException(fakeIntentSender()))
-                else Result.success(Unit)
+            restoreFromTrashMutationResultProvider = { _, destinationPath ->
+                if (destinationPath != null) {
+                    StorageMutationResult.AuthorizationRequired(requirement)
+                } else {
+                    StorageMutationResult.Completed
+                }
             }
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            authorizationGateway = gateway
         )
 
         advanceUntilIdle()

@@ -17,14 +17,14 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import javax.inject.Inject
 
-data class QuickAccessState(
+internal data class QuickAccessState(
     val items: List<QuickAccessItem> = emptyList(),
     val isLoading: Boolean = true,
     val error: String? = null
 )
 
 @HiltViewModel
-class QuickAccessViewModel @Inject constructor(
+internal class QuickAccessViewModel @Inject constructor(
     private val quickAccessRepository: QuickAccessPreferencesStore
 ) : ViewModel() {
 

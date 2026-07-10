@@ -27,10 +27,10 @@ import androidx.graphics.shapes.RoundedPolygon
 import androidx.graphics.shapes.circle
 import androidx.graphics.shapes.star
 import androidx.graphics.shapes.toPath
-import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 
 @Composable
-fun MorphingBackgroundIcon(
+internal fun MorphingBackgroundIcon(
     modifier: Modifier = Modifier,
     icon: @Composable () -> Unit
 ) {

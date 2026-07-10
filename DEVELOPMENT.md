@@ -42,8 +42,8 @@ Arcile is a **modular multi-module Android app** with strict Gradle-enforced arc
 ```mermaid
 graph TD
     A["Compose UI<br/>Screens + Components"] -->|events| B["Feature ViewModels<br/>StateFlow + delegates"]
-    B -->|use cases / repository calls| C["Domain Contracts<br/>Models + FileRepository"]
-    C -->|implemented by| D["LocalFileRepository"]
+    B -->|use cases / repository calls| C["Focused Domain Contracts"]
+    C -->|implemented by| D["Focused Storage Repositories"]
     D --> E["VolumeProvider"]
     D --> F["MediaStoreClient"]
     D --> G["FileSystemDataSource"]
@@ -61,7 +61,7 @@ graph TD
 |----------|-----------|
 | **Multi-module Gradle Architecture** | Enforces clean boundaries between features and core services, isolates compilation units, speeds up incremental builds, and prevents architectural degradation as features expand. |
 | **Feature-scoped ViewModels** | Browser, Home, Recent Files, Trash, Quick Access, Archive Viewer, Onboarding, Image Gallery, Storage Cleaner, and Settings each own their own state and action flow. |
-| **Repository Facade** | `LocalFileRepository` coordinates volume lookup, MediaStore queries, direct filesystem mutations, trash, folder stats, and archive operations. |
+| **Focused Storage Capabilities** | Features inject only listing, mutation, search, analytics, trash, archive, volume, or clipboard contracts that they actually use. |
 | **Typed Navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings to verify routing correctness at compile time. |
 | **Offline-first Privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
 | **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
@@ -208,8 +208,8 @@ To maintain premium design aesthetics, Arcile implements customized bouncy sprin
 
 ## Storage & File Operations
 
-### Repository Facades
-`LocalFileRepository` implements `FileRepository` along with focused sub-interfaces (`FileBrowserRepository`, `FileMutationRepository`, etc.). It acts as a coordinator delegating to:
+### Focused Storage Repositories
+Storage is split into independently bound implementations for file browsing, mutation, media search and analytics, trash, archives, volumes, and clipboard state. Each implementation delegates only to the lower-level services required by its contract:
 
 - `VolumeProvider`: Discovers mounted storage volumes, resolves pathways, and parses volume details.
 - `MediaStoreClient`: Queries MediaStore for files, recent assets, categories, and folder statistics.
@@ -539,7 +539,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - **UI Architecture:** `BrowserScreen` displays files in customizable lists or grids with a floating bottom action bar and an expandable FAB.
 - **ViewModel:** `BrowserViewModel` coordinates delegates for browser features.
 - **Delegates:**
-  - `NavigationDelegate`: Manages folder hierarchy traversal, categories, and deep links.
+  - `BrowserNavigationController`: Manages folder hierarchy traversal, categories, archives, and deep links.
   - `ClipboardDelegate`: Manages copy/cut states and resolves conflict preflights.
   - `SearchDelegate`: Filters local files and searches MediaStore.
   - `ArchiveActionDelegate`: Coordinates archive creation and password validation.

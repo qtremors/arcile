@@ -35,8 +35,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import dev.qtremors.arcile.shared.ui.ExpressiveTab
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ExpressiveTab
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,23 +59,23 @@ import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.feature.storageusage.StorageOverviewState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.feature.storageusage.ui.StorageUsageMap
-import dev.qtremors.arcile.ui.theme.LocalCategoryColors
-import dev.qtremors.arcile.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.titleLargeBold
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.ui.theme.titleSmallSemiBold
-import dev.qtremors.arcile.utils.formatFileSize
-import dev.qtremors.arcile.utils.getCategoryColor
+import dev.qtremors.arcile.core.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.titleLargeBold
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.ui.theme.titleSmallSemiBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.getCategoryColor
 import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun StorageDashboardScreen(
+internal fun StorageDashboardScreen(
     state: StorageOverviewState,
     usageState: StorageUsageUiState,
     selectedVolumeId: String? = null,
@@ -456,130 +456,6 @@ private fun TemporaryDashboardUnavailableCard(volume: StorageVolume) {
                 text = stringResource(R.string.temp_storage_description),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-fun StorageUsageTile(
-    name: String,
-    sizeBytes: Long,
-    percentage: Int,
-    icon: ImageVector,
-    color: Color
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(MaterialTheme.shapes.extraLarge),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(color.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = name,
-                    tint = color,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.size(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.bodyLargeMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "$percentage%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Text(
-                text = formatFileSize(sizeBytes),
-                style = MaterialTheme.typography.bodyMediumBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-}
-
-@Composable
-fun CategoryListTile(
-    name: String,
-    sizeBytes: Long,
-    percentage: Int,
-    icon: ImageVector,
-    color: Color,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .bounceClickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(color.copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = name,
-                    tint = color,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.size(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.bodyLargeMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "$percentage%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Text(
-                text = formatFileSize(sizeBytes),
-                style = MaterialTheme.typography.bodyMediumBold,
-                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }

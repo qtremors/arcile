@@ -8,24 +8,27 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.shared.ui.ArcileTopBar
-import dev.qtremors.arcile.shared.ui.SearchTopBar
-import dev.qtremors.arcile.shared.ui.TopBarAction
-import dev.qtremors.arcile.shared.ui.lists.ActiveFiltersRow
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.feature.browser.BrowserUiState
+import dev.qtremors.arcile.core.ui.ArcileTopBar
+import dev.qtremors.arcile.core.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.TopBarAction
+import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BrowserTopBars(
-    state: BrowserState,
+    state: BrowserUiState,
     displayedFiles: List<FileModel>,
     showSearchBar: Boolean,
     onShowSearchBarChange: (Boolean) -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
     dialogVisibility: BrowserDialogVisibility,
-    actions: BrowserUiActions,
+    searchIntents: BrowserSearchIntents,
+    selectionIntents: BrowserSelectionIntents,
+    mutationIntents: BrowserMutationIntents,
+    clipboardIntents: BrowserClipboardIntents,
     onBackClick: () -> Unit,
     onSelectionChanged: () -> Unit,
     onShowPinnedSnackbar: (String) -> Unit
@@ -39,18 +42,18 @@ internal fun BrowserTopBars(
             }
             SearchTopBar(
                 query = state.browserSearchQuery,
-                onQueryChange = actions.onSearchQueryChange,
+                onQueryChange = searchIntents.onSearchQueryChange,
                 onClose = {
                     onShowSearchBarChange(false)
-                    actions.onClearSearch()
+                    searchIntents.onClearSearch()
                 },
-                onFilterClick = { actions.onToggleSearchFilterMenu(true) },
+                onFilterClick = { searchIntents.onToggleSearchFilterMenu(true) },
                 placeholder = searchPlaceholder
             )
 
             ActiveFiltersRow(
                 filters = state.activeSearchFilters,
-                onClearFilter = { clearedFilters -> actions.onSearchFiltersChange(clearedFilters) }
+                onClearFilter = { clearedFilters -> searchIntents.onSearchFiltersChange(clearedFilters) }
             )
         }
     } else {
@@ -68,46 +71,55 @@ internal fun BrowserTopBars(
             },
             selectionCount = state.selectedFiles.size,
             selectedSize = selectedSizeFormatted,
-            showBackArrow = true,
-            showSearchAction = true,
-            showSortAction = !state.isVolumeRootScreen,
-            showNewFolderAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.archiveContext == null,
-            showPinAction = !state.isVolumeRootScreen && !state.isCategoryScreen && state.currentPath.isNotEmpty() && state.archiveContext == null,
-            isGridView = state.browserViewMode == FileViewMode.GRID,
+            options = dev.qtremors.arcile.core.ui.ArcileTopBarOptions(
+                showBackArrow = true,
+                showSearchAction = true,
+                showSortAction = !state.isVolumeRootScreen,
+                showNewFolderAction = !state.isVolumeRootScreen &&
+                    !state.isCategoryScreen &&
+                    state.archiveContext == null,
+                showPinAction = !state.isVolumeRootScreen &&
+                    !state.isCategoryScreen &&
+                    state.currentPath.isNotEmpty() &&
+                    state.archiveContext == null,
+                isGridView = state.browserViewMode == FileViewMode.GRID
+            ),
             scrollBehavior = scrollBehavior,
-            onBackClick = onBackClick,
-            onClearSelection = actions.onClearSelection,
-            onSearchClick = { onShowSearchBarChange(true) },
-            onSortClick = { dialogVisibility.showSortDialog = true },
-            onActionSelected = { action ->
+            actions = dev.qtremors.arcile.core.ui.ArcileTopBarActions(
+                onBackClick = onBackClick,
+                onClearSelection = selectionIntents.onClearSelection,
+                onSearchClick = { onShowSearchBarChange(true) },
+                onSortClick = { dialogVisibility.showSortDialog = true },
+                onActionSelected = { action ->
                 when (action) {
                     TopBarAction.NewFolder -> dialogVisibility.showCreateFolderDialog = true
                     TopBarAction.PinToQuickAccess -> {
                         state.currentPath.takeIf { it.isNotEmpty() }?.let { path ->
                             val label = File(path).name
-                            actions.onPinToQuickAccess(path, label)
+                            selectionIntents.onPinToQuickAccess(path, label)
                             onShowPinnedSnackbar(label)
                         }
                     }
-                    TopBarAction.DeleteSelected -> actions.onRequestDeleteSelected()
+                    TopBarAction.DeleteSelected -> mutationIntents.onRequestDeleteSelected()
                     TopBarAction.Rename -> if (state.selectedFiles.size == 1) {
                         dialogVisibility.showRenameDialog = true
                     }
-                    TopBarAction.Copy -> actions.onCopySelected()
-                    TopBarAction.Cut -> actions.onCutSelected()
-                    TopBarAction.Share -> actions.onShareSelected()
+                    TopBarAction.Copy -> clipboardIntents.onCopySelected()
+                    TopBarAction.Cut -> clipboardIntents.onCutSelected()
+                    TopBarAction.Share -> selectionIntents.onShareSelected()
                     TopBarAction.SelectAll -> {
                         onSelectionChanged()
-                        actions.onSelectAll(displayedFiles.map { it.absolutePath })
+                        selectionIntents.onSelectAll(displayedFiles.map { it.absolutePath })
                     }
                     TopBarAction.InvertSelection -> {
                         onSelectionChanged()
-                        actions.onInvertSelection(displayedFiles.map { it.absolutePath })
+                        selectionIntents.onInvertSelection(displayedFiles.map { it.absolutePath })
                     }
-                    TopBarAction.Properties -> actions.onOpenProperties()
+                    TopBarAction.Properties -> selectionIntents.onOpenProperties()
                     else -> Unit
                 }
-            }
+                }
+            )
         )
     }
 }

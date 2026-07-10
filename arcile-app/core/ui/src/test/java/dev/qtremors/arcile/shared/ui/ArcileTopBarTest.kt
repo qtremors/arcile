@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui
+package dev.qtremors.arcile.core.ui
 
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.test.assertCountEquals
@@ -36,11 +36,13 @@ class ArcileTopBarTest {
             ArcileTestTheme {
                 ArcileTopBar(
                     title = "Files",
-                    showGridViewAction = true,
-                    onClearSelection = {},
-                    onSearchClick = {},
-                    onSortClick = {},
-                    onActionSelected = { selectedAction = it }
+                    options = ArcileTopBarOptions(showGridViewAction = true),
+                    actions = ArcileTopBarActions(
+                        onClearSelection = {},
+                        onSearchClick = {},
+                        onSortClick = {},
+                        onActionSelected = { selectedAction = it }
+                    )
                 )
             }
         }

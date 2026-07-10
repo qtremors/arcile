@@ -10,7 +10,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 fun NavGraphBuilder.registerTrashRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -30,28 +30,38 @@ fun NavGraphBuilder.registerTrashRoute(
         val state by viewModel.state.collectAsStateWithLifecycle()
         TrashScreen(
             state = state,
-            onNavigateBack = onNavigateBack,
-            onToggleSelection = { viewModel.toggleSelection(it) },
-            onClearSelection = { viewModel.clearSelection() },
-            onRestoreSelected = { viewModel.restoreSelectedTrash() },
-            onEmptyTrash = { viewModel.emptyTrash() },
-            onClearError = { viewModel.clearError() },
-            onDismissDestinationPicker = { viewModel.dismissDestinationPicker() },
-            onRestoreToDestination = { ids, path -> viewModel.restoreToDestination(ids, path) },
-            onPermanentlyDeleteSelected = { viewModel.deletePermanentlySelected() },
-            onDismissPermanentDelete = { viewModel.dismissPermanentDeleteConfirmation() },
-            onSelectAll = { viewModel.selectAll() },
-            onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-            onClearSearch = { viewModel.updateSearchQuery("") },
-            onSortChange = { viewModel.updateSortOption(it) },
-            onFilterChange = { viewModel.updateFilter(it) },
-            onOpenProperties = { viewModel.openPropertiesForSelection() },
-            onDismissProperties = { viewModel.dismissProperties() },
-            onClearSnackbarMessage = { viewModel.clearSnackbarMessage() },
-            onUndoLastRestore = { viewModel.undoLastRestore() },
-            onClearPendingRestoreUndo = { viewModel.clearPendingRestoreUndo() },
-            onRefresh = { viewModel.loadTrashFiles() },
-            onFeedback = onFeedback,
+            navigationActions = TrashNavigationActions(onNavigateBack),
+            selectionActions = TrashSelectionActions(
+                toggle = viewModel::toggleSelection,
+                clear = viewModel::clearSelection,
+                selectAll = viewModel::selectAll,
+                openProperties = viewModel::openPropertiesForSelection,
+                dismissProperties = viewModel::dismissProperties
+            ),
+            restoreActions = TrashRestoreActions(
+                restoreSelected = viewModel::restoreSelectedTrash,
+                dismissDestinationPicker = viewModel::dismissDestinationPicker,
+                restoreToDestination = viewModel::restoreToDestination,
+                undoLastRestore = viewModel::undoLastRestore,
+                clearPendingUndo = viewModel::clearPendingRestoreUndo
+            ),
+            deleteActions = TrashDeleteActions(
+                emptyTrash = viewModel::emptyTrash,
+                permanentlyDeleteSelected = viewModel::deletePermanentlySelected,
+                dismissPermanentDelete = viewModel::dismissPermanentDeleteConfirmation
+            ),
+            presentationActions = TrashPresentationActions(
+                searchQueryChange = viewModel::updateSearchQuery,
+                clearSearch = { viewModel.updateSearchQuery("") },
+                sortChange = viewModel::updateSortOption,
+                filterChange = viewModel::updateFilter,
+                refresh = viewModel::loadTrashFiles
+            ),
+            feedbackActions = TrashFeedbackActions(
+                clearError = viewModel::clearError,
+                clearSnackbarMessage = viewModel::clearSnackbarMessage,
+                feedback = onFeedback
+            ),
             nativeRequestFlow = viewModel.nativeRequestFlow
         )
     }

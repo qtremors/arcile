@@ -53,23 +53,23 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailPolicy
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.image.ThumbnailType
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.image.ThumbnailType
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import java.io.File
 
 internal const val HomeRecentFilesCarouselThumbnailSizePx = 512
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecentFilesCarousel(
+internal fun RecentFilesCarousel(
     files: List<FileModel>,
     onOpenFile: (String) -> Unit,
     onNavigateToPath: (String) -> Unit,
@@ -105,7 +105,7 @@ fun RecentFilesCarousel(
 }
 
 @Composable
-fun RecentFileCarouselItem(
+internal fun RecentFileCarouselItem(
     file: FileModel,
     onClick: () -> Unit,
     onNavigateToPath: (String) -> Unit,
@@ -116,7 +116,7 @@ fun RecentFileCarouselItem(
 ) {
     val extension = file.extension.lowercase()
     val previewAccent = previewAccentFor(file)
-    val previewIcon = dev.qtremors.arcile.shared.ui.getFileIconVector(file)
+    val previewIcon = dev.qtremors.arcile.core.ui.getFileIconVector(file)
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {

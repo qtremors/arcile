@@ -13,7 +13,7 @@ import androidx.navigation.compose.composable
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.recentfiles.ui.RecentFilesScreen
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
 
 sealed interface RecentFilesDestination {
@@ -43,38 +43,48 @@ fun NavGraphBuilder.registerRecentFilesRoute(
         val openFiles = if (state.searchQuery.isNotBlank()) state.searchResults else state.displayedRecentFiles
         RecentFilesScreen(
             state = state,
-            onNavigateBack = onNavigateBack,
-            onOpenFile = { path -> onOpenFile(path, openFiles) },
-            onToggleSelection = { viewModel.toggleSelection(it) },
-            onClearSelection = { viewModel.clearSelection() },
-            onRequestDeleteSelected = { viewModel.requestDeleteSelected() },
-            onConfirmDelete = { viewModel.confirmDeleteSelected() },
-            onTogglePermanentDelete = { viewModel.togglePermanentDelete() },
-            onToggleShred = { viewModel.toggleShred() },
-            onDismissDeleteConfirmation = { viewModel.dismissDeleteConfirmation() },
-            onShareSelected = {
-                coroutineScope.launch {
-                    val shareFiles = openFiles.filter { it.absolutePath in state.selectedFiles }
-                    if (onShareSelected(shareFiles)) {
-                        viewModel.clearSelection()
-                    }
+            navigationActions = dev.qtremors.arcile.feature.recentfiles.ui.RecentNavigationActions(
+                navigateBack = onNavigateBack,
+                openFile = { path -> onOpenFile(path, openFiles) },
+                openContainingFolder = { path ->
+                    onDestination(RecentFilesDestination.ContainingFolder(path))
                 }
-            },
-            onSelectAll = { viewModel.selectAll() },
-            onRefresh = { viewModel.loadRecentFiles(pullToRefresh = true) },
-            onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-            onClearSearch = { viewModel.updateSearchQuery("") },
-            onSearchFiltersChange = { viewModel.updateSearchFilters(it) },
-            onPresentationChange = { viewModel.updatePresentation(it) },
-            onSelectMultiple = { viewModel.selectMultiple(it) },
-            onLoadMore = { viewModel.loadMore() },
-            onClearError = { viewModel.clearError() },
-            onOpenProperties = { viewModel.openPropertiesForSelection() },
-            onDismissProperties = { viewModel.dismissProperties() },
-            onOpenContainingFolder = { path ->
-                onDestination(RecentFilesDestination.ContainingFolder(path))
-            },
-            onFeedback = onFeedback,
+            ),
+            selectionActions = dev.qtremors.arcile.feature.recentfiles.ui.RecentSelectionActions(
+                toggle = viewModel::toggleSelection,
+                clear = viewModel::clearSelection,
+                share = {
+                    coroutineScope.launch {
+                        val shareFiles = openFiles.filter { it.absolutePath in state.selectedFiles }
+                        if (onShareSelected(shareFiles)) {
+                            viewModel.clearSelection()
+                        }
+                    }
+                },
+                selectAll = viewModel::selectAll,
+                selectMultiple = viewModel::selectMultiple,
+                openProperties = viewModel::openPropertiesForSelection,
+                dismissProperties = viewModel::dismissProperties
+            ),
+            deleteActions = dev.qtremors.arcile.feature.recentfiles.ui.RecentDeleteActions(
+                request = viewModel::requestDeleteSelected,
+                confirm = viewModel::confirmDeleteSelected,
+                togglePermanent = viewModel::togglePermanentDelete,
+                toggleShred = viewModel::toggleShred,
+                dismissConfirmation = viewModel::dismissDeleteConfirmation
+            ),
+            searchActions = dev.qtremors.arcile.feature.recentfiles.ui.RecentSearchActions(
+                queryChange = viewModel::updateSearchQuery,
+                clear = { viewModel.updateSearchQuery("") },
+                filtersChange = viewModel::updateSearchFilters,
+                presentationChange = viewModel::updatePresentation,
+                loadMore = viewModel::loadMore
+            ),
+            contentActions = dev.qtremors.arcile.feature.recentfiles.ui.RecentContentActions(
+                refresh = { viewModel.loadRecentFiles(pullToRefresh = true) },
+                clearError = viewModel::clearError,
+                feedback = onFeedback
+            ),
             nativeRequestFlow = viewModel.nativeRequestFlow
         )
     }

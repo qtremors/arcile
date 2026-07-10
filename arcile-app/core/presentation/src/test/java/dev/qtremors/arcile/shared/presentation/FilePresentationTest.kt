@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.presentation
+package dev.qtremors.arcile.core.presentation
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileSortOption

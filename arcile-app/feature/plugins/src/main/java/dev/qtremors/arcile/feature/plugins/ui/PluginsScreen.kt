@@ -49,9 +49,9 @@ import dev.qtremors.arcile.plugin.api.PluginCompatibility
 import dev.qtremors.arcile.plugin.api.PluginMetadata
 import dev.qtremors.arcile.core.plugin.android.PluginCatalogEntry
 import dev.qtremors.arcile.core.plugin.android.PluginManager
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
 private data class PluginRowModel(
     val catalog: PluginCatalogEntry?,
@@ -60,7 +60,7 @@ private data class PluginRowModel(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PluginsScreen(onNavigateBack: () -> Unit) {
+internal fun PluginsScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val lifecycleOwner = LocalLifecycleOwner.current

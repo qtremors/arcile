@@ -8,24 +8,36 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.GalleryPreferences
+import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferences
+import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 @HiltViewModel
-class SettingsViewModel @Inject constructor(
-    private val browserPreferencesStore: BrowserPreferencesStore,
+internal class SettingsViewModel @Inject constructor(
+    private val browserPreferencesStore: BrowserLocationPreferencesStore,
+    private val recentFilesPreferencesStore: RecentFilesPreferencesStore,
+    private val galleryPreferencesStore: GalleryPreferencesStore,
     private val preferencesBackupManager: PreferencesBackupGateway
 ) : ViewModel() {
-    val browserPreferences = browserPreferencesStore.preferencesFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserPreferences())
+    val browserPreferences = combine(
+        browserPreferencesStore.locationPreferencesFlow,
+        recentFilesPreferencesStore.recentFilesPreferencesFlow,
+        galleryPreferencesStore.galleryPreferencesFlow,
+        ::SettingsPreferences
+    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsPreferences())
 
     private val _backupState = MutableStateFlow<PreferencesBackupUiState>(PreferencesBackupUiState.Idle)
     val backupState: StateFlow<PreferencesBackupUiState> = _backupState.asStateFlow()
@@ -39,7 +51,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateHomeRecentCarouselLimit(limit: Int) {
         viewModelScope.launch {
-            browserPreferencesStore.updateHomeRecentCarouselLimit(limit)
+            recentFilesPreferencesStore.updateHomeRecentCarouselLimit(limit)
         }
     }
 
@@ -57,7 +69,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateGalleryScrollbarEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            browserPreferencesStore.updateGalleryScrollbarEnabled(enabled)
+            galleryPreferencesStore.updateGalleryScrollbarEnabled(enabled)
         }
     }
 
@@ -111,7 +123,24 @@ class SettingsViewModel @Inject constructor(
     }
 }
 
-sealed interface PreferencesBackupUiState {
+internal data class SettingsPreferences(
+    val browser: BrowserLocationPreferences = BrowserLocationPreferences(),
+    val recentFiles: RecentFilesPreferences = RecentFilesPreferences(),
+    val gallery: GalleryPreferences = GalleryPreferences()
+) {
+    val globalPresentation: FileListingPreferences
+        get() = browser.globalPresentation
+    val homeRecentCarouselLimit: Int
+        get() = recentFiles.homeCarouselLimit
+    val showHiddenFiles: Boolean
+        get() = browser.showHiddenFiles
+    val browserScrollbarEnabled: Boolean
+        get() = browser.scrollbarEnabled
+    val galleryScrollbarEnabled: Boolean
+        get() = gallery.scrollbarEnabled
+}
+
+internal sealed interface PreferencesBackupUiState {
     data object Idle : PreferencesBackupUiState
     data object Busy : PreferencesBackupUiState
     data class RestorePreview(val uri: Uri, val preview: PreferencesBackupPreview) : PreferencesBackupUiState

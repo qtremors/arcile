@@ -5,31 +5,35 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.feature.browser.BrowserState
-import dev.qtremors.arcile.shared.ui.PasteConflictDialog
-import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
-import dev.qtremors.arcile.shared.ui.SortOptionDialog
-import dev.qtremors.arcile.shared.ui.dialogs.ClipboardContentsDialog
-import dev.qtremors.arcile.shared.ui.dialogs.CreateFakeFileDialog
-import dev.qtremors.arcile.shared.ui.dialogs.CreateFileDialog
-import dev.qtremors.arcile.shared.ui.dialogs.CreateFolderDialog
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.feature.browser.BrowserUiState
+import dev.qtremors.arcile.core.ui.PasteConflictDialog
+import dev.qtremors.arcile.core.ui.SearchFiltersSheet
+import dev.qtremors.arcile.core.ui.SortOptionDialog
+import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
+import dev.qtremors.arcile.core.ui.dialogs.CreateFakeFileDialog
+import dev.qtremors.arcile.core.ui.dialogs.CreateFileDialog
+import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
 import java.io.File
 
 @Composable
 internal fun BrowserDialogs(
-    state: BrowserState,
+    state: BrowserUiState,
     currentPresentation: FileListingPreferences,
     dialogVisibility: BrowserDialogVisibility,
-    actions: BrowserUiActions
+    selectionIntents: BrowserSelectionIntents,
+    mutationIntents: BrowserMutationIntents,
+    searchIntents: BrowserSearchIntents,
+    clipboardIntents: BrowserClipboardIntents,
+    archiveIntents: BrowserArchiveIntents
 ) {
     if (state.isSearchFilterMenuVisible) {
-        SearchFiltersBottomSheet(
+        SearchFiltersSheet(
             currentFilters = state.activeSearchFilters,
-            onApplyFilters = { actions.onSearchFiltersChange(it) },
-            onDismiss = { actions.onToggleSearchFilterMenu(false) },
+            onApplyFilters = { searchIntents.onSearchFiltersChange(it) },
+            onDismiss = { searchIntents.onToggleSearchFilterMenu(false) },
             showCategoryFilter = !state.isCategoryScreen
         )
     }
@@ -38,7 +42,7 @@ internal fun BrowserDialogs(
         CreateFolderDialog(
             onDismiss = { dialogVisibility.showCreateFolderDialog = false },
             onConfirm = { name ->
-                actions.onCreateFolder(name)
+                mutationIntents.onCreateFolder(name)
                 dialogVisibility.showCreateFolderDialog = false
             },
             existingNames = state.displayState.existingNames,
@@ -51,12 +55,12 @@ internal fun BrowserDialogs(
             selectedCount = state.selectedFiles.size,
             isPermanentDeleteChecked = state.isPermanentDeleteChecked,
             isPermanentDeleteToggleEnabled = state.isPermanentDeleteToggleEnabled,
-            onConfirm = actions.onConfirmDelete,
-            onDismiss = actions.onDismissDeleteConfirmation,
-            onTogglePermanentDelete = actions.onTogglePermanentDelete,
+            onConfirm = mutationIntents.onConfirmDelete,
+            onDismiss = mutationIntents.onDismissDeleteConfirmation,
+            onTogglePermanentDelete = mutationIntents.onTogglePermanentDelete,
             decision = state.deleteDecision,
             isShredChecked = state.isShredChecked,
-            onToggleShred = actions.onToggleShred
+            onToggleShred = mutationIntents.onToggleShred
         )
     }
 
@@ -66,7 +70,7 @@ internal fun BrowserDialogs(
             isPermanentDeleteChecked = true,
             isPermanentDeleteToggleEnabled = false,
             onConfirm = {},
-            onDismiss = actions.onDismissDeleteConfirmation,
+            onDismiss = mutationIntents.onDismissDeleteConfirmation,
             onTogglePermanentDelete = {},
             decision = state.deleteDecision
         )
@@ -77,7 +81,7 @@ internal fun BrowserDialogs(
             onDismiss = { dialogVisibility.showCreateFileDialog = false },
             onConfirm = { fileName ->
                 dialogVisibility.showCreateFileDialog = false
-                actions.onCreateFile(fileName)
+                mutationIntents.onCreateFile(fileName)
             },
             existingNames = state.displayState.existingNames,
             destinationPath = state.currentPath
@@ -89,7 +93,7 @@ internal fun BrowserDialogs(
             onDismiss = { dialogVisibility.showCreateFakeFileDialog = false },
             onConfirm = { fileName, size ->
                 dialogVisibility.showCreateFakeFileDialog = false
-                actions.onCreateFakeFile(fileName, size)
+                mutationIntents.onCreateFakeFile(fileName, size)
             }
         )
     }
@@ -109,7 +113,7 @@ internal fun BrowserDialogs(
             onDismiss = { dialogVisibility.showCreateArchiveDialog = false },
             onConfirm = { name, format, compressionLevel, password ->
                 dialogVisibility.showCreateArchiveDialog = false
-                actions.onCreateArchiveFromSelection(name, format, compressionLevel, password)
+                archiveIntents.onCreateArchiveFromSelection(name, format, compressionLevel, password)
             }
         )
     }
@@ -125,10 +129,10 @@ internal fun BrowserDialogs(
                 dialogVisibility.showExtractArchiveDialog = false
                 when {
                     state.archiveContext != null && state.selectedFiles.isNotEmpty() ->
-                        actions.onExtractSelectedArchiveEntries(target, customDestination)
+                        archiveIntents.onExtractSelectedArchiveEntries(target, customDestination)
                     state.archiveContext?.entryPrefix != null ->
-                        actions.onExtractCurrentArchiveFolder(target, customDestination)
-                    else -> actions.onExtractArchive(target, customDestination)
+                        archiveIntents.onExtractCurrentArchiveFolder(target, customDestination)
+                    else -> archiveIntents.onExtractArchive(target, customDestination)
                 }
             }
         )
@@ -137,8 +141,8 @@ internal fun BrowserDialogs(
     state.archiveContext?.takeIf { it.passwordRequired }?.let { archive ->
         ArchivePasswordPromptDialog(
             archiveName = archive.archiveName,
-            onDismiss = actions.onDismissArchivePassword,
-            onConfirm = actions.onSubmitArchivePassword
+            onDismiss = archiveIntents.onDismissArchivePassword,
+            onConfirm = archiveIntents.onSubmitArchivePassword
         )
     }
 
@@ -149,10 +153,10 @@ internal fun BrowserDialogs(
             currentName = currentName,
             onDismiss = {
                 dialogVisibility.showRenameDialog = false
-                actions.onClearSelection()
+                selectionIntents.onClearSelection()
             },
             onConfirm = { newName ->
-                actions.onRenameFile(selectedPath, newName)
+                mutationIntents.onRenameFile(selectedPath, newName)
                 dialogVisibility.showRenameDialog = false
             },
             existingNames = state.displayState.existingNames
@@ -166,7 +170,7 @@ internal fun BrowserDialogs(
             showApplyToSubfolders = !state.isCategoryScreen,
             onDismiss = { dialogVisibility.showSortDialog = false },
             onApply = { presentation, applyToSubfolders ->
-                actions.onPresentationChange(presentation, applyToSubfolders)
+                searchIntents.onPresentationChange(presentation, applyToSubfolders)
                 dialogVisibility.showSortDialog = false
             }
         )
@@ -175,8 +179,8 @@ internal fun BrowserDialogs(
     if (state.showConflictDialog && state.pasteConflicts.isNotEmpty()) {
         PasteConflictDialog(
             conflicts = state.pasteConflicts,
-            onResolve = actions.onResolvingConflicts,
-            onDismiss = actions.onDismissConflictDialog
+            onResolve = clipboardIntents.onResolvingConflicts,
+            onDismiss = clipboardIntents.onDismissConflictDialog
         )
     }
 
@@ -185,8 +189,8 @@ internal fun BrowserDialogs(
             properties = state.properties,
             isLoading = state.isPropertiesLoading,
             onDismiss = {
-                actions.onDismissProperties()
-                actions.onClearSelection()
+                selectionIntents.onDismissProperties()
+                selectionIntents.onClearSelection()
             }
         )
     }
@@ -194,7 +198,7 @@ internal fun BrowserDialogs(
     if (dialogVisibility.showClipboardContents && state.clipboardState != null) {
         ClipboardContentsDialog(
             state = state.clipboardState,
-            onRemoveItem = actions.onRemoveFromClipboard,
+            onRemoveItem = clipboardIntents.onRemoveFromClipboard,
             onDismiss = { dialogVisibility.showClipboardContents = false }
         )
     }

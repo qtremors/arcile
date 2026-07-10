@@ -7,7 +7,6 @@ import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -19,7 +18,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
@@ -311,6 +310,7 @@ class RecentFilesViewModelTest {
         assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
         assertEquals(listOf("/storage/emulated/0/Holiday.jpg"), coordinator.startedRequests.single().sourcePaths)
         assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertEquals(0L, viewModel.state.value.selectedFilesTotalSize)
     }
 
     @Test
@@ -354,7 +354,7 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `presentation updates are persisted for recent files`() = runTest(mainDispatcherRule.dispatcher) {
-        val preferences = FakeBrowserPreferencesStore()
+        val preferences = FakeFilePreferencesStore()
         val viewModel = recentViewModel(FakeStorageRepositoryBundle(), preferences = preferences)
         val presentation = FileListingPreferences(
             sortOption = FileSortOption.NAME_ASC,
@@ -440,7 +440,7 @@ private fun recentFile(
 private fun recentViewModel(
     repository: FakeStorageRepositoryBundle,
     coordinator: FakeBulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
-    preferences: FakeBrowserPreferencesStore = FakeBrowserPreferencesStore(),
+    preferences: FakeFilePreferencesStore = FakeFilePreferencesStore(),
     storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier()
 ) = RecentFilesViewModel(
     volumeRepository = repository.volumeRepository,

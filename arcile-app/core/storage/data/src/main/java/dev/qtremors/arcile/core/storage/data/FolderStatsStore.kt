@@ -5,13 +5,13 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.db.FolderStatsDao
 import dev.qtremors.arcile.core.storage.data.db.FolderStatsEntity
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers

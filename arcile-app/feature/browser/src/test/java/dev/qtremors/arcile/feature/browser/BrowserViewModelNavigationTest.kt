@@ -7,9 +7,9 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -38,7 +38,7 @@ class BrowserViewModelNavigationTest {
                 filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
                 filesByCategory = mapOf("Images" to emptyList())
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = savedStateHandle
         )
 
@@ -78,7 +78,7 @@ class BrowserViewModelNavigationTest {
                     "/storage/emulated/0" to listOf(browserFile("Download", "/storage/emulated/0/Download", isDirectory = true))
                 )
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = savedStateHandle
         )
 
@@ -102,7 +102,7 @@ class BrowserViewModelNavigationTest {
                 volumes = listOf(internal),
                 filesByCategory = mapOf("Images" to listOf(browserFile("pic.jpg", "/storage/emulated/0/DCIM/pic.jpg")))
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(
+            browserPreferencesRepository = FakeFilePreferencesStore(
                 BrowserPreferences(
                     pathPresentationOptions = mapOf(
                         "category_Images" to FileListingPreferences(sortOption = FileSortOption.DATE_OLDEST)
@@ -138,7 +138,7 @@ class BrowserViewModelNavigationTest {
                 volumes = listOf(internal),
                 filesByCategory = mapOf("Audio" to listOf(browserFile("song.mp3", "/storage/emulated/0/Music/song.mp3")))
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(
                 mapOf(
                     "currentPath" to "/storage/emulated/0/Download",
@@ -161,7 +161,7 @@ class BrowserViewModelNavigationTest {
     @Test
     fun `updateBrowserPresentation persists category presentation key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val preferences = FakeBrowserPreferencesStore()
+        val preferences = FakeFilePreferencesStore()
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(
                 volumes = listOf(internal),

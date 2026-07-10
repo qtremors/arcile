@@ -42,8 +42,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
-import dev.qtremors.arcile.ui.theme.LocalCategoryColors
-import dev.qtremors.arcile.utils.getCategoryColor
+import dev.qtremors.arcile.core.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.core.ui.theme.getCategoryColor
 
 @Composable
 fun MultiColorStorageBar(

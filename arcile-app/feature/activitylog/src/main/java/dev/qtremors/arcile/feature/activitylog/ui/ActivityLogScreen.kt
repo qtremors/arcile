@@ -24,8 +24,8 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material3.AlertDialog
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,13 +52,13 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.theme.spacing
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ActivityLogScreen(
+internal fun ActivityLogScreen(
     entries: List<ActivityLogEntry>,
     onNavigateBack: () -> Unit,
     onClearActivity: () -> Unit

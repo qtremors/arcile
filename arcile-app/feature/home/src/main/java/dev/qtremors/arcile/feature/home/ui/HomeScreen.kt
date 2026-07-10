@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.home.ui
 
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 import android.os.Environment
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -85,7 +85,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import dev.qtremors.arcile.shared.ui.TopBarAction
+import dev.qtremors.arcile.core.ui.TopBarAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -100,19 +100,19 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.material.icons.filled.SdCard
-import dev.qtremors.arcile.ui.theme.LocalCategoryColors
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.titleLargeBold
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.ui.theme.bodySmallMedium
-import dev.qtremors.arcile.shared.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.theme.LocalCategoryColors
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.titleLargeBold
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
+import dev.qtremors.arcile.core.ui.theme.bodySmallMedium
+import dev.qtremors.arcile.core.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.feature.home.HomeState
-import dev.qtremors.arcile.shared.ui.ArcileTopBar
-import dev.qtremors.arcile.shared.ui.ToolCard
-import dev.qtremors.arcile.shared.ui.ToolItem
+import dev.qtremors.arcile.core.ui.ArcileTopBar
+import dev.qtremors.arcile.core.ui.ToolCard
+import dev.qtremors.arcile.core.ui.ToolItem
 import dev.qtremors.arcile.feature.home.ui.components.StorageSummaryCard
 import dev.qtremors.arcile.feature.home.ui.components.CategoryGrid
 import dev.qtremors.arcile.feature.home.ui.components.QuickAccessGrid
@@ -124,13 +124,13 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.SearchTopBar
-import dev.qtremors.arcile.shared.ui.shimmer
-import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
-import dev.qtremors.arcile.utils.formatFileSize
-import dev.qtremors.arcile.utils.getCategoryColor
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.shimmer
+import dev.qtremors.arcile.core.ui.SearchFiltersSheet
+import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.getCategoryColor
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -149,10 +149,10 @@ import androidx.compose.ui.platform.LocalContext
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.image.ThumbnailType
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.image.ThumbnailType
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.feature.home.ui.components.HomeRecentFilesCarouselThumbnailSizePx
 import dev.qtremors.arcile.feature.home.ui.components.homeThumbnailCacheKey
 
@@ -168,95 +168,9 @@ private const val HomeRecentFilesPreloadLimit = 6
  * [contentIntents] contains Home-owned refresh, sharing, and classification actions.
  */
 
-@Composable
-fun StorageClassificationPrompt(
-    volume: dev.qtremors.arcile.core.storage.domain.StorageVolume,
-    onClassify: (dev.qtremors.arcile.core.storage.domain.StorageKind) -> Unit,
-    onDecideLater: () -> Unit
-) {
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(MaterialTheme.spacing.medium),
-        shape = MaterialTheme.shapes.extraLarge,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
-    ) {
-        Column(modifier = Modifier.padding(MaterialTheme.spacing.space20)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Default.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(MaterialTheme.spacing.space12))
-                Text(
-                    text = stringResource(R.string.new_storage_detected),
-                    style = MaterialTheme.typography.titleMediumBold
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
-            
-            Text(
-                text = stringResource(R.string.how_should_be_treated, volume.name),
-                style = MaterialTheme.typography.bodyMedium
-            )
-            
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
-            
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.small)) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Button(
-                        onClick = { onClassify(StorageKind.SD_CARD) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ExpressiveShapes.medium
-                    ) {
-                        Text(stringResource(R.string.sd_card), maxLines = 1)
-                    }
-                    Text(
-                        stringResource(R.string.sd_card_description),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = MaterialTheme.spacing.extraSmall),
-                        textAlign = TextAlign.Center
-                    )
-                }
-                
-                Column(modifier = Modifier.weight(1f)) {
-                    OutlinedButton(
-                        onClick = { onClassify(StorageKind.OTG) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = ExpressiveShapes.medium
-                    ) {
-                        Text(stringResource(R.string.otg_usb), maxLines = 1)
-                    }
-                    Text(
-                        stringResource(R.string.otg_usb_description),
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(top = MaterialTheme.spacing.extraSmall),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
-            
-            TextButton(
-                onClick = onDecideLater,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            ) {
-                Text(stringResource(R.string.decide_later))
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun HomeScreen(
+internal fun HomeScreen(
     state: HomeState,
     navigationIntents: HomeNavigationIntents,
     contentIntents: HomeContentIntents,
@@ -306,7 +220,7 @@ fun HomeScreen(
     }
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    val dateFormatter = dev.qtremors.arcile.shared.ui.rememberDateFormatter("MMM dd, yyyy")
+    val dateFormatter = dev.qtremors.arcile.core.ui.rememberDateFormatter("MMM dd, yyyy")
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -315,13 +229,16 @@ fun HomeScreen(
             ArcileTopBar(
                 title = stringResource(R.string.app_name),
                 selectionCount = 0,
-                showSettingsIcon = true,
-                showSearchAction = false,
-                showSortAction = false,
+                options = dev.qtremors.arcile.core.ui.ArcileTopBarOptions(
+                    showSettingsIcon = true,
+                    showSearchAction = false,
+                    showSortAction = false,
                     showNewFolderAction = false,
                     showSettingsMenuAction = false,
-                    showAboutAction = true,
-                    scrollBehavior = scrollBehavior,
+                    showAboutAction = true
+                ),
+                scrollBehavior = scrollBehavior,
+                actions = dev.qtremors.arcile.core.ui.ArcileTopBarActions(
                     onSettingsClick = navigationIntents.settingsClick,
                     onClearSelection = {},
                     onSearchClick = {},
@@ -333,6 +250,7 @@ fun HomeScreen(
                             else -> {}
                         }
                     }
+                )
                 )
         }
     ) { padding ->

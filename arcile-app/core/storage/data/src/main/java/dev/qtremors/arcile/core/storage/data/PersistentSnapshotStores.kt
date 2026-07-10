@@ -13,7 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.security.MessageDigest
 import javax.inject.Inject

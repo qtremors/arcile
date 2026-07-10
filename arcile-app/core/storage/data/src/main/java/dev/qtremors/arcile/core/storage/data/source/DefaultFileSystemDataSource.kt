@@ -10,7 +10,6 @@ import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import dev.qtremors.arcile.di.ArcileDispatchers as LegacyArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -48,27 +47,6 @@ class DefaultFileSystemDataSource(
         PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
     }, mutationJournal = mutationJournal)
 ) : FileSystemDataSource {
-    constructor(
-        context: Context,
-        volumeProvider: VolumeProvider,
-        mutationFinalizer: MutationFinalizer,
-        dispatchers: LegacyArcileDispatchers,
-        storageNodeDao: StorageNodeDao? = null,
-        mutationJournal: MutationJournal = NoOpMutationJournal()
-    ) : this(
-        context = context,
-        volumeProvider = volumeProvider,
-        mutationFinalizer = mutationFinalizer,
-        dispatchers = ArcileDispatchers(
-            io = dispatchers.io,
-            default = dispatchers.default,
-            main = dispatchers.main,
-            storage = dispatchers.storage
-        ),
-        storageNodeDao = storageNodeDao,
-        mutationJournal = mutationJournal
-    )
-
     internal sealed class SecureOverwriteResult {
         data object Success : SecureOverwriteResult()
         data class Failure(val message: String, val causeType: String = "SecureOverwriteFailed") : SecureOverwriteResult()

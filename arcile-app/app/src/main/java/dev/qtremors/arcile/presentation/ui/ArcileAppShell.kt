@@ -52,11 +52,11 @@ import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.navigation.AppRoutes
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 

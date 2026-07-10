@@ -131,7 +131,8 @@ interface ArchiveManager {
         entryPrefix: String? = null,
         password: String? = null,
         nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
-    ): Result<List<FileConflict>> = Result.success(emptyList())
+    ): Result<List<FileConflict>> =
+        unsupportedCapability(StorageCapability.ARCHIVE_CONFLICT_DETECTION)
     suspend fun createArchive(
         sourcePaths: List<String>,
         destinationArchivePath: String,

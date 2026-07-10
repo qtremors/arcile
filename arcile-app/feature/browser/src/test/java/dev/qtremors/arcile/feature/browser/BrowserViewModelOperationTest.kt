@@ -9,7 +9,7 @@ import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -37,7 +37,7 @@ class BrowserViewModelOperationTest {
                 volumes = listOf(internal),
                 filesByPath = mapOf("/storage/emulated/0/Download" to listOf(browserFile("source.txt", "/storage/emulated/0/Download/source.txt")))
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -79,7 +79,7 @@ class BrowserViewModelOperationTest {
                 volumes = listOf(internal),
                 filesByPath = mapOf("/storage/emulated/0/Download" to listOf(browserFile("source.txt", "/storage/emulated/0/Download/source.txt")))
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -115,7 +115,7 @@ class BrowserViewModelOperationTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -148,7 +148,7 @@ class BrowserViewModelOperationTest {
         val repo = BrowserFakeFileRepository(volumes = listOf(internal))
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -180,7 +180,7 @@ class BrowserViewModelOperationTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -217,7 +217,7 @@ class BrowserViewModelOperationTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -254,7 +254,7 @@ class BrowserViewModelOperationTest {
         val otg = browserVolume("otg", "USB", "/storage/otg", isPrimary = false, isRemovable = true, kind = StorageKind.OTG)
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, otg)),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -278,7 +278,7 @@ class BrowserViewModelOperationTest {
         val coordinator = FakeBulkFileOperationCoordinator()
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal)),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -302,7 +302,7 @@ class BrowserViewModelOperationTest {
         val coordinator = FakeBulkFileOperationCoordinator()
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal)),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -347,7 +347,7 @@ class BrowserViewModelOperationTest {
         )
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal)),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
             bulkFileOperationCoordinator = coordinator
         )
@@ -375,7 +375,7 @@ class BrowserViewModelOperationTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false))
         )
 
@@ -389,4 +389,40 @@ class BrowserViewModelOperationTest {
         assertEquals("/storage/emulated/0/test.txt", repo.lastRenamePath)
         assertEquals("test - Copy.txt", repo.lastRenameNewName)
     }
+
+    @Test
+    fun `renameFile permits internal double dots but rejects traversal names`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val repo = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                renameResult = Result.success(
+                    browserFile("report..final.txt", "/storage/emulated/0/report..final.txt")
+                )
+            )
+            val viewModel = createViewModel(
+                repository = repo,
+                browserPreferencesRepository = FakeFilePreferencesStore(),
+                savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false))
+            )
+
+            advanceUntilIdle()
+            viewModel.renameFile("/storage/emulated/0/report.txt", "report..final.txt")
+            advanceUntilIdle()
+
+            assertEquals("report..final.txt", repo.lastRenameNewName)
+            assertNull(viewModel.state.value.error)
+
+            viewModel.renameFile("/storage/emulated/0/report..final.txt", "..")
+
+            assertEquals(
+                UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_invalid_name),
+                viewModel.state.value.error
+            )
+        }
 }

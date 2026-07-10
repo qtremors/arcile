@@ -74,26 +74,26 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerState
-import dev.qtremors.arcile.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.layout.ContentScale
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.shared.ui.getFileIconVector
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.getFileIconVector
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import java.io.File
 import java.util.Date
 import java.util.Locale
-import dev.qtremors.arcile.ui.theme.bounceClickable
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
@@ -103,14 +103,14 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.graphics.graphicsLayer
 
-enum class StorageCleanerBackAction {
+internal enum class StorageCleanerBackAction {
     DismissIgnoredItems,
     DismissDeleteConfirmation,
     DismissDetails,
     NavigateBack
 }
 
-fun resolveStorageCleanerBackAction(
+internal fun resolveStorageCleanerBackAction(
     showIgnoredItems: Boolean,
     showDeleteConfirm: Boolean,
     hasActiveDetails: Boolean
@@ -123,7 +123,7 @@ fun resolveStorageCleanerBackAction(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun StorageCleanerScreen(
+internal fun StorageCleanerScreen(
     state: StorageCleanerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
@@ -399,110 +399,5 @@ fun StorageCleanerScreen(
             onUnignorePath = onUnignorePath,
             onDismiss = { showIgnoredItems = false }
         )
-    }
-}
-
-@Composable
-private fun IgnoredItemsDialog(
-    ignoredPaths: Set<String>,
-    onUnignorePath: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.cleaner_ignored_items)) },
-        text = {
-            if (ignoredPaths.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.cleaner_no_ignored_items),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.height(240.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(ignoredPaths.sorted(), key = { it }) { path ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = path,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            TextButton(
-                                onClick = { onUnignorePath(path) },
-                                shape = ExpressiveShapes.medium
-                            ) {
-                                Text(stringResource(R.string.cleaner_restore_item))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium
-            ) {
-                Text(stringResource(R.string.ok))
-            }
-        }
-    )
-}
-
-@Composable
-internal fun CleanerConfirmContent(
-    selectedCandidates: List<CleanerCandidate>,
-    hasHighRisk: Boolean,
-    highRiskAcknowledged: Boolean,
-    onHighRiskAcknowledgedChange: (Boolean) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.clean_confirm_message, selectedCandidates.size))
-        LazyColumn(
-            modifier = Modifier.height(180.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(selectedCandidates, key = { it.absolutePath }) { candidate ->
-                Column {
-                    Text(
-                        text = candidate.absolutePath,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.cleaner_confirm_file_detail,
-                            formatFileSize(candidate.size),
-                            cleanerRiskLabel(candidate.riskLevel)
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = cleanerRiskColor(candidate.riskLevel)
-                    )
-                }
-            }
-        }
-        if (hasHighRisk) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = highRiskAcknowledged,
-                    onCheckedChange = onHighRiskAcknowledgedChange
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.cleaner_high_risk_acknowledge),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
     }
 }

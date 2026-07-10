@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.browser
 import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -30,15 +30,15 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableSharedFlow
 
-fun createViewModel(
+internal fun createViewModel(
     repository: BrowserFakeFileRepository,
-    browserPreferencesRepository: BrowserPreferencesStore = FakeBrowserPreferencesStore(),
+    browserPreferencesRepository: BrowserLocationPreferencesStore = FakeFilePreferencesStore(),
     savedStateHandle: SavedStateHandle,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
     storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier()
@@ -49,6 +49,7 @@ fun createViewModel(
     clipboardRepository = repository.clipboardRepository,
     trashRepository = repository.trashRepository,
     archiveRepository = repository.archiveRepository,
+    archivePathResolver = BrowserTestArchivePathResolver,
     volumeRepository = repository.volumeRepository,
     browserPreferencesRepository = browserPreferencesRepository,
     savedStateHandle = savedStateHandle,
@@ -56,6 +57,21 @@ fun createViewModel(
     bulkFileCoordinator = bulkFileOperationCoordinator,
     storageMutationNotifier = storageMutationNotifier
 )
+
+private object BrowserTestArchivePathResolver :
+    dev.qtremors.arcile.core.storage.domain.ArchivePathResolver {
+    override suspend fun resolve(
+        request: dev.qtremors.arcile.core.storage.domain.ArchivePathRequest
+    ): Result<String> {
+        val name = request.requestedName
+            ?.removeSuffix(".${request.format.extension}")
+            ?.takeIf(String::isNotBlank)
+            ?: "Archive"
+        return Result.success(
+            "${request.parentPath.orEmpty().trimEnd('/')}/$name.${request.format.extension}"
+        )
+    }
+}
 
 class FakeStorageMutationNotifier : StorageMutationNotifier {
     private val _events = MutableSharedFlow<StorageMutationEvent>(extraBufferCapacity = 16)

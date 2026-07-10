@@ -63,11 +63,13 @@ class BrowserDisplayStateTest {
 
     @Test
     fun `transient browser updates keep display state reference`() {
-        val base = BrowserState(
-            files = listOf(file("one.txt", "/storage/emulated/0/one.txt")).toPersistentList()
+        val base = BrowserNavigationState(
+            listing = BrowserListingState(
+                files = listOf(file("one.txt", "/storage/emulated/0/one.txt")).toPersistentList()
+            )
         ).withUpdatedDisplayState()
 
-        val updated = base.copy(isPropertiesVisible = true, isLoading = true)
+        val updated = base.copy(listing = base.listing.copy(isLoading = true))
 
         assertSame(base.displayState, updated.displayState)
     }

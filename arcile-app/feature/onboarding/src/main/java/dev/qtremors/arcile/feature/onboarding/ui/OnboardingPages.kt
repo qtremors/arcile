@@ -72,14 +72,14 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreFailure
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
-import dev.qtremors.arcile.shared.ui.ExpressiveFilterChip
-import dev.qtremors.arcile.shared.ui.settings.AccentColorSelector
-import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
-import dev.qtremors.arcile.ui.theme.ThemeState
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
+import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
+import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 
 @Composable
 internal fun OnboardingPage(
@@ -159,7 +159,7 @@ private data class FeatureInfo(
 @Composable
 internal fun OnboardingWelcomeAndFeatures() {
     var selectedFeatureIndex by remember { mutableStateOf(0) }
-    
+
     val features = remember {
         listOf(
             FeatureInfo(Icons.Default.Storage, R.string.onboarding_feature_multi_volume, R.string.onboarding_feature_multi_volume_description),
@@ -193,14 +193,14 @@ internal fun OnboardingWelcomeAndFeatures() {
         hasBodyContent = true
     ) {
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
             text = stringResource(R.string.onboarding_highlight_features),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        
+
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -211,11 +211,11 @@ internal fun OnboardingWelcomeAndFeatures() {
                 ExpressiveFilterChip(
                     selected = isSelected,
                     onClick = { selectedFeatureIndex = index },
-                    label = { 
+                    label = {
                         Text(
                             text = stringResource(feature.titleRes),
                             style = MaterialTheme.typography.labelMedium
-                        ) 
+                        )
                     },
                     leadingIcon = {
                         Icon(
@@ -228,11 +228,11 @@ internal fun OnboardingWelcomeAndFeatures() {
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
-        
+
         val selectedFeature = features[selectedFeatureIndex]
-        
+
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -246,7 +246,7 @@ internal fun OnboardingWelcomeAndFeatures() {
             AnimatedContent(
                 targetState = selectedFeature,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(200)) togetherWith 
+                    fadeIn(animationSpec = tween(200)) togetherWith
                     fadeOut(animationSpec = tween(150))
                 },
                 label = "feature_description_animation"
@@ -332,315 +332,6 @@ internal fun OnboardingTheme(
 }
 
 @Composable
-internal fun OnboardingSetupPermissions(
-    state: OnboardingUiState,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
-    restoreState: OnboardingRestoreState,
-    onChooseRestoreBackup: () -> Unit,
-    onOpenStoragePermissionSettings: () -> Unit,
-    onRequestNotificationPermission: () -> Unit,
-    showOlderAndroidWarning: Boolean
-) {
-    val haptics = rememberArcileHaptics()
-    val storageBgColor by animateColorAsState(
-        targetValue = if (state.hasStoragePermission) {
-            Color.Transparent
-        } else {
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f)
-        },
-        label = "storage_permission_bg"
-    )
-    val notificationBgColor by animateColorAsState(
-        targetValue = if (state.hasNotificationPermission) {
-            Color.Transparent
-        } else {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.08f)
-        },
-        label = "notification_permission_bg"
-    )
-
-    OnboardingPage(
-        icon = Icons.Default.Settings,
-        title = stringResource(R.string.onboarding_configure_title),
-        description = stringResource(R.string.onboarding_configure_description),
-        hasBodyContent = true
-    ) {
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Appearance Selector Card
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                ThemeModeSelector(
-                    currentMode = currentThemeState.themeMode,
-                    onModeSelected = { onThemeChange(currentThemeState.copy(themeMode = it)) }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                AccentColorSelector(
-                    currentAccent = currentThemeState.accentColor,
-                    onAccentSelected = { onThemeChange(currentThemeState.copy(accentColor = it)) }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Permissions Card
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.onboarding_system_access),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                // Storage Permission Row
-                val openStorageClick = {
-                    haptics.selectionChanged()
-                    onOpenStoragePermissionSettings()
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(ExpressiveShapes.medium)
-                        .background(storageBgColor)
-                        .bounceClickable(
-                            enabled = !state.hasStoragePermission,
-                            onClick = openStorageClick
-                        )
-                        .padding(horizontal = 12.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (state.hasStoragePermission) {
-                                stringResource(R.string.onboarding_storage_ready_title)
-                            } else {
-                                stringResource(R.string.onboarding_storage_title)
-                            },
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (state.hasStoragePermission) {
-                                stringResource(R.string.onboarding_storage_ready_description)
-                            } else {
-                                stringResource(R.string.onboarding_storage_description)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    if (state.hasStoragePermission) {
-                        PermissionStatusChip(
-                            label = stringResource(R.string.onboarding_permission_granted),
-                            icon = Icons.Default.CheckCircle,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    } else {
-                        OnboardingActionChip(
-                            onClick = openStorageClick,
-                            label = stringResource(R.string.onboarding_permission_grant),
-                            icon = Icons.Default.WarningAmber,
-                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-
-                // Notification Permission Row
-                if (state.notificationPermissionRequired) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    val openNotificationsClick = {
-                        haptics.selectionChanged()
-                        onRequestNotificationPermission()
-                    }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ExpressiveShapes.medium)
-                            .background(notificationBgColor)
-                            .bounceClickable(
-                                enabled = !state.hasNotificationPermission,
-                                onClick = openNotificationsClick
-                            )
-                            .padding(horizontal = 12.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.onboarding_notifications_title),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                text = stringResource(R.string.onboarding_notifications_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        if (state.hasNotificationPermission) {
-                            PermissionStatusChip(
-                                label = stringResource(R.string.onboarding_permission_enabled),
-                                icon = Icons.Default.CheckCircle,
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        } else {
-                            OnboardingActionChip(
-                                onClick = openNotificationsClick,
-                                label = stringResource(R.string.onboarding_enable_notifications),
-                                icon = Icons.Default.Notifications,
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Restore Backup Button
-        val chooseRestoreBackupClick = {
-            haptics.selectionChanged()
-            onChooseRestoreBackup()
-        }
-        FilledTonalButton(
-            onClick = chooseRestoreBackupClick,
-            enabled = restoreState != OnboardingRestoreState.Busy,
-            modifier = Modifier
-                .fillMaxWidth()
-                .bounceClickable(
-                    enabled = restoreState != OnboardingRestoreState.Busy,
-                    onClick = chooseRestoreBackupClick
-                ),
-            shape = ExpressiveShapes.medium
-        ) {
-            Icon(Icons.Default.SettingsBackupRestore, contentDescription = null)
-            Spacer(modifier = Modifier.size(MaterialTheme.spacing.small))
-            Text(stringResource(R.string.onboarding_restore_backup_action))
-        }
-
-        if (showOlderAndroidWarning) {
-            Spacer(modifier = Modifier.height(12.dp))
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.WarningAmber,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Column {
-                        Text(
-                            text = stringResource(R.string.onboarding_limited_android_title),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                        Text(
-                            text = stringResource(R.string.onboarding_limited_android_description),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingActionChip(
-    onClick: () -> Unit,
-    label: String,
-    icon: ImageVector,
-    containerColor: Color,
-    contentColor: Color
-) {
-    Surface(
-        shape = ExpressiveShapes.medium,
-        color = containerColor,
-        contentColor = contentColor,
-        modifier = Modifier
-            .clip(ExpressiveShapes.medium)
-            .bounceClickable(onClick = onClick)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-@Composable
-private fun PermissionStatusChip(
-    label: String,
-    icon: ImageVector,
-    containerColor: Color,
-    contentColor: Color
-) {
-    Surface(
-        shape = CircleShape,
-        color = containerColor,
-        contentColor = contentColor
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-
-@Composable
-private fun RestoreStatusPill(label: String) {
-    Surface(
-        shape = ExpressiveShapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-        )
-    }
-}
-
-@Composable
 internal fun OnboardingDone() {
     OnboardingPage(
         icon = Icons.Default.CheckCircle,
@@ -695,165 +386,6 @@ internal fun FeatureRow(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun OnboardingRestoreDialog(
-    state: OnboardingRestoreState,
-    onApplyRestoreBackup: () -> Unit,
-    onDismissRestoreBackup: () -> Unit,
-    onRestartApp: () -> Unit
-) {
-    val haptics = rememberArcileHaptics()
-    when (state) {
-        OnboardingRestoreState.Idle,
-        OnboardingRestoreState.Busy -> Unit
-        is OnboardingRestoreState.Preview -> AlertDialog(
-            onDismissRequest = onDismissRestoreBackup,
-            icon = { Icon(Icons.Default.SettingsBackupRestore, contentDescription = null) },
-            title = { Text(stringResource(R.string.settings_backup_restore_preview_title)) },
-            text = {
-                OnboardingRestoreItemList(
-                    description = stringResource(R.string.settings_backup_restore_preview_description),
-                    items = state.items,
-                    failures = emptyList()
-                )
-            },
-            confirmButton = {
-                val applyClick = {
-                    haptics.selectionChanged()
-                    onApplyRestoreBackup()
-                }
-                FilledTonalButton(
-                    onClick = applyClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = applyClick)
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.settings_backup_restore))
-                }
-            },
-            dismissButton = {
-                val dismissClick = {
-                    haptics.selectionChanged()
-                    onDismissRestoreBackup()
-                }
-                FilledTonalButton(
-                    onClick = dismissClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = dismissClick)
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-        is OnboardingRestoreState.Restored -> AlertDialog(
-            onDismissRequest = onDismissRestoreBackup,
-            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
-            title = { Text(stringResource(R.string.settings_backup_restore_complete_title)) },
-            text = {
-                OnboardingRestoreItemList(
-                    description = stringResource(R.string.settings_backup_restore_complete_description, state.items.size),
-                    items = state.items,
-                    failures = state.failures
-                )
-            },
-            confirmButton = {
-                val restartClick = {
-                    haptics.selectionChanged()
-                    onRestartApp()
-                }
-                FilledTonalButton(
-                    onClick = restartClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = restartClick)
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.restart_now))
-                }
-            },
-            dismissButton = {
-                val dismissClick = {
-                    haptics.selectionChanged()
-                    onDismissRestoreBackup()
-                }
-                FilledTonalButton(
-                    onClick = dismissClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = dismissClick)
-                ) {
-                    Text(stringResource(R.string.later))
-                }
-            }
-        )
-        is OnboardingRestoreState.Failed -> AlertDialog(
-            onDismissRequest = onDismissRestoreBackup,
-            icon = { Icon(Icons.Default.WarningAmber, contentDescription = null) },
-            title = { Text(stringResource(R.string.settings_backup_failed_title)) },
-            text = { Text(state.message) },
-            confirmButton = {
-                val dismissClick = {
-                    haptics.selectionChanged()
-                    onDismissRestoreBackup()
-                }
-                FilledTonalButton(
-                    onClick = dismissClick,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = dismissClick)
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.ok))
-                }
-            }
-        )
-    }
-}
-@Composable
-private fun OnboardingRestoreItemList(
-    description: String,
-    items: List<OnboardingRestoreItem>,
-    failures: List<OnboardingRestoreFailure>
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)) {
-        Text(description, style = MaterialTheme.typography.bodyMedium)
-        Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier
-                .heightIn(max = 360.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            items.forEach { item ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(item.label, style = MaterialTheme.typography.bodyMedium)
-                        RestoreStatusPill(label = item.status)
-                    }
-                }
-            }
-            failures.forEach { failure ->
-                Surface(
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                        Text(failure.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
-                        Text(failure.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                    }
-                }
             }
         }
     }

@@ -15,8 +15,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.navigation.NavBackStackEntry
-import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
-import dev.qtremors.arcile.ui.theme.ArcileMotion
+import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.core.ui.theme.ArcileMotion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,19 +47,14 @@ import dev.qtremors.arcile.feature.storageusage.registerStorageManagementRoute
 import dev.qtremors.arcile.feature.settings.SettingsDestination
 import dev.qtremors.arcile.feature.settings.registerSettingsRoute
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 import dev.qtremors.arcile.core.plugin.android.PluginManager
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.stringResource
 
 @Composable
 fun AppNavigationGraph(
@@ -72,7 +67,6 @@ fun AppNavigationGraph(
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     val coroutineScope = rememberCoroutineScope()
     val fileOpenResolver = remember(context) {
         AppFileOpenResolver(
@@ -91,8 +85,9 @@ fun AppNavigationGraph(
                 is AppFileOpenResolution.PluginPrompt -> pluginPrompt = resolution.prompt
                 is AppFileOpenResolution.Failed -> onFeedback(
                     ArcileFeedbackEvent(
-                        message = dev.qtremors.arcile.core.presentation.UiText.Dynamic(
-                            context.getString(R.string.cannot_open_file, resolution.error.localizedMessage.orEmpty())
+                        message = dev.qtremors.arcile.core.presentation.UiText.StringResource(
+                            R.string.cannot_open_file,
+                            listOf(resolution.error.localizedMessage.orEmpty())
                         ),
                         severity = ArcileFeedbackSeverity.Error
                     )
@@ -162,41 +157,10 @@ fun AppNavigationGraph(
 
     val reducedMotion = LocalReducedMotionEnabled.current
 
-    when (val prompt = pluginPrompt) {
-        is PluginFileResolution.Missing -> {
-            AlertDialog(
-                onDismissRequest = { pluginPrompt = null },
-                title = { Text(stringResource(R.string.plugin_missing_title, prompt.catalogEntry.name)) },
-                text = { Text(stringResource(R.string.plugin_missing_message, prompt.catalogEntry.name)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pluginPrompt = null
-                        uriHandler.openUri(PluginManager.RELEASES_URL)
-                    }) { Text(stringResource(R.string.install)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pluginPrompt = null }) { Text(stringResource(R.string.cancel)) }
-                }
-            )
-        }
-        is PluginFileResolution.Incompatible -> {
-            AlertDialog(
-                onDismissRequest = { pluginPrompt = null },
-                title = { Text(stringResource(R.string.plugin_incompatible_title)) },
-                text = { Text(stringResource(R.string.plugin_incompatible_message, prompt.plugin.name)) },
-                confirmButton = {
-                    TextButton(onClick = {
-                        pluginPrompt = null
-                        uriHandler.openUri(PluginManager.RELEASES_URL)
-                    }) { Text(stringResource(R.string.view_releases)) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pluginPrompt = null }) { Text(stringResource(R.string.cancel)) }
-                }
-            )
-        }
-        else -> Unit
-    }
+    AppPluginPromptDialog(
+        prompt = pluginPrompt,
+        onDismiss = { pluginPrompt = null }
+    )
 
     val detailEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
         if (reducedMotion) fadeIn(tween(0)) else slideInHorizontally(initialOffsetX = { it }, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) + scaleIn(initialScale = 0.94f, animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))

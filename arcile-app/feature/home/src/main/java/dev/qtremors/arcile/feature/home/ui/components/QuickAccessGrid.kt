@@ -33,10 +33,10 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
-import dev.qtremors.arcile.shared.ui.QuickAccessAppIcon
+import dev.qtremors.arcile.core.ui.QuickAccessAppIcon
 
 @Composable
-fun QuickAccessGrid(
+internal fun QuickAccessGrid(
     quickAccessItems: List<QuickAccessItem>,
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,

@@ -30,9 +30,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
-import dev.qtremors.arcile.ui.theme.sheet
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -49,9 +49,9 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)

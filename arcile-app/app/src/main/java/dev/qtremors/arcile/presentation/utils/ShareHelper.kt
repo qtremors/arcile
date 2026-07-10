@@ -5,7 +5,7 @@ import android.content.ClipData
 import android.content.Intent
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import java.util.ArrayList
 
 object ShareHelper {

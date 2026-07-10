@@ -5,12 +5,6 @@ enum class FileViewMode {
     GRID
 }
 
-@Deprecated(
-    message = "Use FileViewMode. BrowserViewMode is kept temporarily for migration compatibility.",
-    replaceWith = ReplaceWith("FileViewMode")
-)
-typealias BrowserViewMode = FileViewMode
-
 enum class ImageGalleryGrouping {
     NONE,
     DAY,
@@ -48,12 +42,6 @@ data class FileListingPreferences(
         gridMinCellSize = gridMinCellSize.coerceIn(MIN_GRID_MIN_CELL_SIZE, MAX_GRID_MIN_CELL_SIZE)
     )
 }
-
-@Deprecated(
-    message = "Use FileListingPreferences. BrowserPresentationPreferences is kept temporarily for migration compatibility.",
-    replaceWith = ReplaceWith("FileListingPreferences")
-)
-typealias BrowserPresentationPreferences = FileListingPreferences
 
 data class BrowserPreferences(
     val globalPresentation: FileListingPreferences = FileListingPreferences(),

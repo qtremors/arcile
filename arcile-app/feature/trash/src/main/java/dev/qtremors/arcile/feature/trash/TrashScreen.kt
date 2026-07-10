@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,14 +24,14 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
-import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Restore
@@ -58,7 +58,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import dev.qtremors.arcile.shared.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.SearchTopBar
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -79,9 +79,9 @@ import dev.qtremors.arcile.feature.trash.TrashFilter
 import dev.qtremors.arcile.feature.trash.TrashPropertiesUiModel
 import dev.qtremors.arcile.feature.trash.TrashState
 import dev.qtremors.arcile.feature.trash.TrashSortOption
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.feature.trash.ui.EmptyTrashDialog
 import dev.qtremors.arcile.feature.trash.ui.TrashList
 
@@ -95,50 +95,48 @@ import dev.qtremors.arcile.core.presentation.UiText
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun TrashScreen(
+internal fun TrashScreen(
     state: TrashState,
-    onNavigateBack: () -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onClearSelection: () -> Unit,
-    onRestoreSelected: () -> Unit,
-    onEmptyTrash: () -> Unit,
-    onClearError: () -> Unit,
-    onDismissDestinationPicker: () -> Unit,
-    onRestoreToDestination: (List<String>, String) -> Unit,
-    onPermanentlyDeleteSelected: () -> Unit,
-    onDismissPermanentDelete: () -> Unit,
-    onSelectAll: () -> Unit,
-    onSearchQueryChange: (String) -> Unit = {},
-    onClearSearch: () -> Unit = {},
-    onSortChange: (TrashSortOption) -> Unit = {},
-    onFilterChange: (TrashFilter) -> Unit = {},
-    onOpenProperties: () -> Unit = {},
-    onDismissProperties: () -> Unit = {},
-    onClearSnackbarMessage: () -> Unit = {},
-    onUndoLastRestore: () -> Unit = {},
-    onClearPendingRestoreUndo: () -> Unit = {},
-    onRefresh: (() -> Unit)? = null,
-    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
+    navigationActions: TrashNavigationActions,
+    selectionActions: TrashSelectionActions,
+    restoreActions: TrashRestoreActions,
+    deleteActions: TrashDeleteActions,
+    presentationActions: TrashPresentationActions,
+    feedbackActions: TrashFeedbackActions,
     nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
 ) {
+    val onNavigateBack = navigationActions.navigateBack
+    val onToggleSelection = selectionActions.toggle
+    val onClearSelection = selectionActions.clear
+    val onSelectAll = selectionActions.selectAll
+    val onOpenProperties = selectionActions.openProperties
+    val onDismissProperties = selectionActions.dismissProperties
+    val onRestoreSelected = restoreActions.restoreSelected
+    val onDismissDestinationPicker = restoreActions.dismissDestinationPicker
+    val onRestoreToDestination = restoreActions.restoreToDestination
+    val onUndoLastRestore = restoreActions.undoLastRestore
+    val onClearPendingRestoreUndo = restoreActions.clearPendingUndo
+    val onEmptyTrash = deleteActions.emptyTrash
+    val onPermanentlyDeleteSelected = deleteActions.permanentlyDeleteSelected
+    val onDismissPermanentDelete = deleteActions.dismissPermanentDelete
+    val onSearchQueryChange = presentationActions.searchQueryChange
+    val onClearSearch = presentationActions.clearSearch
+    val onSortChange = presentationActions.sortChange
+    val onFilterChange = presentationActions.filterChange
+    val onRefresh = presentationActions.refresh
+    val onClearError = feedbackActions.clearError
+    val onClearSnackbarMessage = feedbackActions.clearSnackbarMessage
+    val onFeedback = feedbackActions.feedback
     val haptics = rememberArcileHaptics()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            when (state.pendingNativeAction) {
-                dev.qtremors.arcile.feature.trash.NativeAction.RESTORE -> onRestoreSelected()
-                dev.qtremors.arcile.feature.trash.NativeAction.RESTORE_TO_DESTINATION -> {
-                    if (state.pendingDestinationPath != null && state.pendingRestoreIds.isNotEmpty()) {
-                        onRestoreToDestination(state.pendingRestoreIds, state.pendingDestinationPath)
-                    }
-                }
-                dev.qtremors.arcile.feature.trash.NativeAction.EMPTY -> onEmptyTrash()
-                null -> {}
-            }
-        }
-    }
+    TrashNativeAuthorizationEffect(
+        state = state,
+        requests = nativeRequestFlow,
+        onRestoreSelected = onRestoreSelected,
+        onRestoreToDestination = onRestoreToDestination,
+        onEmptyTrash = onEmptyTrash,
+        onPermanentlyDeleteSelected = onPermanentlyDeleteSelected
+    )
 
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading) {
@@ -147,12 +145,6 @@ fun TrashScreen(
             showLoading = true
         } else {
             showLoading = false
-        }
-    }
-
-    LaunchedEffect(nativeRequestFlow) {
-        nativeRequestFlow?.collect { sender ->
-            launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 
@@ -272,18 +264,18 @@ fun TrashScreen(
                         actions = {
                             if (!isSelectionMode) {
                                 val topActions = listOf(
-                                    dev.qtremors.arcile.shared.ui.ToolbarAction(
+                                    dev.qtremors.arcile.core.ui.ToolbarAction(
                                         icon = Icons.Default.Search,
                                         contentDescription = stringResource(R.string.action_search),
                                         onClick = { showSearchBar = true }
                                     ),
-                                    dev.qtremors.arcile.shared.ui.ToolbarAction(
+                                    dev.qtremors.arcile.core.ui.ToolbarAction(
                                         icon = Icons.AutoMirrored.Filled.Sort,
                                         contentDescription = stringResource(R.string.action_sort),
                                         onClick = { showSortDialog = true }
                                     )
                                 )
-                                dev.qtremors.arcile.shared.ui.SplitButtonGroup(actions = topActions)
+                                dev.qtremors.arcile.core.ui.SplitButtonGroup(actions = topActions)
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
@@ -362,82 +354,18 @@ fun TrashScreen(
             }
             }
 
-            // Floating Selection Toolbar Overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .graphicsLayer {
-                        if (isBackPredicting && isSelectionMode) {
-                            translationY = backProgress * 150.dp.toPx()
-                            alpha = 1f - backProgress
-                        }
-                    },
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                val mainActions = mutableListOf<dev.qtremors.arcile.shared.ui.ToolbarAction>()
-                mainActions.add(dev.qtremors.arcile.shared.ui.ToolbarAction(
-                    icon = Icons.Default.SelectAll,
-                    contentDescription = stringResource(R.string.select_all),
-                    onClick = onSelectAll
-                ))
-                mainActions.add(dev.qtremors.arcile.shared.ui.ToolbarAction(
-                    icon = Icons.Default.Restore,
-                    contentDescription = stringResource(R.string.restore),
-                    onClick = onRestoreSelected
-                ))
-                mainActions.add(dev.qtremors.arcile.shared.ui.ToolbarAction(
-                    icon = Icons.Default.DeleteForever,
-                    contentDescription = stringResource(R.string.delete_permanently),
-                    tint = MaterialTheme.colorScheme.error,
-                    onClick = onPermanentlyDeleteSelected
-                ))
-                
-                dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar(
-                    isVisible = isSelectionMode,
-                    actions = mainActions,
-                    moreContent = {
-                        var showMoreMenu by rememberSaveable { mutableStateOf(false) }
-                        Box {
-                            Surface(
-                                onClick = { showMoreMenu = true },
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = stringResource(R.string.action_more_options),
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                            androidx.compose.material3.DropdownMenu(
-                                expanded = showMoreMenu,
-                                onDismissRequest = { showMoreMenu = false }
-                            ) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(RoundedCornerShape(24.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            ) {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.properties_title)) },
-                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                    onClick = {
-                                        showMoreMenu = false
-                                        onOpenProperties()
-                                    }
-                                )
-                            }
-                            }
-                        }
-                    }
+            TrashSelectionToolbar(
+                isVisible = isSelectionMode,
+                isBackPredicting = isBackPredicting,
+                backProgress = backProgress,
+                contentPadding = padding,
+                actions = TrashSelectionToolbarActions(
+                    selectAll = onSelectAll,
+                    restore = onRestoreSelected,
+                    deletePermanently = onPermanentlyDeleteSelected,
+                    openProperties = onOpenProperties
                 )
-            }
+            )
         }
 
         if (showEmptyTrashConfirmation) {
@@ -451,7 +379,7 @@ fun TrashScreen(
         }
 
         if (state.showPermanentDeleteConfirmation) {
-            dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog(
+            dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog(
                 selectedCount = state.selectedFiles.size,
                 isPermanentDeleteChecked = true,
                 isPermanentDeleteToggleEnabled = false,
@@ -462,58 +390,11 @@ fun TrashScreen(
         }
 
         if (state.showDestinationPicker) {
-            val indexedVolumes = state.availableVolumes.filter { it.kind.isIndexed }
-            if (indexedVolumes.isEmpty()) {
-                AlertDialog(
-                    onDismissRequest = onDismissDestinationPicker,
-                    title = { Text(stringResource(R.string.no_restore_destination_title)) },
-                    text = { Text(stringResource(R.string.no_restore_destination_description)) },
-                    confirmButton = {
-                        TextButton(
-                            onClick = onDismissDestinationPicker,
-                            shape = ExpressiveShapes.medium,
-                            modifier = Modifier.bounceClickable(onClick = onDismissDestinationPicker)
-                        ) {
-                            Text(stringResource(R.string.dismiss))
-                        }
-                    }
-                )
-            } else {
-                AlertDialog(
-                    onDismissRequest = onDismissDestinationPicker,
-                    title = { Text(stringResource(R.string.select_restore_destination_title)) },
-                    text = {
-                        Column {
-                            Text(stringResource(R.string.select_restore_destination_description))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LazyColumn {
-                                items(indexedVolumes) { volume ->
-                                    ListItem(
-                                        headlineContent = { Text(volume.name) },
-                                        supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                        modifier = Modifier
-                                            .clip(ExpressiveShapes.medium)
-                                            .bounceClickable {
-                                                onRestoreToDestination(state.selectedTrashIdsForDestination, volume.path)
-                                                onDismissDestinationPicker()
-                                            },
-                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = onDismissDestinationPicker,
-                            shape = ExpressiveShapes.medium,
-                            modifier = Modifier.bounceClickable(onClick = onDismissDestinationPicker)
-                        ) {
-                            Text(stringResource(R.string.cancel))
-                        }
-                    }
-                )
-            }
+            RestoreDestinationDialog(
+                state = state,
+                onDismiss = onDismissDestinationPicker,
+                onRestore = onRestoreToDestination
+            )
         }
 
         if (showSortDialog) {
@@ -588,48 +469,7 @@ private fun TrashBody(
 }
 
 @Composable
-private fun TrashPropertiesDialog(
-    properties: TrashPropertiesUiModel?,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.properties_title)) },
-        text = {
-            val model = properties ?: return@AlertDialog
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(model.title, style = MaterialTheme.typography.titleMedium)
-                model.rows.forEach { (label, value) ->
-                    Column {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = value,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.ok))
-            }
-        }
-    )
-}
-
-@Composable
-fun TrashInfoCard() {
+internal fun TrashInfoCard() {
     androidx.compose.material3.ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()

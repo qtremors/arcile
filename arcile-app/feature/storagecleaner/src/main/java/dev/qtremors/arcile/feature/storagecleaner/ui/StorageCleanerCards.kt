@@ -28,10 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
-import dev.qtremors.arcile.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.utils.formatFileSize
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
 @Composable
 internal fun CleanerLoading() {

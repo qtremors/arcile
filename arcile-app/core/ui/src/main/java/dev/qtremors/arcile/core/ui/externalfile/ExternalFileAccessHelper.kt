@@ -8,7 +8,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File

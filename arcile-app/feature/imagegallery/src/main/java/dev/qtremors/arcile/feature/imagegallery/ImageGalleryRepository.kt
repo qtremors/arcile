@@ -3,33 +3,33 @@ package dev.qtremors.arcile.feature.imagegallery
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
-interface ImageGalleryRepository {
+internal interface ImageGalleryRepository {
     val mutationEvents: Flow<dev.qtremors.arcile.core.storage.domain.StorageMutationEvent>
     suspend fun loadImages(volumeId: String?, forceRefresh: Boolean = false): ImageGallerySnapshot
     fun invalidate(paths: Collection<String> = emptyList())
 }
 
-data class ImageGallerySnapshot(
+internal data class ImageGallerySnapshot(
     val files: List<FileModel>,
     val albums: List<ImageGalleryAlbum>,
     val aspectRatios: Map<String, Float>,
     val isStale: Boolean
 )
 
-data class ImageGalleryAlbum(
+internal data class ImageGalleryAlbum(
     val path: String?,
     val label: String,
     val count: Int,
     val lastModified: Long
 )
 
-class DefaultImageGalleryRepository @Inject constructor(
+internal class DefaultImageGalleryRepository @Inject constructor(
     private val imageCatalogRepository: ImageCatalogRepository,
     private val storageMutationNotifier: StorageMutationNotifier,
     private val dispatchers: ArcileDispatchers = ArcileDispatchers(

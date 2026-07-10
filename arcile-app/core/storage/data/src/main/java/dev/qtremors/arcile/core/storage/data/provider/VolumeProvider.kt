@@ -12,8 +12,8 @@ import android.os.storage.StorageManager
 import androidx.core.content.ContextCompat
 import dev.qtremors.arcile.core.storage.data.StorageClassificationRepository
 import dev.qtremors.arcile.core.storage.data.util.mergeStorageClassifications
-import dev.qtremors.arcile.di.ArcileDispatchers
-import dev.qtremors.arcile.di.ApplicationScope
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

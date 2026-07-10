@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class BrowserSearchContext(
+internal data class BrowserSearchContext(
     val currentPath: String,
     val currentVolumeId: String?,
     val isVolumeRootScreen: Boolean,
@@ -26,7 +26,7 @@ data class BrowserSearchContext(
     val archiveFiles: List<FileModel>?
 )
 
-class SearchController(
+internal class SearchController(
     initialState: BrowserSearchState,
     private val scope: CoroutineScope,
     private val repository: SearchRepository,

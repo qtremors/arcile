@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui
+package dev.qtremors.arcile.core.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
@@ -8,7 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.testutil.ArcileTestTheme
-import dev.qtremors.arcile.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

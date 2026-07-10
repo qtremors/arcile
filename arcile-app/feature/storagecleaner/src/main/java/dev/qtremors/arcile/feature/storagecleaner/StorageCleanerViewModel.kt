@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.onFailure
+import dev.qtremors.arcile.core.storage.domain.onSuccess
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
@@ -25,7 +27,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class StorageCleanerState(
+internal data class StorageCleanerState(
     val groups: List<CleanerGroup> = CleanerGroupType.entries.map { CleanerGroup(it, emptyList()) },
     val isScanning: Boolean = false,
     val isCleaning: Boolean = false,
@@ -43,13 +45,13 @@ data class StorageCleanerState(
         groups.flatMap { it.candidates }.distinctBy { it.absolutePath }.filter { it.absolutePath in paths }
 }
 
-data class CleanerSuccessMessage(
+internal data class CleanerSuccessMessage(
     val cleanedCount: Int,
     val undoTrashIds: List<String> = emptyList()
 )
 
 @HiltViewModel
-class StorageCleanerViewModel @Inject constructor(
+internal class StorageCleanerViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val trashRepository: TrashRepository,
     private val scanner: StorageCleanerScanner,

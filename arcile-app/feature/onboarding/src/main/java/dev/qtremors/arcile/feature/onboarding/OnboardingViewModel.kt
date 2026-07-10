@@ -14,13 +14,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class OnboardingStep {
+internal enum class OnboardingStep {
     WelcomeAndFeatures,
     SetupPermissions,
     Done
 }
 
-data class OnboardingUiState(
+internal data class OnboardingUiState(
     val step: OnboardingStep = OnboardingStep.WelcomeAndFeatures,
     val hasStoragePermission: Boolean = false,
     val hasNotificationPermission: Boolean = false,
@@ -36,7 +36,7 @@ data class OnboardingUiState(
 }
 
 @HiltViewModel
-class OnboardingViewModel @Inject constructor(
+internal class OnboardingViewModel @Inject constructor(
     private val onboardingPreferencesStore: OnboardingPreferencesStore,
     private val backupGateway: PreferencesBackupGateway,
     private val appVersionCodeProvider: AppVersionCodeProvider

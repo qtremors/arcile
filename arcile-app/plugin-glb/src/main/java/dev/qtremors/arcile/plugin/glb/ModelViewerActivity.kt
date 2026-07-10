@@ -4,13 +4,14 @@ import android.content.ClipData
 import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import dev.qtremors.arcile.plugin.api.PluginContract
-import dev.qtremors.arcile.shared.pluginui.ArcilePluginTheme
+import dev.qtremors.arcile.plugin.ui.ArcilePluginTheme
 
 class ModelViewerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,7 +41,7 @@ class ModelViewerActivity : ComponentActivity() {
     internal fun resolvePluginModelTarget(source: Intent): PluginModelTarget? {
         if (source.action != PluginContract.ACTION_VIEW_FILE) return null
         val uri = source.data
-            ?: source.getParcelableExtra(PluginContract.EXTRA_FILE_URI, Uri::class.java)
+            ?: source.getUriExtra(PluginContract.EXTRA_FILE_URI)
             ?: return null
         if (uri.scheme != "content") return null
 
@@ -104,6 +105,14 @@ class ModelViewerActivity : ComponentActivity() {
             }
         }.getOrNull()
 }
+
+@Suppress("DEPRECATION")
+private fun Intent.getUriExtra(name: String): Uri? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(name, Uri::class.java)
+    } else {
+        getParcelableExtra(name)
+    }
 
 internal data class PluginModelTarget(
     val uri: Uri,

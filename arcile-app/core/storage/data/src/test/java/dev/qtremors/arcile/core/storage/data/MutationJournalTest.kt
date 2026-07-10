@@ -3,7 +3,7 @@ package dev.qtremors.arcile.core.storage.data
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import io.mockk.every
 import io.mockk.mockk

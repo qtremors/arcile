@@ -39,6 +39,7 @@ class ArchitectureBoundaryTest {
             "archive",
             "browser",
             "home",
+            "imagegallery",
             "importing",
             "settings",
             "onboarding",
@@ -67,7 +68,7 @@ class ArchitectureBoundaryTest {
     @Test
     fun `shared ui does not depend on feature or app shell presentation code`() {
         noClasses()
-            .that().resideInAPackage("dev.qtremors.arcile.shared.ui..")
+            .that().resideInAPackage("dev.qtremors.arcile.core.ui..")
             .should().dependOnClassesThat().resideInAnyPackage(
                 "dev.qtremors.arcile.feature..",
                 "dev.qtremors.arcile.presentation.ui.."
@@ -91,8 +92,8 @@ class ArchitectureBoundaryTest {
             .that().resideInAnyPackage(
                 "dev.qtremors.arcile.core..",
                 "dev.qtremors.arcile.shared..",
-                "dev.qtremors.arcile.ui.theme..",
-                "dev.qtremors.arcile.image.."
+                "dev.qtremors.arcile.core.ui.theme..",
+                "dev.qtremors.arcile.core.ui.image.."
             )
             .should().dependOnClassesThat().resideInAnyPackage(
                 "dev.qtremors.arcile.presentation..",
@@ -157,13 +158,131 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `feature public api contains only routes destinations and platform entry points`() {
+        val featureRoot = File(projectRoot(), "feature")
+        val offenders = featureRoot.walkTopDown()
+            .filter {
+                it.isFile &&
+                    it.extension == "kt" &&
+                    "${File.separator}src${File.separator}main${File.separator}" in it.path
+            }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (!PUBLIC_TOP_LEVEL_DECLARATION.containsMatchIn(line)) {
+                        return@mapIndexedNotNull null
+                    }
+                    if (isApprovedFeatureApi(line.trim())) {
+                        null
+                    } else {
+                        "${file.relativeTo(projectRoot()).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
+                    }
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Feature internals must be internal; only route APIs, destination contracts, " +
+                    "and platform entry points may be public:\n${offenders.joinToString("\n")}"
+            )
+        }
+    }
+
+    @Test
+    fun `gradle module dependencies follow architecture direction`() {
+        val dependencyPattern = Regex("""project\(\s*"(:[^"]+)"\s*\)""")
+        val offenders = projectRoot().walkTopDown()
+            .onEnter { it.name !in setOf("build", ".gradle", ".git", ".idea", ".kotlin") }
+            .filter { it.isFile && it.name == "build.gradle.kts" }
+            .flatMap { buildFile ->
+                val ownerPath = requireNotNull(buildFile.parentFile)
+                    .relativeTo(projectRoot())
+                    .invariantSeparatorsPath
+                val ownerModule = ":" + ownerPath.replace('/', ':')
+                buildFile.readLines().flatMapIndexed { index, line ->
+                    dependencyPattern.findAll(line).mapNotNull { match ->
+                        val dependency = match.groupValues[1]
+                        val invalid = when {
+                            ownerModule.startsWith(":feature:") &&
+                                dependency.startsWith(":feature:") -> true
+                            ownerModule.startsWith(":core:") &&
+                                (dependency == ":app" || dependency.startsWith(":feature:")) -> true
+                            else -> false
+                        }
+                        if (invalid) {
+                            "$ownerModule -> $dependency at " +
+                                "${buildFile.relativeTo(projectRoot()).invariantSeparatorsPath}:${index + 1}"
+                        } else {
+                            null
+                        }
+                    }.toList()
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Gradle module dependencies violate architecture direction:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `source packages match their owning modules`() {
+        val ownedRoots = buildList {
+            File(projectRoot(), "feature").listFiles()
+                .orEmpty()
+                .filter(File::isDirectory)
+                .forEach { module ->
+                    val packageName = if (module.name == "import") "importing" else module.name
+                    add(File(module, "src/main/java") to "dev.qtremors.arcile.feature.$packageName")
+                }
+            add(File(projectRoot(), "core/ui/src/main/java") to "dev.qtremors.arcile.core.ui")
+            add(File(projectRoot(), "core/presentation/src/main/java") to "dev.qtremors.arcile.core.presentation")
+            add(File(projectRoot(), "core/runtime/src/main/java") to "dev.qtremors.arcile.core.runtime")
+            add(File(projectRoot(), "plugin-ui/src/main/java") to "dev.qtremors.arcile.plugin.ui")
+            add(File(projectRoot(), "plugin-glb/src/main/java") to "dev.qtremors.arcile.plugin.glb")
+        }
+        val offenders = ownedRoots.flatMap { (sourceRoot, expectedPackage) ->
+            sourceRoot.kotlinFiles().mapNotNull { file ->
+                val packageName = file.useLines { lines ->
+                    lines.firstOrNull { it.startsWith("package ") }
+                        ?.removePrefix("package ")
+                        ?.trim()
+                }
+                if (packageName == expectedPackage || packageName?.startsWith("$expectedPackage.") == true) {
+                    null
+                } else {
+                    "${file.relativeTo(projectRoot()).invariantSeparatorsPath}: " +
+                        "${packageName ?: "missing package"}; expected $expectedPackage"
+                }
+            }.toList()
+        }
+
+        if (offenders.isNotEmpty()) {
+            fail("Production source packages must match their owning modules:\n${offenders.joinToString("\n")}")
+        }
+
+        val removedModuleNames = listOf(
+            File(projectRoot(), "shared"),
+            File(projectRoot(), "core/presentation/api")
+        ).filter { directory ->
+            directory.exists() &&
+                directory.walkTopDown()
+                    .onEnter { it == directory || it.name != "build" }
+                    .any(File::isFile)
+        }
+        if (removedModuleNames.isNotEmpty()) {
+            fail("Removed module names must not return: ${removedModuleNames.joinToString { it.path }}")
+        }
+    }
+
+    @Test
     fun `storage data does not depend on presentation feature or app shell theme packages`() {
         noClasses()
             .that().resideInAPackage("dev.qtremors.arcile.core.storage.data..")
             .should().dependOnClassesThat().resideInAnyPackage(
                 "dev.qtremors.arcile.presentation..",
                 "dev.qtremors.arcile.feature..",
-                "dev.qtremors.arcile.ui.theme.."
+                "dev.qtremors.arcile.core.ui.theme.."
             )
             .because("storage data must stay behind domain contracts")
             .check(productionClasses)
@@ -171,7 +290,7 @@ class ArchitectureBoundaryTest {
 
     @Test
     fun `presentation shell imports only approved feature entry points`() {
-        val sourceRoot = sourceRoot("presentation")
+        val sourceRoot = File(projectRoot(), "app/src/main/java")
         val featureImport = Regex("""import dev\.qtremors\.arcile\.feature\.(.+)""")
         val allowedFeatureImports = setOf(
             "activitylog.registerActivityLogRoute",
@@ -187,6 +306,7 @@ class ArchitectureBoundaryTest {
             "imagegallery.GalleryDestination",
             "imagegallery.registerImageGalleryRoute",
             "imagegallery.registerImageViewerRoute",
+            "onboarding.OnboardingRoute",
             "plugins.registerPluginsRoute",
             "quickaccess.QuickAccessDestination",
             "quickaccess.registerQuickAccessRoute",
@@ -196,16 +316,13 @@ class ArchitectureBoundaryTest {
             "settings.registerSettingsRoute",
             "storagecleaner.StorageCleanerDestination",
             "storagecleaner.registerStorageCleanerRoute",
-            "storageusage.StorageUsageViewModel",
             "storageusage.StorageDashboardDestination",
             "storageusage.registerStorageDashboardRoute",
             "storageusage.registerStorageManagementRoute",
-            "storageusage.ui.StorageUsageMap",
-            "trash.registerTrashRoute",
-            "trash.TrashViewModel",
-            "recentfiles.RecentFilesViewModel"
+            "trash.registerTrashRoute"
         )
         val allowedShellFiles = setOf(
+            "dev/qtremors/arcile/MainActivity.kt",
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
             "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt",
@@ -229,6 +346,33 @@ class ArchitectureBoundaryTest {
 
         if (offenders.isNotEmpty()) {
             fail("Presentation may import feature code only from approved app-shell composition files:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
+    fun `browser has no flat state or aggregate child intent dependency`() {
+        val browserRoot = File(projectRoot(), "feature/browser/src/main/java")
+        val offenders = browserRoot.kotlinFiles()
+            .flatMap { file ->
+                val relativePath = file.relativeTo(projectRoot()).invariantSeparatorsPath
+                file.readLines().mapIndexedNotNull { index, line ->
+                    when {
+                        Regex("""\bBrowserState\b""").containsMatchIn(line) ->
+                            "$relativePath:${index + 1}: flat BrowserState: ${line.trim()}"
+                        file.name !in setOf("BrowserRoute.kt", "BrowserScreen.kt", "BrowserIntentGroups.kt") &&
+                            Regex("""\bBrowserIntents\b""").containsMatchIn(line) ->
+                            "$relativePath:${index + 1}: aggregate BrowserIntents: ${line.trim()}"
+                        else -> null
+                    }
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Browser controllers and child UI must use focused state and intent groups:\n" +
+                    offenders.joinToString("\n")
+            )
         }
     }
 
@@ -467,6 +611,18 @@ class ArchitectureBoundaryTest {
         return commas + 1
     }
 
+    private fun isApprovedFeatureApi(declaration: String): Boolean =
+        declaration.matches(Regex("""fun NavGraphBuilder\.register[A-Za-z0-9_]*Route\(.*""")) ||
+            declaration.matches(Regex("""sealed interface [A-Za-z0-9_]*Destination\b.*""")) ||
+            declaration.matches(Regex("""fun (HomeRoute|BrowserRoute|OnboardingRoute)\(.*""")) ||
+            declaration.matches(
+                Regex(
+                    """(sealed interface BrowserEntry|data class BrowserEntryRequest|""" +
+                        """data class BrowserRouteStatus)\b.*"""
+                )
+            ) ||
+            declaration.matches(Regex("""class SaveToArcileActivity\b.*"""))
+
     private fun violation(file: File, index: Int, line: String): String =
         "${file.relativeTo(File(projectRoot(), "app/src/main/java")).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
 
@@ -481,77 +637,18 @@ class ArchitectureBoundaryTest {
         const val MAX_VIEWMODEL_LINES = 400
         const val MAX_COMPOSABLE_PARAMETERS = 15
         val PUBLIC_FUNCTION = Regex("""^(?:public\s+)?fun\s+([A-Za-z0-9_]+)\s*\(.*""")
-
-        val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt" to 545,
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/TrashManager.kt" to 540,
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/DefaultFileSystemDataSource.kt" to 506,
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/MediaStoreClient.kt" to 529,
-            "arcile-app/core/testing/src/main/java/dev/qtremors/arcile/testutil/FocusedStorageRepositoryFakes.kt" to 685,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/SearchFiltersBottomSheet.kt" to 597,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/SortOptionDialog.kt" to 566,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt" to 530,
-            "arcile-app/core/ui/src/main/res/values/strings.xml" to 828,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 741,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/NavigationDelegate.kt" to 729,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserArchiveDialogs.kt" to 568,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserFloatingSurfaces.kt" to 694,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserScreen.kt" to 650,
-            "arcile-app/feature/home/src/main/java/dev/qtremors/arcile/feature/home/HomeViewModel.kt" to 584,
-            "arcile-app/feature/home/src/main/java/dev/qtremors/arcile/feature/home/ui/HomeScreen.kt" to 590,
-            "arcile-app/feature/home/src/main/java/dev/qtremors/arcile/feature/home/ui/components/StorageSummaryCards.kt" to 629,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryChrome.kt" to 614,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryContent.kt" to 647,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryItems.kt" to 598,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryScreen.kt" to 982,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryViewModel.kt" to 990,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryViewOptions.kt" to 612,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerMetadata.kt" to 732,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerScreen.kt" to 782,
-            "arcile-app/feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/ui/OnboardingPages.kt" to 860,
-            "arcile-app/feature/quickaccess/src/main/java/dev/qtremors/arcile/feature/quickaccess/QuickAccessScreen.kt" to 919,
-            "arcile-app/feature/recentfiles/src/main/java/dev/qtremors/arcile/feature/recentfiles/RecentFilesViewModel.kt" to 522,
-            "arcile-app/feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsScreen.kt" to 915,
-            "arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerDetailsSheet.kt" to 895,
-            "arcile-app/feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/ui/StorageCleanerScreen.kt" to 508,
-            "arcile-app/feature/storageusage/src/main/java/dev/qtremors/arcile/feature/storageusage/ui/StorageDashboardScreen.kt" to 586,
-            "arcile-app/feature/trash/src/main/java/dev/qtremors/arcile/feature/trash/TrashScreen.kt" to 659,
-            "arcile-app/plugin-glb/src/main/java/dev/qtremors/arcile/plugin/glb/ModelViewerScreen.kt" to 643
+        val PUBLIC_TOP_LEVEL_DECLARATION = Regex(
+            """^(?!(?:internal|private|protected|public)\s)""" +
+                """(?:(?:data|sealed|enum|annotation|value|suspend|operator|inline|tailrec|infix|const)\s+)*""" +
+                """(?:class|interface|object|fun|typealias|val|var)\s+"""
         )
 
-        val LARGE_VIEWMODEL_BASELINE = mapOf(
-            "feature/home/src/main/java/dev/qtremors/arcile/feature/home/HomeViewModel.kt" to 584,
-            "feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerViewModel.kt" to 468,
-            "feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserViewModel.kt" to 741,
-            "feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryViewModel.kt" to 990,
-            "feature/recentfiles/src/main/java/dev/qtremors/arcile/feature/recentfiles/RecentFilesViewModel.kt" to 522,
-            "feature/trash/src/main/java/dev/qtremors/arcile/feature/trash/TrashViewModel.kt" to 426
-        )
+        val LARGE_FILE_BASELINE = emptyMap<String, Int>()
 
-        val FEATURE_VIEWMODEL_BOUNDARY_BASELINE = mapOf(
-            "feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerViewModel.kt" to setOf(
-                "Context",
-                "ApplicationContext"
-            ),
-            "feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryViewModel.kt" to setOf(
-                "Context",
-                "ApplicationContext",
-                "Dispatchers.IO"
-            ),
-        )
+        val LARGE_VIEWMODEL_BASELINE = emptyMap<String, Int>()
 
-        val COMPOSABLE_PARAMETER_BASELINE = mapOf(
-            "arcile-app/feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsScreen.kt:SettingsScreen" to 22,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/ArcileTopBar.kt:ArcileTopBar" to 20,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt:FileGrid" to 16,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileGrid.kt:FileGridItem" to 16,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt:FileList" to 16,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/shared/ui/lists/FileList.kt:FileItemRow" to 17,
-            "arcile-app/feature/archive/src/main/java/dev/qtremors/arcile/feature/archive/ArchiveViewerScreen.kt:ArchiveViewerScreen" to 21,
-            "arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/ui/BrowserScreen.kt:BrowserScreen" to 76,
-            "arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryScreen.kt:ImageGalleryScreen" to 44,
-            "arcile-app/feature/recentfiles/src/main/java/dev/qtremors/arcile/feature/recentfiles/ui/RecentFilesScreen.kt:RecentFilesScreen" to 25,
-            "arcile-app/feature/trash/src/main/java/dev/qtremors/arcile/feature/trash/TrashScreen.kt:TrashScreen" to 24
-        )
+        val FEATURE_VIEWMODEL_BOUNDARY_BASELINE = emptyMap<String, Set<String>>()
+
+        val COMPOSABLE_PARAMETER_BASELINE = emptyMap<String, Int>()
     }
 }

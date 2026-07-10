@@ -10,7 +10,7 @@ import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeEntity
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution

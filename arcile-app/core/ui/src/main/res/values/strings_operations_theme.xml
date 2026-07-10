@@ -1,0 +1,22 @@
+<resources>
+    <string name="file_operation_copying_files">Copying files</string>
+    <string name="file_operation_moving_files">Moving files</string>
+    <string name="file_operation_moving_files_to_trash">Moving files to Trash</string>
+    <string name="file_operation_deleting_files">Deleting files</string>
+    <string name="file_operation_creating_fake_file">Creating fake file</string>
+    <string name="notification_action_cancel">Cancel</string>
+    <string name="notification_channel_file_operations">File operations</string>
+    <string name="notification_channel_file_operations_description">Background copy and move operations</string>
+
+    <string name="file_operation_shredding_files">Shredding files</string>
+    <string name="shred_permanently_checkbox">Securely shred files</string>
+    <string name="shred_permanently_checkbox_description">Overwrite files before deleting when storage permits; unsupported files will be reported as failed</string>
+    <string name="file_operation_shredding">Shredding</string>
+    <string name="theme_preset_none">None</string>
+    <string name="theme_preset_dracula">Dracula</string>
+    <string name="theme_preset_tokyo_night">Tokyo Night</string>
+    <string name="theme_preset_custom">Custom</string>
+    <string name="custom_theme_primary_label">Custom Primary Color (HEX)</string>
+    <string name="custom_theme_bg_label">Custom Background Color (HEX)</string>
+    <string name="custom_theme_similarity_warning">Primary and Background colors are too similar! Readability issues may occur.</string>
+</resources>

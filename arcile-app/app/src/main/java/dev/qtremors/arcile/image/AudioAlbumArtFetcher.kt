@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.image
+package dev.qtremors.arcile.core.ui.image
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

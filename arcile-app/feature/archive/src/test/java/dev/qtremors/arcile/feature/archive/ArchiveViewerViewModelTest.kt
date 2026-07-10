@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.archive
 
-import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
@@ -13,8 +12,6 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -101,10 +98,7 @@ class ArchiveViewerViewModelTest {
         ArchiveViewerViewModel(
             savedStateHandle = SavedStateHandle(mapOf("archivePath" to archivePath)),
             repository = repository.archiveRepository,
-            bulkFileOperationCoordinator = coordinator,
-            context = mockk<Context> {
-                every { getString(any()) } returns "Fallback error"
-            }
+            bulkFileOperationCoordinator = coordinator
         )
 
     private fun entry(path: String): ArchiveEntryModel =

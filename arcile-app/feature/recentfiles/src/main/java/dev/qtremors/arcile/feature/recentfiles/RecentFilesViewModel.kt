@@ -5,23 +5,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
-import dev.qtremors.arcile.shared.presentation.delegate.DeleteFlowDelegate
-import dev.qtremors.arcile.shared.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.presentation.SelectionReducer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -36,51 +33,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import dev.qtremors.arcile.shared.presentation.toUiModel
-
-enum class RecentNativeAction { TRASH }
-
-data class RecentFilesState(
-    val currentVolumeId: String? = null,
-    val recentFiles: List<FileModel> = emptyList(),
-    val displayedRecentFiles: List<FileModel> = emptyList(),
-    val selectedFiles: Set<String> = emptySet(),
-    val selectedFilesTotalSize: Long = 0L,
-    val isLoading: Boolean = true,
-    val isPullToRefreshing: Boolean = false,
-    val isLoadingMore: Boolean = false,
-    val hasMore: Boolean = true,
-    val currentOffset: Int = 0,
-    val error: UiText? = null,
-    val showTrashConfirmation: Boolean = false,
-    val showPermanentDeleteConfirmation: Boolean = false,
-    val showMixedDeleteExplanation: Boolean = false,
-    val deleteDecision: DeleteDecision? = null,
-    val isPermanentDeleteChecked: Boolean = false,
-    val isShredChecked: Boolean = false,
-    val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: RecentNativeAction? = null,
-    val searchQuery: String = "",
-    val searchResults: List<FileModel> = emptyList(),
-    val isSearching: Boolean = false,
-    val activeSearchFilters: SearchFilters = SearchFilters(),
-    val presentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileSortOption.DATE_NEWEST
-    ),
-    val todayStart: Long = 0L,
-    val yesterdayStart: Long = 0L,
-    val isPropertiesVisible: Boolean = false,
-    val isPropertiesLoading: Boolean = false,
-    val properties: dev.qtremors.arcile.shared.presentation.PropertiesUiModel? = null
-)
+import dev.qtremors.arcile.core.presentation.toUiModel
 
 @HiltViewModel
-class RecentFilesViewModel @Inject constructor(
+internal class RecentFilesViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val storageAnalyticsRepository: StorageAnalyticsRepository,
     private val fileBrowserRepository: FileBrowserRepository,
     private val searchRepository: SearchRepository,
-    private val browserPreferencesRepository: BrowserPreferencesStore,
+    private val browserPreferencesRepository: RecentFilesPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
     private val savedStateHandle: SavedStateHandle
@@ -96,83 +57,14 @@ class RecentFilesViewModel @Inject constructor(
     private var recentLoadJob: Job? = null
     private var recentLoadGeneration = 0L
 
-    private val deleteFlowDelegate = DeleteFlowDelegate(
+    private val deleteFlowDelegate = createRecentDeleteController(
         coroutineScope = viewModelScope,
         volumeRepository = volumeRepository,
         fileBrowserRepository = fileBrowserRepository,
-        callbacks = object : DeleteStateCallbacks {
-            override fun getSelectedFiles(): List<String> = _state.value.selectedFiles.toList()
-            override fun isPermanentDeleteChecked(): Boolean = _state.value.isPermanentDeleteChecked
-            override fun isPermanentDeleteToggleEnabled(): Boolean = _state.value.isPermanentDeleteToggleEnabled
-            override fun setLoading(isLoading: Boolean) {
-                _state.update { it.copy(isLoading = isLoading) }
-            }
-            override fun showMixedDeleteExplanation() {
-                _state.update { it.copy(showMixedDeleteExplanation = true) }
-            }
-            override fun showPermanentDeleteConfirmation() {
-                _state.update {
-                    it.copy(
-                        showPermanentDeleteConfirmation = true,
-                        isPermanentDeleteChecked = true,
-                        isPermanentDeleteToggleEnabled = false
-                    )
-                }
-            }
-            override fun showTrashConfirmation() {
-                _state.update {
-                    it.copy(
-                        showTrashConfirmation = true,
-                        isPermanentDeleteChecked = false,
-                        isPermanentDeleteToggleEnabled = true
-                    )
-                }
-            }
-            override fun togglePermanentDeleteChecked() {
-                _state.update { it.copy(isPermanentDeleteChecked = !it.isPermanentDeleteChecked) }
-            }
-            override fun isShredChecked(): Boolean = _state.value.isShredChecked
-            override fun toggleShredChecked() {
-                _state.update { it.copy(isShredChecked = !it.isShredChecked) }
-            }
-            override fun dismissDeleteConfirmation() {
-                _state.update {
-                    it.copy(
-                        showTrashConfirmation = false,
-                        showPermanentDeleteConfirmation = false,
-                        showMixedDeleteExplanation = false,
-                        deleteDecision = null,
-                        isShredChecked = false
-                    )
-                }
-            }
-            override fun setError(error: String) {
-                _state.update { it.copy(error = UiText.Dynamic(error)) }
-            }
-            override fun setError(error: UiText) {
-                _state.update { it.copy(error = error) }
-            }
-            override fun setDeleteDecision(decision: DeleteDecision) {
-                _state.update { it.copy(deleteDecision = decision) }
-            }
-            override fun setPendingNativeAction() {
-                _state.update { it.copy(pendingNativeAction = RecentNativeAction.TRASH) }
-            }
-            override fun clearSelection() {
-                _state.update { it.copy(selectedFiles = emptySet()) }
-            }
-        },
-        startBulkDeleteOperation = { type, selected ->
-            bulkFileOperationCoordinator.startOperation(
-                type = type,
-                sourcePaths = selected,
-                destinationPath = null,
-                resolutions = emptyMap()
-            )
-        },
+        bulkFileOperationCoordinator = bulkFileOperationCoordinator,
+        state = _state,
         emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
-        onSuccess = { loadRecentFiles(false) },
-        onFailure = { loadRecentFiles(false) }
+        reload = { loadRecentFiles(false) }
     )
 
     init {
@@ -189,9 +81,9 @@ class RecentFilesViewModel @Inject constructor(
         val volumeId: String? = savedStateHandle.get<String>("volumeId")
         _state.update { it.copy(currentVolumeId = volumeId?.takeIf { value -> value.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
         viewModelScope.launch {
-            browserPreferencesRepository.preferencesFlow.collectLatest { prefs ->
+            browserPreferencesRepository.recentFilesPreferencesFlow.collectLatest { prefs ->
                 _state.update {
-                    val presentation = prefs.recentPresentation
+                    val presentation = prefs.presentation
                     it.copy(
                         presentation = presentation,
                         displayedRecentFiles = it.copy(presentation = presentation).displayRecentFiles(),
@@ -311,11 +203,7 @@ class RecentFilesViewModel @Inject constructor(
 
     fun toggleSelection(path: String) {
         _state.update { currentState ->
-            val updatedSelection = if (currentState.selectedFiles.contains(path)) {
-                currentState.selectedFiles - path
-            } else {
-                currentState.selectedFiles + path
-            }
+            val updatedSelection = SelectionReducer.toggle(currentState.selectedFiles, path)
             val totalSize = currentState.recentFiles
                 .filter { updatedSelection.contains(it.absolutePath) }
                 .sumOf { it.size }
@@ -356,7 +244,7 @@ class RecentFilesViewModel @Inject constructor(
             } else {
                 currentState.displayedRecentFiles.map { it.absolutePath }
             }
-            val allPathsSet = allPaths.toSet()
+            val allPathsSet = SelectionReducer.all(allPaths)
             val totalSize = currentState.recentFiles
                 .filter { allPathsSet.contains(it.absolutePath) }
                 .sumOf { it.size }
@@ -369,7 +257,7 @@ class RecentFilesViewModel @Inject constructor(
 
     fun selectMultiple(paths: List<String>) {
         _state.update { currentState ->
-            val updatedSelection = currentState.selectedFiles + paths
+            val updatedSelection = SelectionReducer.add(currentState.selectedFiles, paths)
             val totalSize = currentState.recentFiles
                 .filter { updatedSelection.contains(it.absolutePath) }
                 .sumOf { it.size }
@@ -495,28 +383,3 @@ class RecentFilesViewModel @Inject constructor(
         }
     }
 }
-
-private fun RecentFilesState.displayRecentFiles(
-    source: List<FileModel> = recentFiles
-): List<FileModel> = buildRecentFilesDisplay(
-    files = source,
-    query = "",
-    filters = activeSearchFilters,
-    presentation = presentation
-)
-
-private fun RecentFilesState.displaySearchResults(
-    source: List<FileModel> = recentFiles
-): List<FileModel> = if (searchQuery.isBlank() || searchResults.isNotEmpty()) {
-    if (searchQuery.isBlank()) emptyList() else buildRecentFilesDisplay(
-        files = searchResults,
-        query = "",
-        filters = activeSearchFilters,
-        presentation = presentation
-    )
-} else {
-    emptyList()
-}
-
-private fun RecentFilesState.searchScope(): StorageScope =
-    currentVolumeId?.let { StorageScope.Volume(it) } ?: StorageScope.AllStorage

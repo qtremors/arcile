@@ -52,7 +52,7 @@
 }
 
 # Coil Custom Fetchers
--keep class dev.qtremors.arcile.image.** { *; }
+-keep class dev.qtremors.arcile.core.ui.image.** { *; }
 -keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }
 
 # Commons Compress exposes optional Zstandard support that Arcile does not ship.

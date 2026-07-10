@@ -60,16 +60,16 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailPolicy
-import dev.qtremors.arcile.shared.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ImageGalleryAlbumsGrid(
+internal fun ImageGalleryAlbumsGrid(
     state: ImageGalleryState,
     gridMinCellSize: Float,
     onAlbumsGridCellSizeChange: (Float) -> Unit,

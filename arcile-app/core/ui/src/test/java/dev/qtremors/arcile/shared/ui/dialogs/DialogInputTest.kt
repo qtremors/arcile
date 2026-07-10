@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.shared.ui.dialogs
+package dev.qtremors.arcile.core.ui.dialogs
 
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled

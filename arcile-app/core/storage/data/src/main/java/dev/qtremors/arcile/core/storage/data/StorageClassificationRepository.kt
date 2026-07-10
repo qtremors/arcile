@@ -9,7 +9,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassification
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map

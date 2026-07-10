@@ -6,7 +6,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import dev.qtremors.arcile.ui.theme.ThemePreferences
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
 import dev.qtremors.arcile.backup.PreferencesBackupManager
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
 import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
