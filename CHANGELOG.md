@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.1
+> **Version:** 1.4.2
 > **Last Updated:** 2026-07-11
 
 ---
+
+## [1.4.2] - 2026-07-11
+
+- **Navigation Reliability**: Unified file opening, sharing, plugin prompts, Browser entry, and viewer-return handling across app destinations.
 
 ## [1.4.1] - 2026-07-11
 

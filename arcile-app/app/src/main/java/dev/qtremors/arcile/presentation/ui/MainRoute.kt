@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
 import dev.qtremors.arcile.core.storage.domain.FileCategories
@@ -16,19 +17,18 @@ import dev.qtremors.arcile.feature.home.HomeDestination
 import dev.qtremors.arcile.feature.home.HomeRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
-import kotlinx.coroutines.CoroutineScope
 
 @Composable
 internal fun MainRoute(
     backStackEntry: NavBackStackEntry,
     mainArgs: AppRoutes.Main,
     hasPreviousRoute: Boolean,
-    coroutineScope: CoroutineScope,
     onHomeDestination: (HomeDestination) -> Unit,
     onBrowserDestination: (BrowserDestination) -> Unit,
     onShareBrowserFiles: suspend (List<String>, List<FileModel>) -> Boolean,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
+    val coroutineScope = rememberCoroutineScope()
     val coordinator = rememberMainShellCoordinator(backStackEntry, mainArgs, coroutineScope)
     val showBrowserPageRequests = backStackEntry.savedStateHandle
         .getStateFlow("showBrowserPage", false)

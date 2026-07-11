@@ -362,11 +362,18 @@ class ArchitectureBoundaryTest {
         )
         val allowedShellFiles = setOf(
             "dev/qtremors/arcile/MainActivity.kt",
+            "dev/qtremors/arcile/presentation/ui/AppFileRouteRegistration.kt",
+            "dev/qtremors/arcile/presentation/ui/AppMainRouteRegistration.kt",
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
+            "dev/qtremors/arcile/presentation/ui/AppUtilityRouteRegistration.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
-            "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt",
+            "dev/qtremors/arcile/presentation/ui/ArchiveDestinationMapper.kt",
+            "dev/qtremors/arcile/presentation/ui/GalleryDestinationMapper.kt",
             "dev/qtremors/arcile/presentation/ui/MainRoute.kt",
-            "dev/qtremors/arcile/presentation/ui/MainShellCoordinator.kt"
+            "dev/qtremors/arcile/presentation/ui/MainShellCoordinator.kt",
+            "dev/qtremors/arcile/presentation/ui/QuickAccessDestinationMapper.kt",
+            "dev/qtremors/arcile/presentation/ui/RecentFilesDestinationMapper.kt",
+            "dev/qtremors/arcile/presentation/ui/StorageCleanerDestinationMapper.kt"
         )
         val offenders = sourceRoot.kotlinFiles()
             .flatMap { file ->
