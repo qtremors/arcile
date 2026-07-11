@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.2
+> **Version:** 1.4.3
 > **Last Updated:** 2026-07-11
 
 ---
+
+## [1.4.3] - 2026-07-11
+
+- **File Workflow Reliability**: Isolated file-list rendering and focused archive, cleaner, storage-usage, activity-log, conflict, and filesystem responsibilities for safer independent updates.
 
 ## [1.4.2] - 2026-07-11
 

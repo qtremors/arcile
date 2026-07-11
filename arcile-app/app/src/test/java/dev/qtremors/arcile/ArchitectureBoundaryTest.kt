@@ -281,7 +281,13 @@ class ArchitectureBoundaryTest {
             "core/operation/build.gradle.kts",
             "core/operation/src/main/java/dev/qtremors/arcile/core/operation/OperationMigrationMarker.kt",
             "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/FileRepository.kt",
-            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageServiceContracts.kt"
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageServiceContracts.kt",
+            "core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileSystemDataSourceContracts.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/ActivityLogContracts.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/ArchiveModels.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/ConflictModels.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageCleanerModels.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageUsageModels.kt"
         ).map { File(projectRoot(), it) }.filter(File::exists)
 
         if (removedFiles.isNotEmpty()) {
