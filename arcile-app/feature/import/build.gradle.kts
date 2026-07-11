@@ -34,7 +34,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":core:operation"))
+    implementation(project(":core:operation:api"))
     implementation(project(":core:operation:android"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))

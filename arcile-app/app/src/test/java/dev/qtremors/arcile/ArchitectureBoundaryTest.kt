@@ -276,6 +276,45 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `completed migrations cannot restore compatibility scaffolding`() {
+        val removedFiles = listOf(
+            "core/operation/build.gradle.kts",
+            "core/operation/src/main/java/dev/qtremors/arcile/core/operation/OperationMigrationMarker.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/FileRepository.kt",
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageServiceContracts.kt"
+        ).map { File(projectRoot(), it) }.filter(File::exists)
+
+        if (removedFiles.isNotEmpty()) {
+            fail(
+                "Completed migrations must not restore aggregate facades or marker modules:\n" +
+                    removedFiles.joinToString("\n") { it.relativeTo(projectRoot()).invariantSeparatorsPath }
+            )
+        }
+
+        val forbiddenDeclarations = listOf(
+            "BrowserPresentationPreferences",
+            "BrowserPreferencesStore",
+            "BrowserViewMode",
+            "FileRepository",
+            "NativeConfirmationRequiredException"
+        )
+        val offenders = productionKotlinFiles().flatMap { file ->
+            file.readLines().mapIndexedNotNull { index, line ->
+                val declaration = forbiddenDeclarations.firstOrNull { name ->
+                    Regex("""\b(?:class|interface|typealias)\s+$name\b""").containsMatchIn(line)
+                }
+                if (declaration == null) null else
+                    "${file.relativeTo(projectRoot().parentFile ?: projectRoot()).invariantSeparatorsPath}:" +
+                        "${index + 1}: $declaration"
+            }
+        }.toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Removed compatibility declarations must not return:\n${offenders.joinToString("\n")}")
+        }
+    }
+
+    @Test
     fun `storage data does not depend on presentation feature or app shell theme packages`() {
         noClasses()
             .that().resideInAPackage("dev.qtremors.arcile.core.storage.data..")
@@ -326,7 +365,8 @@ class ArchitectureBoundaryTest {
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
             "dev/qtremors/arcile/presentation/ui/FeatureDestinationMapper.kt",
-            "dev/qtremors/arcile/presentation/ui/MainRoute.kt"
+            "dev/qtremors/arcile/presentation/ui/MainRoute.kt",
+            "dev/qtremors/arcile/presentation/ui/MainShellCoordinator.kt"
         )
         val offenders = sourceRoot.kotlinFiles()
             .flatMap { file ->

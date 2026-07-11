@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -27,6 +28,111 @@ class BrowserViewModelNavigationTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @Test
+    fun `browser stays uninitialized until its page is requested`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val viewModel = createViewModel(
+                repository = BrowserFakeFileRepository(
+                    volumes = listOf(internal),
+                    filesByPath = mapOf(internal.path to emptyList())
+                ),
+                savedStateHandle = SavedStateHandle(),
+                initialize = false
+            )
+
+            advanceUntilIdle()
+
+            assertEquals(
+                BrowserInitializationState.Uninitialized,
+                viewModel.initializationState.value
+            )
+            assertEquals("", viewModel.state.value.currentPath)
+
+            viewModel.initialize(entryRequest = null)
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(internal.path, viewModel.state.value.currentPath)
+        }
+
+    @Test
+    fun `explicit browser entry overrides restored state on first initialization`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val requestedPath = "${internal.path}/Requested"
+            val viewModel = createViewModel(
+                repository = BrowserFakeFileRepository(
+                    volumes = listOf(internal),
+                    filesByPath = mapOf(requestedPath to emptyList())
+                ),
+                savedStateHandle = SavedStateHandle(
+                    mapOf(
+                        "currentPath" to "${internal.path}/Stale",
+                        "currentVolumeId" to internal.id,
+                        "isCategoryScreen" to false,
+                        "isVolumeRootScreen" to false
+                    )
+                ),
+                initialize = false
+            )
+
+            viewModel.initialize(
+                BrowserEntryRequest(
+                    id = 1L,
+                    entry = BrowserEntry.Path(requestedPath)
+                )
+            )
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(requestedPath, viewModel.state.value.currentPath)
+        }
+
+    @Test
+    fun `failed browser restoration remains browser owned and can be retried`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val repository = BrowserFakeFileRepository(volumes = listOf(internal)).apply {
+                listFilesResultProvider = { Result.failure(IllegalStateException("unavailable")) }
+            }
+            val viewModel = createViewModel(
+                repository = repository,
+                savedStateHandle = SavedStateHandle(),
+                initialize = false
+            )
+
+            viewModel.initialize(entryRequest = null)
+            advanceUntilIdle()
+
+            assertEquals(
+                BrowserInitializationState.Failed(UiText.Dynamic("unavailable")),
+                viewModel.initializationState.value
+            )
+
+            repository.listFilesResultProvider = { Result.success(emptyList()) }
+            viewModel.retryInitialization()
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(internal.path, viewModel.state.value.currentPath)
+        }
 
     @Test
     fun `navigation state saves committed destination`() = runTest(mainDispatcherRule.dispatcher) {

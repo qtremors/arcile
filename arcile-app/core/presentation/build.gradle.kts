@@ -30,7 +30,6 @@ kotlin {
 dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:operation:api"))
-    implementation(project(":core:operation"))
     implementation(project(":core:storage:domain"))
 
     implementation(platform(libs.androidx.compose.bom))

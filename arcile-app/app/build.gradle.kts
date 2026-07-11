@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 140
-        versionName = "1.4.0"
+        versionCode = 141
+        versionName = "1.4.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -113,7 +113,6 @@ dependencies {
     implementation(project(":core:operation:api"))
     implementation(project(":core:operation:android"))
     implementation(project(":core:plugin:android"))
-    implementation(project(":core:operation"))
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:storage:data"))

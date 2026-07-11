@@ -26,6 +26,7 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserClipboardIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserEffects
 import dev.qtremors.arcile.feature.browser.ui.BrowserIntents
+import dev.qtremors.arcile.feature.browser.ui.BrowserInitializationSurface
 import dev.qtremors.arcile.feature.browser.ui.BrowserMutationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserNavigationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserOperationIntents
@@ -82,6 +83,7 @@ fun BrowserRoute(
     val viewModel = hiltViewModel<BrowserViewModel>()
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val initializationState by viewModel.initializationState.collectAsStateWithLifecycle()
     val state = uiState
     val scope = rememberCoroutineScope()
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -105,23 +107,8 @@ fun BrowserRoute(
         )
     }
 
-    LaunchedEffect(entryRequest?.id) {
-        when (val entry = entryRequest?.entry) {
-            is BrowserEntry.Archive -> viewModel.openArchive(entry.path)
-            is BrowserEntry.Category -> viewModel.navigateToCategory(entry.name, entry.volumeId)
-            is BrowserEntry.Path -> viewModel.navigateToSpecificFolder(
-                entry.path,
-                seedInitialPathHistory = entry.seedInitialPathHistory
-            )
-            is BrowserEntry.Root -> viewModel.openFileBrowser(entry.restorePersistentLocation)
-            null -> Unit
-        }
-    }
-
-    LaunchedEffect(isVisible, entryRequest?.id, hasActiveLocation) {
-        if (isVisible && entryRequest == null && !hasActiveLocation) {
-            viewModel.openFileBrowser(restorePersistentLocation = true)
-        }
+    LaunchedEffect(isVisible, entryRequest?.id) {
+        if (isVisible) viewModel.initialize(entryRequest)
     }
 
     LaunchedEffect(
@@ -287,27 +274,35 @@ fun BrowserRoute(
                 }
             }
     ) {
-        BrowserScreen(
-            state = state,
-            intents = screenIntents,
-            scroll = BrowserScrollBindings(
-                listState = listState,
-                gridState = gridState,
-                positionKey = scrollPositionKey,
-                savedPosition = viewModel.savedScrollPosition(scrollPositionKey),
-                savedPositionProvider = viewModel::savedScrollPosition,
-                onSavePosition = viewModel::saveScrollPosition,
-                onClearPosition = viewModel::clearScrollPosition,
-                pendingRevealFilePath = state.pendingRevealFilePath,
-                pendingRevealReady = state.pendingRevealReady,
-                onArmPendingReveal = viewModel::armOpenedFileReveal,
-                onConsumePendingReveal = viewModel::consumeOpenedFileReveal
-            ),
-            effects = BrowserEffects(
-                onFeedback = onFeedback,
-                nativeRequestFlow = viewModel.nativeRequestFlow
+        if (initializationState == BrowserInitializationState.Ready) {
+            BrowserScreen(
+                state = state,
+                intents = screenIntents,
+                scroll = BrowserScrollBindings(
+                    listState = listState,
+                    gridState = gridState,
+                    positionKey = scrollPositionKey,
+                    savedPosition = viewModel.savedScrollPosition(scrollPositionKey),
+                    savedPositionProvider = viewModel::savedScrollPosition,
+                    onSavePosition = viewModel::saveScrollPosition,
+                    onClearPosition = viewModel::clearScrollPosition,
+                    pendingRevealFilePath = state.pendingRevealFilePath,
+                    pendingRevealReady = state.pendingRevealReady,
+                    onArmPendingReveal = viewModel::armOpenedFileReveal,
+                    onConsumePendingReveal = viewModel::consumeOpenedFileReveal
+                ),
+                effects = BrowserEffects(
+                    onFeedback = onFeedback,
+                    nativeRequestFlow = viewModel.nativeRequestFlow
+                )
             )
-        )
+        } else {
+            BrowserInitializationSurface(
+                state = initializationState,
+                onRetry = viewModel::retryInitialization,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 

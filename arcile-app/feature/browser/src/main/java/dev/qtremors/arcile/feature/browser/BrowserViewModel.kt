@@ -18,7 +18,6 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
-import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
@@ -100,46 +99,16 @@ internal class BrowserViewModel @Inject constructor(
         reveal = revealController.state
     )
     val state: StateFlow<BrowserUiState> = uiState
-    private var isInitialized = false
+    private val initializer = BrowserInitializer(
+        scope = viewModelScope,
+        getStorageVolumes = getStorageVolumesUseCase,
+        navigation = navigationController
+    )
+    val initializationState: StateFlow<BrowserInitializationState> = initializer.state
+
     init {
         operationController.startObserving()
         archiveController.startObserving()
-        viewModelScope.launch {
-            getStorageVolumesUseCase().collectLatest { volumes ->
-                navigationController.setStorageVolumes(volumes)
-                if (!isInitialized) {
-                    isInitialized = true
-                    when (val location = navigationController.restoreLocationFromState()) {
-                        StorageBrowserLocation.Roots -> navigationController.openVolumeRoots()
-                        is StorageBrowserLocation.Directory ->
-                            navigationController.navigateToSpecificFolder(
-                                location.pathScope.absolutePath,
-                                seedInitialPathHistory = false
-                            )
-                        is StorageBrowserLocation.Category ->
-                            navigationController.navigateToCategory(
-                                location.categoryScope.categoryName,
-                                location.categoryScope.volumeId
-                            )
-                        is StorageBrowserLocation.Archive -> {
-                            navigationController.openArchive(
-                                archivePath = location.archivePath,
-                                entryPrefix = location.entryPrefix,
-                                seedHistory = false
-                            )
-                        }
-                        null -> navigationController.initializeFromArgs()
-                    }
-                } else {
-                    val currentVolumeId = navigationController.state.value.currentVolumeId
-                    if (currentVolumeId != null && volumes.none { it.id == currentVolumeId }) {
-                        navigationController.openVolumeRoots(UiText.StringResource(R.string.error_selected_storage_removed))
-                    } else if (navigationController.state.value.isVolumeRootScreen) {
-                        navigationController.openVolumeRoots()
-                    }
-                }
-            }
-        }
         viewModelScope.launch {
             fileBrowserRepository.observeFolderStatUpdates().collectLatest { update ->
                 navigationController.updateFolderStat(update.path, update.stats)
@@ -155,12 +124,18 @@ internal class BrowserViewModel @Inject constructor(
             storageMutationNotifier.events
                 .debounce(300L)
                 .collectLatest { event ->
-                    if (isInitialized && shouldRefreshForStorageMutation(event.paths)) {
+                    if (
+                        initializationState.value == BrowserInitializationState.Ready &&
+                        shouldRefreshForStorageMutation(event.paths)
+                    ) {
                         navigationController.refresh()
                     }
                 }
         }
     }
+
+    fun initialize(entryRequest: BrowserEntryRequest?) = initializer.initialize(entryRequest)
+    fun retryInitialization() = initializer.retry()
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
         navigationController.openFileBrowser(restorePersistentLocation, errorMessage?.let(UiText::Dynamic))
 

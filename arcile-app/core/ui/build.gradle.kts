@@ -35,7 +35,6 @@ dependencies {
     implementation(project(":plugin-ui"))
     implementation(project(":core:runtime"))
     implementation(project(":core:operation:api"))
-    implementation(project(":core:operation"))
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
 

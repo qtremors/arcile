@@ -41,7 +41,8 @@ internal fun createViewModel(
     browserPreferencesRepository: BrowserLocationPreferencesStore = FakeFilePreferencesStore(),
     savedStateHandle: SavedStateHandle,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
-    storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier()
+    storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier(),
+    initialize: Boolean = true
 ): BrowserViewModel = BrowserViewModel(
     fileBrowserRepository = repository.fileBrowserRepository,
     fileMutationRepository = repository.fileMutationRepository,
@@ -56,7 +57,9 @@ internal fun createViewModel(
     getStorageVolumesUseCase = GetStorageVolumesUseCase(repository.volumeRepository),
     bulkFileCoordinator = bulkFileOperationCoordinator,
     storageMutationNotifier = storageMutationNotifier
-)
+).also { viewModel ->
+    if (initialize) viewModel.initialize(entryRequest = null)
+}
 
 private object BrowserTestArchivePathResolver :
     dev.qtremors.arcile.core.storage.domain.ArchivePathResolver {
@@ -112,6 +115,12 @@ class BrowserFakeFileRepository(
     val trashRepository = delegate.trashRepository
     val archiveRepository = delegate.archiveRepository
     val volumeRepository = delegate.volumeRepository
+
+    var listFilesResultProvider: (suspend (String) -> Result<List<FileModel>>)?
+        get() = delegate.listFilesResultProvider
+        set(value) {
+            delegate.listFilesResultProvider = value
+        }
 
     val lastSearchQuery: String?
         get() = delegate.searchRequests.lastOrNull()?.query

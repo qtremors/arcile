@@ -9,6 +9,54 @@ import org.junit.Test
 class MainRouteTest {
 
     @Test
+    fun `fresh main entry starts on home`() {
+        assertEquals(
+            HOME_PAGE,
+            resolveInitialMainPage(
+                requestedPage = HOME_PAGE,
+                savedPage = null,
+                pendingBrowserReturn = false
+            )
+        )
+    }
+
+    @Test
+    fun `configuration recreation retains the saved browser page`() {
+        assertEquals(
+            BROWSER_PAGE,
+            resolveInitialMainPage(
+                requestedPage = HOME_PAGE,
+                savedPage = BROWSER_PAGE,
+                pendingBrowserReturn = false
+            )
+        )
+    }
+
+    @Test
+    fun `explicit browser entry overrides a saved home page`() {
+        assertEquals(
+            BROWSER_PAGE,
+            resolveInitialMainPage(
+                requestedPage = BROWSER_PAGE,
+                savedPage = HOME_PAGE,
+                pendingBrowserReturn = false
+            )
+        )
+    }
+
+    @Test
+    fun `viewer return always restores the browser page`() {
+        assertEquals(
+            BROWSER_PAGE,
+            resolveInitialMainPage(
+                requestedPage = HOME_PAGE,
+                savedPage = HOME_PAGE,
+                pendingBrowserReturn = true
+            )
+        )
+    }
+
+    @Test
     fun `home route has no initial browser entry`() {
         assertNull(AppRoutes.Main().initialBrowserEntry(requestId = 1))
     }

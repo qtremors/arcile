@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.0
-> **Last Updated:** 2026-07-10
+> **Version:** 1.4.1
+> **Last Updated:** 2026-07-11
 
 ---
+
+## [1.4.1] - 2026-07-11
+
+- **Startup Reliability**: Browser restoration now begins only after entering Browser, with dedicated loading and retry UI instead of restoring behind Home.
 
 ## [1.4.0] - 2026-07-10
 
