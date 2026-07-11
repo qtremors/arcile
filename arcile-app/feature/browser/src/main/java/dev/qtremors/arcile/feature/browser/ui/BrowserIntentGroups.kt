@@ -40,8 +40,7 @@ internal data class BrowserMutationIntents(
     val onTogglePermanentDelete: () -> Unit,
     val onToggleShred: () -> Unit,
     val onDismissDeleteConfirmation: () -> Unit,
-    val onRenameFile: (String, String) -> Unit,
-    val onNativeRequestResult: (Boolean) -> Unit
+    val onRenameFile: (String, String) -> Unit
 )
 
 @Stable

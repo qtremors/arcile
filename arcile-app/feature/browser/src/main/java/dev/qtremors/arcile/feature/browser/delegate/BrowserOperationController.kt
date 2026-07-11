@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -8,7 +7,6 @@ import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.presentation.ClipboardController
 import dev.qtremors.arcile.core.presentation.OperationPresentationMapper
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
@@ -40,8 +38,6 @@ internal class BrowserOperationController(
     private val clipboardRepository: ClipboardRepository,
     private val clipboardController: ClipboardController,
     private val coordinator: BulkFileOperationCoordinator,
-    private val authorizationGateway: NativeStorageAuthorizationGateway,
-    private val emitNativeRequest: suspend (IntentSender) -> Unit,
     private val onStateChange: (BrowserOperationState) -> Unit,
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText?) -> Unit,
@@ -116,17 +112,11 @@ internal class BrowserOperationController(
             when (val result = trashRepository.restoreFromTrash(trashIds)) {
                 StorageMutationResult.Completed -> refreshAction()
                 is StorageMutationResult.AuthorizationRequired -> {
-                    val sender = authorizationGateway.resolve(result.requirement)
-                    if (sender == null) {
-                        reportStorageError(IllegalStateException("Native authorization request expired"))
-                    } else {
-                        update {
-                            it.copy(
-                                pendingTrashUndoIds = trashIds,
-                                pendingAuthorization = result.requirement
-                            )
-                        }
-                        emitNativeRequest(sender)
+                    update {
+                        it.copy(
+                            pendingTrashUndoIds = trashIds,
+                            pendingAuthorization = result.requirement
+                        )
                     }
                 }
                 is StorageMutationResult.Failed -> reportStorageError(result.error)
@@ -134,11 +124,17 @@ internal class BrowserOperationController(
         }
     }
 
-    fun handleNativeActionResult(confirmed: Boolean): Boolean {
-        val requirement = state.value.pendingAuthorization ?: return false
-        authorizationGateway.complete(requirement)
+    fun handleAuthorizationResult(requestId: String, confirmed: Boolean): Boolean {
+        if (state.value.pendingAuthorization?.requestId != requestId) return false
         update { it.copy(pendingAuthorization = null) }
         if (confirmed) undoLastTrashMove()
+        return true
+    }
+
+    fun handleAuthorizationUnavailable(requestId: String): Boolean {
+        if (state.value.pendingAuthorization?.requestId != requestId) return false
+        update { it.copy(pendingAuthorization = null) }
+        reportStorageError(IllegalStateException("Native authorization request expired"))
         return true
     }
 

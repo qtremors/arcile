@@ -86,7 +86,6 @@ import dev.qtremors.arcile.feature.trash.ui.EmptyTrashDialog
 import dev.qtremors.arcile.feature.trash.ui.TrashList
 
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.res.stringResource
@@ -102,8 +101,7 @@ internal fun TrashScreen(
     restoreActions: TrashRestoreActions,
     deleteActions: TrashDeleteActions,
     presentationActions: TrashPresentationActions,
-    feedbackActions: TrashFeedbackActions,
-    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
+    feedbackActions: TrashFeedbackActions
 ) {
     val onNavigateBack = navigationActions.navigateBack
     val onToggleSelection = selectionActions.toggle
@@ -129,15 +127,6 @@ internal fun TrashScreen(
     val onFeedback = feedbackActions.feedback
     val haptics = rememberArcileHaptics()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    TrashNativeAuthorizationEffect(
-        state = state,
-        requests = nativeRequestFlow,
-        onRestoreSelected = onRestoreSelected,
-        onRestoreToDestination = onRestoreToDestination,
-        onEmptyTrash = onEmptyTrash,
-        onPermanentlyDeleteSelected = onPermanentlyDeleteSelected
-    )
-
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading) {
         if (state.isLoading) {

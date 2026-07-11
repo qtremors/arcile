@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.imagegallery
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -34,11 +33,8 @@ import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
@@ -64,10 +60,7 @@ internal class ImageGalleryFileActionController(
     private val clipboardController = ClipboardController(clipboardRepository)
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<ImageGalleryFileActionState> = _state.asStateFlow()
-    private val _nativeRequestFlow = MutableSharedFlow<IntentSender>()
-    val nativeRequestFlow: SharedFlow<IntentSender> = _nativeRequestFlow.asSharedFlow()
     private val observationJobs = mutableListOf<Job>()
-    private var pendingDeletePaths: List<String> = emptyList()
     private val propertiesLoader = SelectionPropertiesLoader(
         scope = scope,
         repository = fileBrowserRepository,
@@ -95,14 +88,6 @@ internal class ImageGalleryFileActionController(
         callbacks = deleteCallbacks(),
         startBulkDeleteOperation = { type, selected ->
             operationCoordinator.startOperation(type, selected, null, emptyMap())
-        },
-        emitNativeRequest = { _nativeRequestFlow.emit(it) },
-        onSuccess = {
-            val removed = pendingDeletePaths
-            pendingDeletePaths = emptyList()
-            removePaths(removed)
-            onPathsRemoved(removed)
-            onRefreshRequested()
         },
         onFailure = onRefreshRequested
     )
@@ -198,12 +183,10 @@ internal class ImageGalleryFileActionController(
     }
 
     fun requestDeleteSelected() {
-        pendingDeletePaths = state.value.selectedFiles.toList()
         deleteFlow.requestDeleteSelected()
     }
 
     fun confirmDeleteSelected() {
-        pendingDeletePaths = state.value.selectedFiles.toList().ifEmpty { pendingDeletePaths }
         deleteFlow.confirmDeleteSelected()
     }
 
@@ -478,7 +461,6 @@ internal class ImageGalleryFileActionController(
         override fun setError(error: UiText) = onError(error)
         override fun setDeleteDecision(decision: dev.qtremors.arcile.core.storage.domain.DeleteDecision) =
             update { it.copy(deleteDecision = decision) }
-        override fun setPendingNativeAction() = Unit
         override fun clearSelection() = this@ImageGalleryFileActionController.clearSelection()
     }
 

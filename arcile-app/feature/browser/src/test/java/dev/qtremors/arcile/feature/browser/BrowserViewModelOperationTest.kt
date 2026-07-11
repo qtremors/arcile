@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.browser
 
-import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
@@ -297,7 +296,7 @@ class BrowserViewModelOperationTest {
     }
 
     @Test
-    fun `foreground trash operation does not emit native confirmation request`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `foreground trash operation does not create native authorization state`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val coordinator = FakeBulkFileOperationCoordinator()
         val viewModel = createViewModel(
@@ -307,18 +306,14 @@ class BrowserViewModelOperationTest {
             bulkFileOperationCoordinator = coordinator
         )
 
-        viewModel.nativeRequestFlow.test {
-            advanceUntilIdle()
-            viewModel.navigateToSpecificFolder("/storage/emulated/0")
-            advanceUntilIdle()
-            viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
-            viewModel.moveSelectedToTrash()
-            advanceUntilIdle()
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0")
+        advanceUntilIdle()
+        viewModel.toggleSelection("/storage/emulated/0/alpha.txt")
+        viewModel.moveSelectedToTrash()
+        advanceUntilIdle()
 
-            expectNoEvents()
-            assertNull(viewModel.state.value.pendingNativeAction)
-            cancelAndIgnoreRemainingEvents()
-        }
+        assertNull(viewModel.state.value.operation.pendingAuthorization)
     }
 
     @Test

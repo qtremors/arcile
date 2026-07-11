@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.presentation.UiText
@@ -11,7 +10,6 @@ import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R as UiR
-import dev.qtremors.arcile.feature.browser.BrowserNativeAction
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.core.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.core.presentation.delegate.DeleteStateCallbacks
@@ -36,8 +34,7 @@ internal data class BrowserDeleteWorkflowState(
     val deleteDecision: DeleteDecision? = null,
     val isPermanentDeleteChecked: Boolean = false,
     val isShredChecked: Boolean = false,
-    val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: BrowserNativeAction? = null
+    val isPermanentDeleteToggleEnabled: Boolean = true
 )
 
 internal class BrowserMutationController(
@@ -49,7 +46,6 @@ internal class BrowserMutationController(
     private val operationCoordinator: BulkFileOperationCoordinator,
     private val contextProvider: () -> BrowserMutationContext,
     private val clearSelection: () -> Unit,
-    private val emitNativeRequest: suspend (IntentSender) -> Unit,
     private val onStateChange: (BrowserDeleteWorkflowState) -> Unit,
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText) -> Unit,
@@ -98,9 +94,6 @@ internal class BrowserMutationController(
             override fun setDeleteDecision(decision: DeleteDecision) = update {
                 it.copy(deleteDecision = decision)
             }
-            override fun setPendingNativeAction() = update {
-                it.copy(pendingNativeAction = BrowserNativeAction.TRASH)
-            }
             override fun clearSelection() = this@BrowserMutationController.clearSelection()
         },
         startBulkDeleteOperation = { type, selected ->
@@ -111,8 +104,7 @@ internal class BrowserMutationController(
                 resolutions = emptyMap<String, ConflictResolution>()
             )
         },
-        emitNativeRequest = emitNativeRequest,
-        onSuccess = {}
+        onFailure = {}
     )
 
     fun createFolder(name: String) = createEntry(name, isDirectory = true)
@@ -146,11 +138,7 @@ internal class BrowserMutationController(
     }
 
     fun dismissDeleteConfirmation() {
-        update {
-            BrowserDeleteWorkflowState(
-                pendingNativeAction = it.pendingNativeAction
-            )
-        }
+        update { BrowserDeleteWorkflowState() }
     }
 
     fun moveSelectedToTrash() {
@@ -159,12 +147,6 @@ internal class BrowserMutationController(
 
     fun deleteSelectedPermanently() {
         if (!contextProvider().isArchive) deleteFlow.deleteSelectedPermanently()
-    }
-
-    fun handleNativeActionResult(confirmed: Boolean) {
-        val pendingAction = state.value.pendingNativeAction ?: return
-        update { it.copy(pendingNativeAction = null) }
-        if (confirmed && pendingAction == BrowserNativeAction.TRASH) confirmDeleteSelected()
     }
 
     fun rename(path: String, newName: String) {

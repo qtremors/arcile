@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.recentfiles
 
-import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage

@@ -9,8 +9,6 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.presentation.PropertiesUiModel
 
-internal enum class RecentNativeAction { TRASH }
-
 internal data class RecentFilesState(
     val currentVolumeId: String? = null,
     val recentFiles: List<FileModel> = emptyList(),
@@ -30,7 +28,6 @@ internal data class RecentFilesState(
     val isPermanentDeleteChecked: Boolean = false,
     val isShredChecked: Boolean = false,
     val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: RecentNativeAction? = null,
     val searchQuery: String = "",
     val searchResults: List<FileModel> = emptyList(),
     val isSearching: Boolean = false,

@@ -22,16 +22,11 @@ import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictOwner
 import dev.qtremors.arcile.feature.browser.delegate.openArchive
 import dev.qtremors.arcile.feature.browser.delegate.submitArchivePassword
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
@@ -50,16 +45,9 @@ internal class BrowserViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
     private val bulkFileCoordinator: BulkFileOperationCoordinator,
-    private val authorizationGateway: NativeStorageAuthorizationGateway = NativeStorageAuthorizationGateway(),
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
     private val scrollPositionStore = BrowserScrollPositionStore(savedStateHandle)
-    private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
     private val controllers = createBrowserControllerGraph(
         scope = viewModelScope,
         fileBrowserRepository = fileBrowserRepository,
@@ -72,9 +60,7 @@ internal class BrowserViewModel @Inject constructor(
         volumeRepository = volumeRepository,
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
-        bulkFileCoordinator = bulkFileCoordinator,
-        authorizationGateway = authorizationGateway,
-        emitNativeRequest = _nativeRequestFlow::emit
+        bulkFileCoordinator = bulkFileCoordinator
     )
     private val navigationController = controllers.navigation
     private val searchController = controllers.search
@@ -230,11 +216,11 @@ internal class BrowserViewModel @Inject constructor(
     fun dismissDeleteConfirmation() = mutationController.dismissDeleteConfirmation()
     fun moveSelectedToTrash() = mutationController.moveSelectedToTrash()
     fun deleteSelectedPermanently() = mutationController.deleteSelectedPermanently()
-    fun handleNativeActionResult(confirmed: Boolean) {
-        if (!operationController.handleNativeActionResult(confirmed)) {
-            mutationController.handleNativeActionResult(confirmed)
-        }
-    }
+    fun handleAuthorizationResult(requestId: String, confirmed: Boolean) =
+        operationController.handleAuthorizationResult(requestId, confirmed)
+
+    fun handleAuthorizationUnavailable(requestId: String) =
+        operationController.handleAuthorizationUnavailable(requestId)
     fun renameFile(path: String, newName: String) = mutationController.rename(path, newName)
     fun clearError() {
         navigationController.clearError()

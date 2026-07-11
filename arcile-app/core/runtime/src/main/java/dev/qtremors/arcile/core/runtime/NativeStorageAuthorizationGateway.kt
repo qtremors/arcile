@@ -20,7 +20,14 @@ class NativeStorageAuthorizationGateway @Inject constructor() {
     fun resolve(requirement: StorageAuthorizationRequirement): IntentSender? =
         pendingSenders[requirement.requestId]
 
-    fun complete(requirement: StorageAuthorizationRequirement) {
+    fun consume(requirement: StorageAuthorizationRequirement): IntentSender? =
         pendingSenders.remove(requirement.requestId)
+
+    fun complete(requirement: StorageAuthorizationRequirement) {
+        complete(requirement.requestId)
+    }
+
+    fun complete(requestId: String) {
+        pendingSenders.remove(requestId)
     }
 }

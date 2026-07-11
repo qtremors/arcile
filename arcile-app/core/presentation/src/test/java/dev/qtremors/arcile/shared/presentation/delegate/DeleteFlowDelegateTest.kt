@@ -53,8 +53,6 @@ class DeleteFlowDelegateTest {
             fileBrowserRepository = fileBrowserRepository,
             callbacks = callbacks,
             startBulkDeleteOperation = { _, _ -> startBulkFileOperationResult },
-            emitNativeRequest = {},
-            onSuccess = {},
             onFailure = { onFailureCalled = true }
         )
     }

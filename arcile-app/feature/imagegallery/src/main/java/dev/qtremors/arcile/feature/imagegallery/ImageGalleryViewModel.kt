@@ -70,8 +70,6 @@ internal class ImageGalleryViewModel @Inject constructor(
         onPathsRemoved = { paths -> _state.update { it.withoutGalleryPaths(paths) } },
         onRefreshRequested = { loadImages(forceRefresh = true, silent = true) }
     )
-    val nativeRequestFlow = fileActions.nativeRequestFlow
-
     init {
         fileActions.startObserving()
         viewModelScope.launch {

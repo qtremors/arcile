@@ -84,8 +84,7 @@ fun NavGraphBuilder.registerRecentFilesRoute(
                 refresh = { viewModel.loadRecentFiles(pullToRefresh = true) },
                 clearError = viewModel::clearError,
                 feedback = onFeedback
-            ),
-            nativeRequestFlow = viewModel.nativeRequestFlow
+            )
         )
     }
 }

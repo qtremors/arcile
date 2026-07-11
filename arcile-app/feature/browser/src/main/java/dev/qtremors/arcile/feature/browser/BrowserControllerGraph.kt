@@ -1,10 +1,8 @@
 package dev.qtremors.arcile.feature.browser
 
-import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.ClipboardController
-import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
@@ -63,9 +61,7 @@ internal fun createBrowserControllerGraph(
     volumeRepository: VolumeRepository,
     browserPreferencesRepository: BrowserLocationPreferencesStore,
     savedStateHandle: SavedStateHandle,
-    bulkFileCoordinator: BulkFileOperationCoordinator,
-    authorizationGateway: NativeStorageAuthorizationGateway,
-    emitNativeRequest: suspend (IntentSender) -> Unit
+    bulkFileCoordinator: BulkFileOperationCoordinator
 ): BrowserControllerGraph {
     lateinit var coordinator: BrowserCoordinator
     val navigation = BrowserNavigationController(
@@ -137,8 +133,6 @@ internal fun createBrowserControllerGraph(
         clipboardRepository = clipboardRepository,
         clipboardController = clipboardPresentation,
         coordinator = bulkFileCoordinator,
-        authorizationGateway = authorizationGateway,
-        emitNativeRequest = emitNativeRequest,
         onStateChange = {},
         onBusyChange = navigation::setBusy,
         onError = navigation::setError,
@@ -203,7 +197,6 @@ internal fun createBrowserControllerGraph(
             )
         },
         clearSelection = selection::clear,
-        emitNativeRequest = emitNativeRequest,
         onStateChange = {},
         onBusyChange = navigation::setBusy,
         onError = navigation::setError,

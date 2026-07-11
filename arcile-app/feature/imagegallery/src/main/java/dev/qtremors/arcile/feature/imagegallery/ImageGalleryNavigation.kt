@@ -3,9 +3,6 @@ package dev.qtremors.arcile.feature.imagegallery
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -117,8 +114,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
                 rename = viewModel::renameFile,
                 createZipFromSelection = viewModel::createZipFromSelection,
                 setAlbumCover = viewModel::setAlbumCover
-            ),
-            nativeRequestFlow = viewModel.nativeRequestFlow
+            )
         )
     }
 }
@@ -148,16 +144,8 @@ fun NavGraphBuilder.registerImageViewerRoute(
         }
 
         val viewModel = hiltViewModel<ImageViewerViewModel>()
-        val nativeRequestLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.StartIntentSenderForResult()
-        ) {}
         LaunchedEffect(route.initialPath, contextPaths) {
             viewModel.initialize(route.initialPath, contextPaths)
-        }
-        LaunchedEffect(viewModel.nativeRequestFlow) {
-            viewModel.nativeRequestFlow.collect { sender ->
-                nativeRequestLauncher.launch(IntentSenderRequest.Builder(sender).build())
-            }
         }
         val navigateBack = {
             viewModel.state.value.viewerCurrentPath?.let { path ->

@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.presentation.delegate
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.runtime.R
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
@@ -34,7 +33,6 @@ interface DeleteStateCallbacks {
         }
     )
     fun setDeleteDecision(decision: DeleteDecision) = Unit
-    fun setPendingNativeAction()
     fun clearSelection()
 }
 
@@ -44,8 +42,6 @@ class DeleteFlowDelegate(
     private val fileBrowserRepository: FileBrowserRepository,
     private val callbacks: DeleteStateCallbacks,
     private val startBulkDeleteOperation: (BulkFileOperationType, List<String>) -> Boolean,
-    private val emitNativeRequest: suspend (IntentSender) -> Unit,
-    private val onSuccess: () -> Unit,
     private val onFailure: () -> Unit = {}
 ) {
     fun requestDeleteSelected() {

@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.imagegallery
 
-import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,11 +27,8 @@ import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
@@ -84,10 +80,6 @@ internal class ImageViewerViewModel @Inject constructor(
         )
     )
     val state: StateFlow<ImageViewerState> = _state.asStateFlow()
-
-    private val _nativeRequestFlow = MutableSharedFlow<IntentSender>()
-    val nativeRequestFlow: SharedFlow<IntentSender> = _nativeRequestFlow.asSharedFlow()
-    private var pendingDeletePaths: List<String> = emptyList()
 
     private val deleteFlow = DeleteFlowDelegate(
         coroutineScope = viewModelScope,
@@ -151,7 +143,6 @@ internal class ImageViewerViewModel @Inject constructor(
             override fun setDeleteDecision(decision: DeleteDecision) {
                 _state.update { it.copy(deleteDecision = decision) }
             }
-            override fun setPendingNativeAction() = Unit
             override fun clearSelection() {
                 _state.update { it.copy(selectedFiles = persistentSetOf()) }
             }
@@ -163,22 +154,6 @@ internal class ImageViewerViewModel @Inject constructor(
                 destinationPath = null,
                 resolutions = emptyMap()
             )
-        },
-        emitNativeRequest = { _nativeRequestFlow.emit(it) },
-        onSuccess = {
-            val removed = pendingDeletePaths.toSet()
-            _state.update {
-                val files = it.files.filterNot { file -> file.absolutePath in removed }
-                    .toPersistentList()
-                it.copy(
-                    files = files,
-                    displayedFiles = files,
-                    selectedFiles = persistentSetOf(),
-                    isRefreshing = false
-                )
-            }
-            galleryRepository.invalidate(pendingDeletePaths)
-            pendingDeletePaths = emptyList()
         },
         onFailure = { _state.update { it.copy(isRefreshing = false) } }
     )
@@ -218,14 +193,10 @@ internal class ImageViewerViewModel @Inject constructor(
     }
 
     fun requestDeleteSelected() {
-        pendingDeletePaths = state.value.selectedFiles.toList()
         deleteFlow.requestDeleteSelected()
     }
 
     fun confirmDeleteSelected() {
-        pendingDeletePaths = state.value.selectedFiles.toList().ifEmpty {
-            pendingDeletePaths
-        }
         deleteFlow.confirmDeleteSelected()
     }
 

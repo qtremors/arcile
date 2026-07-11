@@ -276,6 +276,34 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `native storage authorization stays behind the route platform adapter`() {
+        val forbidden = Regex("""\b(?:IntentSender|NativeStorageAuthorizationGateway)\b""")
+        val guardedRoots = listOf(
+            File(projectRoot(), "feature"),
+            File(projectRoot(), "core/presentation/src/main")
+        )
+        val offenders = guardedRoots.asSequence()
+            .flatMap { root -> root.kotlinFiles() }
+            .filter { file ->
+                "${File.separator}src${File.separator}main${File.separator}" in file.path ||
+                    "core${File.separator}presentation${File.separator}src${File.separator}main" in file.path
+            }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    if (forbidden.containsMatchIn(line)) violation(file, index, line) else null
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Features and platform-neutral presentation must carry typed authorization " +
+                    "requirements, not Android sender objects:\n${offenders.joinToString("\n")}"
+            )
+        }
+    }
+
+    @Test
     fun `completed migrations cannot restore compatibility scaffolding`() {
         val removedFiles = listOf(
             "core/operation/build.gradle.kts",

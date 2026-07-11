@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.3
+> **Version:** 1.4.4
 > **Last Updated:** 2026-07-11
 
 ---
+
+## [1.4.4] - 2026-07-11
+
+- **File Authorization Reliability**: System file confirmations now survive lifecycle changes, reject stale results, and recover cleanly when denied or unavailable.
+- **Settings Reliability**: Backup pickers and external-cache cleanup now use route-owned workflows with duplicate-action protection and accurate remaining-cache status.
 
 ## [1.4.3] - 2026-07-11
 

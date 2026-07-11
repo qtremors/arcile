@@ -8,7 +8,6 @@ import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
-import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.onAuthorizationRequired
@@ -20,22 +19,17 @@ import dev.qtremors.arcile.core.presentation.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 @HiltViewModel
 internal class TrashViewModel @Inject constructor(
     private val trashRepository: TrashRepository,
-    private val volumeRepository: VolumeRepository,
-    private val authorizationGateway: NativeStorageAuthorizationGateway = NativeStorageAuthorizationGateway()
+    private val volumeRepository: VolumeRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TrashState())
     val state: StateFlow<TrashState> = _state.asStateFlow()
-
-    private val _nativeRequestFlow = kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
-    val nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
 
     private val localSearchHelper = LocalSearchHelper(
         scope = viewModelScope,
@@ -131,7 +125,7 @@ internal class TrashViewModel @Inject constructor(
                 _state.update { it.copy(snackbarMessage = message, pendingRestoreUndoPaths = undoPaths) }
                 loadTrashFiles()
             }.onAuthorizationRequired { requirement ->
-                requestNativeAuthorization(requirement, NativeAction.RESTORE)
+                requestNativeAuthorization(requirement, TrashAuthorizationAction.RESTORE)
             }.onFailure { error ->
                 when (error) {
                     is DestinationRequiredException -> {
@@ -181,7 +175,7 @@ internal class TrashViewModel @Inject constructor(
             }.onAuthorizationRequired { requirement ->
                 requestNativeAuthorization(
                     requirement = requirement,
-                    action = NativeAction.RESTORE_TO_DESTINATION,
+                    action = TrashAuthorizationAction.RESTORE_TO_DESTINATION,
                     destinationPath = destinationPath,
                     restoreIds = trashIds
                 )
@@ -200,7 +194,7 @@ internal class TrashViewModel @Inject constructor(
                 clearSelection()
                 loadTrashFiles()
             }.onAuthorizationRequired { requirement ->
-                requestNativeAuthorization(requirement, NativeAction.EMPTY)
+                requestNativeAuthorization(requirement, TrashAuthorizationAction.EMPTY)
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_empty_trash_failed)) }
                 loadTrashFiles()
@@ -236,7 +230,7 @@ internal class TrashViewModel @Inject constructor(
                 clearSelection()
                 loadTrashFiles()
             }.onAuthorizationRequired { requirement ->
-                requestNativeAuthorization(requirement, NativeAction.DELETE)
+                requestNativeAuthorization(requirement, TrashAuthorizationAction.DELETE)
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_delete_files_permanently_failed)) }
                 loadTrashFiles()
@@ -246,40 +240,68 @@ internal class TrashViewModel @Inject constructor(
 
     private fun requestNativeAuthorization(
         requirement: StorageAuthorizationRequirement,
-        action: NativeAction,
+        action: TrashAuthorizationAction,
         destinationPath: String? = null,
         restoreIds: List<String> = emptyList()
     ) {
-        val sender = authorizationGateway.resolve(requirement)
-        if (sender == null) {
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    error = UiText.StringResource(R.string.error_restore_files_failed)
-                )
-            }
-            return
-        }
         _state.update {
             it.copy(
                 isLoading = false,
-                pendingNativeAction = action,
+                pendingAuthorizationAction = action,
                 pendingAuthorization = requirement,
                 pendingDestinationPath = destinationPath,
                 pendingRestoreIds = restoreIds
             )
         }
-        viewModelScope.launch { _nativeRequestFlow.emit(sender) }
     }
 
     private fun clearPendingAuthorization() {
-        _state.value.pendingAuthorization?.let(authorizationGateway::complete)
         _state.update {
             it.copy(
-                pendingNativeAction = null,
-                pendingAuthorization = null
+                pendingAuthorizationAction = null,
+                pendingAuthorization = null,
+                pendingDestinationPath = null,
+                pendingRestoreIds = emptyList()
             )
         }
+    }
+
+    fun handleAuthorizationResult(requestId: String, confirmed: Boolean) {
+        val current = _state.value
+        if (current.pendingAuthorization?.requestId != requestId) return
+        val action = current.pendingAuthorizationAction
+        val destinationPath = current.pendingDestinationPath
+        val restoreIds = current.pendingRestoreIds
+        clearPendingAuthorization()
+        if (!confirmed) {
+            _state.update { it.copy(isLoading = false) }
+            return
+        }
+        when (action) {
+            TrashAuthorizationAction.RESTORE -> restoreSelectedTrash()
+            TrashAuthorizationAction.RESTORE_TO_DESTINATION -> {
+                if (destinationPath != null && restoreIds.isNotEmpty()) {
+                    restoreToDestination(restoreIds, destinationPath)
+                }
+            }
+            TrashAuthorizationAction.EMPTY -> emptyTrash()
+            TrashAuthorizationAction.DELETE -> deletePermanentlySelected()
+            null -> Unit
+        }
+    }
+
+    fun handleAuthorizationUnavailable(requestId: String) {
+        val current = _state.value
+        if (current.pendingAuthorization?.requestId != requestId) return
+        val error = when (current.pendingAuthorizationAction) {
+            TrashAuthorizationAction.EMPTY -> R.string.error_empty_trash_failed
+            TrashAuthorizationAction.DELETE -> R.string.error_delete_files_permanently_failed
+            TrashAuthorizationAction.RESTORE,
+            TrashAuthorizationAction.RESTORE_TO_DESTINATION,
+            null -> R.string.error_restore_files_failed
+        }
+        clearPendingAuthorization()
+        _state.update { it.copy(isLoading = false, error = UiText.StringResource(error)) }
     }
 
     fun clearError() {

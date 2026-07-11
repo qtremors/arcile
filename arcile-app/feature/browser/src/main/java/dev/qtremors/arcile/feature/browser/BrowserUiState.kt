@@ -41,8 +41,7 @@ internal data class BrowserDialogState(
     val deleteDecision: DeleteDecision? = null,
     val isPermanentDeleteChecked: Boolean = false,
     val isShredChecked: Boolean = false,
-    val isPermanentDeleteToggleEnabled: Boolean = true,
-    val pendingNativeAction: BrowserNativeAction? = null
+    val isPermanentDeleteToggleEnabled: Boolean = true
 )
 
 @Immutable
@@ -107,7 +106,6 @@ internal data class BrowserUiState(
     val isPermanentDeleteChecked get() = dialogs.isPermanentDeleteChecked
     val isShredChecked get() = dialogs.isShredChecked
     val isPermanentDeleteToggleEnabled get() = dialogs.isPermanentDeleteToggleEnabled
-    val pendingNativeAction get() = dialogs.pendingNativeAction
     val isPropertiesVisible get() = propertiesState.isVisible
     val isPropertiesLoading get() = propertiesState.isLoading
     val properties get() = propertiesState.properties
@@ -136,7 +134,6 @@ internal sealed interface BrowserDialogEvent {
     data object MixedDeleteExplanationShown : BrowserDialogEvent
     data object DeleteConfirmationDismissed : BrowserDialogEvent
     data object PermanentDeleteToggled : BrowserDialogEvent
-    data class NativeActionChanged(val action: BrowserNativeAction?) : BrowserDialogEvent
 }
 
 internal fun BrowserSearchState.reduce(event: BrowserSearchEvent): BrowserSearchState = when (event) {
@@ -178,7 +175,6 @@ internal fun BrowserDialogState.reduce(event: BrowserDialogEvent): BrowserDialog
         deleteDecision = null
     )
     BrowserDialogEvent.PermanentDeleteToggled -> copy(isPermanentDeleteChecked = !isPermanentDeleteChecked)
-    is BrowserDialogEvent.NativeActionChanged -> copy(pendingNativeAction = event.action)
 }
 
 internal fun calculateBrowserSelectionSize(

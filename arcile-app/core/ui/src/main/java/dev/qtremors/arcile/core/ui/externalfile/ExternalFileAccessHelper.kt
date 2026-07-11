@@ -104,7 +104,7 @@ object ExternalFileAccessHelper {
 
     fun clearStagingArea(context: Context): StagingCacheStats {
         File(context.cacheDir, STAGING_ROOT).deleteRecursively()
-        return StagingCacheStats(fileCount = 0, sizeBytes = 0L)
+        return getStagingCacheStats(context)
     }
 
     fun getStagingCacheStats(context: Context): StagingCacheStats {

@@ -73,14 +73,11 @@ internal fun BrowserScreen(
     state: BrowserUiState,
     intents: BrowserIntents,
     scroll: BrowserScrollBindings,
-    effects: BrowserEffects
+    onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
     val onArmPendingReveal = scroll.onArmPendingReveal
-    val nativeRequestFlow = effects.nativeRequestFlow
-    val onFeedback = effects.onFeedback
-    val onNativeRequestResult = intents.mutation.onNativeRequestResult
     val onSelectFolderTab = intents.navigation.onSelectFolderTab
     val onDismissConflictDialog = intents.clipboard.onDismissConflictDialog
     val onDismissProperties = intents.selection.onDismissProperties
@@ -106,17 +103,6 @@ internal fun BrowserScreen(
         label = "fabRotation"
     )
 
-    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        onNativeRequestResult(result.resultCode == android.app.Activity.RESULT_OK)
-    }
-
-    LaunchedEffect(nativeRequestFlow) {
-        nativeRequestFlow?.collect { sender ->
-            launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
-        }
-    }
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {

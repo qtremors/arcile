@@ -6,7 +6,6 @@ import androidx.activity.compose.PredictiveBackHandler
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility

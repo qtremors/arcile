@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.recentfiles
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
@@ -18,7 +17,6 @@ internal fun createRecentDeleteController(
     fileBrowserRepository: FileBrowserRepository,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator,
     state: MutableStateFlow<RecentFilesState>,
-    emitNativeRequest: suspend (IntentSender) -> Unit,
     reload: () -> Unit
 ): DeleteFlowDelegate = DeleteFlowDelegate(
     coroutineScope = coroutineScope,
@@ -96,10 +94,6 @@ internal fun createRecentDeleteController(
             state.update { it.copy(deleteDecision = decision) }
         }
 
-        override fun setPendingNativeAction() {
-            state.update { it.copy(pendingNativeAction = RecentNativeAction.TRASH) }
-        }
-
         override fun clearSelection() {
             state.update {
                 it.copy(
@@ -120,7 +114,5 @@ internal fun createRecentDeleteController(
             resolutions = emptyMap()
         )
     },
-    emitNativeRequest = emitNativeRequest,
-    onSuccess = reload,
     onFailure = reload
 )

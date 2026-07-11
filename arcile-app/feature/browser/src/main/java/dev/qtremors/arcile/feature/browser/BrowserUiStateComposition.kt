@@ -127,8 +127,7 @@ private fun composeBrowserSnapshot(
             deleteDecision = deletion.deleteDecision,
             isPermanentDeleteChecked = deletion.isPermanentDeleteChecked,
             isShredChecked = deletion.isShredChecked,
-            isPermanentDeleteToggleEnabled = deletion.isPermanentDeleteToggleEnabled,
-            pendingNativeAction = deletion.pendingNativeAction
+            isPermanentDeleteToggleEnabled = deletion.isPermanentDeleteToggleEnabled
         ),
         propertiesState = properties,
         operation = operation,

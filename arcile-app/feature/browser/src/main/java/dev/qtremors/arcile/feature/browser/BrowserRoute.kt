@@ -24,7 +24,6 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserClipboardIntents
-import dev.qtremors.arcile.feature.browser.ui.BrowserEffects
 import dev.qtremors.arcile.feature.browser.ui.BrowserIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserInitializationSurface
 import dev.qtremors.arcile.feature.browser.ui.BrowserMutationIntents
@@ -34,6 +33,7 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserScrollBindings
 import dev.qtremors.arcile.feature.browser.ui.BrowserSearchIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserSelectionIntents
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.NativeStorageAuthorizationEffect
 import kotlinx.coroutines.launch
 
 sealed interface BrowserEntry {
@@ -97,6 +97,12 @@ fun BrowserRoute(
     var revealedFocusPath by rememberSaveable(entryRequest?.focusPath) {
         mutableStateOf<String?>(null)
     }
+
+    NativeStorageAuthorizationEffect(
+        requirement = state.operation.pendingAuthorization,
+        onResult = viewModel::handleAuthorizationResult,
+        onUnavailable = viewModel::handleAuthorizationUnavailable
+    )
 
     LaunchedEffect(hasActiveLocation, uiState.location.isCategoryScreen) {
         onStatusChange(
@@ -213,8 +219,7 @@ fun BrowserRoute(
             onTogglePermanentDelete = viewModel::togglePermanentDelete,
             onToggleShred = viewModel::toggleShred,
             onDismissDeleteConfirmation = viewModel::dismissDeleteConfirmation,
-            onRenameFile = viewModel::renameFile,
-            onNativeRequestResult = viewModel::handleNativeActionResult
+            onRenameFile = viewModel::renameFile
         ),
         search = BrowserSearchIntents(
             onSearchQueryChange = viewModel::updateBrowserSearchQuery,
@@ -291,10 +296,7 @@ fun BrowserRoute(
                     onArmPendingReveal = viewModel::armOpenedFileReveal,
                     onConsumePendingReveal = viewModel::consumeOpenedFileReveal
                 ),
-                effects = BrowserEffects(
-                    onFeedback = onFeedback,
-                    nativeRequestFlow = viewModel.nativeRequestFlow
-                )
+                onFeedback = onFeedback
             )
         } else {
             BrowserInitializationSurface(

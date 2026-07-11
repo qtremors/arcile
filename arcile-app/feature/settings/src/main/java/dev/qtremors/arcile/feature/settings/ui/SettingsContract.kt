@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.settings.ui
 
-import android.net.Uri
 import dev.qtremors.arcile.feature.settings.PreferencesBackupUiState
 import dev.qtremors.arcile.feature.settings.SettingsPreferences
 import dev.qtremors.arcile.core.ui.theme.ThemeState
@@ -8,15 +7,21 @@ import dev.qtremors.arcile.core.ui.theme.ThemeState
 internal data class SettingsScreenState(
     val theme: ThemeState,
     val preferences: SettingsPreferences,
-    val backup: PreferencesBackupUiState
+    val backup: PreferencesBackupUiState,
+    val externalCache: SettingsExternalCacheState = SettingsExternalCacheState()
+)
+
+internal data class SettingsExternalCacheState(
+    val fileCount: Int = 0,
+    val sizeBytes: Long = 0L,
+    val isBusy: Boolean = true
 )
 
 internal data class SettingsNavigationActions(
     val navigateBack: () -> Unit,
     val openStorageManagement: () -> Unit,
     val navigateToPlugins: () -> Unit,
-    val navigateToAbout: () -> Unit,
-    val restartApp: () -> Unit
+    val navigateToAbout: () -> Unit
 )
 
 internal data class SettingsPreferenceActions(
@@ -29,8 +34,10 @@ internal data class SettingsPreferenceActions(
 )
 
 internal data class SettingsBackupActions(
-    val export: (Uri) -> Unit,
-    val previewRestore: (Uri) -> Unit,
-    val applyRestore: (Uri) -> Unit,
-    val clearState: () -> Unit
+    val requestExport: () -> Unit,
+    val requestRestore: () -> Unit
+)
+
+internal data class SettingsStorageActions(
+    val clearExternalCache: () -> Unit
 )

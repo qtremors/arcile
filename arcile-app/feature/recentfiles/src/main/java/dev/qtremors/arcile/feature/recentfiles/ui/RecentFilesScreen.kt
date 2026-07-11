@@ -2,9 +2,6 @@ package dev.qtremors.arcile.feature.recentfiles.ui
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -94,8 +91,7 @@ internal fun RecentFilesScreen(
     selectionActions: RecentSelectionActions,
     deleteActions: RecentDeleteActions,
     searchActions: RecentSearchActions,
-    contentActions: RecentContentActions,
-    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
+    contentActions: RecentContentActions
 ) {
     val onNavigateBack = navigationActions.navigateBack
     val onOpenFile = navigationActions.openFile
@@ -127,28 +123,11 @@ internal fun RecentFilesScreen(
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            when (state.pendingNativeAction) {
-                dev.qtremors.arcile.feature.recentfiles.RecentNativeAction.TRASH -> onConfirmDelete()
-                null -> {}
-            }
-        }
-    }
-
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             haptics.error()
             onFeedback(ArcileFeedbackEvent(errorMsg, ArcileFeedbackSeverity.Error))
             onClearError()
-        }
-    }
-
-    LaunchedEffect(nativeRequestFlow) {
-        nativeRequestFlow?.collect { sender ->
-            launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 

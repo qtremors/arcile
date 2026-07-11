@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.browser
 
-import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
@@ -224,7 +223,6 @@ fun browserVolume(
     isRemovable = isRemovable,
     kind = kind
 )
-
 fun browserFile(name: String, path: String, isDirectory: Boolean = false) = FileModel(
     name = name,
     absolutePath = path,
@@ -234,5 +232,3 @@ fun browserFile(name: String, path: String, isDirectory: Boolean = false) = File
     extension = if (isDirectory) "" else name.substringAfterLast('.', ""),
     isHidden = false
 )
-
-fun fakeIntentSender(): IntentSender = mockk(relaxed = true)

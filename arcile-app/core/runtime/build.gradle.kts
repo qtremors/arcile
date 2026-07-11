@@ -30,4 +30,7 @@ dependencies {
     implementation(project(":core:storage:domain"))
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.io.mockk.mockk)
 }

@@ -688,9 +688,6 @@ private fun BrowserScreen(
 ) {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-    val nativeRequests = androidx.compose.runtime.remember {
-        kotlinx.coroutines.flow.MutableSharedFlow<android.content.IntentSender>()
-    }
     BrowserScreen(
         state = state,
         intents = BrowserIntents(
@@ -721,8 +718,7 @@ private fun BrowserScreen(
                 onTogglePermanentDelete,
                 onToggleShred = {},
                 onDismissDeleteConfirmation,
-                onRenameFile,
-                onNativeRequestResult = {}
+                onRenameFile
             ),
             search = BrowserSearchIntents(
                 onSearchQueryChange,
@@ -775,7 +771,7 @@ private fun BrowserScreen(
             onArmPendingReveal = {},
             onConsumePendingReveal = {}
         ),
-        effects = BrowserEffects(onFeedback = {}, nativeRequestFlow = nativeRequests)
+        onFeedback = {}
     )
 }
 

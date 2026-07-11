@@ -1,11 +1,9 @@
 package dev.qtremors.arcile.feature.trash
 
-import android.content.IntentSender
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationOperation
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
@@ -16,7 +14,6 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
-import io.mockk.mockk
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testFile
@@ -88,12 +85,10 @@ class TrashViewModelTest {
 
     @Test
     fun `restoreToDestination stores pending native confirmation context`() = runTest(mainDispatcherRule.dispatcher) {
-        val gateway = NativeStorageAuthorizationGateway()
         val requirement = StorageAuthorizationRequirement(
             requestId = "restore-request",
             operation = StorageAuthorizationOperation.RESTORE_TRASH
         )
-        gateway.register(requirement, fakeIntentSender())
         val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
             restoreFromTrashMutationResultProvider = { _, destinationPath ->
@@ -106,19 +101,131 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository,
-            authorizationGateway = gateway
+            volumeRepository = repository.volumeRepository
         )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
         advanceUntilIdle()
 
-        assertEquals(NativeAction.RESTORE_TO_DESTINATION, viewModel.state.value.pendingNativeAction)
+        assertEquals(
+            TrashAuthorizationAction.RESTORE_TO_DESTINATION,
+            viewModel.state.value.pendingAuthorizationAction
+        )
+        assertEquals(requirement, viewModel.state.value.pendingAuthorization)
         assertEquals("/storage/emulated/0/Download", viewModel.state.value.pendingDestinationPath)
         assertEquals(listOf("1"), viewModel.state.value.pendingRestoreIds)
         assertNull(viewModel.state.value.error)
         assertFalse(viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun `stale authorization result cannot consume current request`() = runTest(mainDispatcherRule.dispatcher) {
+        val requirement = restoreRequirement("current-request")
+        var restoreCalls = 0
+        val repository = authorizationRepository(requirement) { restoreCalls += 1 }
+        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+
+        advanceUntilIdle()
+        viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.handleAuthorizationResult("stale-request", confirmed = true)
+        advanceUntilIdle()
+
+        assertEquals(requirement, viewModel.state.value.pendingAuthorization)
+        assertEquals(1, restoreCalls)
+    }
+
+    @Test
+    fun `denied authorization clears retry context without repeating mutation`() = runTest(mainDispatcherRule.dispatcher) {
+        val requirement = restoreRequirement("denied-request")
+        var restoreCalls = 0
+        val repository = authorizationRepository(requirement) { restoreCalls += 1 }
+        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+
+        advanceUntilIdle()
+        viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.handleAuthorizationResult(requirement.requestId, confirmed = false)
+
+        assertNull(viewModel.state.value.pendingAuthorization)
+        assertNull(viewModel.state.value.pendingAuthorizationAction)
+        assertNull(viewModel.state.value.pendingDestinationPath)
+        assertTrue(viewModel.state.value.pendingRestoreIds.isEmpty())
+        assertEquals(1, restoreCalls)
+        assertFalse(viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun `confirmed authorization retries stored mutation exactly once`() = runTest(mainDispatcherRule.dispatcher) {
+        val requirement = restoreRequirement("confirmed-request")
+        var restoreCalls = 0
+        val repository = FakeStorageRepositoryBundle().apply {
+            trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
+            restoreFromTrashMutationResultProvider = { _, destinationPath ->
+                if (destinationPath == null) {
+                    StorageMutationResult.Completed
+                } else if (++restoreCalls == 1) {
+                    StorageMutationResult.AuthorizationRequired(requirement)
+                } else {
+                    StorageMutationResult.Completed
+                }
+            }
+        }
+        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+
+        advanceUntilIdle()
+        viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.handleAuthorizationResult(requirement.requestId, confirmed = true)
+        advanceUntilIdle()
+
+        assertEquals(2, restoreCalls)
+        assertNull(viewModel.state.value.pendingAuthorization)
+        assertNull(viewModel.state.value.error)
+        assertFalse(viewModel.state.value.isLoading)
+    }
+
+    @Test
+    fun `unavailable authorization clears context and reports operation error`() = runTest(mainDispatcherRule.dispatcher) {
+        val requirement = restoreRequirement("expired-request")
+        val repository = authorizationRepository(requirement) {}
+        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+
+        advanceUntilIdle()
+        viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
+        advanceUntilIdle()
+        viewModel.handleAuthorizationUnavailable(requirement.requestId)
+
+        assertNull(viewModel.state.value.pendingAuthorization)
+        assertNull(viewModel.state.value.pendingAuthorizationAction)
+        assertEquals(
+            dev.qtremors.arcile.core.presentation.UiText.StringResource(
+                dev.qtremors.arcile.core.ui.R.string.error_restore_files_failed
+            ),
+            viewModel.state.value.error
+        )
+        assertFalse(viewModel.state.value.isLoading)
+    }
+
+    private fun restoreRequirement(requestId: String) = StorageAuthorizationRequirement(
+        requestId = requestId,
+        operation = StorageAuthorizationOperation.RESTORE_TRASH
+    )
+
+    private fun authorizationRepository(
+        requirement: StorageAuthorizationRequirement,
+        onRestore: () -> Unit
+    ) = FakeStorageRepositoryBundle().apply {
+        trashFilesResult = Result.success(listOf(trashItem("1", "Photo.jpg")))
+        restoreFromTrashMutationResultProvider = { _, destinationPath ->
+            if (destinationPath != null) {
+                onRestore()
+                StorageMutationResult.AuthorizationRequired(requirement)
+            } else {
+                StorageMutationResult.Completed
+            }
+        }
     }
 
     @Test
@@ -257,7 +364,3 @@ private fun trashItem(
     sourceStorageKind = StorageKind.INTERNAL,
     restoreStatus = restoreStatus
 )
-
-private fun fakeIntentSender(): IntentSender {
-    return mockk(relaxed = true)
-}

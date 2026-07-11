@@ -11,6 +11,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.NativeStorageAuthorizationEffect
 
 fun NavGraphBuilder.registerTrashRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -28,6 +29,11 @@ fun NavGraphBuilder.registerTrashRoute(
     ) {
         val viewModel = hiltViewModel<TrashViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
+        NativeStorageAuthorizationEffect(
+            requirement = state.pendingAuthorization,
+            onResult = viewModel::handleAuthorizationResult,
+            onUnavailable = viewModel::handleAuthorizationUnavailable
+        )
         TrashScreen(
             state = state,
             navigationActions = TrashNavigationActions(onNavigateBack),
@@ -61,8 +67,7 @@ fun NavGraphBuilder.registerTrashRoute(
                 clearError = viewModel::clearError,
                 clearSnackbarMessage = viewModel::clearSnackbarMessage,
                 feedback = onFeedback
-            ),
-            nativeRequestFlow = viewModel.nativeRequestFlow
+            )
         )
     }
 }

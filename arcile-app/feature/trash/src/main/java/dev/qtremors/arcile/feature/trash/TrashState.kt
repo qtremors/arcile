@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 
-internal enum class NativeAction { RESTORE, RESTORE_TO_DESTINATION, EMPTY, DELETE }
+internal enum class TrashAuthorizationAction { RESTORE, RESTORE_TO_DESTINATION, EMPTY, DELETE }
 
 internal enum class TrashSortOption {
     DELETED_NEWEST,
@@ -35,7 +35,7 @@ internal data class TrashState(
     val snackbarMessage: UiText? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
-    val pendingNativeAction: NativeAction? = null,
+    val pendingAuthorizationAction: TrashAuthorizationAction? = null,
     val pendingAuthorization: StorageAuthorizationRequirement? = null,
     val pendingDestinationPath: String? = null,
     val pendingRestoreIds: List<String> = emptyList(),

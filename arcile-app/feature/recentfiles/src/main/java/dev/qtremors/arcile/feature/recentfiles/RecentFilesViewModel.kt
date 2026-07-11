@@ -21,11 +21,8 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.SelectionReducer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
@@ -50,9 +47,6 @@ internal class RecentFilesViewModel @Inject constructor(
     private val _state = MutableStateFlow(RecentFilesState())
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
-    private val _nativeRequestFlow = MutableSharedFlow<android.content.IntentSender>()
-    val nativeRequestFlow: SharedFlow<android.content.IntentSender> = _nativeRequestFlow.asSharedFlow()
-
     private var searchJob: Job? = null
     private var recentLoadJob: Job? = null
     private var recentLoadGeneration = 0L
@@ -63,7 +57,6 @@ internal class RecentFilesViewModel @Inject constructor(
         fileBrowserRepository = fileBrowserRepository,
         bulkFileOperationCoordinator = bulkFileOperationCoordinator,
         state = _state,
-        emitNativeRequest = { sender -> _nativeRequestFlow.emit(sender) },
         reload = { loadRecentFiles(false) }
     )
 

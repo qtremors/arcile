@@ -3,9 +3,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -102,7 +99,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -123,8 +119,7 @@ internal fun ImageGalleryScreen(
     contentActions: GalleryContentActions,
     presentationActions: GalleryPresentationActions,
     clipboardActions: GalleryClipboardActions,
-    fileActions: GalleryFileActions,
-    nativeRequestFlow: SharedFlow<android.content.IntentSender>? = null
+    fileActions: GalleryFileActions
 ) {
     val onNavigateBack = navigationActions.navigateBack
     val onOpenFile = navigationActions.openFile
@@ -198,20 +193,6 @@ internal fun ImageGalleryScreen(
                 }
                 return Offset.Zero
             }
-        }
-    }
-
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            onConfirmDelete()
-        }
-    }
-
-    LaunchedEffect(nativeRequestFlow) {
-        nativeRequestFlow?.collect { sender ->
-            launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 
