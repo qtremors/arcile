@@ -1,7 +1,5 @@
 package dev.qtremors.arcile.feature.quickaccess
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
@@ -109,14 +107,7 @@ import dev.qtremors.arcile.core.ui.theme.bounceClickable
 @Composable
 internal fun QuickAccessScreen(
     state: QuickAccessState,
-    onNavigateBack: () -> Unit,
-    onNavigateToPath: (String) -> Unit,
-    onNavigateToSaf: (String) -> Unit,
-    onTogglePin: (QuickAccessItem) -> Unit,
-    onRemoveItem: (QuickAccessItem) -> Unit,
-    onAddCustomFolder: (String, String) -> Unit,
-    onAddSafFolder: (String, String) -> Unit,
-    onReorderItems: (List<QuickAccessItem>) -> Unit
+    actions: QuickAccessActions
 ) {
     var showCustomDialog by rememberSaveable { mutableStateOf(false) }
     var showReorderSheet by remember { mutableStateOf(false) }
@@ -148,23 +139,6 @@ internal fun QuickAccessScreen(
 
     var tempPath by rememberSaveable { mutableStateOf("") }
     var tempLabel by rememberSaveable { mutableStateOf("") }
-
-    fun buildRestrictedFolderUri(relativeDocPath: String): String {
-        val treeUri = android.provider.DocumentsContract.buildTreeDocumentUri(
-            "com.android.externalstorage.documents",
-            "primary"
-        )
-        return android.provider.DocumentsContract.buildDocumentUriUsingTree(treeUri, "primary:$relativeDocPath").toString()
-    }
-
-    val folderPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        uri?.let {
-            val label = it.lastPathSegment?.split(":")?.lastOrNull() ?: "New Folder"
-            onAddSafFolder(it.toString(), label)
-        }
-    }
 
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
@@ -200,7 +174,7 @@ internal fun QuickAccessScreen(
             confirmButton = {
                 val addClick = {
                     if (tempPath.isNotBlank() && tempLabel.isNotBlank()) {
-                        onAddCustomFolder(tempPath, tempLabel)
+                        actions.addCustomFolder(tempPath, tempLabel)
                         showCustomDialog = false
                     }
                 }
@@ -227,7 +201,7 @@ internal fun QuickAccessScreen(
             pinnedItems = pinnedItems,
             onDismiss = { showReorderSheet = false },
             onApply = { reordered ->
-                onReorderItems(reordered)
+                actions.reorderItems(reordered)
                 showReorderSheet = false
             }
         )
@@ -240,10 +214,10 @@ internal fun QuickAccessScreen(
                 title = { Text(stringResource(R.string.quick_access_manage_title)) },
                 navigationIcon = {
                     IconButton(
-                        onClick = onNavigateBack,
+                        onClick = actions.navigateBack,
                         modifier = Modifier
                             .clip(CircleShape)
-                            .bounceClickable(onClick = onNavigateBack)
+                            .bounceClickable(onClick = actions.navigateBack)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
@@ -280,7 +254,7 @@ internal fun QuickAccessScreen(
                                 icon = Icons.Default.FolderOpen,
                                 onClick = {
                                     isFabExpanded = false
-                                    folderPickerLauncher.launch(null)
+                                    actions.requestSafFolder()
                                 }
                             ),
                             FabMenuItem(
@@ -297,7 +271,7 @@ internal fun QuickAccessScreen(
                                 label = stringResource(R.string.item_type_files),
                                 onClick = {
                                     isFabExpanded = false
-                                    onAddSafFolder(buildRestrictedFolderUri(""), "Files")
+                                    actions.addFilesShortcut()
                                 },
                                 iconContent = {
                                     QuickAccessAppIcon(
@@ -312,7 +286,7 @@ internal fun QuickAccessScreen(
                                 label = stringResource(R.string.add_android_data),
                                 onClick = {
                                     isFabExpanded = false
-                                    onAddSafFolder(buildRestrictedFolderUri("Android/data"), "Android/data")
+                                    actions.addAndroidDataShortcut()
                                 },
                                 iconContent = {
                                     QuickAccessAppIcon(
@@ -327,7 +301,7 @@ internal fun QuickAccessScreen(
                                 label = stringResource(R.string.add_android_obb),
                                 onClick = {
                                     isFabExpanded = false
-                                    onAddSafFolder(buildRestrictedFolderUri("Android/obb"), "Android/obb")
+                                    actions.addAndroidObbShortcut()
                                 },
                                 iconContent = {
                                     QuickAccessAppIcon(
@@ -364,10 +338,10 @@ internal fun QuickAccessScreen(
                     QuickAccessSectionGroup(
                         title = stringResource(R.string.quick_access_section_custom),
                         items = customFolders,
-                        onNavigateToPath = onNavigateToPath,
-                        onNavigateToSaf = onNavigateToSaf,
-                        onTogglePin = onTogglePin,
-                        onRemoveItem = onRemoveItem
+                        onNavigateToPath = actions.navigateToPath,
+                        onNavigateToSaf = actions.navigateToSaf,
+                        onTogglePin = actions.togglePin,
+                        onRemoveItem = actions.removeItem
                     )
                 }
 
@@ -375,10 +349,10 @@ internal fun QuickAccessScreen(
                     QuickAccessSectionGroup(
                         title = stringResource(R.string.quick_access_section_system),
                         items = systemFolders,
-                        onNavigateToPath = onNavigateToPath,
-                        onNavigateToSaf = onNavigateToSaf,
-                        onTogglePin = onTogglePin,
-                        onRemoveItem = onRemoveItem
+                        onNavigateToPath = actions.navigateToPath,
+                        onNavigateToSaf = actions.navigateToSaf,
+                        onTogglePin = actions.togglePin,
+                        onRemoveItem = actions.removeItem
                     )
                 }
 
@@ -386,10 +360,10 @@ internal fun QuickAccessScreen(
                     QuickAccessSectionGroup(
                         title = stringResource(R.string.quick_access_section_apps),
                         items = appFolders,
-                        onNavigateToPath = onNavigateToPath,
-                        onNavigateToSaf = onNavigateToSaf,
-                        onTogglePin = onTogglePin,
-                        onRemoveItem = onRemoveItem
+                        onNavigateToPath = actions.navigateToPath,
+                        onNavigateToSaf = actions.navigateToSaf,
+                        onTogglePin = actions.togglePin,
+                        onRemoveItem = actions.removeItem
                     )
                 }
 
@@ -397,10 +371,10 @@ internal fun QuickAccessScreen(
                     QuickAccessSectionGroup(
                         title = stringResource(R.string.quick_access_section_files),
                         items = filesFolders,
-                        onNavigateToPath = onNavigateToPath,
-                        onNavigateToSaf = onNavigateToSaf,
-                        onTogglePin = onTogglePin,
-                        onRemoveItem = onRemoveItem
+                        onNavigateToPath = actions.navigateToPath,
+                        onNavigateToSaf = actions.navigateToSaf,
+                        onTogglePin = actions.togglePin,
+                        onRemoveItem = actions.removeItem
                     )
                 }
             }

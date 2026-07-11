@@ -1,6 +1,8 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt.android)
 }
 
 android {
@@ -49,6 +51,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.coil.compose)
     implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.material.kolor)

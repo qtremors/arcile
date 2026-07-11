@@ -558,6 +558,29 @@ class ArchitectureBoundaryTest {
         }
     }
 
+    @Test
+    fun `core ui processes its hilt entry points`() {
+        val buildScript = File(projectRoot(), "core/ui/build.gradle.kts").readText()
+        val missingConfiguration = buildList {
+            if ("alias(libs.plugins.hilt.android)" !in buildScript) {
+                add("Hilt Android Gradle plugin")
+            }
+            if ("alias(libs.plugins.ksp)" !in buildScript) {
+                add("KSP Gradle plugin")
+            }
+            if ("ksp(libs.hilt.compiler)" !in buildScript) {
+                add("Hilt compiler KSP dependency")
+            }
+        }
+
+        if (missingConfiguration.isNotEmpty()) {
+            fail(
+                "core/ui declares an application Hilt entry point and must generate its " +
+                    "aggregation metadata. Missing: ${missingConfiguration.joinToString()}"
+            )
+        }
+    }
+
     private fun sourceRoot(packageName: String): File =
         File(projectRoot(), "app/src/main/java/dev/qtremors/arcile/$packageName")
 

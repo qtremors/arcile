@@ -3,9 +3,6 @@ package dev.qtremors.arcile.feature.quickaccess
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.runtime.getValue
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
@@ -30,30 +27,9 @@ fun NavGraphBuilder.registerQuickAccessRoute(
         popEnterTransition = popEnterTransition,
         popExitTransition = popExitTransition
     ) {
-        val viewModel = hiltViewModel<QuickAccessViewModel>()
-        val state by viewModel.state.collectAsStateWithLifecycle()
-        QuickAccessScreen(
-            state = state,
+        QuickAccessRoute(
             onNavigateBack = onNavigateBack,
-            onNavigateToPath = { path ->
-                onDestination(QuickAccessDestination.LocalPath(path))
-            },
-            onNavigateToSaf = { uri ->
-                onDestination(QuickAccessDestination.ExternalFolder(uri))
-            },
-            onTogglePin = { viewModel.togglePin(it) },
-            onRemoveItem = { viewModel.removeCustomItem(it) },
-            onAddCustomFolder = { path, label -> viewModel.addCustomFolder(path, label) },
-            onAddSafFolder = { uri, label ->
-                if (label == "Files") {
-                    viewModel.addFilesAppShortcut(uri)
-                } else if (label == "Android/data" || label == "Android/obb") {
-                    viewModel.addExternalHandoffFolder(uri, label)
-                } else {
-                    viewModel.addSafFolder(uri, label)
-                }
-            },
-            onReorderItems = { viewModel.updateItemsOrder(it) }
+            onDestination = onDestination
         )
     }
 }

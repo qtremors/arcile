@@ -32,11 +32,17 @@ fun NativeStorageAuthorizationEffect(
     onUnavailable: (requestId: String) -> Unit
 ) {
     val applicationContext = LocalContext.current.applicationContext
-    val gateway = remember(applicationContext) {
-        EntryPointAccessors.fromApplication(
-            applicationContext,
-            NativeStorageAuthorizationEntryPoint::class.java
-        ).authorizationGateway()
+    val gateway = remember(applicationContext, requirement?.requestId) {
+        if (requirement == null) {
+            null
+        } else {
+            runCatching {
+                EntryPointAccessors.fromApplication(
+                    applicationContext,
+                    NativeStorageAuthorizationEntryPoint::class.java
+                ).authorizationGateway()
+            }.getOrNull()
+        }
     }
     val currentOnResult by rememberUpdatedState(onResult)
     val currentOnUnavailable by rememberUpdatedState(onUnavailable)
@@ -46,7 +52,7 @@ fun NativeStorageAuthorizationEffect(
         contract = ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         val completedRequestId = launchedRequestId ?: return@rememberLauncherForActivityResult
-        gateway.complete(completedRequestId)
+        gateway?.complete(completedRequestId)
         launchedRequestId = null
         currentOnResult(completedRequestId, result.resultCode == Activity.RESULT_OK)
     }
@@ -54,10 +60,15 @@ fun NativeStorageAuthorizationEffect(
     LaunchedEffect(requirement?.requestId, launchedRequestId) {
         val current = requirement ?: return@LaunchedEffect
         if (launchedRequestId != null) return@LaunchedEffect
+        val currentGateway = gateway
+        if (currentGateway == null) {
+            currentOnUnavailable(current.requestId)
+            return@LaunchedEffect
+        }
 
-        val sender = gateway.consume(current)
+        val sender = currentGateway.consume(current)
         if (sender == null) {
-            gateway.complete(current.requestId)
+            currentGateway.complete(current.requestId)
             currentOnUnavailable(current.requestId)
             return@LaunchedEffect
         }
@@ -66,7 +77,7 @@ fun NativeStorageAuthorizationEffect(
         runCatching {
             launcher.launch(IntentSenderRequest.Builder(sender).build())
         }.onFailure {
-            gateway.complete(current.requestId)
+            currentGateway.complete(current.requestId)
             currentOnUnavailable(current.requestId)
             launchedRequestId = null
         }

@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.4
+> **Version:** 1.4.5
 > **Last Updated:** 2026-07-11
 
 ---
+
+## [1.4.5] - 2026-07-11
+
+- **Startup Stability**: Restored the generated authorization bridge required by Browser so the app no longer crashes while composing its initial screen.
+- **Shared Import Reliability**: Save-to-Arcile now validates incoming shares and destinations through isolated workflows, safely restores its selected folder, and prevents duplicate saves.
+- **Quick Access Reliability**: Folder selection and restricted Files shortcuts now use route-owned Android access with persisted permissions and normalized destinations.
 
 ## [1.4.4] - 2026-07-11
 

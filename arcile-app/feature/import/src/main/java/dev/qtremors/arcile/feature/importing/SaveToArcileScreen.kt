@@ -36,11 +36,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,63 +49,27 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SaveToArcileScreen(
-    incoming: List<IncomingSharedFile>,
-    loadVolumes: suspend () -> List<StorageVolume>,
-    loadDefaultPath: suspend () -> String?,
-    saveDefaultPath: suspend (String) -> Unit,
-    copyTo: suspend (File) -> Result<SaveIncomingResult>,
-    onCancel: () -> Unit,
-    onDefaultSaved: () -> Unit,
-    onFinished: (SaveIncomingResult) -> Unit,
-    onFailed: (Throwable) -> Unit
+    state: SaveToArcileState,
+    actions: SaveToArcileActions
 ) {
-    val scope = rememberCoroutineScope()
-    var volumes by remember { mutableStateOf<List<StorageVolume>>(emptyList()) }
-    var currentDir by remember { mutableStateOf<File?>(null) }
-    var childDirs by remember { mutableStateOf<List<File>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var isSaving by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
-    PredictiveBackHandler(enabled = currentDir != null) { progressFlow ->
+    PredictiveBackHandler(enabled = state.currentDirectory != null) { progressFlow ->
         isBackPredicting = true
         try {
             progressFlow.collect { backEvent -> backProgress = backEvent.progress }
-            currentDir = currentDir?.parentFile
+            actions.navigateBack()
         } finally {
             isBackPredicting = false
             backProgress = 0f
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val loadedVolumes = loadVolumes()
-        volumes = loadedVolumes
-        currentDir = resolveInitialSaveToArcileDirectory(loadDefaultPath(), loadedVolumes)
-        isLoading = false
-    }
-
-    LaunchedEffect(currentDir) {
-        childDirs = withContext(Dispatchers.IO) {
-            currentDir
-                ?.listFiles { file -> file.isDirectory && file.canRead() }
-                ?.asSequence()
-                ?.sortedBy { it.name.lowercase() }
-                ?.toList()
-                .orEmpty()
         }
     }
 
@@ -116,10 +79,7 @@ internal fun SaveToArcileScreen(
                 title = { Text(stringResource(R.string.save_to_arcile_title)) },
                 navigationIcon = {
                     IconButton(
-                        onClick = {
-                            val parent = currentDir?.parentFile
-                            if (currentDir != null && parent != null) currentDir = parent else onCancel()
-                        },
+                        onClick = actions.navigateBack,
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -129,129 +89,69 @@ internal fun SaveToArcileScreen(
             )
         },
         bottomBar = {
-            Surface(tonalElevation = 3.dp) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = resourcesPluralString(
-                            R.plurals.save_to_arcile_selected_files,
-                            incoming.size,
-                            incoming.size
-                        ),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val selectedDirectory = currentDir
-                        val canUseSelectedDirectory = selectedDirectory != null &&
-                            isValidSaveToArcileDirectory(selectedDirectory, volumes)
-                        if (selectedDirectory != null) {
-                            TextButton(
-                                enabled = !isSaving && canUseSelectedDirectory,
-                                shape = ExpressiveShapes.medium,
-                                onClick = {
-                                    scope.launch {
-                                        saveDefaultPath(selectedDirectory.absolutePath)
-                                        onDefaultSaved()
-                                    }
-                                }
-                            ) {
-                                Text(stringResource(R.string.save_to_arcile_set_default))
-                            }
-                            Spacer(Modifier.size(8.dp))
-                        }
-                        Button(
-                            enabled = !isSaving && canUseSelectedDirectory,
-                            shape = ExpressiveShapes.medium,
-                            onClick = {
-                                val destination = selectedDirectory?.takeIf {
-                                    isValidSaveToArcileDirectory(it, volumes)
-                                } ?: return@Button
-                                isSaving = true
-                                scope.launch {
-                                    copyTo(destination).onSuccess(onFinished).onFailure(onFailed)
-                                    isSaving = false
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Outlined.SaveAlt, contentDescription = null)
-                            Spacer(Modifier.size(8.dp))
-                            Text(stringResource(R.string.save_to_arcile_save_here))
-                        }
-                    }
-                }
-            }
+            SaveToArcileBottomBar(state = state, actions = actions)
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (isLoading || isSaving) {
+            if (state.isLoading || state.isSaving) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
             } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(vertical = 8.dp),
+                SaveToArcileDirectoryList(
+                    state = state,
+                    actions = actions,
                     modifier = Modifier.fillMaxSize().graphicsLayer {
                         if (isBackPredicting) {
                             translationX = backProgress * 100.dp.toPx()
                             alpha = 1f - backProgress * 0.5f
                         }
                     }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SaveToArcileBottomBar(
+    state: SaveToArcileState,
+    actions: SaveToArcileActions
+) {
+    Surface(tonalElevation = 3.dp) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = LocalContext.current.resources.getQuantityString(
+                    R.plurals.save_to_arcile_selected_files,
+                    state.incoming.size,
+                    state.incoming.size
+                ),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (state.currentDirectory != null) {
+                    TextButton(
+                        enabled = !state.isSaving && state.canUseCurrentDirectory,
+                        shape = ExpressiveShapes.medium,
+                        onClick = actions.saveAsDefault
+                    ) {
+                        Text(stringResource(R.string.save_to_arcile_set_default))
+                    }
+                    Spacer(Modifier.size(8.dp))
+                }
+                Button(
+                    enabled = !state.isSaving && state.canUseCurrentDirectory,
+                    shape = ExpressiveShapes.medium,
+                    onClick = actions.saveHere
                 ) {
-                    item {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            Text(
-                                text = currentDir?.absolutePath
-                                    ?: stringResource(R.string.save_to_arcile_choose_storage),
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = incoming.joinToString(limit = 3) { it.displayName },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        HorizontalDivider()
-                    }
-                    if (currentDir == null) {
-                        items(volumes, key = { it.id }) { volume ->
-                            ListItem(
-                                headlineContent = { Text(volume.name) },
-                                supportingContent = {
-                                    Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                },
-                                leadingContent = { Icon(Icons.Outlined.Storage, contentDescription = null) },
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(ExpressiveShapes.medium)
-                                    .clickable { currentDir = File(volume.path) }
-                            )
-                        }
-                    } else {
-                        items(childDirs, key = { it.absolutePath }) { directory ->
-                            ListItem(
-                                headlineContent = { Text(directory.name) },
-                                supportingContent = {
-                                    Text(
-                                        directory.absolutePath,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                leadingContent = { Icon(Icons.Outlined.Folder, contentDescription = null) },
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(ExpressiveShapes.medium)
-                                    .clickable { currentDir = directory }
-                            )
-                        }
-                    }
+                    Icon(Icons.Outlined.SaveAlt, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.save_to_arcile_save_here))
                 }
             }
         }
@@ -259,5 +159,56 @@ internal fun SaveToArcileScreen(
 }
 
 @Composable
-private fun resourcesPluralString(id: Int, quantity: Int, vararg args: Any): String =
-    LocalContext.current.resources.getQuantityString(id, quantity, *args)
+private fun SaveToArcileDirectoryList(
+    state: SaveToArcileState,
+    actions: SaveToArcileActions,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp), modifier = modifier) {
+        item {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(
+                    text = state.currentDirectory?.absolutePath
+                        ?: stringResource(R.string.save_to_arcile_choose_storage),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = state.incoming.joinToString(limit = 3) { it.displayName },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            HorizontalDivider()
+        }
+        if (state.currentDirectory == null) {
+            items(state.volumes, key = { it.id }) { volume ->
+                ListItem(
+                    headlineContent = { Text(volume.name) },
+                    supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingContent = { Icon(Icons.Outlined.Storage, contentDescription = null) },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clip(ExpressiveShapes.medium)
+                        .clickable { actions.selectVolume(volume) }
+                )
+            }
+        } else {
+            items(state.childDirectories, key = { it.absolutePath }) { directory ->
+                ListItem(
+                    headlineContent = { Text(directory.name) },
+                    supportingContent = {
+                        Text(directory.absolutePath, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    },
+                    leadingContent = { Icon(Icons.Outlined.Folder, contentDescription = null) },
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        .clip(ExpressiveShapes.medium)
+                        .clickable { actions.selectDirectory(directory) }
+                )
+            }
+        }
+    }
+}
