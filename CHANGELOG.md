@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.6
+> **Version:** 1.4.7
 > **Last Updated:** 2026-07-12
 
 ---
+
+## [1.4.7] - 2026-07-12
+
+- **File Interface Reliability**: Grid previews, range selection, Trash loading/empty states, and Activity Log labels now remain independently consistent.
+- **Quick Access Organization**: Custom paths are normalized before saving and every shortcut appears in exactly one appropriate management section.
 
 ## [1.4.6] - 2026-07-12
 

@@ -112,85 +112,21 @@ internal fun QuickAccessScreen(
     var showCustomDialog by rememberSaveable { mutableStateOf(false) }
     var showReorderSheet by remember { mutableStateOf(false) }
 
-    val filesItem = remember {
-        QuickAccessItem(
-            id = "handoff_files_app",
-            label = "Files",
-            path = "",
-            type = QuickAccessType.FILES_APP
-        )
-    }
-    val dataItem = remember {
-        QuickAccessItem(
-            id = "handoff_android_data",
-            label = "Android/data",
-            path = "Android/data",
-            type = QuickAccessType.EXTERNAL_HANDOFF
-        )
-    }
-    val obbItem = remember {
-        QuickAccessItem(
-            id = "handoff_android_obb",
-            label = "Android/obb",
-            path = "Android/obb",
-            type = QuickAccessType.EXTERNAL_HANDOFF
-        )
-    }
-
     var tempPath by rememberSaveable { mutableStateOf("") }
     var tempLabel by rememberSaveable { mutableStateOf("") }
 
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
-    val fabIconRotation by animateFloatAsState(
-        targetValue = if (isFabExpanded) 45f else 0f,
-        label = "fabRotation"
-    )
 
     if (showCustomDialog) {
-        AlertDialog(
-            onDismissRequest = { showCustomDialog = false },
-            title = { Text(stringResource(R.string.quick_access_add_custom_title)) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = tempLabel,
-                        onValueChange = { tempLabel = it },
-                        label = { Text(stringResource(R.string.quick_access_label_hint)) },
-                        singleLine = true,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.fillMaxWidth().keyboardInputField()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = tempPath,
-                        onValueChange = { tempPath = it },
-                        label = { Text(stringResource(R.string.quick_access_path_hint)) },
-                        singleLine = true,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.fillMaxWidth().keyboardInputField()
-                    )
-                }
-            },
-            confirmButton = {
-                val addClick = {
-                    if (tempPath.isNotBlank() && tempLabel.isNotBlank()) {
-                        actions.addCustomFolder(tempPath, tempLabel)
-                        showCustomDialog = false
-                    }
-                }
-                TextButton(
-                    onClick = addClick,
-                    shape = ExpressiveShapes.medium
-                ) {
-                    Text(stringResource(R.string.add))
-                }
-            },
-            dismissButton = {
-                val dismissClick = { showCustomDialog = false }
-                TextButton(
-                    onClick = dismissClick,
-                    shape = ExpressiveShapes.medium
-                ) { Text(stringResource(R.string.cancel)) }
+        QuickAccessCustomPathDialog(
+            label = tempLabel,
+            path = tempPath,
+            onLabelChange = { tempLabel = it },
+            onPathChange = { tempPath = it },
+            onDismiss = { showCustomDialog = false },
+            onConfirm = {
+                actions.addCustomFolder(tempPath.trim(), tempLabel.trim())
+                showCustomDialog = false
             }
         )
     }
@@ -242,80 +178,16 @@ internal fun QuickAccessScreen(
             )
         },
         floatingActionButton = {
-            Box(modifier = Modifier.navigationBarsPadding()) {
-                Box(modifier = Modifier.align(Alignment.BottomEnd)) {
-                    ExpandableFabMenu(
-                        isExpanded = isFabExpanded,
-                        onToggleExpand = { isFabExpanded = !isFabExpanded },
-                        fabIconRotation = fabIconRotation,
-                        items = listOf(
-                            FabMenuItem(
-                                label = stringResource(R.string.select_folder),
-                                icon = Icons.Default.FolderOpen,
-                                onClick = {
-                                    isFabExpanded = false
-                                    actions.requestSafFolder()
-                                }
-                            ),
-                            FabMenuItem(
-                                label = stringResource(R.string.add_custom_path),
-                                icon = Icons.Default.Add,
-                                onClick = {
-                                    isFabExpanded = false
-                                    tempPath = ""
-                                    tempLabel = ""
-                                    showCustomDialog = true
-                                }
-                            ),
-                            FabMenuItem(
-                                label = stringResource(R.string.item_type_files),
-                                onClick = {
-                                    isFabExpanded = false
-                                    actions.addFilesShortcut()
-                                },
-                                iconContent = {
-                                    QuickAccessAppIcon(
-                                        item = filesItem,
-                                        fallbackIcon = Icons.Default.FolderSpecial,
-                                        modifier = Modifier.size(24.dp),
-                                        fallbackTint = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            ),
-                            FabMenuItem(
-                                label = stringResource(R.string.add_android_data),
-                                onClick = {
-                                    isFabExpanded = false
-                                    actions.addAndroidDataShortcut()
-                                },
-                                iconContent = {
-                                    QuickAccessAppIcon(
-                                        item = dataItem,
-                                        fallbackIcon = Icons.Default.FolderSpecial,
-                                        modifier = Modifier.size(24.dp),
-                                        fallbackTint = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            ),
-                            FabMenuItem(
-                                label = stringResource(R.string.add_android_obb),
-                                onClick = {
-                                    isFabExpanded = false
-                                    actions.addAndroidObbShortcut()
-                                },
-                                iconContent = {
-                                    QuickAccessAppIcon(
-                                        item = obbItem,
-                                        fallbackIcon = Icons.Default.FolderSpecial,
-                                        modifier = Modifier.size(24.dp),
-                                        fallbackTint = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
-                                }
-                            )
-                        )
-                    )
-                }
-            }
+            QuickAccessAddFab(
+                expanded = isFabExpanded,
+                onExpandedChange = { isFabExpanded = it },
+                onRequestCustomPath = {
+                    tempPath = ""
+                    tempLabel = ""
+                    showCustomDialog = true
+                },
+                actions = actions
+            )
         }
     ) { padding ->
         Box(
@@ -323,61 +195,11 @@ internal fun QuickAccessScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.toolbarBottomGap
-                )
-            ) {
-                val systemFolders = state.items.filter { it.type == QuickAccessType.STANDARD && it.id != "standard_whatsapp_media" }
-                val appFolders = state.items.filter { it.id == "standard_whatsapp_media" || it.path.contains("com.whatsapp") || it.path.contains("whatsapp") }
-                val filesFolders = state.items.filter { it.type == QuickAccessType.FILES_APP || it.type == QuickAccessType.SAF_TREE || it.type == QuickAccessType.EXTERNAL_HANDOFF }
-                val customFolders = state.items.filter { it.type == QuickAccessType.CUSTOM }
-
-                item {
-                    QuickAccessSectionGroup(
-                        title = stringResource(R.string.quick_access_section_custom),
-                        items = customFolders,
-                        onNavigateToPath = actions.navigateToPath,
-                        onNavigateToSaf = actions.navigateToSaf,
-                        onTogglePin = actions.togglePin,
-                        onRemoveItem = actions.removeItem
-                    )
-                }
-
-                item {
-                    QuickAccessSectionGroup(
-                        title = stringResource(R.string.quick_access_section_system),
-                        items = systemFolders,
-                        onNavigateToPath = actions.navigateToPath,
-                        onNavigateToSaf = actions.navigateToSaf,
-                        onTogglePin = actions.togglePin,
-                        onRemoveItem = actions.removeItem
-                    )
-                }
-
-                item {
-                    QuickAccessSectionGroup(
-                        title = stringResource(R.string.quick_access_section_apps),
-                        items = appFolders,
-                        onNavigateToPath = actions.navigateToPath,
-                        onNavigateToSaf = actions.navigateToSaf,
-                        onTogglePin = actions.togglePin,
-                        onRemoveItem = actions.removeItem
-                    )
-                }
-
-                item {
-                    QuickAccessSectionGroup(
-                        title = stringResource(R.string.quick_access_section_files),
-                        items = filesFolders,
-                        onNavigateToPath = actions.navigateToPath,
-                        onNavigateToSaf = actions.navigateToSaf,
-                        onTogglePin = actions.togglePin,
-                        onRemoveItem = actions.removeItem
-                    )
-                }
-            }
+            QuickAccessSections(
+                state = state,
+                actions = actions,
+                modifier = Modifier.fillMaxSize()
+            )
 
             if (isFabExpanded) {
                 Box(
