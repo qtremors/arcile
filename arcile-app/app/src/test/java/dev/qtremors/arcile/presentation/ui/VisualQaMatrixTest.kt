@@ -10,7 +10,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import org.junit.Rule
 import org.junit.Test

@@ -45,11 +45,11 @@ class BrowserViewModelNavigationSearchTest {
 
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isVolumeRootScreen)
-        assertEquals(listOf("Internal", "SD Card"), viewModel.state.value.files.map { it.name })
-        assertEquals(FileSortOption.SIZE_LARGEST, viewModel.state.value.browserSortOption)
-        assertEquals(FileViewMode.LIST, viewModel.state.value.browserViewMode)
-        assertFalse(viewModel.state.value.isLoading)
+        assertTrue(viewModel.uiState.value.isVolumeRootScreen)
+        assertEquals(listOf("Internal", "SD Card"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(FileSortOption.SIZE_LARGEST, viewModel.uiState.value.browserSortOption)
+        assertEquals(FileViewMode.LIST, viewModel.uiState.value.browserViewMode)
+        assertFalse(viewModel.uiState.value.isLoading)
     }
 
     @Test
@@ -65,9 +65,9 @@ class BrowserViewModelNavigationSearchTest {
         viewModel.navigateToSpecificFolder("/missing/path")
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isVolumeRootScreen)
-        assertEquals(UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_storage_for_path_unavailable), viewModel.state.value.error)
-        assertEquals("", viewModel.state.value.currentPath)
+        assertTrue(viewModel.uiState.value.isVolumeRootScreen)
+        assertEquals(UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_storage_for_path_unavailable), viewModel.uiState.value.error)
+        assertEquals("", viewModel.uiState.value.currentPath)
     }
 
     @Test
@@ -92,13 +92,13 @@ class BrowserViewModelNavigationSearchTest {
         viewModel.updateSearchFilters(filters)
         viewModel.updateBrowserSearchQuery("holiday")
         advanceTimeBy(399)
-        assertFalse(viewModel.state.value.isSearching)
+        assertFalse(viewModel.uiState.value.isSearching)
         advanceTimeBy(1)
         advanceUntilIdle()
 
         assertEquals("holiday", repo.lastSearchQuery)
         assertEquals(StorageScope.Path("primary", "/storage/emulated/0/Download"), repo.lastSearchScope)
         assertEquals(filters, repo.lastSearchFilters)
-        assertEquals(listOf("holiday.jpg"), viewModel.state.value.searchResults.map { it.name })
+        assertEquals(listOf("holiday.jpg"), viewModel.uiState.value.searchResults.map { it.name })
     }
 }

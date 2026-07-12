@@ -84,7 +84,6 @@ internal class BrowserViewModel @Inject constructor(
         archive = archiveController.state,
         reveal = revealController.state
     )
-    val state: StateFlow<BrowserUiState> = uiState
     private val initializer = BrowserInitializer(
         scope = viewModelScope,
         getStorageVolumes = getStorageVolumesUseCase,

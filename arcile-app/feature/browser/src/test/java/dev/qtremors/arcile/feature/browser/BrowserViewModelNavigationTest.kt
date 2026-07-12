@@ -53,13 +53,13 @@ class BrowserViewModelNavigationTest {
                 BrowserInitializationState.Uninitialized,
                 viewModel.initializationState.value
             )
-            assertEquals("", viewModel.state.value.currentPath)
+            assertEquals("", viewModel.uiState.value.currentPath)
 
             viewModel.initialize(entryRequest = null)
             advanceUntilIdle()
 
             assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
-            assertEquals(internal.path, viewModel.state.value.currentPath)
+            assertEquals(internal.path, viewModel.uiState.value.currentPath)
         }
 
     @Test
@@ -97,7 +97,7 @@ class BrowserViewModelNavigationTest {
             advanceUntilIdle()
 
             assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
-            assertEquals(requestedPath, viewModel.state.value.currentPath)
+            assertEquals(requestedPath, viewModel.uiState.value.currentPath)
         }
 
     @Test
@@ -131,7 +131,7 @@ class BrowserViewModelNavigationTest {
             advanceUntilIdle()
 
             assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
-            assertEquals(internal.path, viewModel.state.value.currentPath)
+            assertEquals(internal.path, viewModel.uiState.value.currentPath)
         }
 
     @Test
@@ -190,14 +190,14 @@ class BrowserViewModelNavigationTest {
 
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
-        assertEquals(listOf("hello.txt"), viewModel.state.value.files.map { it.name })
+        assertEquals("/storage/emulated/0/Download", viewModel.uiState.value.currentPath)
+        assertEquals(listOf("hello.txt"), viewModel.uiState.value.files.map { it.name })
 
         assertTrue(viewModel.navigateBack())
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0", viewModel.state.value.currentPath)
-        assertEquals(listOf("Download"), viewModel.state.value.files.map { it.name })
+        assertEquals("/storage/emulated/0", viewModel.uiState.value.currentPath)
+        assertEquals(listOf("Download"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -227,13 +227,13 @@ class BrowserViewModelNavigationTest {
 
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isCategoryScreen)
-        assertEquals("Images", viewModel.state.value.activeCategoryName)
-        assertEquals("", viewModel.state.value.currentPath)
-        assertEquals("primary", viewModel.state.value.currentVolumeId)
-        assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
-        assertEquals(FileViewMode.LIST, viewModel.state.value.browserViewMode)
-        assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
+        assertTrue(viewModel.uiState.value.isCategoryScreen)
+        assertEquals("Images", viewModel.uiState.value.activeCategoryName)
+        assertEquals("", viewModel.uiState.value.currentPath)
+        assertEquals("primary", viewModel.uiState.value.currentVolumeId)
+        assertEquals(FileSortOption.DATE_OLDEST, viewModel.uiState.value.browserSortOption)
+        assertEquals(FileViewMode.LIST, viewModel.uiState.value.browserViewMode)
+        assertEquals(listOf("pic.jpg"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -258,10 +258,10 @@ class BrowserViewModelNavigationTest {
 
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isCategoryScreen)
-        assertEquals("Audio", viewModel.state.value.activeCategoryName)
-        assertEquals("", viewModel.state.value.currentPath)
-        assertEquals(listOf("song.mp3"), viewModel.state.value.files.map { it.name })
+        assertTrue(viewModel.uiState.value.isCategoryScreen)
+        assertEquals("Audio", viewModel.uiState.value.activeCategoryName)
+        assertEquals("", viewModel.uiState.value.currentPath)
+        assertEquals(listOf("song.mp3"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -317,11 +317,11 @@ class BrowserViewModelNavigationTest {
         viewModel.navigateToCategory("Images", "primary")
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.selectedFolderTabPath)
+        assertNull(viewModel.uiState.value.selectedFolderTabPath)
 
         viewModel.selectFolderTab("/storage/emulated/0/DCIM")
 
-        assertEquals("/storage/emulated/0/DCIM", viewModel.state.value.selectedFolderTabPath)
+        assertEquals("/storage/emulated/0/DCIM", viewModel.uiState.value.selectedFolderTabPath)
     }
 
     @Test
@@ -355,7 +355,7 @@ class BrowserViewModelNavigationTest {
         advanceTimeBy(300)
         advanceUntilIdle()
 
-        assertEquals(listOf("new.jpg"), viewModel.state.value.files.map { it.name })
+        assertEquals(listOf("new.jpg"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -391,8 +391,8 @@ class BrowserViewModelNavigationTest {
         advanceTimeBy(300)
         advanceUntilIdle()
 
-        assertEquals(listOf("keep.jpg"), viewModel.state.value.files.map { it.name })
-        assertEquals(setOf(selectedPath), viewModel.state.value.selectedFiles)
+        assertEquals(listOf("keep.jpg"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(setOf(selectedPath), viewModel.uiState.value.selectedFiles)
     }
 
     @Test
@@ -428,8 +428,8 @@ class BrowserViewModelNavigationTest {
         advanceTimeBy(300)
         advanceUntilIdle()
 
-        assertEquals(listOf("keep.jpg"), viewModel.state.value.files.map { it.name })
-        assertEquals(setOf(selectedPath), viewModel.state.value.selectedFiles)
+        assertEquals(listOf("keep.jpg"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(setOf(selectedPath), viewModel.uiState.value.selectedFiles)
     }
 
     @Test
@@ -455,13 +455,13 @@ class BrowserViewModelNavigationTest {
         viewModel.toggleSelection("/storage/emulated/0/DCIM/one.jpg")
         viewModel.selectFolderTab("/storage/emulated/0/DCIM")
 
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
 
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.selectedFolderTabPath)
-        assertFalse(viewModel.state.value.isCategoryScreen)
+        assertNull(viewModel.uiState.value.selectedFolderTabPath)
+        assertFalse(viewModel.uiState.value.isCategoryScreen)
     }
 
     @Test
@@ -494,17 +494,17 @@ class BrowserViewModelNavigationTest {
         viewModel.navigateToFolder(ArchiveEntryThumbnailData.virtualPath(archivePath, "docs"))
         advanceUntilIdle()
 
-        assertEquals("docs", viewModel.state.value.archiveContext?.entryPrefix)
+        assertEquals("docs", viewModel.uiState.value.archiveContext?.entryPrefix)
 
         assertTrue(viewModel.navigateBack())
         advanceUntilIdle()
-        assertNull(viewModel.state.value.archiveContext?.entryPrefix)
+        assertNull(viewModel.uiState.value.archiveContext?.entryPrefix)
 
         assertTrue(viewModel.navigateBack())
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.archiveContext)
-        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
+        assertNull(viewModel.uiState.value.archiveContext)
+        assertEquals("/storage/emulated/0/Download", viewModel.uiState.value.currentPath)
         assertEquals("/storage/emulated/0/Download", savedStateHandle.get<String>("currentPath"))
     }
 
@@ -540,6 +540,6 @@ class BrowserViewModelNavigationTest {
         assertEquals(listOf(archivePath), request.sourcePaths)
         assertEquals("/storage/emulated/0/Download", request.destinationPath)
         assertEquals("image.jpg", request.archiveEntryPrefix)
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
     }
 }

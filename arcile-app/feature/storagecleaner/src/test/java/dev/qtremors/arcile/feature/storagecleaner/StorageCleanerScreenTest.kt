@@ -25,7 +25,7 @@ import dev.qtremors.arcile.feature.storagecleaner.ui.DuplicateGroupCard
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
 import dev.qtremors.arcile.feature.storagecleaner.ui.cleanFilePath
 import dev.qtremors.arcile.feature.storagecleaner.ui.resolveStorageCleanerBackAction
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

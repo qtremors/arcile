@@ -227,19 +227,36 @@ class ArchitectureBoundaryTest {
 
     @Test
     fun `source packages match their owning modules`() {
-        val ownedRoots = buildList {
+        val modulePackages = buildMap {
             File(projectRoot(), "feature").listFiles()
                 .orEmpty()
                 .filter(File::isDirectory)
                 .forEach { module ->
                     val packageName = if (module.name == "import") "importing" else module.name
-                    add(File(module, "src/main/java") to "dev.qtremors.arcile.feature.$packageName")
+                    put("feature/${module.name}", "dev.qtremors.arcile.feature.$packageName")
                 }
-            add(File(projectRoot(), "core/ui/src/main/java") to "dev.qtremors.arcile.core.ui")
-            add(File(projectRoot(), "core/presentation/src/main/java") to "dev.qtremors.arcile.core.presentation")
-            add(File(projectRoot(), "core/runtime/src/main/java") to "dev.qtremors.arcile.core.runtime")
-            add(File(projectRoot(), "plugin-ui/src/main/java") to "dev.qtremors.arcile.plugin.ui")
-            add(File(projectRoot(), "plugin-glb/src/main/java") to "dev.qtremors.arcile.plugin.glb")
+            put("app", "dev.qtremors.arcile")
+            put("core/navigation/api", "dev.qtremors.arcile.navigation")
+            put("core/operation/api", "dev.qtremors.arcile.core.operation")
+            put("core/operation/android", "dev.qtremors.arcile.core.operation")
+            put("core/plugin/android", "dev.qtremors.arcile.core.plugin")
+            put("core/presentation", "dev.qtremors.arcile.core.presentation")
+            put("core/runtime", "dev.qtremors.arcile.core.runtime")
+            put("core/storage/domain", "dev.qtremors.arcile.core.storage.domain")
+            put("core/storage/data", "dev.qtremors.arcile.core.storage.data")
+            put("core/testing", "dev.qtremors.arcile.testutil")
+            put("core/ui", "dev.qtremors.arcile.core.ui")
+            put("core/ui/testing", "dev.qtremors.arcile.core.ui.testing")
+            put("plugin-api", "dev.qtremors.arcile.plugin.api")
+            put("plugin-ui", "dev.qtremors.arcile.plugin.ui")
+            put("plugin-glb", "dev.qtremors.arcile.plugin.glb")
+        }
+        val ownedRoots = modulePackages.flatMap { (module, expectedPackage) ->
+            listOf("main", "test", "androidTest").mapNotNull { sourceSet ->
+                File(projectRoot(), "$module/src/$sourceSet/java")
+                    .takeIf(File::exists)
+                    ?.let { sourceRoot -> sourceRoot to expectedPackage }
+            }
         }
         val offenders = ownedRoots.flatMap { (sourceRoot, expectedPackage) ->
             sourceRoot.kotlinFiles().mapNotNull { file ->
@@ -248,17 +265,26 @@ class ArchitectureBoundaryTest {
                         ?.removePrefix("package ")
                         ?.trim()
                 }
-                if (packageName == expectedPackage || packageName?.startsWith("$expectedPackage.") == true) {
-                    null
-                } else {
-                    "${file.relativeTo(projectRoot()).invariantSeparatorsPath}: " +
-                        "${packageName ?: "missing package"}; expected $expectedPackage"
+                val expectedPrefixMatches = packageName == expectedPackage ||
+                    packageName?.startsWith("$expectedPackage.") == true
+                val packagePath = packageName?.replace('.', '/')
+                val actualPath = file.parentFile
+                    ?.relativeTo(sourceRoot)
+                    ?.invariantSeparatorsPath
+                when {
+                    !expectedPrefixMatches ->
+                        "${file.relativeTo(projectRoot()).invariantSeparatorsPath}: " +
+                            "${packageName ?: "missing package"}; expected $expectedPackage"
+                    actualPath != packagePath ->
+                        "${file.relativeTo(projectRoot()).invariantSeparatorsPath}: " +
+                            "package path $actualPath does not match declaration $packagePath"
+                    else -> null
                 }
             }.toList()
         }
 
         if (offenders.isNotEmpty()) {
-            fail("Production source packages must match their owning modules:\n${offenders.joinToString("\n")}")
+            fail("Source packages and paths must match their owning modules:\n${offenders.joinToString("\n")}")
         }
 
         val removedModuleNames = listOf(

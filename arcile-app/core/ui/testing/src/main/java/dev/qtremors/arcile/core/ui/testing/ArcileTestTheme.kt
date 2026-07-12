@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.testutil
+package dev.qtremors.arcile.core.ui.testing
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider

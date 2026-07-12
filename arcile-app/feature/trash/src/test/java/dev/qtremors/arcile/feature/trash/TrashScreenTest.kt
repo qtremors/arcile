@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.trash
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.feature.trash.TrashState
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

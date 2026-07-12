@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.7
+> **Version:** 1.4.8
 > **Last Updated:** 2026-07-12
 
 ---
+
+## [1.4.8] - 2026-07-12
+
+- **Upgrade Reliability**: Shared thumbnail loading and feature test wiring now remain owned by their correct modules, with automated package-location checks preventing release-only source drift.
 
 ## [1.4.7] - 2026-07-12
 

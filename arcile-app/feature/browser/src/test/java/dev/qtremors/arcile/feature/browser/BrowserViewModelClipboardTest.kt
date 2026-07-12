@@ -44,9 +44,9 @@ class BrowserViewModelClipboardTest {
         viewModel.copySelectedToClipboard()
         advanceUntilIdle()
 
-        assertEquals(ClipboardOperation.COPY, viewModel.state.value.clipboardState?.operation)
-        assertEquals(listOf("/storage/emulated/0/alpha.txt", "/storage/emulated/0/beta.txt"), viewModel.state.value.clipboardState?.files?.map { it.absolutePath })
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertEquals(ClipboardOperation.COPY, viewModel.uiState.value.clipboardState?.operation)
+        assertEquals(listOf("/storage/emulated/0/alpha.txt", "/storage/emulated/0/beta.txt"), viewModel.uiState.value.clipboardState?.files?.map { it.absolutePath })
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
     }
 
     @Test
@@ -82,8 +82,8 @@ class BrowserViewModelClipboardTest {
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.showConflictDialog)
-        assertEquals(listOf(conflict), viewModel.state.value.pasteConflicts)
+        assertTrue(viewModel.uiState.value.showConflictDialog)
+        assertEquals(listOf(conflict), viewModel.uiState.value.pasteConflicts)
         assertEquals(listOf("/storage/emulated/0/source.txt"), repo.lastConflictSourcePaths)
         assertEquals("/storage/emulated/0/Download", repo.lastConflictDestination)
     }

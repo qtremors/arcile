@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.ui
+package dev.qtremors.arcile.feature.quickaccess
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription

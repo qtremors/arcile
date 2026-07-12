@@ -26,7 +26,7 @@ import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.feature.browser.scrollPositionKey
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.presentation.PropertiesUiModel
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap

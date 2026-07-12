@@ -61,7 +61,7 @@ class BrowserViewModelOperationTest {
         )
         advanceUntilIdle()
 
-        val operation = viewModel.state.value.activeFileOperation
+        val operation = viewModel.uiState.value.activeFileOperation
         assertEquals(BulkFileOperationType.COPY, operation?.type)
         assertEquals(1, operation?.completedItems)
         assertEquals(2, operation?.totalItems)
@@ -97,11 +97,11 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
 
         viewModel.clearActiveFileOperation()
-        assertNull(viewModel.state.value.activeFileOperation)
-        assertEquals(UiText.PluralResource(R.plurals.file_operation_moved_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
+        assertNull(viewModel.uiState.value.activeFileOperation)
+        assertEquals(UiText.PluralResource(R.plurals.file_operation_moved_items, 1, listOf(1)), viewModel.uiState.value.fileOperationStatusMessage)
 
         viewModel.clearFileOperationStatusMessage()
-        assertNull(viewModel.state.value.fileOperationStatusMessage)
+        assertNull(viewModel.uiState.value.fileOperationStatusMessage)
     }
 
     @Test
@@ -187,7 +187,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
-        assertEquals(listOf("before.txt"), viewModel.state.value.files.map { it.name })
+        assertEquals(listOf("before.txt"), viewModel.uiState.value.files.map { it.name })
 
         viewModel.createFakeFile("after.txt", 128L)
         advanceUntilIdle()
@@ -199,8 +199,8 @@ class BrowserViewModelOperationTest {
         coordinator.onOperationCompleted(request)
         advanceUntilIdle()
 
-        assertEquals(listOf("after.txt"), viewModel.state.value.files.map { it.name })
-        assertEquals(UiText.PluralResource(R.plurals.file_operation_created_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
+        assertEquals(listOf("after.txt"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(UiText.PluralResource(R.plurals.file_operation_created_items, 1, listOf(1)), viewModel.uiState.value.fileOperationStatusMessage)
     }
 
     @Test
@@ -229,7 +229,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
-        assertTrue(viewModel.state.value.files.isEmpty())
+        assertTrue(viewModel.uiState.value.files.isEmpty())
 
         viewModel.pasteFromClipboard()
         advanceUntilIdle()
@@ -243,8 +243,8 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
 
         assertEquals(BulkFileOperationType.COPY, request.type)
-        assertEquals(listOf("copied.txt"), viewModel.state.value.files.map { it.name })
-        assertEquals(UiText.PluralResource(R.plurals.file_operation_copied_items, 1, listOf(1)), viewModel.state.value.fileOperationStatusMessage)
+        assertEquals(listOf("copied.txt"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(UiText.PluralResource(R.plurals.file_operation_copied_items, 1, listOf(1)), viewModel.uiState.value.fileOperationStatusMessage)
     }
 
     @Test
@@ -266,9 +266,9 @@ class BrowserViewModelOperationTest {
         viewModel.requestDeleteSelected()
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.showMixedDeleteExplanation)
-        assertFalse(viewModel.state.value.showTrashConfirmation)
-        assertFalse(viewModel.state.value.showPermanentDeleteConfirmation)
+        assertTrue(viewModel.uiState.value.showMixedDeleteExplanation)
+        assertFalse(viewModel.uiState.value.showTrashConfirmation)
+        assertFalse(viewModel.uiState.value.showPermanentDeleteConfirmation)
     }
 
     @Test
@@ -292,7 +292,7 @@ class BrowserViewModelOperationTest {
 
         assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
         assertEquals(listOf("/storage/emulated/0/alpha.txt"), coordinator.startedRequests.single().sourcePaths)
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
     }
 
     @Test
@@ -313,7 +313,7 @@ class BrowserViewModelOperationTest {
         viewModel.moveSelectedToTrash()
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.operation.pendingAuthorization)
+        assertNull(viewModel.uiState.value.operation.pendingAuthorization)
     }
 
     @Test
@@ -349,7 +349,7 @@ class BrowserViewModelOperationTest {
 
         advanceUntilIdle()
 
-        val recovery = viewModel.state.value.activeRecoveryOperation
+        val recovery = viewModel.uiState.value.activeRecoveryOperation
         assertEquals("op-recovery", recovery?.operationId)
         assertEquals(BulkFileOperationType.EXTRACT_ARCHIVE, recovery?.type)
         assertEquals(1, recovery?.completedItems)
@@ -358,7 +358,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
 
         assertEquals(listOf("op-recovery"), coordinator.cleanupRequests)
-        assertNull(viewModel.state.value.activeRecoveryOperation)
+        assertNull(viewModel.uiState.value.activeRecoveryOperation)
     }
 
     @Test
@@ -379,8 +379,8 @@ class BrowserViewModelOperationTest {
         viewModel.renameFile("/storage/emulated/0/test.txt", "test - Copy.txt")
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
-        assertNull(viewModel.state.value.error)
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
+        assertNull(viewModel.uiState.value.error)
         assertEquals("/storage/emulated/0/test.txt", repo.lastRenamePath)
         assertEquals("test - Copy.txt", repo.lastRenameNewName)
     }
@@ -411,13 +411,13 @@ class BrowserViewModelOperationTest {
             advanceUntilIdle()
 
             assertEquals("report..final.txt", repo.lastRenameNewName)
-            assertNull(viewModel.state.value.error)
+            assertNull(viewModel.uiState.value.error)
 
             viewModel.renameFile("/storage/emulated/0/report..final.txt", "..")
 
             assertEquals(
                 UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_invalid_name),
-                viewModel.state.value.error
+                viewModel.uiState.value.error
             )
         }
 }
